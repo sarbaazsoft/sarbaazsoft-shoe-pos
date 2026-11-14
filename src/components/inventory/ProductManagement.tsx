@@ -14,6 +14,9 @@ import { useTheme } from '../../context/ThemeContext.tsx';
 import { BrandLogo } from '../common/BrandLogo.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { STANDARD_FOOTWEAR_CATEGORIES, isHalfCartonAllowed } from '../../utils/footwear.ts';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface ProductManagementProps {
   currentUser: any;
@@ -34,6 +37,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
 
   const [products, setProducts] = useState<any[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -138,7 +143,11 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       }, 2500);
 
       // Broadcast inventory update event for headers, POS and report sync
-      window.dispatchEvent(new CustomEvent('inventory:updated', { detail: { productId: p.id, newStock: parsed } }));
+      emitDataSync(['products', 'inventory'], {
+        source: 'product-management',
+        productId: p.id,
+        newStock: parsed,
+      });
       triggerStatRecount();
       setEditingStockId(null);
     } catch (err: any) {
@@ -148,28 +157,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     }
   };
 
-  useEffect(() => {
-    loadFilterData();
-
-    // Check for pending edit or barcode actions from Quick Price search bar
-    const handleEditEvent = (e: any) => {
-      const product = e.detail?.product;
-      if (product) {
-        setEditingProduct(product);
-        setIsFormModalOpen(true);
-      }
-    };
-
-    const handleBarcodeEvent = (e: any) => {
-      const product = e.detail?.product;
-      if (product) {
-        handleOpenBarcodeTool(product);
-      }
-    };
-
-    window.addEventListener('product:edit', handleEditEvent);
-    window.addEventListener('inventory:print-barcode', handleBarcodeEvent);
-
+  const consumePendingInventoryIntents = () => {
     const pendingEditStr = sessionStorage.getItem('pending_edit_product');
     if (pendingEditStr) {
       try {
@@ -188,12 +176,44 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         handleOpenBarcodeTool(prod);
       } catch {}
     }
+  };
+
+  useEffect(() => {
+    loadFilterData();
+
+    // Check for pending edit or barcode actions from Quick Price search bar
+    const handleEditEvent = (e: any) => {
+      const product = e.detail?.product;
+      if (product) {
+        sessionStorage.removeItem('pending_edit_product');
+        setEditingProduct(product);
+        setIsFormModalOpen(true);
+      }
+    };
+
+    const handleBarcodeEvent = (e: any) => {
+      const product = e.detail?.product;
+      if (product) {
+        sessionStorage.removeItem('pending_barcode_product');
+        handleOpenBarcodeTool(product);
+      }
+    };
+
+    window.addEventListener('product:edit', handleEditEvent);
+    window.addEventListener('inventory:print-barcode', handleBarcodeEvent);
+    consumePendingInventoryIntents();
 
     return () => {
       window.removeEventListener('product:edit', handleEditEvent);
       window.removeEventListener('inventory:print-barcode', handleBarcodeEvent);
     };
   }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      consumePendingInventoryIntents();
+    }
+  }, [isActive]);
 
   useEffect(() => {
     loadProducts();
@@ -244,6 +264,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         lowStockOnly: lowStockFilter || undefined,
       });
       const fetched = res.products || [];
+      hasLoadedOnceRef.current = true;
       setProducts(fetched);
       const distinctBrands = Array.from(new Set(fetched.map((p: any) => String(p.brand || '').trim()).filter(Boolean))).sort() as string[];
       setBrands(distinctBrands);
@@ -255,6 +276,15 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       triggerStatRecount();
     }
   };
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['products', 'inventory', 'sales', 'returns', 'purchases'],
+    sourceId: 'product-management',
+    onSync: () => {
+      void loadProducts();
+    },
+  });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,6 +302,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
     try {
       await api.products.delete(product.id);
+      emitDataSync(['products', 'inventory'], { source: 'product-management' });
       loadProducts();
     } catch (err: any) {
       alert(err.message || 'Failed to delete product.');
@@ -283,6 +314,10 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const totalStockPairs = products.reduce((acc, p) => acc + (Number(p.totalStock) || 0), 0);
   const lowStockCount = products.filter((p) => (Number(p.totalStock) || 0) <= globalLowStockThreshold).length;
   const totalValuation = products.reduce((acc, p) => acc + (Number(p.totalStock) || 0) * (Number(p.costPrice ?? p.cost_price) || 0), 0);
+
+  if (!hasLoadedOnceRef.current && isLoading) {
+    return <DirectoryCrudSkeleton variant="grid" statCount={4} />;
+  }
 
   return (
     <div className="space-y-4 p-4 max-w-7xl mx-auto">
@@ -1464,7 +1499,10 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               setIsFormModalOpen(false);
               setEditingProduct(null);
             }}
-            onSuccess={loadProducts}
+            onSuccess={() => {
+              emitDataSync(['products', 'inventory'], { source: 'product-management' });
+              loadProducts();
+            }}
           />
         )}
       </AnimatePresence>
@@ -1494,7 +1532,10 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           <StockAdjustModal
             product={adjustingProduct}
             onClose={() => setAdjustingProduct(null)}
-            onSuccess={loadProducts}
+            onSuccess={() => {
+              emitDataSync(['products', 'inventory'], { source: 'product-management' });
+              loadProducts();
+            }}
           />
         )}
       </AnimatePresence>
@@ -1507,6 +1548,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             onClose={() => setIsCsvImportOpen(false)}
             onImportSuccess={(summaryMsg) => {
               setImportToastMessage(summaryMsg);
+              emitDataSync(['products', 'inventory'], { source: 'product-management' });
               loadProducts();
               loadFilterData();
               setTimeout(() => {

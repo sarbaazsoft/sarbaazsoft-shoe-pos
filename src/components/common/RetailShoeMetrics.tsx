@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Target, Layers, Sparkles, TrendingUp, Footprints, PackageCheck, ArrowUpRight } from 'lucide-react';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 
 export interface SalesTargetMetric {
   id: string;
@@ -76,19 +77,33 @@ export function useDataPerIntersectionObserver(
   containerRef: React.RefObject<HTMLElement | null>,
   deps: any[] = []
 ) {
+  const { isActive } = useRouteActivity();
   const [replayTrigger, setReplayTrigger] = useState(0);
+  const pendingReplayRef = useRef(false);
 
   useEffect(() => {
     const handleRefreshStats = () => {
+      if (!isActive) {
+        pendingReplayRef.current = true;
+        return;
+      }
       setReplayTrigger((prev) => prev + 1);
     };
     window.addEventListener('app:refresh-stats', handleRefreshStats);
     return () => {
       window.removeEventListener('app:refresh-stats', handleRefreshStats);
     };
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
+    if (isActive && pendingReplayRef.current) {
+      pendingReplayRef.current = false;
+      setReplayTrigger((prev) => prev + 1);
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
     const rootEl = containerRef.current;
     if (!rootEl) return;
 
@@ -237,7 +252,7 @@ export function useDataPerIntersectionObserver(
       observer.disconnect();
       rafIds.forEach((id) => cancelAnimationFrame(id));
     };
-  }, [containerRef, replayTrigger, ...deps]);
+  }, [containerRef, replayTrigger, isActive, ...deps]);
 }
 
 export const RetailShoeMetrics: React.FC<RetailShoeMetricsProps> = ({

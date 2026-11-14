@@ -6,12 +6,17 @@ import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { CustomerFormModal } from './CustomerFormModal.tsx';
 import { CustomerDetailsModal } from './CustomerDetailsModal.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface CustomerManagementProps {
   companySettings: any;
 }
 
 export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companySettings }) => {
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -44,6 +49,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
     try {
       const res = await api.customers.list(searchTerm.trim() || undefined);
       setCustomers(res.customers || []);
+      hasLoadedOnceRef.current = true;
     } catch (e: any) {
       console.warn('Notice loading customers:', e?.message || e);
     } finally {
@@ -52,6 +58,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
       triggerStatRecount();
     }
   };
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['customers', 'sales', 'returns'],
+    sourceId: 'customer-management',
+    onSync: () => {
+      void loadCustomers();
+    },
+  });
 
   const handleOpenAddModal = () => {
     setEditingCustomer(null);
@@ -83,6 +98,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
       if (selectedCustomer && selectedCustomer.id === id) {
         setSelectedCustomer(null);
       }
+      emitDataSync(['customers', 'sales'], { source: 'customer-management' });
       loadCustomers();
     } catch (err: any) {
       alert(err.message || 'Failed to delete customer');
@@ -137,6 +153,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
     0
   );
   const averageOrderValue = totalOrdersCount > 0 ? totalSpentAmount / totalOrdersCount : 0;
+
+  if (!hasLoadedOnceRef.current && isLoading) {
+    return <DirectoryCrudSkeleton variant="table" statCount={3} />;
+  }
 
   return (
     <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
@@ -596,6 +616,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
               setEditingCustomer(null);
             }}
             onSuccess={() => {
+              emitDataSync(['customers', 'sales'], { source: 'customer-management' });
               loadCustomers();
             }}
           />
@@ -614,7 +635,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
               setSelectedCustomer(null);
               handleOpenEditModal(c);
             }}
-            onPaymentRecorded={loadCustomers}
+            onPaymentRecorded={() => {
+              emitDataSync(['customers', 'sales'], { source: 'customer-management' });
+              loadCustomers();
+            }}
             onClose={() => setSelectedCustomer(null)}
           />
         )}

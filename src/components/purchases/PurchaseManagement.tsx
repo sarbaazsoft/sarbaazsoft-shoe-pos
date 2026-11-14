@@ -13,6 +13,9 @@ import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils/textFormat.ts';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface PurchaseManagementProps {
   currentUser: any;
@@ -29,6 +32,11 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   initialSupplierName,
   onNavigateToSuppliers,
 }) => {
+  const { isActive } = useRouteActivity();
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+  const hasLoadedOnceRef = useRef(false);
+
   const [purchases, setPurchases] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -144,22 +152,28 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   const currencySymbol = companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.';
 
   const focusProductInput = () => {
+    if (!isActiveRef.current) return;
     setTimeout(() => {
-      productInputRef.current?.focus();
+      if (isActiveRef.current) {
+        productInputRef.current?.focus();
+      }
     }, 60);
   };
 
-  // Auto-focus product input whenever the Add Purchase modal opens
+  // Auto-focus product input whenever the Add Purchase modal opens while route is active
   useEffect(() => {
-    if (isModalOpen) {
+    if (isActive && isModalOpen) {
       focusProductInput();
     }
-  }, [isModalOpen]);
+  }, [isActive, isModalOpen]);
 
-  // Global key navigation & auto-focus for barcode scanning inside the purchase modal
+  // Global key navigation & auto-focus for barcode scanning inside the purchase modal (only while route is active)
   useEffect(() => {
+    if (!isActive || !isModalOpen || isProductCatalogModalOpen || isSupplierTableModalOpen || isSupplierPickerModalOpen) {
+      return;
+    }
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (!isModalOpen || isProductCatalogModalOpen || isSupplierTableModalOpen || isSupplierPickerModalOpen) return;
+      if (!isActiveRef.current) return;
 
       if (e.key === 'F2' || (e.ctrlKey && e.key === 'k')) {
         e.preventDefault();
@@ -179,7 +193,20 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isModalOpen, isProductCatalogModalOpen, isSupplierTableModalOpen, isSupplierPickerModalOpen]);
+  }, [isActive, isModalOpen, isProductCatalogModalOpen, isSupplierTableModalOpen, isSupplierPickerModalOpen]);
+
+  const consumePendingPurchaseIntent = () => {
+    const pendingPurchaseStr = sessionStorage.getItem('pending_purchase_product');
+    if (pendingPurchaseStr) {
+      try {
+        const prod = JSON.parse(pendingPurchaseStr);
+        sessionStorage.removeItem('pending_purchase_product');
+        setIsModalOpen(true);
+        setModalStep(1);
+        handleSelectProduct(prod);
+      } catch {}
+    }
+  };
 
   useEffect(() => {
     loadPurchases();
@@ -192,6 +219,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     const handleNewPurchaseEvent = (e: any) => {
       const product = e.detail?.product;
       if (product) {
+        sessionStorage.removeItem('pending_purchase_product');
         setIsModalOpen(true);
         setModalStep(1);
         handleSelectProduct(product);
@@ -199,22 +227,18 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     };
 
     window.addEventListener('purchase:new-entry', handleNewPurchaseEvent);
-
-    const pendingPurchaseStr = sessionStorage.getItem('pending_purchase_product');
-    if (pendingPurchaseStr) {
-      try {
-        const prod = JSON.parse(pendingPurchaseStr);
-        sessionStorage.removeItem('pending_purchase_product');
-        setIsModalOpen(true);
-        setModalStep(1);
-        handleSelectProduct(prod);
-      } catch {}
-    }
+    consumePendingPurchaseIntent();
 
     return () => {
       window.removeEventListener('purchase:new-entry', handleNewPurchaseEvent);
     };
   }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      consumePendingPurchaseIntent();
+    }
+  }, [isActive]);
 
   useEffect(() => {
     if (initialSupplierId) {
@@ -227,8 +251,9 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     }
   }, [initialSupplierId, initialSupplierName]);
 
-  // Close product search dropdown on outside click
+  // Close product search dropdown on outside click (only while open and route active)
   useEffect(() => {
+    if (!isActive || !isSuggestionsOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (
         suggestionsRef.current &&
@@ -241,7 +266,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isActive, isSuggestionsOpen]);
 
   const isRefreshingPurchasesRef = useRef(false);
   const isRefreshingReturnsRef = useRef(false);
@@ -253,6 +278,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     try {
       const res = await api.purchases.list({ search: searchTerm.trim() || undefined });
       setPurchases(res.purchases || []);
+      hasLoadedOnceRef.current = true;
     } catch (e: any) {
       console.warn('Notice loading purchases:', e?.message || e);
     } finally {
@@ -261,6 +287,18 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       triggerStatRecount();
     }
   };
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['purchases', 'suppliers', 'products', 'inventory'],
+    sourceId: 'purchase-management',
+    onSync: () => {
+      void loadPurchases();
+      void loadPurchaseReturns();
+      void loadProducts();
+      void loadSuppliers();
+    },
+  });
 
   const loadPurchaseReturns = async () => {
     if (isRefreshingReturnsRef.current) return;
@@ -652,6 +690,9 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       loadPurchases();
       loadProducts(); // refresh inventory stock counts
       loadSuppliers(); // refresh supplier balances
+      emitDataSync(['purchases', 'inventory', 'suppliers', 'notifications'], {
+        source: 'purchase-management',
+      });
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to record purchase.');
     } finally {
@@ -695,6 +736,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       // Reload suppliers list and immediately select the new supplier
       await loadSuppliers();
+      emitDataSync(['suppliers', 'purchases'], { source: 'purchase-management' });
       if (res?.supplier?.id) {
         setSelectedSupplierId(res.supplier.id);
         setSupplierName(res.supplier.name);
@@ -767,6 +809,10 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     (sum, pr) => sum + parseFloat(pr.total_debit_amount || pr.totalDebitAmount || 0),
     0
   );
+
+  if (!hasLoadedOnceRef.current && isLoading) {
+    return <DirectoryCrudSkeleton variant="table" statCount={3} />;
+  }
 
   return (
     <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
@@ -3106,6 +3152,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
           onSuccess={async (newProduct) => {
             setIsAddProductModalOpen(false);
             await loadProducts();
+            emitDataSync(['products', 'inventory'], { source: 'purchase-management' });
             if (newProduct) {
               handleSelectProduct(newProduct, true);
               setPurchaseScanFeedback(`✓ Product created & selected: ${newProduct.article || newProduct.name}`);
@@ -3129,6 +3176,9 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
             loadPurchaseReturns();
             loadProducts();
             loadSuppliers();
+            emitDataSync(['purchases', 'inventory', 'suppliers', 'notifications'], {
+              source: 'purchase-management',
+            });
             playAudioFeedback.saleSuccess();
             if (returnResult?.returnId) {
               handleViewReturnDetails(returnResult.returnId);
@@ -3172,6 +3222,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
           onSuccess={() => {
             loadPurchases();
             loadSuppliers();
+            emitDataSync(['purchases', 'suppliers'], { source: 'purchase-management' });
             if (selectedPurchaseDetails?.id) {
               handleViewPurchaseDetails(selectedPurchaseDetails.id);
             }

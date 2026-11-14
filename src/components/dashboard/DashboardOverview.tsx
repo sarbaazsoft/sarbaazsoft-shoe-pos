@@ -7,6 +7,8 @@ import { isFreeTrial, calculateDaysLeft, normalizeSubscriptionPlan, getAvailable
 import { BrandLogo } from '../common/BrandLogo.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics.tsx';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface CustomCategoryArticlesTooltipProps {
   active?: boolean;
@@ -551,6 +553,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     }
   };
 
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [activeChartMetric, setActiveChartMetric] = useState<'all' | 'sales' | 'orders'>('all');
   const [activeTrendTab, setActiveTrendTab] = useState<'weekly' | 'monthly'>('weekly');
@@ -849,6 +853,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     } catch (err) {
       console.warn('Dashboard metrics fetch notice:', err);
     } finally {
+      hasLoadedOnceRef.current = true;
       isRefreshingRef.current = false;
       setLoading(false);
       triggerStatRecount();
@@ -859,6 +864,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     loadData();
     loadNotices();
   }, []);
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['sales', 'returns', 'purchases', 'products', 'inventory', 'customers', 'suppliers', 'settings'],
+    sourceId: 'dashboard-overview',
+    onSync: () => {
+      void loadData();
+      void loadNotices();
+    },
+  });
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -969,6 +984,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       ];
 
   useDataPerIntersectionObserver(dashboardContainerRef, [loading, dashboardData]);
+
+  if (!hasLoadedOnceRef.current && loading) {
+    return <AnalyticsOverviewSkeleton />;
+  }
 
   return (
     <div

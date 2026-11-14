@@ -22,6 +22,8 @@ import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsToolt
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 import { PosNotificationBanner } from './PosNotificationBanner.tsx';
 import { QuickReceiveChips } from './QuickReceiveChips.tsx';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 export interface CartItem {
   productId: number;
@@ -63,6 +65,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   onClearInitialExchange,
   onNavigateTab,
 }) => {
+  const { isActive } = useRouteActivity();
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
   // Input Mode: 'SCANNER' (Physical Hardware Scanner listening for Enter) vs 'MANUAL' (Catalog Text Search)
   const [inputMode, setInputMode] = useState<'SCANNER' | 'MANUAL'>('SCANNER');
   // Continuous Scanning Mode: Retains scanned barcode in input field without clearing between scans
@@ -72,7 +78,9 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
   // Focus scanner input and optionally select existing text for seamless continuous hardware/manual scanning
   const focusScannerInput = (selectText = continuousScan) => {
+    if (!isActiveRef.current) return;
     const applyFocus = () => {
+      if (!isActiveRef.current) return;
       const el = barcodeInputRef.current;
       if (!el) return;
       el.focus();
@@ -341,12 +349,28 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     currentUser?.tenantId ?? currentUser?.tenant_id ?? companySettings?.tenant_id ?? companySettings?.tenantId ?? null
   );
 
-  // Sync and cache store catalog products for offline billing
+  // Sync and cache store catalog products for offline billing (and reconcile in-cart live stock)
   const syncStoreCatalogForOffline = async () => {
     try {
       const res = await api.products.list({ limit: 500 });
       if (res?.products && Array.isArray(res.products) && res.products.length > 0) {
         await cacheCatalogOffline(res.products, activeTenantId);
+        const byId = new Map<number, any>(res.products.map((p: any) => [Number(p.id), p]));
+        setCart((prevCart) => {
+          if (prevCart.length === 0) return prevCart;
+          let changed = false;
+          const next = prevCart.map((item) => {
+            const fresh = byId.get(Number(item.productId));
+            if (!fresh) return item;
+            const freshStock = Number(fresh.totalStock ?? fresh.total_stock ?? item.totalStock);
+            if (freshStock !== item.totalStock) {
+              changed = true;
+              return { ...item, totalStock: freshStock };
+            }
+            return item;
+          });
+          return changed ? next : prevCart;
+        });
       }
     } catch {
       // Offline cache will be used
@@ -357,21 +381,39 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   useEffect(() => {
     loadCustomers();
     syncStoreCatalogForOffline();
-    // Auto-focus scanner on mount
+  }, [activeTenantId]);
+
+  // Refocus scanner when POS becomes active or window regains focus while POS is active
+  useEffect(() => {
+    if (!isActive) return;
     focusScannerInput();
 
     const handleWindowFocus = () => {
-      focusScannerInput();
+      if (isActiveRef.current) {
+        focusScannerInput();
+      }
     };
     window.addEventListener('focus', handleWindowFocus);
     return () => window.removeEventListener('focus', handleWindowFocus);
-  }, [activeTenantId]);
+  }, [isActive]);
 
   useEffect(() => {
-    if (isOnline) {
+    if (isOnline && isActive) {
       syncStoreCatalogForOffline();
     }
-  }, [isOnline, activeTenantId]);
+  }, [isOnline, activeTenantId, isActive]);
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['products', 'inventory', 'customers', 'returns', 'purchases'],
+    sourceId: 'pos-terminal',
+    onSync: () => {
+      void loadCustomers();
+      if (isOnline) {
+        void syncStoreCatalogForOffline();
+      }
+    },
+  });
 
   // Sync initial exchange from parent / Returns view
   useEffect(() => {
@@ -449,9 +491,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     void handleCheckout();
   };
 
-  // Keyboard shortcut listener & Smart Scanner Global Focus Redirect
+  // Keyboard shortcut listener & Smart Scanner Global Focus Redirect (inactive-tab safe)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isActiveRef.current) return;
       // Global shortcut for 'Delete Sale' (F8)
       if (e.key === 'F8') {
         e.preventDefault();
@@ -555,10 +598,12 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       } catch {}
     }
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('pos:delete-sale', onPosDeleteSaleEvent);
-    window.addEventListener('pos:print-receipt', onPosPrintReceiptEvent);
-    window.addEventListener('pos:shoe-exchange', onPosShoeExchangeEvent);
+    if (isActive) {
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('pos:delete-sale', onPosDeleteSaleEvent);
+      window.addEventListener('pos:print-receipt', onPosPrintReceiptEvent);
+      window.addEventListener('pos:shoe-exchange', onPosShoeExchangeEvent);
+    }
     window.addEventListener('pos:add-to-cart', onPosAddToCartEvent);
 
     return () => {
@@ -568,7 +613,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       window.removeEventListener('pos:shoe-exchange', onPosShoeExchangeEvent);
       window.removeEventListener('pos:add-to-cart', onPosAddToCartEvent);
     };
-  }, [cart, isSubmitting, showAdminOverrideModal, completedSale, isCustomerModalOpen, barcodeInput, inputMode, continuousScan, activeExchange]);
+  }, [isActive, cart, isSubmitting, showAdminOverrideModal, completedSale, isCustomerModalOpen, barcodeInput, inputMode, continuousScan, activeExchange]);
 
   // Core 'Find Product' Event: Triggered immediately when barcode or article is scanned or entered
   const triggerFindAndAddProduct = async (rawCode: string) => {
@@ -1397,6 +1442,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       setShowAdminOverrideModal(false);
       setOverridePendingItem(null);
       loadCustomers();
+      emitDataSync(['sales', 'inventory', 'customers', 'notifications'], { source: 'pos-terminal' });
     } catch (err: any) {
       // If server unreachable or connection dropped mid-call, gracefully offer offline queuing
       const isNetError =
@@ -2399,6 +2445,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
             onCustomerCreated={(newCustomer) => {
               setCustomers((prev) => [newCustomer, ...prev]);
               selectCustomerForPayment(newCustomer.id);
+              emitDataSync(['customers'], { source: 'pos-terminal' });
             }}
             currencySymbol={currencySymbol}
             onModalOpenChange={setIsCustomerModalOpen}

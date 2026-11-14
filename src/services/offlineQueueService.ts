@@ -3,6 +3,7 @@
 import { api, getAuthToken } from './api.ts';
 import { QueuedSale, queueOfflineSale, getOfflineSales, getPendingOfflineSalesCount, updateOfflineSaleStatus, deleteOfflineSale, cacheCatalogOffline, resolveActiveTenantId } from '../utils/offlineDb.ts';
 import { buildCheckoutRequestPayload, processOfflineSalesQueue } from './offline/syncEngine.ts';
+import { emitDataSync } from '../utils/dataSyncBus.ts';
 
 export const SW_SYNC_TAG = 'pos-offline-transactions-sync';
 
@@ -21,6 +22,8 @@ class OfflineQueueService {
   private listeners: Set<QueueListener> = new Set();
   private syncIntervalId: any = null;
   private healthCheckIntervalId: any = null;
+  private primePromise: Promise<void> | null = null;
+  private lastPrimedAt: number = 0;
 
   constructor() {
     // Restore cached lastSyncedAt if available
@@ -106,11 +109,20 @@ class OfflineQueueService {
         const syncedCount = Number(data.synced || 0);
         if (syncedCount > 0) {
           this.recordRemoteSave();
-          this.primeCatalogCache().catch(() => {});
+          this.primeCatalogCache(true).catch(() => {});
+          emitDataSync(['sales', 'inventory', 'customers', 'notifications'], {
+            source: 'offline-sync-sw',
+            synced: syncedCount,
+          });
           if (typeof window !== 'undefined') {
             window.dispatchEvent(
               new CustomEvent('pos:offline-sync-complete', {
-                detail: { synced: syncedCount, failed: Number(data.failed || 0), source: 'service-worker' },
+                detail: {
+                  synced: syncedCount,
+                  failed: Number(data.failed || 0),
+                  source: 'service-worker',
+                  __fromDataSyncBus: true,
+                },
               })
             );
           }
@@ -372,11 +384,15 @@ class OfflineQueueService {
         localStorage.setItem('pos_last_synced_at', this.lastSyncedAtState.toISOString());
       } catch {}
       // Refresh local product catalog cache with updated server stock levels
-      this.primeCatalogCache().catch(() => {});
+      this.primeCatalogCache(true).catch(() => {});
+      emitDataSync(['sales', 'inventory', 'customers', 'notifications'], {
+        source: 'offline-sync-foreground',
+        synced,
+      });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('pos:offline-sync-complete', {
-            detail: { synced, failed, source: 'foreground' },
+            detail: { synced, failed, source: 'foreground', __fromDataSyncBus: true },
           })
         );
       }
@@ -388,20 +404,30 @@ class OfflineQueueService {
   }
 
   /**
-   * Helper to refresh offline catalog cache
+   * Helper to refresh offline catalog cache (coalesces concurrent/redundant calls)
    */
-  public async primeCatalogCache(): Promise<void> {
+  public async primeCatalogCache(force: boolean = false): Promise<void> {
     const token = getAuthToken();
     if (!token) return;
-    try {
-      const res = await api.products.list({ limit: 500 } as any);
-      if (res && res.products) {
-        await cacheCatalogOffline(res.products);
-        console.log(`[OfflineSync] Cached ${res.products.length} products for offline POS use.`);
+    if (this.primePromise) return this.primePromise;
+    if (!force && Date.now() - this.lastPrimedAt < 10000) return;
+
+    this.primePromise = (async () => {
+      try {
+        const res = await api.products.list({ limit: 500 } as any);
+        if (res && res.products) {
+          await cacheCatalogOffline(res.products);
+          this.lastPrimedAt = Date.now();
+          console.log(`[OfflineSync] Cached ${res.products.length} products for offline POS use.`);
+        }
+      } catch {
+        // Ignore transient network blips during background cache priming
+      } finally {
+        this.primePromise = null;
       }
-    } catch {
-      // Ignore transient network blips during background cache priming
-    }
+    })();
+
+    return this.primePromise;
   }
 
   public async getQueue(): Promise<QueuedSale[]> {
@@ -433,11 +459,15 @@ class OfflineQueueService {
         errorMessage: undefined,
       });
       this.recordRemoteSave();
-      this.primeCatalogCache().catch(() => {});
+      this.primeCatalogCache(true).catch(() => {});
+      emitDataSync(['sales', 'inventory', 'customers', 'notifications'], {
+        source: 'offline-sync-retry',
+        synced: 1,
+      });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('pos:offline-sync-complete', {
-            detail: { synced: 1, failed: 0, source: 'manual-retry' },
+            detail: { synced: 1, failed: 0, source: 'manual-retry', __fromDataSyncBus: true },
           })
         );
       }

@@ -14,6 +14,7 @@ import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.t
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip.tsx';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 import { NotificationAlertProvidersSettings } from './NotificationAlertProvidersSettings.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 interface SettingsViewProps {
   currentUser: any;
@@ -3854,7 +3855,20 @@ setFormErrors(errors);
         <DataBackupRestore
           currentUser={currentUser}
           companySettings={companySettings}
-          onDataRestored={onSettingsUpdated}
+          onDataRestored={() => {
+            emitDataSync([
+              'settings',
+              'products',
+              'inventory',
+              'sales',
+              'returns',
+              'purchases',
+              'suppliers',
+              'customers',
+              'notifications',
+            ], { source: 'backup-restore' });
+            onSettingsUpdated();
+          }}
         />
       )}
 

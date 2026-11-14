@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, Filter, ArrowUpRight, ArrowDownLeft, RotateCcw, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
 
 export const StockLedgerView: React.FC = () => {
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
   const [movements, setMovements] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<number | ''>('');
   const [movementType, setMovementType] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState<number>(25);
 
   useEffect(() => {
@@ -40,6 +44,7 @@ export const StockLedgerView: React.FC = () => {
         limit: 100,
       });
       setMovements(res.movements || []);
+      hasLoadedOnceRef.current = true;
     } catch (e) {
       console.error(e);
     } finally {
@@ -47,6 +52,16 @@ export const StockLedgerView: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['products', 'inventory', 'sales', 'returns', 'purchases'],
+    sourceId: 'stock-ledger',
+    onSync: () => {
+      void loadLedger();
+      void loadProducts();
+    },
+  });
 
   const getBadge = (type: string) => {
     switch (type) {
@@ -82,6 +97,10 @@ export const StockLedgerView: React.FC = () => {
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{type}</span>;
     }
   };
+
+  if (!hasLoadedOnceRef.current && isLoading) {
+    return <FeedLedgerSkeleton />;
+  }
 
   return (
     <div className="space-y-4 p-4 max-w-7xl mx-auto">

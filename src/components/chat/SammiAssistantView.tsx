@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { SammiQuestionIndexSidebar } from './SammiQuestionIndexSidebar.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 
 const TYPING_HINTS = [
   { text: 'Thinking & retrieving knowledge...', icon: Bot },
@@ -53,6 +54,9 @@ interface SammiAssistantViewProps {
 export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
   storeName,
 }) => {
+  const { isActive } = useRouteActivity();
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
   const [messages, setMessages] = useState<ChatMessageItem[]>(() => {
     try {
       const stored = localStorage.getItem('sammi_chat_history');
@@ -83,17 +87,17 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Cycle through contextual typing feedback hints while loading
+  // Cycle through contextual typing feedback hints while loading and active
   useEffect(() => {
-    if (!isLoading) {
-      setLoadingPhase(0);
+    if (!isLoading || !isActive) {
+      if (!isLoading) setLoadingPhase(0);
       return;
     }
     const timer = setInterval(() => {
       setLoadingPhase((prev) => (prev + 1) % TYPING_HINTS.length);
     }, 1800);
     return () => clearInterval(timer);
-  }, [isLoading]);
+  }, [isLoading, isActive]);
 
   // Persist history to localStorage
   useEffect(() => {
@@ -103,6 +107,7 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
   }, [messages]);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (!isActiveRef.current) return;
     // 1. Direct scrollIntoView on the end marker
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
@@ -156,8 +161,9 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
   const lastMsgRole = lastMsg?.role;
   const lastMsgId = lastMsg?.id;
 
-  // Auto-scroll automatically whenever a new message or AI response is generated
+  // Auto-scroll automatically whenever a new message or AI response is generated while active
   useEffect(() => {
+    if (!isActive) return;
     scrollToBottom('smooth');
 
     // When an AI model response message is generated, run staggered scroll updates
@@ -172,7 +178,7 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
         clearTimeout(t3);
       };
     }
-  }, [lastMsgId, lastMsgRole, isLoading, messages.length]);
+  }, [isActive, lastMsgId, lastMsgRole, isLoading, messages.length]);
 
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || inputMessage).trim();

@@ -26,6 +26,8 @@ import { api } from '../../services/api.ts';
 import type { HistoricalNotificationItem } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { NotificationAlertProvidersSettings } from '../settings/NotificationAlertProvidersSettings.tsx';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface NotificationsViewProps {
   currentUser?: any;
@@ -40,6 +42,9 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   companySettings: _companySettings,
   onNavigateTab,
 }) => {
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
+  const searchInitRef = useRef(true);
   const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
   const [items, setItems] = useState<HistoricalNotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +85,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       });
 
       if (res) {
+        hasLoadedOnceRef.current = true;
         setItems(res.items || []);
         if (res.pagination) {
           setPagination(res.pagination);
@@ -126,6 +132,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   }, [page, limit, activeTab, sortOrder, unreadOnly]);
 
   useEffect(() => {
+    if (searchInitRef.current) {
+      searchInitRef.current = false;
+      return;
+    }
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -138,6 +148,15 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, [searchQuery]);
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['notifications', 'sales', 'returns', 'purchases'],
+    sourceId: 'notifications-view',
+    onSync: () => {
+      void fetchHistory();
+    },
+  });
 
   const handleDismiss = async (item: HistoricalNotificationItem) => {
     try {
@@ -324,6 +343,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   };
 
   const totalUnreadCount = stats.unreadNotices + stats.unreadOperational;
+
+  if (!hasLoadedOnceRef.current && loading) {
+    return <FeedLedgerSkeleton />;
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen text-slate-800 dark:text-slate-100 transition-colors">

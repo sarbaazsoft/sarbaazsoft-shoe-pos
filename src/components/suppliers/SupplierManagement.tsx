@@ -11,6 +11,9 @@ import { supplierOpeningBalanceSchema } from '../../schemas/openingBalanceSchema
 import type { SupplierOpeningBalanceType } from '../../schemas/openingBalanceSchema.ts';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface SupplierManagementProps {
   currentUser: any;
@@ -23,6 +26,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
   companySettings,
   onNavigateToPurchase,
 }) => {
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -79,6 +84,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
     try {
       const res = await api.suppliers.list(query !== undefined ? query : searchTerm.trim() || undefined);
       setSuppliers(res.suppliers || []);
+      hasLoadedOnceRef.current = true;
     } catch (e: any) {
       console.warn('Notice loading suppliers:', e?.message || e);
     } finally {
@@ -87,6 +93,15 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
       triggerStatRecount();
     }
   };
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['suppliers', 'purchases', 'inventory'],
+    sourceId: 'supplier-management',
+    onSync: () => {
+      void loadSuppliers();
+    },
+  });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,6 +168,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
       }
 
       setIsModalOpen(false);
+      emitDataSync(['suppliers', 'purchases'], { source: 'supplier-management' });
       loadSuppliers();
     } catch (err: any) {
       setError(err.message || 'Failed to save supplier record.');
@@ -183,6 +199,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
     try {
       await api.suppliers.delete(id);
       setDeletingSupplierId(null);
+      emitDataSync(['suppliers', 'purchases'], { source: 'supplier-management' });
       loadSuppliers();
     } catch (e: any) {
       alert(e.message || 'Failed to delete supplier');
@@ -198,6 +215,10 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
     const net = parseFloat(s.net_payable_balance ?? s.balance ?? 0);
     return acc + (isNaN(net) ? 0 : net);
   }, 0);
+
+  if (!hasLoadedOnceRef.current && isLoading) {
+    return <DirectoryCrudSkeleton variant="table" statCount={3} />;
+  }
 
   return (
     <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
@@ -1059,6 +1080,9 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
         onClose={() => setIsReturnModalOpen(false)}
         onSuccess={() => {
           setIsReturnModalOpen(false);
+          emitDataSync(['suppliers', 'purchases', 'inventory', 'notifications'], {
+            source: 'supplier-management',
+          });
           loadSuppliers();
           if (selectedSupplier) {
             api.suppliers.get(selectedSupplier.id).then((res) => {
@@ -1096,6 +1120,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           suppliersList={suppliers}
           currencySymbol={currencySymbol}
           onSuccess={() => {
+            emitDataSync(['suppliers', 'purchases'], { source: 'supplier-management' });
             loadSuppliers();
             if (selectedSupplier) {
               api.suppliers.get(selectedSupplier.id).then((res) => {
@@ -1121,6 +1146,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           companySettings={companySettings}
           isAdmin={isAdmin}
           onPaymentRecorded={() => {
+            emitDataSync(['suppliers', 'purchases'], { source: 'supplier-management' });
             loadSuppliers();
             if (selectedSupplier) {
               api.suppliers.get(selectedSupplier.id).then((res) => {

@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo, lazy, Suspense } from 'react';
 import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
 import { Header } from './components/common/Header.tsx';
 import { Sidebar } from './components/common/Sidebar.tsx';
@@ -8,25 +7,27 @@ import { OfflineToastNotification } from './components/common/OfflineToastNotifi
 import { PushNotificationSoftPrompt } from './components/notifications/PushNotificationSoftPrompt.tsx';
 import { LoadingWindow } from './components/common/LoadingWindow.tsx';
 import { SaasLandingPage } from './components/saas/SaasLandingPage.tsx';
+import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
+import { emitDataSync } from './utils/dataSyncBus.ts';
 
-const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: m.PosTerminal })));
-const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: m.ProductManagement })));
-const StockLedgerView = lazy(() => import('./components/inventory/StockLedgerView.tsx').then((m) => ({ default: m.StockLedgerView })));
-const PurchaseManagement = lazy(() => import('./components/purchases/PurchaseManagement.tsx').then((m) => ({ default: m.PurchaseManagement })));
-const SalesReturnView = lazy(() => import('./components/returns/SalesReturnView.tsx').then((m) => ({ default: m.SalesReturnView })));
-const CustomerManagement = lazy(() => import('./components/customers/CustomerManagement.tsx').then((m) => ({ default: m.CustomerManagement })));
-const ReportsDashboard = lazy(() => import('./components/reports/ReportsDashboard.tsx').then((m) => ({ default: m.ReportsDashboard })));
-const SettingsView = lazy(() => import('./components/settings/SettingsView.tsx').then((m) => ({ default: m.SettingsView })));
-const SupplierManagement = lazy(() => import('./components/suppliers/SupplierManagement.tsx').then((m) => ({ default: m.SupplierManagement })));
-const DashboardOverview = lazy(() => import('./components/dashboard/DashboardOverview.tsx').then((m) => ({ default: m.DashboardOverview })));
+const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
+const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: memo(m.ProductManagement) })));
+const StockLedgerView = lazy(() => import('./components/inventory/StockLedgerView.tsx').then((m) => ({ default: memo(m.StockLedgerView) })));
+const PurchaseManagement = lazy(() => import('./components/purchases/PurchaseManagement.tsx').then((m) => ({ default: memo(m.PurchaseManagement) })));
+const SalesReturnView = lazy(() => import('./components/returns/SalesReturnView.tsx').then((m) => ({ default: memo(m.SalesReturnView) })));
+const CustomerManagement = lazy(() => import('./components/customers/CustomerManagement.tsx').then((m) => ({ default: memo(m.CustomerManagement) })));
+const ReportsDashboard = lazy(() => import('./components/reports/ReportsDashboard.tsx').then((m) => ({ default: memo(m.ReportsDashboard) })));
+const SettingsView = lazy(() => import('./components/settings/SettingsView.tsx').then((m) => ({ default: memo(m.SettingsView) })));
+const SupplierManagement = lazy(() => import('./components/suppliers/SupplierManagement.tsx').then((m) => ({ default: memo(m.SupplierManagement) })));
+const DashboardOverview = lazy(() => import('./components/dashboard/DashboardOverview.tsx').then((m) => ({ default: memo(m.DashboardOverview) })));
 const UserProfileModal = lazy(() => import('./components/auth/UserProfileModal.tsx').then((m) => ({ default: m.UserProfileModal })));
-const SammiAssistantView = lazy(() => import('./components/chat/SammiAssistantView.tsx').then((m) => ({ default: m.SammiAssistantView })));
+const SammiAssistantView = lazy(() => import('./components/chat/SammiAssistantView.tsx').then((m) => ({ default: memo(m.SammiAssistantView) })));
 const UnknownStore404View = lazy(() => import('./components/saas/UnknownStore404View.tsx').then((m) => ({ default: m.UnknownStore404View })));
 const SuspendedStoreView = lazy(() => import('./components/saas/SuspendedStoreView.tsx').then((m) => ({ default: m.SuspendedStoreView })));
 const SuperAdminControlPanel = lazy(() => import('./components/saas/SuperAdminControlPanel.tsx').then((m) => ({ default: m.SuperAdminControlPanel })));
 const TenantOnboardingWizard = lazy(() => import('./components/saas/TenantOnboardingWizard.tsx').then((m) => ({ default: m.TenantOnboardingWizard })));
 const InstallationWizard = lazy(() => import('./components/saas/InstallationWizard.tsx').then((m) => ({ default: m.InstallationWizard })));
-const NotificationsView = lazy(() => import('./components/notifications/NotificationsView.tsx').then((m) => ({ default: m.NotificationsView })));
+const NotificationsView = lazy(() => import('./components/notifications/NotificationsView.tsx').then((m) => ({ default: memo(m.NotificationsView) })));
 const VerifyEmailNoticeView = lazy(() => import('./components/auth/VerifyEmailNoticeView.tsx').then((m) => ({ default: m.VerifyEmailNoticeView })));
 import { ShieldAlert, Loader2 } from 'lucide-react';
 import { initNativeNotificationPrompt } from './services/pushNotificationClient.ts';
@@ -138,26 +139,6 @@ export function buildUnauthScopedUrl(targetUrl: string, currentTenantId?: string
   const queryString = sp.toString() ? `?${sp.toString()}` : '';
   const hashString = hash ? `#${hash}` : '';
   return `${base || '/'}${queryString}${hashString}`;
-}
-
-function InlineTabLoader({ label = 'Loading view...' }: { label?: string }) {
-  return (
-    <div
-      className="p-4 sm:p-6 lg:p-7 max-w-7xl mx-auto"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="bg-white/90 dark:bg-[#131B2E]/90 border border-slate-200/80 dark:border-indigo-500/20 rounded-2xl p-6 sm:p-8 shadow-xs flex items-center gap-3.5">
-        <Loader2 className="w-5 h-5 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
-        <div>
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Preparing workspace modules...
-          </p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function PortalRouteFallback({ label = 'Loading...' }: { label?: string }) {
@@ -1209,11 +1190,11 @@ export default function App() {
     }
   };
 
-  const handleTabChange = (targetTab: string) => {
+  const handleTabChange = useCallback((targetTab: string) => {
     const valid = resolveTargetTab(targetTab, currentUser, companySettings);
     setCurrentTab(valid);
     window.history.replaceState({}, '', appPathForTab(valid));
-  };
+  }, [currentUser, companySettings]);
 
   useEffect(() => {
     const role = (currentUser?.role || '').toLowerCase();
@@ -1474,7 +1455,7 @@ export default function App() {
     }
   };
 
-  const handleSettingsUpdated = async (updatedSettings?: any) => {
+  const handleSettingsUpdated = useCallback(async (updatedSettings?: any) => {
     try {
       if (updatedSettings) {
         setCompanySettings(updatedSettings);
@@ -1486,11 +1467,12 @@ export default function App() {
       if (settingsRes?.settings) {
         setCompanySettings(settingsRes.settings);
       }
+      emitDataSync(['settings'], { source: 'settings-updated' });
       await refreshTenantDirectory();
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [refreshTenantDirectory]);
 
   // Keyboard Shortcuts for Physical Counter Navigation & POS Operations
   useEffect(() => {
@@ -1553,6 +1535,207 @@ export default function App() {
     window.addEventListener('keydown', handleGlobalKeys);
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, [currentUser, saasMode, currentTab]);
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const chromeCompanySettings = useMemo(
+    () => ({
+      ...companySettings,
+      name: effectiveStoreName,
+    }),
+    [companySettings, effectiveStoreName]
+  );
+
+  const settingsCompanySettings = useMemo(
+    () => ({
+      ...companySettings,
+      subscriptionPlan: companySettings?.subscriptionPlan || activeTenant?.subscriptionPlan,
+      subscriptionStartDate: companySettings?.subscriptionStartDate || activeTenant?.subscriptionStartDate,
+      subscriptionEndDate: companySettings?.subscriptionEndDate || activeTenant?.subscriptionEndDate,
+      subscriptionStatus: companySettings?.subscriptionStatus || activeTenant?.subscriptionStatus,
+    }),
+    [companySettings, activeTenant]
+  );
+
+  const handleClearInitialExchange = useCallback(() => {
+    setActiveExchangeForPos(null);
+  }, []);
+
+  const handleNavigateToSuppliers = useCallback(() => {
+    handleTabChange('suppliers');
+  }, [handleTabChange]);
+
+  const handleNavigateToPurchase = useCallback(
+    (supId?: number, supName?: string) => {
+      if ((currentUser?.role || '').toLowerCase() !== 'cashier') {
+        setSelectedSupplierForPurchase(
+          supId || supName ? { id: supId, name: supName } : null
+        );
+        handleTabChange('purchases');
+      }
+    },
+    [currentUser?.role, handleTabChange]
+  );
+
+  const handleStartExchange = useCallback(
+    (exchange: ActiveExchange) => {
+      setActiveExchangeForPos(exchange);
+      handleTabChange('pos');
+    },
+    [handleTabChange]
+  );
+
+  const handleOpenInstallWizard = useCallback(() => {
+    handleNavigateDomain({
+      mode: 'ONBOARDING',
+      tenantId: activeTenant?.id,
+    });
+  }, [activeTenant?.id]);
+
+  const tenantScopeId = activeTenant?.id || currentUser?.tenantId || 'none';
+  const effectiveUserRole = String(currentUser?.role || '').toUpperCase();
+  const effectiveBusinessType = String(
+    companySettings?.businessType || (companySettings as any)?.business_type || activeTenant?.businessType || ''
+  ).toUpperCase();
+  const keepAliveScopeKey = `${tenantScopeId}:${currentUser?.id || 'anon'}:${effectiveUserRole}:${effectiveBusinessType}`;
+
+  const renderKeptAliveTab = useCallback(
+    (tab: string) => {
+      switch (tab) {
+        case 'dashboard':
+          return (
+            <DashboardOverview
+              currentUser={currentUser}
+              companySettings={companySettings}
+              onNavigate={handleTabChange}
+            />
+          );
+        case 'pos':
+          return (
+            <PosTerminal
+              currentUser={currentUser}
+              companySettings={companySettings}
+              initialExchange={activeExchangeForPos}
+              onClearInitialExchange={handleClearInitialExchange}
+              onNavigateTab={handleTabChange}
+            />
+          );
+        case 'inventory':
+          return (
+            <ProductManagement
+              currentUser={currentUser}
+              companySettings={companySettings}
+            />
+          );
+        case 'ledger':
+          return <StockLedgerView />;
+        case 'purchases':
+          return (
+            <PurchaseManagement
+              currentUser={currentUser}
+              companySettings={companySettings}
+              initialSupplierId={selectedSupplierForPurchase?.id}
+              initialSupplierName={selectedSupplierForPurchase?.name}
+              onNavigateToSuppliers={handleNavigateToSuppliers}
+            />
+          );
+        case 'suppliers':
+          return (
+            <SupplierManagement
+              currentUser={currentUser}
+              companySettings={companySettings}
+              onNavigateToPurchase={handleNavigateToPurchase}
+            />
+          );
+        case 'returns':
+          return (
+            <SalesReturnView
+              currentUser={currentUser}
+              companySettings={companySettings}
+              onStartExchange={handleStartExchange}
+            />
+          );
+        case 'customers':
+          return <CustomerManagement companySettings={companySettings} />;
+        case 'reports':
+          return (
+            <ReportsDashboard
+              currentUser={currentUser}
+              companySettings={companySettings}
+            />
+          );
+        case 'settings':
+          return currentUser &&
+            (effectiveUserRole === 'ADMIN' ||
+              effectiveUserRole === 'SUPERADMIN' ||
+              effectiveUserRole === 'CASHIER') ? (
+            <SettingsView
+              currentUser={currentUser}
+              companySettings={settingsCompanySettings}
+              initialTab={effectiveUserRole === 'CASHIER' ? 'printers' : undefined}
+              onSettingsUpdated={handleSettingsUpdated}
+              onOpenInstallWizard={handleOpenInstallWizard}
+            />
+          ) : (
+            <div className="p-8 text-center bg-white dark:bg-[#131B2E] rounded-2xl border border-rose-200 dark:border-rose-900/60 shadow-sm max-w-2xl mx-auto my-12">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-sm">
+                <ShieldAlert className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                403 Forbidden · Settings Access Restricted
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                Settings access is restricted to authenticated store personnel. Please log in with an authorized account.
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={() => handleTabChange('pos')}
+                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 hover:from-purple-700 hover:to-indigo-700 transition cursor-pointer"
+                >
+                  Return to POS Terminal
+                </button>
+              </div>
+            </div>
+          );
+        case 'assistant':
+          return (
+            <SammiAssistantView
+              storeName={effectiveStoreName}
+              currentUser={currentUser}
+              companySettings={companySettings}
+              onNavigateTab={handleTabChange}
+            />
+          );
+        case 'notifications':
+          return (
+            <NotificationsView
+              currentUser={currentUser}
+              companySettings={companySettings}
+              onNavigateTab={handleTabChange}
+            />
+          );
+        default:
+          return null;
+      }
+    },
+    [
+      currentUser,
+      companySettings,
+      handleTabChange,
+      activeExchangeForPos,
+      handleClearInitialExchange,
+      selectedSupplierForPurchase?.id,
+      selectedSupplierForPurchase?.name,
+      handleNavigateToSuppliers,
+      handleNavigateToPurchase,
+      handleStartExchange,
+      effectiveUserRole,
+      settingsCompanySettings,
+      handleSettingsUpdated,
+      handleOpenInstallWizard,
+      effectiveStoreName,
+    ]
+  );
 
   const currentRoleUpper = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
   const isCurrentUserSuperAdmin = Boolean(currentUser && currentRoleUpper === 'SUPERADMIN');
@@ -1913,27 +2096,24 @@ export default function App() {
             >
               <Sidebar
                 currentTab={currentTab}
-                onTabChange={(tab) => handleTabChange(tab)}
+                onTabChange={handleTabChange}
                 currentUser={currentUser}
-                companySettings={{
-                  ...companySettings,
-                  name: effectiveStoreName,
-                }}
+                companySettings={chromeCompanySettings}
                 onLogout={handleLogout}
                 mobileOpen={mobileMenuOpen}
                 onCloseMobile={() => setMobileMenuOpen(false)}
                 onOpenProfile={() => setIsProfileModalOpen(true)}
               />
 
-              <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto bg-[#F8FAFC] dark:bg-[#0A0E1A]">
+              <div
+                ref={scrollContainerRef}
+                className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto bg-[#F8FAFC] dark:bg-[#0A0E1A]"
+              >
                 <Header
                   currentTab={currentTab}
-                  onTabChange={(tab) => handleTabChange(tab)}
+                  onTabChange={handleTabChange}
                   currentUser={currentUser}
-                  companySettings={{
-                    ...companySettings,
-                    name: effectiveStoreName,
-                  }}
+                  companySettings={chromeCompanySettings}
                   onLogout={handleLogout}
                   onToggleMobileMenu={() => setMobileMenuOpen(true)}
                   onOpenProfile={() => setIsProfileModalOpen(true)}
@@ -1941,174 +2121,14 @@ export default function App() {
                 />
 
                 <main className="flex-1 min-w-0 overflow-x-hidden bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={`view-${activeTenant?.id || currentUser?.tenantId || 'default'}-${currentUser?.id || 'anon'}-${currentTab}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
-                      className="w-full h-full"
-                    >
-                      <Suspense fallback={<InlineTabLoader />}>
-                      {currentTab === 'dashboard' &&
-                        ((currentUser?.role || '').toLowerCase() === 'cashier' ? (
-                          <PosTerminal
-                            currentUser={currentUser}
-                            companySettings={companySettings}
-                            initialExchange={activeExchangeForPos}
-                            onClearInitialExchange={() => setActiveExchangeForPos(null)}
-                            onNavigateTab={(tab) => handleTabChange(tab)}
-                          />
-                        ) : (
-                          <DashboardOverview
-                            currentUser={currentUser}
-                            companySettings={companySettings}
-                            onNavigate={(tab) => handleTabChange(tab)}
-                          />
-                        ))}
-
-                      {currentTab === 'pos' && (
-                        <PosTerminal
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                          initialExchange={activeExchangeForPos}
-                          onClearInitialExchange={() => setActiveExchangeForPos(null)}
-                          onNavigateTab={(tab) => handleTabChange(tab)}
-                        />
-                      )}
-
-                      {currentTab === 'inventory' && (
-                        <ProductManagement
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                        />
-                      )}
-
-                      {currentTab === 'ledger' && <StockLedgerView />}
-
-                      {currentTab === 'purchases' &&
-                        ((currentUser?.role || '').toLowerCase() === 'cashier' ? (
-                          <PosTerminal
-                            currentUser={currentUser}
-                            companySettings={companySettings}
-                            initialExchange={activeExchangeForPos}
-                            onClearInitialExchange={() => setActiveExchangeForPos(null)}
-                            onNavigateTab={(tab) => handleTabChange(tab)}
-                          />
-                        ) : (
-                          <PurchaseManagement
-                            currentUser={currentUser}
-                            companySettings={companySettings}
-                            initialSupplierId={selectedSupplierForPurchase?.id}
-                            initialSupplierName={selectedSupplierForPurchase?.name}
-                            onNavigateToSuppliers={() => handleTabChange('suppliers')}
-                          />
-                        ))}
-
-                      {currentTab === 'suppliers' && (
-                        <SupplierManagement
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                          onNavigateToPurchase={(supId, supName) => {
-                            if ((currentUser?.role || '').toLowerCase() !== 'cashier') {
-                              setSelectedSupplierForPurchase(
-                                supId || supName ? { id: supId, name: supName } : null
-                              );
-                              handleTabChange('purchases');
-                            }
-                          }}
-                        />
-                      )}
-
-                      {currentTab === 'returns' && (
-                        <SalesReturnView
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                          onStartExchange={(exchange) => {
-                            setActiveExchangeForPos(exchange);
-                            handleTabChange('pos');
-                          }}
-                        />
-                      )}
-
-                      {currentTab === 'customers' && (
-                        <CustomerManagement companySettings={companySettings} />
-                      )}
-
-                      {currentTab === 'reports' && (
-                        <ReportsDashboard
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                        />
-                      )}
-
-                      {currentTab === 'settings' && (
-                        (currentUser && (
-                          (currentUser.role || '').toUpperCase() === 'ADMIN' ||
-                          (currentUser.role || '').toUpperCase() === 'SUPERADMIN' ||
-                          (currentUser.role || '').toUpperCase() === 'CASHIER'
-                        )) ? (
-                          <SettingsView
-                            currentUser={currentUser}
-                            companySettings={{
-                              ...companySettings,
-                              subscriptionPlan: companySettings?.subscriptionPlan || activeTenant?.subscriptionPlan,
-                              subscriptionStartDate: companySettings?.subscriptionStartDate || activeTenant?.subscriptionStartDate,
-                              subscriptionEndDate: companySettings?.subscriptionEndDate || activeTenant?.subscriptionEndDate,
-                              subscriptionStatus: companySettings?.subscriptionStatus || activeTenant?.subscriptionStatus,
-                            }}
-                            initialTab={(currentUser.role || '').toUpperCase() === 'CASHIER' ? 'printers' : undefined}
-                            onSettingsUpdated={handleSettingsUpdated}
-                            onOpenInstallWizard={() => {
-                              handleNavigateDomain({
-                                mode: 'ONBOARDING',
-                                tenantId: activeTenant?.id,
-                              });
-                            }}
-                          />
-                        ) : (
-                          <div className="p-8 text-center bg-white dark:bg-[#131B2E] rounded-2xl border border-rose-200 dark:border-rose-900/60 shadow-sm max-w-2xl mx-auto my-12">
-                            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-sm">
-                              <ShieldAlert className="w-7 h-7" />
-                            </div>
-                            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                              403 Forbidden · Settings Access Restricted
-                            </h3>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                              Settings access is restricted to authenticated store personnel. Please log in with an authorized account.
-                            </p>
-                            <div className="mt-6">
-                              <button
-                                onClick={() => handleTabChange('pos')}
-                                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-600/20 hover:from-purple-700 hover:to-indigo-700 transition cursor-pointer"
-                              >
-                                Return to POS Terminal
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      )}
-
-                      {currentTab === 'assistant' && (
-                        <SammiAssistantView
-                          storeName={effectiveStoreName}
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                          onNavigateTab={(tab) => handleTabChange(tab)}
-                        />
-                      )}
-
-                      {currentTab === 'notifications' && (
-                        <NotificationsView
-                          currentUser={currentUser}
-                          companySettings={companySettings}
-                          onNavigateTab={(tab) => handleTabChange(tab)}
-                        />
-                      )}
-                      </Suspense>
-                    </motion.div>
-                  </AnimatePresence>
+                  <KeepAliveRouteHost
+                    currentTab={currentTab}
+                    userRole={currentUser?.role}
+                    businessType={effectiveBusinessType}
+                    scopeKey={keepAliveScopeKey}
+                    scrollContainerRef={scrollContainerRef}
+                    renderTab={renderKeptAliveTab}
+                  />
                 </main>
 
                 <footer className="px-4 py-2.5 border border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 text-xs font-medium text-slate-800 dark:text-slate-100 tracking-wide shrink-0 no-print select-none">

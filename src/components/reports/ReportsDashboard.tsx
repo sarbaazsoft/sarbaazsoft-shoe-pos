@@ -8,6 +8,8 @@ import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver } from '../common/RetailShoeMetrics.tsx';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
+import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
 
 interface ReportsDashboardProps {
   currentUser: any;
@@ -20,6 +22,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   currentUser,
   companySettings,
 }) => {
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const reportsContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -106,6 +110,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       setDashboardData(dRes);
       setTopSelling(topRes.topSelling || []);
       setSalesHistory(sRes.sales || []);
+      hasLoadedOnceRef.current = true;
     } catch (e) {
       console.error('Failed to load reports:', e);
     } finally {
@@ -114,6 +119,18 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       triggerStatRecount();
     }
   };
+
+  useDeferredRouteSync({
+    isActive,
+    topics: ['sales', 'returns', 'products', 'inventory', 'customers', 'purchases'],
+    sourceId: 'reports-dashboard',
+    onSync: () => {
+      void loadReports();
+      if (activeTab === 'profit_loss') {
+        void loadProfitLoss();
+      }
+    },
+  });
 
   const loadProfitLoss = async () => {
     if (isRefreshingPLRef.current) return;
@@ -281,6 +298,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     link.click();
     document.body.removeChild(link);
   };
+
+  if (!hasLoadedOnceRef.current && isLoading) {
+    return <AnalyticsOverviewSkeleton showFilterBar={true} />;
+  }
 
   return (
     <div ref={reportsContainerRef} className="space-y-4 p-4 max-w-7xl mx-auto text-xs">

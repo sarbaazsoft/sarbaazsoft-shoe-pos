@@ -6,6 +6,7 @@ import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed } from '../../utils/textFormat.ts';
 import { calculateReturnNetUnitPrice } from '../../utils/posCalculations.ts';
 import type { ActiveExchange, ExchangeItem } from '../../types.ts';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 interface SalesReturnViewProps {
   currentUser?: any;
@@ -174,6 +175,9 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
       setReturnSuccess(res);
       setVerifiedSale(null);
       setInvoiceSearch('');
+      emitDataSync(['returns', 'sales', 'inventory', 'customers', 'notifications'], {
+        source: 'sales-return',
+      });
     } catch (err: any) {
       playAudioFeedback.warning();
       setErrorMessage(err.message || 'Failed to process return.');
