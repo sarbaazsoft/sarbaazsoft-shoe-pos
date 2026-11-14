@@ -42,6 +42,10 @@ import { loadAppSettingsCache } from './src/server/services/appSettingsService.t
 import { recordApplicationBaseUrl } from './src/server/services/welcomeService.ts';
 import { buildPwaManifest, resolvePwaBranding, type PwaBrandingInput } from './src/utils/pwaBranding.ts';
 import { patchDesktopSetupExe, resolveDesktopTargetUrl } from './src/server/utils/windowsExePatcher.ts';
+import {
+  resolveServiceWorkerFilePath,
+  resolveStaticCacheHeaders,
+} from './src/server/utils/staticCacheHeaders.ts';
 
 const rootDir = path.resolve('.');
 
@@ -97,19 +101,14 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // and application/javascript MIME type to satisfy PWABuilder, Lighthouse, and browser engines.
 app.get(['/sw.js', '/firebase-messaging-sw.js', '/sw-background-sync.js'], (req, res, next) => {
   const filename = req.path.replace(/^\//, '');
-  const publicCandidate = path.join(rootDir, 'public', filename);
-  const distCandidate = path.join(rootDir, 'dist', filename);
-  const targetPath = fs.existsSync(publicCandidate)
-    ? publicCandidate
-    : fs.existsSync(distCandidate)
-    ? distCandidate
-    : null;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const targetPath = resolveServiceWorkerFilePath(rootDir, filename, isProduction);
 
   if (targetPath) {
-    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Service-Worker-Allowed', '/');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    const headers = resolveStaticCacheHeaders(targetPath);
+    for (const [key, value] of Object.entries(headers)) {
+      res.setHeader(key, value);
+    }
     return res.sendFile(targetPath);
   }
   next();
@@ -503,33 +502,21 @@ async function startServer() {
     const distPath = path.join(rootDir, 'dist');
     app.use(
       express.static(distPath, {
+        etag: true,
+        lastModified: true,
         setHeaders: (res, filePath) => {
-          if (/(?:^|[\\/])(?:sw|workbox-[^\\/]+)\.js$/.test(filePath)) {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Service-Worker-Allowed', '/');
-          } else if (filePath.endsWith('.webmanifest') || filePath.endsWith('manifest.json')) {
-            res.setHeader('Content-Type', 'application/manifest+json');
-            res.setHeader('Cache-Control', 'no-cache');
-          } else if (filePath.endsWith('.apk')) {
-            res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-            res.setHeader('Content-Disposition', 'attachment; filename="SarbaazSoft-POS.apk"');
-          } else if (filePath.endsWith('.exe')) {
-            res.setHeader('Content-Type', 'application/vnd.microsoft.portable-executable');
-            res.setHeader('Content-Disposition', 'attachment; filename="SarbaazSoft-POS-Desktop-Setup.exe"');
-          } else if (filePath.endsWith('.msixbundle')) {
-            res.setHeader('Content-Type', 'application/msixbundle');
-          } else if (filePath.endsWith('.msix')) {
-            res.setHeader('Content-Type', 'application/msix');
-          } else if (filePath.endsWith('.appxbundle')) {
-            res.setHeader('Content-Type', 'application/appxbundle');
-          } else if (filePath.endsWith('.appx')) {
-            res.setHeader('Content-Type', 'application/appx');
+          const headers = resolveStaticCacheHeaders(filePath);
+          for (const [key, value] of Object.entries(headers)) {
+            res.setHeader(key, value);
           }
         },
       })
     );
     // Missing static files must 404 (never fall through to index.html with a 200)
-    app.get(/\.(?:js|map|json|webmanifest|png|svg|ico|apk|aab|exe|msix|msixbundle|appx|appxbundle|cer)$/, (_req, res) => res.sendStatus(404));
+    app.get(
+      /\.(?:js|mjs|css|map|json|webmanifest|png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|otf|eot|apk|aab|exe|msix|msixbundle|appx|appxbundle|cer)$/,
+      (_req, res) => res.sendStatus(404)
+    );
     app.get('*', (_req, res) => {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');

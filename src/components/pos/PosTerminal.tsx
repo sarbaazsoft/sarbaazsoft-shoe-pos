@@ -25,6 +25,7 @@ import { PosNotificationBanner } from './PosNotificationBanner.tsx';
 import { QuickReceiveChips } from './QuickReceiveChips.tsx';
 import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { setHoldSwUpdate } from '../../utils/swUpdate.ts';
 
 export interface CartItem {
   productId: number;
@@ -123,6 +124,13 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   const checkoutInFlightRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [posToast, setPosToast] = useState<PosToastNotification | null>(null);
+
+  useEffect(() => {
+    setHoldSwUpdate(cart.length > 0 || isSubmitting);
+    return () => {
+      setHoldSwUpdate(false);
+    };
+  }, [cart.length, isSubmitting]);
 
   // Terminal Sound Mute State (silences scanner beeps, item chimes, and checkout alerts)
   const [isMuted, setIsMuted] = useState<boolean>(() => isAudioMuted());

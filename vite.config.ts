@@ -1,14 +1,168 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import {defineConfig, type Plugin} from 'vite';
+
+const BINARY_INSTALLER_EXTENSIONS = new Set([
+  '.apk',
+  '.aab',
+  '.exe',
+  '.msix',
+  '.msixbundle',
+  '.appx',
+  '.appxbundle',
+  '.cer',
+]);
+
+function collectBuiltPrecacheAssets(outDir: string): string[] {
+  const results: string[] = [];
+
+  const walk = (dir: string) => {
+    if (!fs.existsSync(dir)) return;
+    const entries = fs.readdirSync(dir, {withFileTypes: true});
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      const relFromDist = path.relative(outDir, fullPath).split(path.sep).join('/');
+
+      if (entry.isDirectory()) {
+        if (relFromDist === 'assets/windows' || relFromDist === 'assets/android') {
+          continue;
+        }
+        walk(fullPath);
+        continue;
+      }
+
+      const ext = path.extname(entry.name).toLowerCase();
+      if (ext === '.map' || BINARY_INSTALLER_EXTENSIONS.has(ext)) {
+        continue;
+      }
+
+      if (relFromDist.startsWith('assets/js/') || relFromDist.startsWith('assets/css/') || relFromDist.startsWith('assets/fonts/') || relFromDist.startsWith('assets/media/')) {
+        results.push(`/${relFromDist}`);
+      }
+    }
+  };
+
+  walk(path.join(outDir, 'assets'));
+  return results.sort();
+}
+
+function serviceWorkerBuildPlugin(rootDir: string): Plugin {
+  return {
+    name: 'sarbaazsoft-sw-version-injector',
+    apply: 'build',
+    writeBundle(outputOptions) {
+      const outDir = outputOptions.dir
+        ? path.resolve(rootDir, outputOptions.dir)
+        : path.resolve(rootDir, 'dist');
+      const swPath = path.join(outDir, 'sw.js');
+      if (!fs.existsSync(swPath)) {
+        return;
+      }
+
+      const precacheBuildAssets = collectBuiltPrecacheAssets(outDir);
+      let swSource = fs.readFileSync(swPath, 'utf8');
+
+      let pkgVersion = '1.0.0';
+      const pkgPath = path.join(rootDir, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          if (pkg?.version) {
+            pkgVersion = String(pkg.version);
+          }
+        } catch {
+          // fallback version
+        }
+      }
+
+      const hash = crypto.createHash('sha256');
+      hash.update(pkgVersion);
+      const indexHtmlPath = path.join(outDir, 'index.html');
+      if (fs.existsSync(indexHtmlPath)) {
+        hash.update(fs.readFileSync(indexHtmlPath));
+      }
+      hash.update(swSource);
+      for (const assetUrl of precacheBuildAssets) {
+        hash.update(assetUrl);
+      }
+      const buildVersion = `${pkgVersion}-${hash.digest('hex').slice(0, 10)}`;
+
+      swSource = swSource
+        .replace(
+          /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
+          `const SW_BUILD_VERSION = '${buildVersion}';`
+        )
+        .replace(
+          /const PRECACHE_BUILD_ASSETS = \[[\s\S]*?\];/,
+          `const PRECACHE_BUILD_ASSETS = ${JSON.stringify(precacheBuildAssets, null, 2)};`
+        );
+
+      fs.writeFileSync(swPath, swSource, 'utf8');
+    },
+  };
+}
 
 export default defineConfig(() => {
+  const rootDir = path.resolve(import.meta.dirname || '.');
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), serviceWorkerBuildPlugin(rootDir)],
     resolve: {
       alias: {
-        '@': path.resolve(import.meta.dirname || '.', '.'),
+        '@': rootDir,
+      },
+    },
+    build: {
+      rolldownOptions: {
+        output: {
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: (assetInfo) => {
+            const name = assetInfo.names?.[0] || assetInfo.originalFileNames?.[0] || '';
+            const ext = path.extname(name).toLowerCase();
+            if (ext === '.css') {
+              return 'assets/css/[name]-[hash][extname]';
+            }
+            if (['.woff2', '.woff', '.ttf', '.otf', '.eot'].includes(ext)) {
+              return 'assets/fonts/[name]-[hash][extname]';
+            }
+            if (['.png', '.jpg', '.jpeg', '.webp', '.avif', '.gif', '.svg', '.ico'].includes(ext)) {
+              return 'assets/media/[name]-[hash][extname]';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return undefined;
+            }
+            const normalized = id.split(path.sep).join('/');
+            if (/\/node_modules\/(react|react-dom|scheduler)\//.test(normalized)) {
+              return 'vendor-react';
+            }
+            if (/\/node_modules\/@tanstack\//.test(normalized)) {
+              return 'vendor-query';
+            }
+            if (/\/node_modules\/(recharts|d3-[^/]+|victory-vendor)\//.test(normalized)) {
+              return 'vendor-charts';
+            }
+            if (/\/node_modules\/(@?firebase)\//.test(normalized)) {
+              return 'vendor-firebase';
+            }
+            if (/\/node_modules\/(motion|framer-motion)\//.test(normalized)) {
+              return 'vendor-motion';
+            }
+            if (/\/node_modules\/(jspdf|html2canvas|dompurify|jsbarcode|fflate|canvg)\//.test(normalized)) {
+              return 'vendor-export';
+            }
+            if (/\/node_modules\/lucide-react\//.test(normalized)) {
+              return 'vendor-icons';
+            }
+            return undefined;
+          },
+        },
       },
     },
     server: {

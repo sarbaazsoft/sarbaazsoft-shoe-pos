@@ -8,7 +8,13 @@
 // 4. Background Sync & Periodic Sync for Offline POS Transactions (IndexedDB)
 // =========================================================================
 
-const CACHE_NAME = 'sarbaazsoft-pos-cache-v10';
+const SW_BUILD_VERSION = 'dev';
+const CACHE_PREFIX = 'sarbaazsoft-pos';
+const PRECACHE_CACHE_NAME = `${CACHE_PREFIX}-precache-${SW_BUILD_VERSION}`;
+const RUNTIME_CACHE_NAME = `${CACHE_PREFIX}-runtime-${SW_BUILD_VERSION}`;
+const IMMUTABLE_CACHE_NAME = `${CACHE_PREFIX}-immutable-v1`;
+const CACHE_NAME = PRECACHE_CACHE_NAME;
+const MAX_IMMUTABLE_RUNTIME_ENTRIES = 160;
 const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
 const SW_SYNC_TAG = 'pos-offline-transactions-sync';
 const SW_PERIODIC_SYNC_TAG = 'pos-offline-periodic-sync';
@@ -47,6 +53,16 @@ const PRECACHE_ASSETS = [
   '/admin/apple-touch-icon.png',
 ];
 
+// Populated automatically by Vite writeBundle plugin during production build
+const PRECACHE_BUILD_ASSETS = [];
+
+const BINARY_INSTALLER_EXT_RE = /\.(?:apk|aab|exe|msix|msixbundle|appx|appxbundle|cer)$/i;
+const HASHED_ASSET_PATH_RE = /^\/assets\/(?:js|css|fonts|media)\//i;
+const HASHED_FILENAME_RE =
+  /[-_.][a-zA-Z0-9_-]{8,}\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|webp|avif|gif|svg|ico)$/i;
+const STATIC_ASSET_EXT_RE =
+  /\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|webp|avif|gif|svg|ico)$/i;
+
 function isCacheableStaticOrigin(url) {
   if (url.origin === self.location.origin) return true;
   return (
@@ -55,34 +71,151 @@ function isCacheableStaticOrigin(url) {
   );
 }
 
+function isContentHashedAssetUrl(url) {
+  if (url.origin === self.location.origin) {
+    if (BINARY_INSTALLER_EXT_RE.test(url.pathname)) return false;
+    return HASHED_ASSET_PATH_RE.test(url.pathname) || HASHED_FILENAME_RE.test(url.pathname);
+  }
+  // Google Fonts font binary files on fonts.gstatic.com are content-addressed & immutable
+  return url.hostname === 'fonts.gstatic.com';
+}
+
+function isValidAssetResponse(request, response, url) {
+  if (!response) return false;
+  if (response.type === 'opaque') {
+    // Allow opaque responses only for external font CDNs when CORS headers are absent
+    return url.origin !== self.location.origin && isCacheableStaticOrigin(url);
+  }
+  if (!response.ok || response.status !== 200) return false;
+
+  const contentType =
+    response.headers && typeof response.headers.get === 'function'
+      ? (response.headers.get('content-type') || '').toLowerCase()
+      : '';
+
+  if (url.origin === self.location.origin && STATIC_ASSET_EXT_RE.test(url.pathname)) {
+    // Prevent SPA fallback HTML responses from poisoning JS/CSS/image/font caches
+    if (contentType.includes('text/html')) {
+      return false;
+    }
+    const lowerPath = url.pathname.toLowerCase();
+    if ((lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs')) && contentType.includes('text/css')) {
+      return false;
+    }
+    if (lowerPath.endsWith('.css') && contentType.includes('javascript')) {
+      return false;
+    }
+  }
+
+  const dest = request && request.destination ? request.destination : '';
+  if ((dest === 'script' || dest === 'style' || dest === 'font' || dest === 'image') && contentType.includes('text/html')) {
+    return false;
+  }
+
+  return true;
+}
+
+async function trimImmutableCache() {
+  try {
+    const cache = await caches.open(IMMUTABLE_CACHE_NAME);
+    if (typeof cache.keys !== 'function' || typeof cache.delete !== 'function') return;
+    const keys = await cache.keys();
+    if (keys.length <= MAX_IMMUTABLE_RUNTIME_ENTRIES) return;
+
+    const currentBuildSet = new Set(
+      (Array.isArray(PRECACHE_BUILD_ASSETS) ? PRECACHE_BUILD_ASSETS : []).map((p) => {
+        try {
+          return new URL(p, self.location.origin).href;
+        } catch {
+          return p;
+        }
+      })
+    );
+
+    let excess = keys.length - MAX_IMMUTABLE_RUNTIME_ENTRIES;
+    for (const req of keys) {
+      if (excess <= 0) break;
+      if (!currentBuildSet.has(req.url)) {
+        await cache.delete(req);
+        excess--;
+      }
+    }
+  } catch {
+    // Non-fatal cache pruning failure
+  }
+}
+
+async function precacheAppShell() {
+  const precache = await caches.open(PRECACHE_CACHE_NAME);
+  await Promise.allSettled(
+    PRECACHE_ASSETS.map(async (assetUrl) => {
+      try {
+        const res = await fetch(assetUrl, { cache: 'reload' });
+        if (res && res.status === 200) {
+          await precache.put(assetUrl, res);
+          return;
+        }
+      } catch {
+        // Fallback to standard cache.add if available
+      }
+      if (typeof precache.add === 'function') {
+        await precache.add(assetUrl).catch(() => null);
+      }
+    })
+  );
+
+  if (Array.isArray(PRECACHE_BUILD_ASSETS) && PRECACHE_BUILD_ASSETS.length > 0) {
+    const immutableCache = await caches.open(IMMUTABLE_CACHE_NAME);
+    await Promise.allSettled(
+      PRECACHE_BUILD_ASSETS.map(async (assetUrl) => {
+        try {
+          const existing =
+            typeof immutableCache.match === 'function'
+              ? await immutableCache.match(assetUrl)
+              : null;
+          if (existing) return;
+          const res = await fetch(assetUrl);
+          if (res && res.status === 200) {
+            await immutableCache.put(assetUrl, res);
+          }
+        } catch {
+          // Non-fatal build asset precache miss
+        }
+      })
+    );
+  }
+}
+
 // -------------------------------------------------------------------------
 // 1. Service Worker Lifecycle (Install & Activate)
 // -------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) =>
-        Promise.allSettled(
-          PRECACHE_ASSETS.map((assetUrl) => cache.add(assetUrl).catch(() => null))
-        )
-      )
-      .catch(() => {})
-  );
+  // Only skip waiting automatically on clean first-time install.
+  // When an active SW is already serving an open tab, wait for SKIP_WAITING
+  // so an active POS session does not swap lazy chunk versions mid-checkout.
+  if (!(self.registration && self.registration.active)) {
+    self.skipWaiting();
+  }
+  event.waitUntil(precacheAppShell().catch(() => {}));
 });
 
 self.addEventListener('activate', (event) => {
+  const activeCacheNames = new Set([
+    PRECACHE_CACHE_NAME,
+    RUNTIME_CACHE_NAME,
+    IMMUTABLE_CACHE_NAME,
+  ]);
   event.waitUntil(
     caches
       .keys()
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== CACHE_NAME)
+            .filter((k) => !activeCacheNames.has(k))
             .map((k) => caches.delete(k))
         )
       )
+      .then(() => trimImmutableCache())
       .then(() => self.clients.claim())
   );
 });
@@ -111,26 +244,19 @@ self.addEventListener('fetch', (event) => {
     url.pathname === '/sw-background-sync.js' ||
     url.pathname.startsWith('/assets/windows/') ||
     url.pathname.startsWith('/assets/android/') ||
-    url.pathname.endsWith('.apk') ||
-    url.pathname.endsWith('.aab') ||
-    url.pathname.endsWith('.exe') ||
-    url.pathname.endsWith('.msix') ||
-    url.pathname.endsWith('.msixbundle') ||
-    url.pathname.endsWith('.appx') ||
-    url.pathname.endsWith('.appxbundle') ||
-    url.pathname.endsWith('.cer')
+    BINARY_INSTALLER_EXT_RE.test(url.pathname)
   ) {
     return;
   }
 
-  // 1. Navigation requests (HTML pages): Network-first with Cache/Offline Fallback
+  // 1. Navigation requests (HTML pages): Network-first with no-cache validation & offline fallback
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then(async (response) => {
           if (response && response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+            caches.open(PRECACHE_CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
             return response;
           }
           const cached =
@@ -160,11 +286,11 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('/manifest.json')
   ) {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
             const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+            caches.open(PRECACHE_CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
           }
           return networkResponse;
         })
@@ -181,14 +307,43 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static Assets (JS, CSS, Images, Fonts, Icons): Stale-While-Revalidate
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
+  // 3A. Content-Hashed Immutable Assets & Google Font binaries: Cache-First
+  if (isContentHashedAssetUrl(url)) {
+    event.respondWith(
+      caches.open(IMMUTABLE_CACHE_NAME).then(async (cache) => {
+        const cachedResponse =
+          (typeof cache.match === 'function' ? await cache.match(request) : null) ||
+          (await caches.match(request));
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        try {
+          const networkResponse = await fetch(request);
+          if (isValidAssetResponse(request, networkResponse, url)) {
             const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+            cache.put(request, clone).catch(() => {});
+          }
+          return networkResponse;
+        } catch {
+          return Response.error();
+        }
+      })
+    );
+    return;
+  }
+
+  // 3B. Mutable Static Assets (unhashed icons, SVGs, public images, Google Font CSS): Stale-While-Revalidate
+  event.respondWith(
+    caches.open(RUNTIME_CACHE_NAME).then(async (cache) => {
+      const cachedResponse =
+        (typeof cache.match === 'function' ? await cache.match(request) : null) ||
+        (await caches.match(request));
+      const fetchInit = url.origin === self.location.origin ? { cache: 'no-cache' } : undefined;
+      const fetchPromise = fetch(request, fetchInit)
+        .then((networkResponse) => {
+          if (isValidAssetResponse(request, networkResponse, url)) {
+            const clone = networkResponse.clone();
+            cache.put(request, clone).catch(() => {});
           }
           return networkResponse;
         })

@@ -10,10 +10,10 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
 
-    <!-- Google Fonts: Inter & Montserrat -->
+    <!-- Google Fonts: Courgette, Inter & Montserrat -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courgette&family=Inter:wght@300;400;500;600&family=Montserrat:wght@600;700;800&display=swap" />
 
     <!-- PWA & Mobile Meta Tags (App Primary Purple Theme) -->
     <meta name="theme-color" content="#9333EA" />
@@ -88,25 +88,41 @@
           var hadController = Boolean(navigator.serviceWorker.controller);
           var refreshing = false;
 
-          navigator.serviceWorker.addEventListener('controllerchange', function () {
-            if (hadController && !refreshing) {
-              refreshing = true;
-              window.location.reload();
+          var activateWaitingWorker = function (worker) {
+            if (!worker) return;
+            if (window.__POS_HOLD_SW_UPDATE__) {
+              window.__POS_WAITING_SW__ = worker;
+              return;
             }
+            window.__POS_WAITING_SW__ = null;
+            worker.postMessage({ type: 'SKIP_WAITING' });
+          };
+
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (!hadController || refreshing) return;
+            try {
+              var lastReload = Number(sessionStorage.getItem('__pos_sw_reload_at') || '0');
+              if (lastReload && Date.now() - lastReload < 15000) {
+                return;
+              }
+              sessionStorage.setItem('__pos_sw_reload_at', String(Date.now()));
+            } catch (e) {}
+            refreshing = true;
+            window.location.reload();
           });
 
           navigator.serviceWorker
             .register('/sw.js', { scope: '/' })
             .then(function (registration) {
-              if (registration.waiting) {
-                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              if (registration.waiting && navigator.serviceWorker.controller) {
+                activateWaitingWorker(registration.waiting);
               }
               registration.addEventListener('updatefound', function () {
                 var newWorker = registration.installing;
                 if (newWorker) {
                   newWorker.addEventListener('statechange', function () {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                      activateWaitingWorker(newWorker);
                     }
                   });
                 }

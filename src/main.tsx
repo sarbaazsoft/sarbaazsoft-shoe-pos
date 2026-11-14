@@ -5,8 +5,10 @@ import App from './App.tsx';
 import './index.css';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { queryClient, registerQueryCacheLifecycle } from './services/queryClient.ts';
+import { registerViteChunkErrorRecovery } from './utils/swUpdate.ts';
 
 registerQueryCacheLifecycle();
+registerViteChunkErrorRecovery();
 
 // Delete any deprecated registration, slug, or subdomain keys from localStorage
 if (typeof window !== 'undefined' && window.localStorage) {
