@@ -2,10 +2,12 @@ import { QueryClient } from '@tanstack/react-query';
 import {
   getActiveTenantId,
   isAbortError,
+  subscribeApiMutation,
   subscribeSessionClear,
   subscribeTenantChange,
 } from './api.ts';
 import { subscribeDataSync, type DataSyncTopic } from '../utils/dataSyncBus.ts';
+import { resolveQueryClientDefaultOptions } from '../utils/cachePolicy.ts';
 
 function resolveTenantScope(tenantId?: number | null): string {
   const effective = tenantId !== undefined ? tenantId : getActiveTenantId();
@@ -184,13 +186,16 @@ export const queryKeys = {
   },
 };
 
+const envDefaults = resolveQueryClientDefaultOptions();
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
-      gcTime: 10 * 60_000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
+      staleTime: envDefaults.staleTime,
+      gcTime: envDefaults.gcTime,
+      refetchOnWindowFocus: envDefaults.refetchOnWindowFocus,
+      refetchOnMount: envDefaults.refetchOnMount,
+      refetchOnReconnect: envDefaults.refetchOnReconnect,
       retry: (failureCount, error: any) => {
         if (isAbortError(error)) return false;
         const status = Number(error?.status);
@@ -201,6 +206,100 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+export interface MutationInvalidationPlan {
+  topics: DataSyncTopic[];
+  invalidateSuperAdmin: boolean;
+  invalidateSaas: boolean;
+}
+
+export function resolveMutationInvalidationPlan(endpoint: string): MutationInvalidationPlan {
+  const pathOnly = endpoint.split('?')[0].toLowerCase();
+
+  if (pathOnly.startsWith('/superadmin') || pathOnly.startsWith('/saas') || pathOnly.startsWith('/install')) {
+    return {
+      topics: pathOnly.includes('/notifications') ? ['notifications'] : [],
+      invalidateSuperAdmin: true,
+      invalidateSaas: true,
+    };
+  }
+  if (pathOnly.startsWith('/backup/restore') || pathOnly.startsWith('/backup/import-sql')) {
+    return {
+      topics: ['products', 'inventory', 'sales', 'returns', 'purchases', 'suppliers', 'customers', 'notifications', 'settings'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: true,
+    };
+  }
+  if (pathOnly.startsWith('/pos/')) {
+    return {
+      topics: ['sales', 'inventory', 'customers', 'notifications'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/returns')) {
+    return {
+      topics: ['returns', 'sales', 'inventory', 'customers', 'notifications'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/purchase-returns') || pathOnly.startsWith('/purchases')) {
+    return {
+      topics: ['purchases', 'inventory', 'suppliers', 'notifications'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/products') || pathOnly.startsWith('/categories')) {
+    return {
+      topics: ['products', 'inventory'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/inventory')) {
+    return {
+      topics: ['inventory', 'products'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/suppliers')) {
+    return {
+      topics: ['suppliers'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/customers')) {
+    return {
+      topics: ['customers'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/notifications')) {
+    return {
+      topics: ['notifications'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: false,
+    };
+  }
+  if (pathOnly.startsWith('/settings') || pathOnly.startsWith('/tenants/onboarding') || pathOnly.startsWith('/auth/profile')) {
+    return {
+      topics: ['settings'],
+      invalidateSuperAdmin: false,
+      invalidateSaas: true,
+    };
+  }
+
+  return {
+    topics: [],
+    invalidateSuperAdmin: false,
+    invalidateSaas: false,
+  };
+}
 
 export function resolveInvalidationKeysForTopics(
   topics: DataSyncTopic[],
@@ -325,6 +424,19 @@ export function registerQueryCacheLifecycle(): () => void {
     void invalidateQueriesForTopics(event.topics);
   });
 
+  const unsubApiMutation = subscribeApiMutation((endpoint) => {
+    const plan = resolveMutationInvalidationPlan(endpoint);
+    if (plan.topics.length > 0) {
+      void invalidateQueriesForTopics(plan.topics);
+    }
+    if (plan.invalidateSuperAdmin) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.superAdmin.all(), refetchType: 'active' });
+    }
+    if (plan.invalidateSaas) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.saas.all(), refetchType: 'active' });
+    }
+  });
+
   const handleAnnouncement = () => {
     void invalidateQueriesForTopics(['notifications']);
   };
@@ -347,6 +459,7 @@ export function registerQueryCacheLifecycle(): () => void {
     unsubSessionClear();
     unsubTenantChange();
     unsubDataSync();
+    unsubApiMutation();
     if (typeof window !== 'undefined') {
       window.removeEventListener('platform:announcement', handleAnnouncement);
       window.removeEventListener('pos:offline-sync-complete', handleOfflineSyncComplete);

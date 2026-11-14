@@ -1,3 +1,5 @@
+import { isProductionCachingEnabled } from './cachePolicy.ts';
+
 declare global {
   interface Window {
     __POS_HOLD_SW_UPDATE__?: boolean;
@@ -8,6 +10,7 @@ declare global {
 const SW_RELOAD_GUARD_KEY = '__pos_sw_reload_at';
 const CHUNK_RELOAD_GUARD_KEY = '__pos_chunk_reload_at';
 const RELOAD_COOLDOWN_MS = 15_000;
+const VERSION_CHECK_THROTTLE_MS = 60_000;
 
 export function canTriggerSafeReload(storageKey: string = SW_RELOAD_GUARD_KEY): boolean {
   if (typeof window === 'undefined') return false;
@@ -94,4 +97,77 @@ export function registerViteChunkErrorRecovery(): void {
 
     triggerReload();
   });
+}
+
+let versionSyncRegistered = false;
+
+export function registerProductionVersionSync(): () => void {
+  if (typeof window === 'undefined' || !isProductionCachingEnabled() || versionSyncRegistered) {
+    return () => {};
+  }
+  versionSyncRegistered = true;
+
+  const metaEl = document.querySelector('meta[name="app-build-version"]');
+  const currentVersion = metaEl?.getAttribute('content')?.trim() || '';
+  if (!currentVersion) {
+    return () => {};
+  }
+
+  let lastCheckedAt = 0;
+
+  const checkForNewDeployment = async () => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (window.__POS_HOLD_SW_UPDATE__) return;
+
+    const now = Date.now();
+    if (now - lastCheckedAt < VERSION_CHECK_THROTTLE_MS) return;
+    lastCheckedAt = now;
+
+    try {
+      const res = await fetch(`/version.json?t=${now}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const payload = await res.json().catch(() => null);
+      const remoteVersion = String(payload?.version || '').trim();
+      if (!remoteVersion || remoteVersion === currentVersion) return;
+
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+        if (reg) {
+          await reg.update().catch(() => {});
+          if (reg.waiting && !window.__POS_HOLD_SW_UPDATE__) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            return;
+          }
+          if (reg.installing) {
+            return;
+          }
+        }
+      }
+
+      if (!window.__POS_HOLD_SW_UPDATE__ && canTriggerSafeReload(SW_RELOAD_GUARD_KEY)) {
+        window.location.reload();
+      }
+    } catch {
+      // Ignore network blips during background version probe
+    }
+  };
+
+  const handleVisibility = () => {
+    if (document.visibilityState === 'visible') {
+      void checkForNewDeployment();
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibility);
+  const timer = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      void checkForNewDeployment();
+    }
+  }, 5 * 60_000);
+
+  return () => {
+    versionSyncRegistered = false;
+    document.removeEventListener('visibilitychange', handleVisibility);
+    clearInterval(timer);
+  };
 }

@@ -8,7 +8,9 @@
 // 4. Background Sync & Periodic Sync for Offline POS Transactions (IndexedDB)
 // =========================================================================
 
+const SW_ENV = 'development';
 const SW_BUILD_VERSION = 'dev';
+const IS_PRODUCTION_SW = SW_ENV === 'production';
 const CACHE_PREFIX = 'sarbaazsoft-pos';
 const PRECACHE_CACHE_NAME = `${CACHE_PREFIX}-precache-${SW_BUILD_VERSION}`;
 const RUNTIME_CACHE_NAME = `${CACHE_PREFIX}-runtime-${SW_BUILD_VERSION}`;
@@ -190,16 +192,36 @@ async function precacheAppShell() {
 // 1. Service Worker Lifecycle (Install & Activate)
 // -------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
-  // Only skip waiting automatically on clean first-time install.
-  // When an active SW is already serving an open tab, wait for SKIP_WAITING
-  // so an active POS session does not swap lazy chunk versions mid-checkout.
-  if (!(self.registration && self.registration.active)) {
+  // In development, activate immediately without freezing dev modules in Cache Storage.
+  // In production, only auto-skipWaiting on clean first-time install so open tabs do not
+  // swap lazy chunks mid-checkout (unless explicitly requested via SKIP_WAITING).
+  if (!IS_PRODUCTION_SW || !(self.registration && self.registration.active)) {
     self.skipWaiting();
+  }
+  if (!IS_PRODUCTION_SW) {
+    return;
   }
   event.waitUntil(precacheAppShell().catch(() => {}));
 });
 
 self.addEventListener('activate', (event) => {
+  if (!IS_PRODUCTION_SW) {
+    // Development: purge all cached shells/runtime buckets so switching from prod to dev never serves stale bundles
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(
+            keys
+              .filter((k) => k.startsWith(CACHE_PREFIX))
+              .map((k) => caches.delete(k))
+          )
+        )
+        .then(() => self.clients.claim())
+    );
+    return;
+  }
+
   const activeCacheNames = new Set([
     PRECACHE_CACHE_NAME,
     RUNTIME_CACHE_NAME,
@@ -233,9 +255,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pass-through API calls, service worker scripts, binary installers (.apk/.aab/.exe/.msix*), and Vite dev internals directly to network
+  // Pass-through API calls, version probe, service worker scripts, binary installers (.apk/.aab/.exe/.msix*), and Vite dev internals directly to network
   if (
     url.pathname.startsWith('/api/') ||
+    url.pathname === '/version.json' ||
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/node_modules') ||
     url.pathname.includes('hot-update') ||
@@ -246,6 +269,28 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/assets/android/') ||
     BINARY_INSTALLER_EXT_RE.test(url.pathname)
   ) {
+    return;
+  }
+
+  // In development, always fetch fresh modules & assets straight from Vite dev server without caching
+  if (!IS_PRODUCTION_SW) {
+    if (request.mode === 'navigate') {
+      event.respondWith(
+        fetch(request, { cache: 'no-store' }).catch(
+          () =>
+            new Response(
+              '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dev Server Offline - SarbaazSoft Shoe POS</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#FFFFFF;color:#0F172A;text-align:center;padding:20px;}</style></head><body><div><h2>SarbaazSoft Shoe POS (Development)</h2><p>Unable to reach the development server.</p></div></body></html>',
+              { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            )
+        )
+      );
+      return;
+    }
+    if (url.origin === self.location.origin) {
+      event.respondWith(
+        fetch(request, { cache: 'no-store' }).catch(() => Response.error())
+      );
+    }
     return;
   }
 

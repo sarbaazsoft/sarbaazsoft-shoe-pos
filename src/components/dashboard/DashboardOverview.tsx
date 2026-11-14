@@ -251,7 +251,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
     enabled: isActive,
-    staleTime: 15_000,
   });
 
   const activeNotices = useMemo(() => {

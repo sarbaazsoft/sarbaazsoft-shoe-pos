@@ -13,6 +13,7 @@ import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
 import { useDashboardReportQuery } from '../../hooks/useAppQueries.ts';
 import { queryKeys } from '../../services/queryClient.ts';
+import { getQueryStaleTime } from '../../utils/cachePolicy.ts';
 
 interface ReportsDashboardProps {
   currentUser: any;
@@ -60,7 +61,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     queryKey: queryKeys.reports.topSelling(tenantId),
     queryFn: ({ signal }) => api.reports.getTopSelling({ signal }),
     enabled: isActive,
-    staleTime: 30_000,
+    staleTime: getQueryStaleTime('default'),
     placeholderData: keepPreviousData,
   });
 
@@ -68,7 +69,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     queryKey: queryKeys.sales.list({ limit: 50 }, tenantId),
     queryFn: ({ signal }) => api.pos.listSales({ limit: 50 }, { signal }),
     enabled: isActive,
-    staleTime: 20_000,
+    staleTime: getQueryStaleTime('standard'),
     placeholderData: keepPreviousData,
   });
 
@@ -100,7 +101,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     queryKey: queryKeys.reports.profitLoss(plDateParams, tenantId),
     queryFn: ({ signal }) => api.reports.getProfitLoss(plDateParams, { signal }),
     enabled: isActive && activeTab === 'profit_loss',
-    staleTime: 20_000,
+    staleTime: getQueryStaleTime('standard'),
     placeholderData: keepPreviousData,
   });
 

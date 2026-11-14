@@ -8,6 +8,7 @@ import {
   isBinaryInstallerAsset,
   isContentHashedAsset,
   isServiceWorkerScript,
+  resolveApiCacheHeaders,
   resolveServiceWorkerFilePath,
   resolveStaticCacheHeaders,
 } from '../src/server/utils/staticCacheHeaders.ts';
@@ -62,6 +63,22 @@ test('staticCacheHeaders assigns proper Cache-Control policies per asset class',
     const headers = resolveStaticCacheHeaders(bin);
     assert.equal(headers['Cache-Control'], 'no-cache, must-revalidate');
   }
+  // 7. Development static headers never HTTP-cache assets; API headers switch cleanly by env
+  const devStatic = resolveStaticCacheHeaders('/src/App.tsx', false);
+  assert.equal(devStatic['Cache-Control'], 'no-cache, no-store, must-revalidate');
+  const devIcon = resolveStaticCacheHeaders('/pwa-192x192.png', false);
+  assert.equal(devIcon['Cache-Control'], 'no-cache, no-store, must-revalidate');
+
+  const devApi = resolveApiCacheHeaders('/products', false);
+  assert.equal(devApi['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  assert.equal(devApi['Pragma'], 'no-cache');
+
+  const prodApi = resolveApiCacheHeaders('/products', true);
+  assert.equal(prodApi['Cache-Control'], 'private, no-cache, must-revalidate');
+  assert.equal(prodApi['Vary'], 'X-Tenant-Id, X-Auth-Token, Authorization');
+
+  const sseHeaders = resolveApiCacheHeaders('/notifications/stream', true);
+  assert.equal(sseHeaders['Cache-Control'], 'no-cache, no-transform');
 });
 
 test('resolveServiceWorkerFilePath prefers dist/ in production and public/ in development', () => {
@@ -85,11 +102,15 @@ test('resolveServiceWorkerFilePath prefers dist/ in production and public/ in de
 });
 
 function createMockSwHarness(options?: {
+  mode?: 'development' | 'production';
   hasActiveRegistration?: boolean;
   initialCaches?: Record<string, Record<string, { status: number; body: string; contentType: string }>>;
   fetchImpl?: (input: any, init?: any) => Promise<any>;
 }) {
-  const swCode = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  let swCode = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  if ((options?.mode || 'production') === 'production') {
+    swCode = swCode.replace(/const SW_ENV = ['"][^'"]*['"];/, "const SW_ENV = 'production';");
+  }
   const listeners = new Map<string, (event: any) => void>();
   let skipWaitingCalls = 0;
   let clientsClaimCalls = 0;
@@ -388,4 +409,59 @@ test('public/sw.js enforces Cache-First for hashed assets, SWR for icons, and bl
     },
   });
   assert.equal(apkIntercepted, false);
+});
+
+test('public/sw.js defaults to development mode: purges caches and uses no-store network-only fetch', async () => {
+  const seenFetchInits: Array<{ url: string; cache?: string }> = [];
+  const devHarness = createMockSwHarness({
+    mode: 'development',
+    hasActiveRegistration: true,
+    initialCaches: {
+      'sarbaazsoft-pos-precache-1.2.4-abc': {
+        'https://pos.example.com/': { status: 200, body: 'old-prod', contentType: 'text/html' },
+      },
+      'sarbaazsoft-pos-immutable-v1': {
+        'https://pos.example.com/assets/js/index-12345678.js': {
+          status: 200,
+          body: 'old-prod-js',
+          contentType: 'application/javascript',
+        },
+      },
+    },
+    fetchImpl: async (input: any, init?: any) => {
+      const url = typeof input === 'string' ? input : input.url;
+      seenFetchInits.push({ url, cache: init?.cache });
+      return {
+        ok: true,
+        status: 200,
+        type: 'basic',
+        headers: { get: () => 'application/javascript' },
+        body: 'fresh-dev-module',
+        clone() {
+          return this;
+        },
+      };
+    },
+  });
+
+  // 1. Development install immediately calls skipWaiting even if active worker exists
+  devHarness.listeners.get('install')!({ waitUntil: () => {} });
+  assert.equal(devHarness.getSkipWaitingCalls(), 1);
+
+  // 2. Development activate purges ALL sarbaazsoft-pos-* caches so prod artifacts never linger in dev
+  let actWait = Promise.resolve();
+  devHarness.listeners.get('activate')!({ waitUntil: (p: Promise<any>) => (actWait = p) });
+  await actWait;
+  assert.equal(devHarness.store.size, 0, 'Dev SW activate must purge all sarbaazsoft-pos caches');
+
+  // 3. Development fetch always goes straight to network with cache: no-store and writes nothing to Cache Storage
+  let responded: Promise<any> | null = null;
+  devHarness.listeners.get('fetch')!({
+    request: { method: 'GET', url: 'https://pos.example.com/src/App.tsx', destination: 'script' },
+    respondWith: (p: Promise<any>) => (responded = p),
+  });
+  const devRes = await responded!;
+  assert.equal(devRes.body, 'fresh-dev-module');
+  assert.equal(seenFetchInits[0]?.cache, 'no-store');
+  assert.equal(devHarness.store.size, 0, 'Dev SW must never write dev modules to Cache Storage');
 });

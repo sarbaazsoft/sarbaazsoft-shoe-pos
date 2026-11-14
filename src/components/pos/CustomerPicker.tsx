@@ -5,6 +5,7 @@ import { api } from '../../services/api.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
 import { customerOpeningBalanceSchema } from '../../schemas/openingBalanceSchema.ts';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 interface CustomerPickerProps {
   customers: any[];
@@ -320,6 +321,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
       });
       const created = res?.customer;
       if (!created) throw new Error('Customer was not returned by the server.');
+      emitDataSync(['customers'], { source: 'customer-picker', customerId: created.id });
       onCustomerCreated(created);
       setNewName('');
       setNewPhone('');

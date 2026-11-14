@@ -58,12 +58,11 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
         ? path.resolve(rootDir, outputOptions.dir)
         : path.resolve(rootDir, 'dist');
       const swPath = path.join(outDir, 'sw.js');
-      if (!fs.existsSync(swPath)) {
-        return;
-      }
+      const indexHtmlPath = path.join(outDir, 'index.html');
 
       const precacheBuildAssets = collectBuiltPrecacheAssets(outDir);
-      let swSource = fs.readFileSync(swPath, 'utf8');
+      const swExists = fs.existsSync(swPath);
+      let swSource = swExists ? fs.readFileSync(swPath, 'utf8') : '';
 
       let pkgVersion = '1.0.0';
       const pkgPath = path.join(rootDir, 'package.json');
@@ -80,27 +79,59 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
 
       const hash = crypto.createHash('sha256');
       hash.update(pkgVersion);
-      const indexHtmlPath = path.join(outDir, 'index.html');
       if (fs.existsSync(indexHtmlPath)) {
         hash.update(fs.readFileSync(indexHtmlPath));
       }
-      hash.update(swSource);
+      if (swSource) {
+        hash.update(swSource);
+      }
       for (const assetUrl of precacheBuildAssets) {
         hash.update(assetUrl);
       }
       const buildVersion = `${pkgVersion}-${hash.digest('hex').slice(0, 10)}`;
 
-      swSource = swSource
-        .replace(
-          /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
-          `const SW_BUILD_VERSION = '${buildVersion}';`
-        )
-        .replace(
-          /const PRECACHE_BUILD_ASSETS = \[[\s\S]*?\];/,
-          `const PRECACHE_BUILD_ASSETS = ${JSON.stringify(precacheBuildAssets, null, 2)};`
-        );
+      if (swExists) {
+        swSource = swSource
+          .replace(
+            /const SW_ENV = ['"][^'"]*['"];/,
+            `const SW_ENV = 'production';`
+          )
+          .replace(
+            /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
+            `const SW_BUILD_VERSION = '${buildVersion}';`
+          )
+          .replace(
+            /const PRECACHE_BUILD_ASSETS = \[[\s\S]*?\];/,
+            `const PRECACHE_BUILD_ASSETS = ${JSON.stringify(precacheBuildAssets, null, 2)};`
+          );
 
-      fs.writeFileSync(swPath, swSource, 'utf8');
+        fs.writeFileSync(swPath, swSource, 'utf8');
+      }
+
+      if (fs.existsSync(indexHtmlPath)) {
+        let html = fs.readFileSync(indexHtmlPath, 'utf8');
+        const metaTag = `<meta name="app-build-version" content="${buildVersion}" />`;
+        if (html.includes('name="app-build-version"')) {
+          html = html.replace(/<meta name="app-build-version"[^>]*>/i, metaTag);
+        } else {
+          html = html.replace('</head>', `    ${metaTag}\n  </head>`);
+        }
+        fs.writeFileSync(indexHtmlPath, html, 'utf8');
+      }
+
+      fs.writeFileSync(
+        path.join(outDir, 'version.json'),
+        JSON.stringify(
+          {
+            version: buildVersion,
+            env: 'production',
+            builtAt: new Date().toISOString(),
+          },
+          null,
+          2
+        ),
+        'utf8'
+      );
     },
   };
 }

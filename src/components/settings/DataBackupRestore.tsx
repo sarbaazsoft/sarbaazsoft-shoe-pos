@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Download, Upload, FileText, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw, ShieldCheck, HardDrive, ArrowDownToLine, Check, ShoppingBag, Receipt, FileCheck, TrendingUp, Activity } from 'lucide-react';
 import { api, getAuthToken } from '../../services/api.ts';
 import { AnimatedCounter, triggerStatRecount } from '../common/StatCard.tsx';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 interface DataBackupRestoreProps {
   currentUser: any;
@@ -255,7 +256,11 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
         fileInputRef.current.value = '';
       }
 
-      // Refresh stats & app settings
+      // Refresh stats & cross-route caches
+      emitDataSync(
+        ['products', 'inventory', 'sales', 'returns', 'purchases', 'suppliers', 'customers', 'notifications', 'settings'],
+        { source: 'data-backup-restore' }
+      );
       loadStats();
       if (onDataRestored) {
         onDataRestored();
@@ -302,6 +307,10 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
       if (sqlFileInputRef.current) {
         sqlFileInputRef.current.value = '';
       }
+      emitDataSync(
+        ['products', 'inventory', 'sales', 'returns', 'purchases', 'suppliers', 'customers', 'notifications', 'settings'],
+        { source: 'data-backup-restore' }
+      );
       loadStats();
       if (onDataRestored) {
         onDataRestored();

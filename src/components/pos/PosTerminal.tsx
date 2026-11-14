@@ -25,6 +25,7 @@ import { PosNotificationBanner } from './PosNotificationBanner.tsx';
 import { QuickReceiveChips } from './QuickReceiveChips.tsx';
 import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { getQueryStaleTime } from '../../utils/cachePolicy.ts';
 import { setHoldSwUpdate } from '../../utils/swUpdate.ts';
 
 export interface CartItem {
@@ -438,7 +439,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       const res = await queryClient.fetchQuery({
         queryKey: queryKeys.customers.list(undefined, activeTenantId),
         queryFn: ({ signal }) => api.customers.list(undefined, { signal }),
-        staleTime: 30_000,
+        staleTime: getQueryStaleTime('default'),
       });
       setCustomers(res.customers || []);
     } catch (err) {

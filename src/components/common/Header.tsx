@@ -331,7 +331,6 @@ export const Header: React.FC<HeaderProps> = ({
   const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
     enabled: Boolean(currentUser),
     refetchInterval: 30_000,
-    staleTime: 15_000,
   });
   const notifications = useMemo(
     () => (groupedNotifsQuery.data?.notifications || []).slice(0, 5),

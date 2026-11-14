@@ -23,6 +23,7 @@ import {
   useSuppliersQuery,
 } from '../../hooks/useAppQueries.ts';
 import { queryClient, queryKeys } from '../../services/queryClient.ts';
+import { getQueryStaleTime } from '../../utils/cachePolicy.ts';
 
 interface PurchaseManagementProps {
   currentUser: any;
@@ -215,7 +216,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     queryKey: queryKeys.purchases.list(purchaseSearchParam, tenantId),
     queryFn: ({ signal }) => api.purchases.list({ search: purchaseSearchParam }, { signal }),
     enabled: isActive,
-    staleTime: 20_000,
+    staleTime: getQueryStaleTime('standard'),
     placeholderData: keepPreviousData,
   });
 
@@ -223,7 +224,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     queryKey: queryKeys.purchaseReturns.list(purchaseSearchParam, tenantId),
     queryFn: ({ signal }) => api.purchaseReturns.list({ search: purchaseSearchParam }, { signal }),
     enabled: isActive,
-    staleTime: 20_000,
+    staleTime: getQueryStaleTime('standard'),
     placeholderData: keepPreviousData,
   });
 

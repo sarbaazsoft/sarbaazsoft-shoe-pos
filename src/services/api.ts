@@ -57,9 +57,11 @@ export function getActiveTenantId(): number | null {
 
 type SessionClearListener = () => void;
 type TenantChangeListener = (nextTenantId: number | null, prevTenantId: number | null) => void;
+type ApiMutationListener = (endpoint: string, method: string) => void;
 
 const sessionClearListeners = new Set<SessionClearListener>();
 const tenantChangeListeners = new Set<TenantChangeListener>();
+const apiMutationListeners = new Set<ApiMutationListener>();
 let lastTrackedTenantId: number | null = null;
 
 export function subscribeSessionClear(listener: SessionClearListener): () => void {
@@ -74,6 +76,41 @@ export function subscribeTenantChange(listener: TenantChangeListener): () => voi
   return () => {
     tenantChangeListeners.delete(listener);
   };
+}
+
+export function subscribeApiMutation(listener: ApiMutationListener): () => void {
+  apiMutationListeners.add(listener);
+  return () => {
+    apiMutationListeners.delete(listener);
+  };
+}
+
+function isNonMutatingPostEndpoint(endpoint: string): boolean {
+  const pathOnly = endpoint.split('?')[0].toLowerCase();
+  return (
+    pathOnly === '/auth/login' ||
+    pathOnly === '/auth/logout' ||
+    pathOnly === '/auth/send-reset-link' ||
+    pathOnly === '/auth/verify-reset-token' ||
+    pathOnly === '/auth/reset-password' ||
+    pathOnly === '/chat' ||
+    pathOnly.startsWith('/notifications/fcm-token') ||
+    pathOnly.startsWith('/notifications/test-') ||
+    pathOnly === '/settings/test-email'
+  );
+}
+
+function notifyApiMutationSuccess(endpoint: string, method: string): void {
+  if (method === 'GET' || method === 'HEAD' || isNonMutatingPostEndpoint(endpoint)) {
+    return;
+  }
+  for (const listener of Array.from(apiMutationListeners)) {
+    try {
+      listener(endpoint, method);
+    } catch (err) {
+      console.warn('API mutation listener error:', err);
+    }
+  }
 }
 
 function notifyTenantChanged(nextTenantId: number | null) {
@@ -487,7 +524,9 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     throw apiError;
   }
 
-  return transformKeysToCamelCase<T>(data);
+  const transformed = transformKeysToCamelCase<T>(data);
+  notifyApiMutationSuccess(endpoint, method);
+  return transformed;
 }
 
 export const api = {

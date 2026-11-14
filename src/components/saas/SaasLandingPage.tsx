@@ -3,6 +3,7 @@ import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, S
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
 import { api } from '../../services/api';
 import { useSaasDirectoryQuery } from '../../hooks/useAppQueries';
+import { getQueryStaleTime } from '../../utils/cachePolicy';
 import type { TenantInfo } from '../../types';
 import { FreeTrialOnboardingModal } from './FreeTrialOnboardingModal';
 import { useTheme } from '../../context/ThemeContext';
@@ -456,7 +457,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
 
   const saasDirectoryQuery = useSaasDirectoryQuery(undefined, {
     refetchInterval: 30_000,
-    staleTime: 25_000,
+    staleTime: getQueryStaleTime('standard'),
   });
 
   useEffect(() => {

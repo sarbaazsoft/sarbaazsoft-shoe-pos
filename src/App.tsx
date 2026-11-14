@@ -9,6 +9,7 @@ import { LoadingWindow } from './components/common/LoadingWindow.tsx';
 import { SaasLandingPage } from './components/saas/SaasLandingPage.tsx';
 import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
 import { emitDataSync } from './utils/dataSyncBus.ts';
+import { getQueryStaleTime } from './utils/cachePolicy.ts';
 import { evictTenantQueries, queryClient, queryKeys, resetAllQueryCache } from './services/queryClient.ts';
 
 const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
@@ -488,7 +489,7 @@ export default function App() {
       const res = await queryClient.fetchQuery({
         queryKey: queryKeys.saas.resolve(searchScope),
         queryFn: ({ signal }) => api.saas.resolve(undefined, { signal }),
-        staleTime: 30_000,
+        staleTime: getQueryStaleTime('default'),
       });
 
       if (Array.isArray(res?.availableTenants)) {
@@ -563,7 +564,7 @@ export default function App() {
         .fetchQuery({
           queryKey: queryKeys.settings.store(targetTenantId),
           queryFn: ({ signal }) => api.settings.get({ signal }),
-          staleTime: 60_000,
+          staleTime: getQueryStaleTime('settings'),
         })
         .catch(() => null);
       if (settingsRes?.settings) {
@@ -652,7 +653,7 @@ export default function App() {
               .fetchQuery({
                 queryKey: queryKeys.settings.store(tenantIdForInit),
                 queryFn: ({ signal }) => api.settings.get({ signal }),
-                staleTime: 60_000,
+                staleTime: getQueryStaleTime('settings'),
               })
               .catch(() => null)
           : Promise.resolve(null),

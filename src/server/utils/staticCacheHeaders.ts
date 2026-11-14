@@ -25,7 +25,36 @@ export function isContentHashedAsset(filePath: string): boolean {
   return HASHED_ASSET_DIR_RE.test(normalized) || CONTENT_HASHED_FILENAME_RE.test(normalized);
 }
 
-export function resolveStaticCacheHeaders(filePath: string): Record<string, string> {
+export function resolveApiCacheHeaders(
+  reqPath: string,
+  isProduction: boolean
+): Record<string, string> {
+  const cleanPath = reqPath.split('?')[0].toLowerCase();
+
+  if (cleanPath === '/notifications/stream') {
+    return {
+      'Cache-Control': 'no-cache, no-transform',
+    };
+  }
+
+  if (!isProduction) {
+    return {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    };
+  }
+
+  return {
+    'Cache-Control': 'private, no-cache, must-revalidate',
+    Vary: 'X-Tenant-Id, X-Auth-Token, Authorization',
+  };
+}
+
+export function resolveStaticCacheHeaders(
+  filePath: string,
+  isProduction: boolean = true
+): Record<string, string> {
   const normalized = filePath.split('?')[0];
   const lower = normalized.toLowerCase();
 
@@ -35,6 +64,15 @@ export function resolveStaticCacheHeaders(filePath: string): Record<string, stri
       'X-Content-Type-Options': 'nosniff',
       'Service-Worker-Allowed': '/',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
+    };
+  }
+
+  if (lower.endsWith('version.json')) {
+    return {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
     };
   }
 
@@ -49,14 +87,16 @@ export function resolveStaticCacheHeaders(filePath: string): Record<string, stri
   if (lower.endsWith('.webmanifest') || lower.endsWith('manifest.json')) {
     return {
       'Content-Type': 'application/manifest+json; charset=utf-8',
-      'Cache-Control': 'no-cache, must-revalidate',
+      'Cache-Control': isProduction
+        ? 'no-cache, must-revalidate'
+        : 'no-cache, no-store, must-revalidate',
     };
   }
 
   if (lower.endsWith('assetlinks.json')) {
     return {
       'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': isProduction ? 'public, max-age=3600' : 'no-cache, must-revalidate',
     };
   }
 
@@ -80,6 +120,15 @@ export function resolveStaticCacheHeaders(filePath: string): Record<string, stri
       headers['Content-Type'] = 'application/appx';
     }
     return headers;
+  }
+
+  // During development, ensure instant code/asset updates without browser disk caching
+  if (!isProduction) {
+    return {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    };
   }
 
   if (isContentHashedAsset(normalized)) {

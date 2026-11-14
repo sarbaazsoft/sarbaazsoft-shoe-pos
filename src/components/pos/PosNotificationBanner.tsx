@@ -103,7 +103,6 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
   const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
     enabled: Boolean(currentUser),
     refetchInterval: 30_000,
-    staleTime: 15_000,
   });
 
   const rawServerNotices = useMemo<PlatformNotification[]>(

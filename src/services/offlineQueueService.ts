@@ -5,6 +5,7 @@ import { queryClient, queryKeys } from './queryClient.ts';
 import { QueuedSale, queueOfflineSale, getOfflineSales, getPendingOfflineSalesCount, updateOfflineSaleStatus, deleteOfflineSale, cacheCatalogOffline, resolveActiveTenantId } from '../utils/offlineDb.ts';
 import { buildCheckoutRequestPayload, processOfflineSalesQueue } from './offline/syncEngine.ts';
 import { emitDataSync } from '../utils/dataSyncBus.ts';
+import { getQueryStaleTime } from '../utils/cachePolicy.ts';
 
 export const SW_SYNC_TAG = 'pos-offline-transactions-sync';
 
@@ -422,7 +423,7 @@ class OfflineQueueService {
         const res = await queryClient.fetchQuery({
           queryKey: queryKeys.products.catalog(500, tenantId),
           queryFn: ({ signal }) => api.products.list({ limit: 500 }, { signal }),
-          staleTime: force ? 0 : 10000,
+          staleTime: force ? 0 : getQueryStaleTime('realtime'),
         });
         if (res && Array.isArray(res.products)) {
           await cacheCatalogOffline(res.products, tenantId);

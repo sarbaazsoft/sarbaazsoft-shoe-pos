@@ -13,7 +13,14 @@ import {
   queryKeys,
   registerQueryCacheLifecycle,
   resolveInvalidationKeysForTopics,
+  resolveMutationInvalidationPlan,
 } from '../src/services/queryClient.ts';
+import {
+  getQueryStaleTime,
+  isProductionCachingEnabled,
+  resolveCacheEnvironment,
+  resolveQueryClientDefaultOptions,
+} from '../src/utils/cachePolicy.ts';
 import { clearDataSyncListeners, emitDataSync } from '../src/utils/dataSyncBus.ts';
 
 function createMockStorage(): Storage {
@@ -228,5 +235,94 @@ test('apiFetch: triggers single GET RPC bridge fallback for mutations only on no
     assert.equal(res.id, 77);
     assert.deepEqual(requestedMethods, ['POST', 'GET']);
     assert.ok(requestedUrls[1].includes('__method=POST'));
+  });
+});
+
+test('cachePolicy: switches automatically between development (freshness) and production (optimized caching)', () => {
+  assert.equal(resolveCacheEnvironment(false), 'development');
+  assert.equal(resolveCacheEnvironment(true), 'production');
+  assert.equal(isProductionCachingEnabled(false), false);
+  assert.equal(isProductionCachingEnabled(true), true);
+
+  // Development forces zero staleTime across all tiers and enables focus refetching
+  for (const tier of ['realtime', 'standard', 'default', 'settings', 'reference'] as const) {
+    assert.equal(getQueryStaleTime(tier, false), 0);
+  }
+  const devDefaults = resolveQueryClientDefaultOptions(false);
+  assert.equal(devDefaults.staleTime, 0);
+  assert.equal(devDefaults.refetchOnWindowFocus, true);
+  assert.equal(devDefaults.refetchOnMount, true);
+
+  // Production enables tiered staleTime and avoids spurious focus refetches
+  assert.equal(getQueryStaleTime('realtime', true), 15_000);
+  assert.equal(getQueryStaleTime('standard', true), 25_000);
+  assert.equal(getQueryStaleTime('default', true), 30_000);
+  assert.equal(getQueryStaleTime('settings', true), 60_000);
+  assert.equal(getQueryStaleTime('reference', true), 300_000);
+  const prodDefaults = resolveQueryClientDefaultOptions(true);
+  assert.equal(prodDefaults.staleTime, 30_000);
+  assert.equal(prodDefaults.refetchOnWindowFocus, false);
+});
+
+test('apiFetch + registerQueryCacheLifecycle: automatically invalidates cross-route caches after mutations', async () => {
+  await withMockBrowserEnv(async () => {
+    clearDataSyncListeners();
+    queryClient.clear();
+    const unregister = registerQueryCacheLifecycle();
+
+    try {
+      const adminToken = makeFakeJwt({
+        id: 5,
+        tenantId: 9,
+        role: 'ADMIN',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      });
+      setAuthSession(adminToken, { id: 5, tenantId: 9, role: 'ADMIN' });
+
+      queryClient.setQueryData(queryKeys.customers.list(undefined, 9), { customers: [{ id: 1 }] });
+      queryClient.setQueryData(queryKeys.reports.dashboard(9), { todaySales: 100 });
+      queryClient.setQueryData(queryKeys.products.list(undefined, 9), { products: [{ id: 10 }] });
+
+      globalThis.fetch = (async () =>
+        new Response(JSON.stringify({ success: true, customer: { id: 2, name: 'Ali' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })) as typeof fetch;
+
+      await apiFetch('/customers', { method: 'POST', body: { name: 'Ali' } });
+      await Promise.resolve();
+
+      assert.equal(
+        queryClient.getQueryState(queryKeys.customers.list(undefined, 9))?.isInvalidated,
+        true
+      );
+      assert.equal(
+        queryClient.getQueryState(queryKeys.reports.dashboard(9))?.isInvalidated,
+        true
+      );
+      // Unrelated products query stays valid when only customers mutated
+      assert.equal(
+        queryClient.getQueryState(queryKeys.products.list(undefined, 9))?.isInvalidated,
+        false
+      );
+
+      // Verify non-mutating diagnostic POST (/chat) does NOT invalidate unrelated tenant caches
+      queryClient.removeQueries({ queryKey: queryKeys.customers.list(undefined, 9) });
+      queryClient.setQueryData(queryKeys.customers.list(undefined, 9), { customers: [{ id: 1 }] });
+      await apiFetch('/chat', { method: 'POST', body: { message: 'hello' } });
+      await Promise.resolve();
+      assert.equal(
+        queryClient.getQueryState(queryKeys.customers.list(undefined, 9))?.isInvalidated,
+        false
+      );
+
+      const superPlan = resolveMutationInvalidationPlan('/superadmin/tenants/9/status');
+      assert.equal(superPlan.invalidateSuperAdmin, true);
+      assert.equal(superPlan.invalidateSaas, true);
+    } finally {
+      unregister();
+      queryClient.clear();
+      clearDataSyncListeners();
+    }
   });
 });

@@ -43,6 +43,7 @@ import { recordApplicationBaseUrl } from './src/server/services/welcomeService.t
 import { buildPwaManifest, resolvePwaBranding, type PwaBrandingInput } from './src/utils/pwaBranding.ts';
 import { patchDesktopSetupExe, resolveDesktopTargetUrl } from './src/server/utils/windowsExePatcher.ts';
 import {
+  resolveApiCacheHeaders,
   resolveServiceWorkerFilePath,
   resolveStaticCacheHeaders,
 } from './src/server/utils/staticCacheHeaders.ts';
@@ -82,6 +83,11 @@ app.use('/api', (req, res, next) => {
     req.path.startsWith('/tenants/manifest')
   ) {
     return next();
+  }
+  const isProduction = process.env.NODE_ENV === 'production';
+  const apiCacheHeaders = resolveApiCacheHeaders(req.path, isProduction);
+  for (const [key, value] of Object.entries(apiCacheHeaders)) {
+    res.setHeader(key, value);
   }
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   const originalJson = res.json.bind(res);
@@ -489,6 +495,16 @@ const isServerless = Boolean(
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production' && !isServerless) {
+    // Ensure instant code & asset updates during development without stale browser cache
+    app.use((req, res, next) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+        const headers = resolveStaticCacheHeaders(req.path || '/index.html', false);
+        for (const [key, value] of Object.entries(headers)) {
+          res.setHeader(key, value);
+        }
+      }
+      next();
+    });
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -505,7 +521,7 @@ async function startServer() {
         etag: true,
         lastModified: true,
         setHeaders: (res, filePath) => {
-          const headers = resolveStaticCacheHeaders(filePath);
+          const headers = resolveStaticCacheHeaders(filePath, true);
           for (const [key, value] of Object.entries(headers)) {
             res.setHeader(key, value);
           }
