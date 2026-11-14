@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ShoppingCart, Boxes, Users, AlertTriangle, Calendar, Truck, RefreshCw, RotateCcw, BarChart3, Building2, Store, Sparkles, X, CheckCircle2, AlertCircle, TrendingUp, DollarSign, Zap, Package, Clock } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { api } from '../../services/api.ts';
+import { api, getActiveTenantId } from '../../services/api.ts';
+import { queryClient, queryKeys } from '../../services/queryClient.ts';
+import { useDashboardReportQuery, useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { formatCurrency } from '../../utils/priceFormat.ts';
 import { isFreeTrial, calculateDaysLeft, normalizeSubscriptionPlan, getAvailableTemplateChips, getRenewalMessageTemplate, resolveDefaultRenewalTemplateType, type RenewalTemplateType } from '../../utils/subscription.ts';
 import { BrandLogo } from '../common/BrandLogo.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics.tsx';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
+import type { GroupedNotificationsResponse } from '../../types.ts';
 
 interface CustomCategoryArticlesTooltipProps {
   active?: boolean;
@@ -237,35 +241,43 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   companySettings,
   onNavigate,
 }) => {
+  const { isActive } = useRouteActivity();
+  const hasLoadedOnceRef = useRef(false);
+  const activeTenantScopeId = getActiveTenantId();
   const tenantId = currentUser?.tenantId || currentUser?.tenant_id || companySettings?.id || '1';
   const userId = currentUser?.id || currentUser?.email || 'owner';
   const visitKey = `pos_store_owner_visited_${tenantId}_${userId}`;
   const dismissKey = `pos_welcome_banner_dismissed_${tenantId}_${userId}`;
 
-  const [activeNotices, setActiveNotices] = useState<any[]>([]);
+  const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
+    enabled: isActive,
+    staleTime: 15_000,
+  });
 
-  const loadNotices = async () => {
-    try {
-      const res = await api.notifications.grouped(5);
-      if (res && Array.isArray(res.notices)) {
-        const seen = new Set<string>();
-        const unique = res.notices.filter((n: any) => {
-          const key = (n.title || '').trim().toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        setActiveNotices(unique);
-      }
-    } catch (err) {
-      console.warn('Dashboard active notices fetch:', err);
-    }
-  };
+  const activeNotices = useMemo(() => {
+    const raw = groupedNotifsQuery.data?.notices || [];
+    const seen = new Set<string>();
+    return raw.filter((n: any) => {
+      const key = (n.title || '').trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [groupedNotifsQuery.data]);
 
   const handleDismissNotice = async (noticeId: number | string) => {
+    const key = queryKeys.notifications.grouped(10, activeTenantScopeId);
     try {
-      setActiveNotices((prev) => prev.filter((n) => n.id !== noticeId));
+      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+        prev
+          ? {
+              ...prev,
+              notices: (prev.notices || []).filter((n) => n.id !== noticeId),
+            }
+          : prev
+      );
       await api.notifications.dismiss(noticeId, 'NOTICE');
+      emitDataSync(['notifications'], { source: 'dashboard-overview' });
     } catch (err) {
       console.error('Failed to dismiss notice from dashboard:', err);
     }
@@ -516,17 +528,24 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           api.notifications.dismiss(wn.id, 'NOTICE').catch(() => {});
         }
       }
-      setActiveNotices((prev) =>
-        prev.filter((n) => {
-          const titleLower = (n.title || '').toLowerCase();
-          const msgLower = (n.message || '').toLowerCase();
-          return (
-            !titleLower.includes('welcome') &&
-            !msgLower.includes('welcome') &&
-            !msgLower.includes('thank you for choosing')
-          );
-        })
+      const key = queryKeys.notifications.grouped(10, activeTenantScopeId);
+      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+        prev
+          ? {
+              ...prev,
+              notices: (prev.notices || []).filter((n) => {
+                const titleLower = (n.title || '').toLowerCase();
+                const msgLower = (n.message || '').toLowerCase();
+                return (
+                  !titleLower.includes('welcome') &&
+                  !msgLower.includes('welcome') &&
+                  !msgLower.includes('thank you for choosing')
+                );
+              }),
+            }
+          : prev
       );
+      emitDataSync(['notifications'], { source: 'dashboard-overview' });
     } catch {}
   };
 
@@ -553,9 +572,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     }
   };
 
-  const { isActive } = useRouteActivity();
-  const hasLoadedOnceRef = useRef(false);
-  const [loading, setLoading] = useState(true);
   const [activeChartMetric, setActiveChartMetric] = useState<'all' | 'sales' | 'orders'>('all');
   const [activeTrendTab, setActiveTrendTab] = useState<'weekly' | 'monthly'>('weekly');
   const dashboardContainerRef = useRef<HTMLDivElement | null>(null);
@@ -716,164 +732,144 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const currency =
     companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.';
 
-  const isRefreshingRef = useRef(false);
-
-  const loadData = async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    try {
-      setLoading(true);
-      const res = await api.reports.getDashboard();
-      if (res) {
-        setDashboardData({
-          todaySales: Number(res.today?.totalSales) || 0,
-          allTimeRevenue: Number(res.allTime?.totalRevenue) || 0,
-          totalProducts: Number(res.inventory?.totalProducts) || 0,
-          totalCustomers: Number(res.customers?.totalCount) || 0,
-          lowStockCount: Number(res.inventory?.lowStockCount) || 0,
-          totalPurchases: Number(res.purchases?.totalPurchases) || 0,
-          twelveMonthSales: Number(res.twelveMonthSales) || 0,
-          twelveMonthOrders: Number(res.twelveMonthOrders) || 0,
-          overallAov: Number(res.overallAov) || 0,
-          todayAov: Number(res.todayAov) || 0,
-          sevenDaySales: Array.isArray(res.sevenDaysSales)
-            ? res.sevenDaysSales.map((d: any, idx: number) => ({
-                date: d.date || '',
-                label: d.label || `Day ${idx + 1}`,
-                amount: Number(d.amount) || 0,
-                txCount: Number(d.count || d.txCount) || 0,
-              }))
-            : [],
-          monthlySales: Array.isArray(res.monthlySales)
-            ? res.monthlySales.map((m: any, idx: number) => ({
-                month: m.month || '',
-                label: m.label || `M${idx + 1}`,
-                yearLabel: m.yearLabel || '',
-                amount: Number(m.amount) || 0,
-                txCount: Number(m.count || m.txCount) || 0,
-                volumeSold: Number(m.volumeSold ?? m.volume_sold ?? 0),
-                volumePurchased: Number(m.volumePurchased ?? m.volume_purchased ?? 0),
-              }))
-            : [],
-          recentTransactions: Array.isArray(res.recentTransactions)
-            ? res.recentTransactions.map((tx: any) => ({
-                type: tx.type || 'Sale',
-                reference: tx.reference || '',
-                customerName: tx.customerName || tx.customer_name || 'Walk-in Customer',
-                amount: Number(tx.amount) || 0,
-                status: tx.status || 'Completed',
-                date: tx.date || new Date().toISOString(),
-                timeString: tx.timeString || '',
-              }))
-            : [],
-          topSelling: Array.isArray(res.topSelling)
-            ? res.topSelling.map((prod: any) => ({
-                productId: prod.productId || prod.id,
-                name: prod.name || '',
-                categoryName: prod.categoryName || '',
-                brandName: prod.brandName || '',
-                brandLogo: prod.brandLogo || '',
-                stock: prod.stock !== undefined ? Number(prod.stock) : 0,
-                unitsSold: Number(prod.unitsSold || prod.sold || 0),
-                imageUrl: prod.imageUrl || '',
-              }))
-            : [],
-          topBrands: Array.isArray(res.topBrands)
-            ? res.topBrands.map((b: any) => ({
-                id: b.id,
-                name: b.name || 'Brand',
-                logo: b.logo || '',
-                soldCount: Number(b.soldCount) || 0,
-                percentage: Number(b.percentage) || 0,
-                subtitle: b.subtitle || `${b.soldCount || 0} units`,
-              }))
-            : [],
-          categoryArticles: Array.isArray(res.categoryArticles)
-            ? res.categoryArticles.map((ca: any) => ({
-                key: ca.key || '',
-                categoryName: ca.categoryName || ca.category_name || 'Footwear',
-                articlePrefix: ca.articlePrefix || ca.article_prefix || 'ART',
-                unitsSold: Number(ca.unitsSold || ca.units_sold || 0),
-                grossSales: Number(ca.grossSales || ca.gross_sales || 0),
-                inStock: Number(ca.inStock || ca.in_stock || 0),
-              }))
-            : [],
-          topSizesArticles: Array.isArray(res.topSizesArticles)
-            ? res.topSizesArticles.map((ts: any) => ({
-                article: ts.article || '',
-                name: ts.name || '',
-                category: ts.category || '',
-                sizeLabel: ts.sizeLabel || ts.size_label || 'Standard',
-                unitsSold: Number(ts.unitsSold || ts.units_sold || 0),
-                revenue: Number(ts.revenue || 0),
-                stock: Number(ts.stock || 0),
-              }))
-            : [],
-          wholesaleLedger: {
-            totalReceivables: Number(res.wholesaleLedger?.totalReceivables || 0),
-            debtorCount: Number(res.wholesaleLedger?.debtorCount || 0),
-            totalCustomers: Number(res.wholesaleLedger?.totalCustomers || 0),
-            totalPayables: Number(res.wholesaleLedger?.totalPayables || 0),
-            creditorCount: Number(res.wholesaleLedger?.creditorCount || 0),
-            totalSuppliers: Number(res.wholesaleLedger?.totalSuppliers || 0),
-            customerAging: {
-              days0to30: Number(res.wholesaleLedger?.customerAging?.days0to30 || 0),
-              days31to60: Number(res.wholesaleLedger?.customerAging?.days31to60 || 0),
-              days61to90: Number(res.wholesaleLedger?.customerAging?.days61to90 || 0),
-              days90Plus: Number(res.wholesaleLedger?.customerAging?.days90Plus || 0),
-              count0to30: Number(res.wholesaleLedger?.customerAging?.count0to30 || 0),
-              count31to60: Number(res.wholesaleLedger?.customerAging?.count31to60 || 0),
-              count61to90: Number(res.wholesaleLedger?.customerAging?.count61to90 || 0),
-              count90Plus: Number(res.wholesaleLedger?.customerAging?.count90Plus || 0),
-            },
-            highLowBalance: {
-              highCount: Number(res.wholesaleLedger?.highLowBalance?.highCount || 0),
-              highTotal: Number(res.wholesaleLedger?.highLowBalance?.highTotal || 0),
-              lowCount: Number(res.wholesaleLedger?.highLowBalance?.lowCount || 0),
-              lowTotal: Number(res.wholesaleLedger?.highLowBalance?.lowTotal || 0),
-              zeroCount: Number(res.wholesaleLedger?.highLowBalance?.zeroCount || 0),
-            },
-            wholesaleCustomersTurnover: Array.isArray(res.wholesaleLedger?.wholesaleCustomersTurnover)
-              ? res.wholesaleLedger.wholesaleCustomersTurnover.map((c: any) => ({
-                  id: c.id,
-                  name: c.name || '',
-                  shopName: c.shopName || c.shop_name || '',
-                  city: c.city || '',
-                  phone: c.phone || '',
-                  outstandingBalance: Number(c.outstandingBalance || c.outstanding_balance || 0),
-                  totalSalesTurnover: Number(c.totalSalesTurnover || c.total_sales_turnover || 0),
-                  ordersCount: Number(c.ordersCount || c.orders_count || 0),
-                  lastSaleDate: c.lastSaleDate || c.last_sale_date || '',
-                }))
-              : [],
-          },
-          retailShoeMetrics: res.retailShoeMetrics || null,
-        });
-      }
-    } catch (err) {
-      console.warn('Dashboard metrics fetch notice:', err);
-    } finally {
-      hasLoadedOnceRef.current = true;
-      isRefreshingRef.current = false;
-      setLoading(false);
-      triggerStatRecount();
-    }
-  };
+  const dashboardReportQuery = useDashboardReportQuery({ enabled: isActive });
+  const loading = dashboardReportQuery.isPending || dashboardReportQuery.isFetching;
 
   useEffect(() => {
-    loadData();
-    loadNotices();
-  }, []);
+    const res = dashboardReportQuery.data;
+    if (!res) return;
+    hasLoadedOnceRef.current = true;
+    setDashboardData({
+      todaySales: Number(res.today?.totalSales) || 0,
+      allTimeRevenue: Number(res.allTime?.totalRevenue) || 0,
+      totalProducts: Number(res.inventory?.totalProducts) || 0,
+      totalCustomers: Number(res.customers?.totalCount) || 0,
+      lowStockCount: Number(res.inventory?.lowStockCount) || 0,
+      totalPurchases: Number(res.purchases?.totalPurchases) || 0,
+      twelveMonthSales: Number(res.twelveMonthSales) || 0,
+      twelveMonthOrders: Number(res.twelveMonthOrders) || 0,
+      overallAov: Number(res.overallAov) || 0,
+      todayAov: Number(res.todayAov) || 0,
+      sevenDaySales: Array.isArray(res.sevenDaysSales)
+        ? res.sevenDaysSales.map((d: any, idx: number) => ({
+            date: d.date || '',
+            label: d.label || `Day ${idx + 1}`,
+            amount: Number(d.amount) || 0,
+            txCount: Number(d.count || d.txCount) || 0,
+          }))
+        : [],
+      monthlySales: Array.isArray(res.monthlySales)
+        ? res.monthlySales.map((m: any, idx: number) => ({
+            month: m.month || '',
+            label: m.label || `M${idx + 1}`,
+            yearLabel: m.yearLabel || '',
+            amount: Number(m.amount) || 0,
+            txCount: Number(m.count || m.txCount) || 0,
+            volumeSold: Number(m.volumeSold ?? m.volume_sold ?? 0),
+            volumePurchased: Number(m.volumePurchased ?? m.volume_purchased ?? 0),
+          }))
+        : [],
+      recentTransactions: Array.isArray(res.recentTransactions)
+        ? res.recentTransactions.map((tx: any) => ({
+            type: tx.type || 'Sale',
+            reference: tx.reference || '',
+            customerName: tx.customerName || tx.customer_name || 'Walk-in Customer',
+            amount: Number(tx.amount) || 0,
+            status: tx.status || 'Completed',
+            date: tx.date || new Date().toISOString(),
+            timeString: tx.timeString || '',
+          }))
+        : [],
+      topSelling: Array.isArray(res.topSelling)
+        ? res.topSelling.map((prod: any) => ({
+            productId: prod.productId || prod.id,
+            name: prod.name || '',
+            categoryName: prod.categoryName || '',
+            brandName: prod.brandName || '',
+            brandLogo: prod.brandLogo || '',
+            stock: prod.stock !== undefined ? Number(prod.stock) : 0,
+            unitsSold: Number(prod.unitsSold || prod.sold || 0),
+            imageUrl: prod.imageUrl || '',
+          }))
+        : [],
+      topBrands: Array.isArray(res.topBrands)
+        ? res.topBrands.map((b: any) => ({
+            id: b.id,
+            name: b.name || 'Brand',
+            logo: b.logo || '',
+            soldCount: Number(b.soldCount) || 0,
+            percentage: Number(b.percentage) || 0,
+            subtitle: b.subtitle || `${b.soldCount || 0} units`,
+          }))
+        : [],
+      categoryArticles: Array.isArray(res.categoryArticles)
+        ? res.categoryArticles.map((ca: any) => ({
+            key: ca.key || '',
+            categoryName: ca.categoryName || ca.category_name || 'Footwear',
+            articlePrefix: ca.articlePrefix || ca.article_prefix || 'ART',
+            unitsSold: Number(ca.unitsSold || ca.units_sold || 0),
+            grossSales: Number(ca.grossSales || ca.gross_sales || 0),
+            inStock: Number(ca.inStock || ca.in_stock || 0),
+          }))
+        : [],
+      topSizesArticles: Array.isArray(res.topSizesArticles)
+        ? res.topSizesArticles.map((ts: any) => ({
+            article: ts.article || '',
+            name: ts.name || '',
+            category: ts.category || '',
+            sizeLabel: ts.sizeLabel || ts.size_label || 'Standard',
+            unitsSold: Number(ts.unitsSold || ts.units_sold || 0),
+            revenue: Number(ts.revenue || 0),
+            stock: Number(ts.stock || 0),
+          }))
+        : [],
+      wholesaleLedger: {
+        totalReceivables: Number(res.wholesaleLedger?.totalReceivables || 0),
+        debtorCount: Number(res.wholesaleLedger?.debtorCount || 0),
+        totalCustomers: Number(res.wholesaleLedger?.totalCustomers || 0),
+        totalPayables: Number(res.wholesaleLedger?.totalPayables || 0),
+        creditorCount: Number(res.wholesaleLedger?.creditorCount || 0),
+        totalSuppliers: Number(res.wholesaleLedger?.totalSuppliers || 0),
+        customerAging: {
+          days0to30: Number(res.wholesaleLedger?.customerAging?.days0to30 || 0),
+          days31to60: Number(res.wholesaleLedger?.customerAging?.days31to60 || 0),
+          days61to90: Number(res.wholesaleLedger?.customerAging?.days61to90 || 0),
+          days90Plus: Number(res.wholesaleLedger?.customerAging?.days90Plus || 0),
+          count0to30: Number(res.wholesaleLedger?.customerAging?.count0to30 || 0),
+          count31to60: Number(res.wholesaleLedger?.customerAging?.count31to60 || 0),
+          count61to90: Number(res.wholesaleLedger?.customerAging?.count61to90 || 0),
+          count90Plus: Number(res.wholesaleLedger?.customerAging?.count90Plus || 0),
+        },
+        highLowBalance: {
+          highCount: Number(res.wholesaleLedger?.highLowBalance?.highCount || 0),
+          highTotal: Number(res.wholesaleLedger?.highLowBalance?.highTotal || 0),
+          lowCount: Number(res.wholesaleLedger?.highLowBalance?.lowCount || 0),
+          lowTotal: Number(res.wholesaleLedger?.highLowBalance?.lowTotal || 0),
+          zeroCount: Number(res.wholesaleLedger?.highLowBalance?.zeroCount || 0),
+        },
+        wholesaleCustomersTurnover: Array.isArray(res.wholesaleLedger?.wholesaleCustomersTurnover)
+          ? res.wholesaleLedger.wholesaleCustomersTurnover.map((c: any) => ({
+              id: c.id,
+              name: c.name || '',
+              shopName: c.shopName || c.shop_name || '',
+              city: c.city || '',
+              phone: c.phone || '',
+              outstandingBalance: Number(c.outstandingBalance || c.outstanding_balance || 0),
+              totalSalesTurnover: Number(c.totalSalesTurnover || c.total_sales_turnover || 0),
+              ordersCount: Number(c.ordersCount || c.orders_count || 0),
+              lastSaleDate: c.lastSaleDate || c.last_sale_date || '',
+            }))
+          : [],
+      },
+      retailShoeMetrics: res.retailShoeMetrics || null,
+    });
+    triggerStatRecount();
+  }, [dashboardReportQuery.data]);
 
-  useDeferredRouteSync({
-    isActive,
-    topics: ['sales', 'returns', 'purchases', 'products', 'inventory', 'customers', 'suppliers', 'settings'],
-    sourceId: 'dashboard-overview',
-    onSync: () => {
-      void loadData();
-      void loadNotices();
-    },
-  });
+  const loadData = async () => {
+    await Promise.all([dashboardReportQuery.refetch(), groupedNotifsQuery.refetch()]);
+    triggerStatRecount();
+  };
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -1031,7 +1027,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
       {/* High-Priority Active Platform Notices Banner (strictly excluding welcome notices so only ONE single welcome message is rendered) */}
       {(() => {
-        const displayNotices = activeNotices.filter((notice) => {
+        const displayNotices = activeNotices.filter((notice: any) => {
           const titleLower = (notice.title || '').toLowerCase();
           const msgLower = (notice.message || '').toLowerCase();
           const isWelcome =
@@ -1039,7 +1035,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             msgLower.includes('welcome') ||
             msgLower.includes('thank you for choosing') ||
             msgLower.includes('sarbaazsoft') ||
-            notice.type === 'WELCOME';
+            String(notice.type || '').toUpperCase() === 'WELCOME';
           return !isWelcome;
         });
 
@@ -1047,8 +1043,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
         return (
           <div className="space-y-3" id="dashboard-active-notices-container">
-            {displayNotices.map((notice) => {
-            const isUrgent = notice.is_urgent || notice.type === 'URGENT' || notice.type === 'WARNING';
+            {displayNotices.map((notice: any) => {
+            const isUrgent = Boolean(notice.is_urgent) || notice.type === 'URGENT' || notice.type === 'WARNING';
+            const noticeCreatedAt = notice.createdAt || notice.created_at;
+            const actionText = notice.actionLabel || notice.action_text;
+            const actionUrl = notice.actionUrl || notice.action_url;
             return (
               <div
                 key={notice.id}
@@ -1083,9 +1082,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       >
                         {notice.type || 'Notice'}
                       </span>
-                      {notice.created_at && (
+                      {noticeCreatedAt && (
                         <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {new Date(notice.created_at).toLocaleDateString(undefined, {
+                          {new Date(noticeCreatedAt).toLocaleDateString(undefined, {
                             month: 'short',
                             day: 'numeric',
                           })}
@@ -1102,17 +1101,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </div>
 
                 <div className="flex items-center flex-wrap gap-2.5 shrink-0 self-end md:self-center z-10">
-                  {notice.action_text && notice.action_url && (
+                  {actionText && actionUrl && (
                     <button
                       type="button"
                       onClick={() => {
-                        if (notice.action_url?.startsWith('/')) {
-                          const tabName = notice.action_url.replace(/^\/(dashboard\/)?/, '');
+                        if (actionUrl.startsWith('/')) {
+                          const tabName = actionUrl.replace(/^\/(dashboard\/)?/, '');
                           onNavigate(tabName || 'dashboard');
-                        } else if (notice.action_url?.includes('renew') || notice.action_url?.includes('upgrade')) {
+                        } else if (actionUrl.includes('renew') || actionUrl.includes('upgrade')) {
                           handleOpenUpgradeModal();
                         } else {
-                          onNavigate(notice.action_url);
+                          onNavigate(actionUrl);
                         }
                       }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5 active:scale-95 text-white ${
@@ -1121,7 +1120,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                           : 'bg-purple-600 hover:bg-purple-500'
                       }`}
                     >
-                      <span>{notice.action_text}</span>
+                      <span>{actionText}</span>
                       <span>&rarr;</span>
                     </button>
                   )}

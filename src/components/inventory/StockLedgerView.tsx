@@ -1,67 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BookOpen, Filter, ArrowUpRight, ArrowDownLeft, RotateCcw, SlidersHorizontal, RefreshCw } from 'lucide-react';
-import { api } from '../../services/api.ts';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
+import { useInventoryLedgerQuery, useProductsQuery } from '../../hooks/useAppQueries.ts';
 import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
 
 export const StockLedgerView: React.FC = () => {
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
-  const [movements, setMovements] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<number | ''>('');
   const [movementType, setMovementType] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState<number>(25);
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+  const productsQuery = useProductsQuery(undefined, { enabled: isActive });
+  const ledgerQuery = useInventoryLedgerQuery(
+    {
+      productId: selectedProduct || undefined,
+      movementType: movementType || undefined,
+      limit: 100,
+    },
+    { enabled: isActive }
+  );
+
+  const products = useMemo<any[]>(() => productsQuery.data?.products || [], [productsQuery.data]);
+  const movements = useMemo<any[]>(() => ledgerQuery.data?.movements || [], [ledgerQuery.data]);
+  const isLoading = ledgerQuery.isPending || ledgerQuery.isFetching;
 
   useEffect(() => {
-    loadLedger();
-  }, [selectedProduct, movementType]);
-
-  const loadProducts = async () => {
-    try {
-      const res = await api.products.list();
-      setProducts(res.products || []);
-    } catch (e) {
-      console.error(e);
+    if (ledgerQuery.data) {
+      hasLoadedOnceRef.current = true;
     }
-  };
-
-  const isRefreshingRef = useRef(false);
+  }, [ledgerQuery.data]);
 
   const loadLedger = async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setIsLoading(true);
-    try {
-      const res = await api.inventory.ledger({
-        productId: selectedProduct || undefined,
-        movementType: movementType || undefined,
-        limit: 100,
-      });
-      setMovements(res.movements || []);
-      hasLoadedOnceRef.current = true;
-    } catch (e) {
-      console.error(e);
-    } finally {
-      isRefreshingRef.current = false;
-      setIsLoading(false);
-    }
+    await ledgerQuery.refetch();
   };
-
-  useDeferredRouteSync({
-    isActive,
-    topics: ['products', 'inventory', 'sales', 'returns', 'purchases'],
-    sourceId: 'stock-ledger',
-    onSync: () => {
-      void loadLedger();
-      void loadProducts();
-    },
-  });
 
   const getBadge = (type: string) => {
     switch (type) {

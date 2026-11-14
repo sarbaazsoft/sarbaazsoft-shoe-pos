@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Plus, Search, Phone, Mail, Truck, Edit2, Trash2, X, FileText, DollarSign, AlertCircle, AlertTriangle, CreditCard, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { useSuppliersQuery } from '../../hooks/useAppQueries.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { SupplierReturnModal } from '../purchases/SupplierReturnModal.tsx';
 import { PurchaseReturnDetailsModal } from '../purchases/PurchaseReturnDetailsModal.tsx';
@@ -11,7 +12,7 @@ import { supplierOpeningBalanceSchema } from '../../schemas/openingBalanceSchema
 import type { SupplierOpeningBalanceType } from '../../schemas/openingBalanceSchema.ts';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
@@ -28,9 +29,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 }) => {
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [submittedSearch, setSubmittedSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState<number>(25);
 
   // Add / Edit Modal
@@ -71,41 +71,34 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
   const currencySymbol = companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.';
   const isAdmin = currentUser?.role === 'ADMIN';
 
-  const isRefreshingRef = useRef(false);
+  const suppliersQuery = useSuppliersQuery(submittedSearch.trim() || undefined, {
+    enabled: isActive,
+  });
+  const suppliers = useMemo<any[]>(() => suppliersQuery.data?.suppliers || [], [suppliersQuery.data]);
+  const isLoading = suppliersQuery.isPending || suppliersQuery.isFetching;
 
   useEffect(() => {
-    loadSuppliers();
-  }, []);
-
-  const loadSuppliers = async (query?: string) => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setIsLoading(true);
-    try {
-      const res = await api.suppliers.list(query !== undefined ? query : searchTerm.trim() || undefined);
-      setSuppliers(res.suppliers || []);
+    if (suppliersQuery.data) {
       hasLoadedOnceRef.current = true;
-    } catch (e: any) {
-      console.warn('Notice loading suppliers:', e?.message || e);
-    } finally {
-      isRefreshingRef.current = false;
-      setIsLoading(false);
       triggerStatRecount();
     }
-  };
+  }, [suppliersQuery.data]);
 
-  useDeferredRouteSync({
-    isActive,
-    topics: ['suppliers', 'purchases', 'inventory'],
-    sourceId: 'supplier-management',
-    onSync: () => {
-      void loadSuppliers();
-    },
-  });
+  const loadSuppliers = async (query?: string) => {
+    if (query !== undefined) {
+      const clean = query.trim();
+      if (clean !== submittedSearch) {
+        setSubmittedSearch(clean);
+        return;
+      }
+    }
+    await suppliersQuery.refetch();
+    triggerStatRecount();
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadSuppliers(searchTerm.trim());
+    void loadSuppliers(searchTerm.trim());
   };
 
   const handleOpenAddModal = () => {

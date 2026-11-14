@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, Headphones, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
 import { api } from '../../services/api';
+import { useSaasDirectoryQuery } from '../../hooks/useAppQueries';
 import type { TenantInfo } from '../../types';
 import { FreeTrialOnboardingModal } from './FreeTrialOnboardingModal';
 import { useTheme } from '../../context/ThemeContext';
@@ -453,26 +454,17 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     }
   }, [availableTenants]);
 
+  const saasDirectoryQuery = useSaasDirectoryQuery(undefined, {
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  });
+
   useEffect(() => {
-    let isMounted = true;
-    const refreshStoreDirectory = async () => {
-      try {
-        const result = await api.saas.resolve();
-        if (isMounted && Array.isArray(result?.availableTenants) && result.availableTenants.length > 0) {
-          setStoreDirectory(result.availableTenants as TenantInfo[]);
-        }
-      } catch {
-        // Keep the last loaded store list if a refresh is temporarily unavailable.
-      }
-    };
-    // Fetch immediately on mount so the store directory is ready without delay
-    refreshStoreDirectory();
-    const intervalId = window.setInterval(refreshStoreDirectory, 30_000);
-    return () => {
-      isMounted = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
+    const tenants = saasDirectoryQuery.data?.availableTenants;
+    if (Array.isArray(tenants) && tenants.length > 0) {
+      setStoreDirectory(tenants as TenantInfo[]);
+    }
+  }, [saasDirectoryQuery.data]);
 
   // Exclusively display actual stores provisioned and registered in our SaaS database (zero mockups)
   const mergedStores = React.useMemo<StoreSliderItem[]>(() => {

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Edit2, Trash2, AlertTriangle, Barcode, SlidersHorizontal, ShoppingBag, Boxes, Layers, DollarSign, Box, RefreshCw, Upload, CheckCircle2, Check, X, Loader2, LayoutGrid, List } from 'lucide-react';
-import { api } from '../../services/api.ts';
+import { api, getActiveTenantId } from '../../services/api.ts';
+import { queryClient, queryKeys } from '../../services/queryClient.ts';
+import { useCategoriesQuery, useProductsQuery } from '../../hooks/useAppQueries.ts';
 import { ProductFormModal } from './ProductFormModal.tsx';
 import { CsvImportModal } from './CsvImportModal.tsx';
 import { BarcodeStickerModal } from './BarcodeStickerModal.tsx';
@@ -14,7 +16,7 @@ import { useTheme } from '../../context/ThemeContext.tsx';
 import { BrandLogo } from '../common/BrandLogo.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { STANDARD_FOOTWEAR_CATEGORIES, isHalfCartonAllowed } from '../../utils/footwear.ts';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
@@ -40,19 +42,60 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [brands, setBrands] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>(STANDARD_FOOTWEAR_CATEGORIES);
-
+  const [submittedSearch, setSubmittedSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const initialBrandStr = initialBrand || (typeof initialBrandId === 'string' ? initialBrandId : '') || '';
   const initialCatStr = initialCategory || (typeof initialCategoryId === 'string' ? initialCategoryId : '') || '';
   const [selectedBrand, setSelectedBrand] = useState<string>(initialBrandStr);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCatStr);
   const [lowStockFilter, setLowStockFilter] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState<number>(25);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  const productQueryParams = useMemo(
+    () => ({
+      search: submittedSearch.trim() || undefined,
+      brand: selectedBrand || undefined,
+      category: selectedCategory || undefined,
+      lowStockOnly: lowStockFilter || undefined,
+    }),
+    [submittedSearch, selectedBrand, selectedCategory, lowStockFilter]
+  );
+
+  const categoriesQuery = useCategoriesQuery({ enabled: isActive });
+  const productsQuery = useProductsQuery(productQueryParams, { enabled: isActive });
+
+  const categories = useMemo(() => {
+    const rawCats = categoriesQuery.data?.categories;
+    if (!Array.isArray(rawCats) || rawCats.length === 0) return STANDARD_FOOTWEAR_CATEGORIES;
+    const seenC = new Set<string>();
+    const uniqueC: any[] = [];
+    for (const c of rawCats) {
+      const name = (typeof c === 'string' ? c : c.name || '').trim();
+      if (name && !seenC.has(name.toLowerCase())) {
+        seenC.add(name.toLowerCase());
+        uniqueC.push(typeof c === 'string' ? { id: name, name } : c);
+      }
+    }
+    return uniqueC;
+  }, [categoriesQuery.data]);
+
+  const products = useMemo<any[]>(() => productsQuery.data?.products || [], [productsQuery.data]);
+  const brands = useMemo<string[]>(
+    () =>
+      Array.from(
+        new Set(products.map((p: any) => String(p.brand || '').trim()).filter(Boolean))
+      ).sort() as string[],
+    [products]
+  );
+  const isLoading = productsQuery.isPending || productsQuery.isFetching;
+
+  useEffect(() => {
+    if (productsQuery.data) {
+      hasLoadedOnceRef.current = true;
+      triggerStatRecount();
+    }
+  }, [productsQuery.data]);
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -131,9 +174,18 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         reason: 'Inline table update by Store Admin',
       });
 
-      // Optimistically update product in local state
-      setProducts((prev) =>
-        prev.map((prod) => (prod.id === p.id ? { ...prod, totalStock: parsed } : prod))
+      // Optimistically update product in TanStack Query cache
+      queryClient.setQueryData(
+        queryKeys.products.list(productQueryParams, getActiveTenantId()),
+        (prev: any) =>
+          prev && Array.isArray(prev.products)
+            ? {
+                ...prev,
+                products: prev.products.map((prod: any) =>
+                  prod.id === p.id ? { ...prod, totalStock: parsed } : prod
+                ),
+              }
+            : prev
       );
 
       // Trigger visual success pulse
@@ -179,8 +231,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   };
 
   useEffect(() => {
-    loadFilterData();
-
     // Check for pending edit or barcode actions from Quick Price search bar
     const handleEditEvent = (e: any) => {
       const product = e.detail?.product;
@@ -216,10 +266,6 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   }, [isActive]);
 
   useEffect(() => {
-    loadProducts();
-  }, [selectedBrand, selectedCategory, lowStockFilter]);
-
-  useEffect(() => {
     if (initialBrand !== undefined) {
       setSelectedBrand(initialBrand || '');
     } else if (initialBrandId !== undefined) {
@@ -232,63 +278,19 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     }
   }, [initialBrand, initialCategory, initialBrandId, initialCategoryId]);
 
-  const loadFilterData = async () => {
-    try {
-      const cRes = await api.categories.getCategories();
-      const seenC = new Set<string>();
-      const uniqueC: any[] = [];
-      for (const c of (cRes.categories || [])) {
-        const name = (typeof c === 'string' ? c : c.name || '').trim();
-        if (name && !seenC.has(name.toLowerCase())) {
-          seenC.add(name.toLowerCase());
-          uniqueC.push(typeof c === 'string' ? { id: name, name } : c);
-        }
-      }
-      setCategories(uniqueC);
-    } catch (e: any) {
-      console.warn('Notice loading filter metadata:', e?.message || e);
-    }
-  };
-
-  const isRefreshingRef = useRef(false);
-
   const loadProducts = async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setIsLoading(true);
-    try {
-      const res = await api.products.list({
-        search: searchTerm.trim() || undefined,
-        brand: selectedBrand || undefined,
-        category: selectedCategory || undefined,
-        lowStockOnly: lowStockFilter || undefined,
-      });
-      const fetched = res.products || [];
-      hasLoadedOnceRef.current = true;
-      setProducts(fetched);
-      const distinctBrands = Array.from(new Set(fetched.map((p: any) => String(p.brand || '').trim()).filter(Boolean))).sort() as string[];
-      setBrands(distinctBrands);
-    } catch (err: any) {
-      console.warn('Notice loading products:', err?.message || err);
-    } finally {
-      isRefreshingRef.current = false;
-      setIsLoading(false);
-      triggerStatRecount();
-    }
+    await productsQuery.refetch();
+    triggerStatRecount();
   };
-
-  useDeferredRouteSync({
-    isActive,
-    topics: ['products', 'inventory', 'sales', 'returns', 'purchases'],
-    sourceId: 'product-management',
-    onSync: () => {
-      void loadProducts();
-    },
-  });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadProducts();
+    const nextSearch = searchTerm.trim();
+    if (nextSearch === submittedSearch) {
+      void loadProducts();
+    } else {
+      setSubmittedSearch(nextSearch);
+    }
   };
 
   const handleDeleteProduct = async (product: any) => {
@@ -1550,7 +1552,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               setImportToastMessage(summaryMsg);
               emitDataSync(['products', 'inventory'], { source: 'product-management' });
               loadProducts();
-              loadFilterData();
+              void categoriesQuery.refetch();
               setTimeout(() => {
                 setImportToastMessage((prev) => (prev === summaryMsg ? null : prev));
               }, 7000);

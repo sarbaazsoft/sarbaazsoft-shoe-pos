@@ -55,15 +55,59 @@ export function getActiveTenantId(): number | null {
   return Number.isSafeInteger(selectedId) && selectedId > 0 ? selectedId : null;
 }
 
+type SessionClearListener = () => void;
+type TenantChangeListener = (nextTenantId: number | null, prevTenantId: number | null) => void;
+
+const sessionClearListeners = new Set<SessionClearListener>();
+const tenantChangeListeners = new Set<TenantChangeListener>();
+let lastTrackedTenantId: number | null = null;
+
+export function subscribeSessionClear(listener: SessionClearListener): () => void {
+  sessionClearListeners.add(listener);
+  return () => {
+    sessionClearListeners.delete(listener);
+  };
+}
+
+export function subscribeTenantChange(listener: TenantChangeListener): () => void {
+  tenantChangeListeners.add(listener);
+  return () => {
+    tenantChangeListeners.delete(listener);
+  };
+}
+
+function notifyTenantChanged(nextTenantId: number | null) {
+  if (lastTrackedTenantId === nextTenantId) return;
+  const prev = lastTrackedTenantId;
+  lastTrackedTenantId = nextTenantId;
+  for (const listener of Array.from(tenantChangeListeners)) {
+    try {
+      listener(nextTenantId, prev);
+    } catch (err) {
+      console.warn('Tenant change listener error:', err);
+    }
+  }
+}
+
 export function setActiveTenantId(tenantId: number | null) {
   const token = getAuthToken();
   const payload = token ? decodeTokenPayload(token) : null;
+  const prevTenantId = lastTrackedTenantId ?? getActiveTenantId();
+  let resolvedNext: number | null = null;
+
   if (String(payload?.role || '').toUpperCase() === 'SUPERADMIN' && Number.isSafeInteger(tenantId) && Number(tenantId) > 0) {
     localStorage.setItem(ACTIVE_TENANT_ID_KEY, String(tenantId));
-    return;
+    resolvedNext = Number(tenantId);
+  } else {
+    // Store users get tenant context from JWT; unauthenticated PWA launches use URL tenantId.
+    localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+    resolvedNext = getActiveTenantId();
   }
-  // Store users get tenant context from JWT; unauthenticated PWA launches use URL tenantId.
-  localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+
+  if (prevTenantId !== resolvedNext) {
+    lastTrackedTenantId = prevTenantId;
+    notifyTenantChanged(resolvedNext);
+  }
 }
 
 export function getAuthToken(): string | null {
@@ -89,10 +133,12 @@ export function setAuthSession(token: string, user: any) {
   }
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   localStorage.setItem(ALT_USER_KEY, JSON.stringify(user));
+  notifyTenantChanged(getActiveTenantId());
 }
 
 export function clearAllSessionState(): void {
   removeAuthToken();
+  lastTrackedTenantId = null;
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
@@ -124,6 +170,14 @@ export function clearAllSessionState(): void {
     try {
       sessionStorage.clear();
     } catch {}
+  }
+
+  for (const listener of Array.from(sessionClearListeners)) {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('Session clear listener error:', err);
+    }
   }
 }
 
@@ -195,9 +249,53 @@ export function getValidatedStoredSession(): { token: string; user: any } | null
 
 interface RequestOptions extends RequestInit {
   body?: any;
+  idempotent?: boolean;
+}
+
+export function createAbortError(message = 'The operation was aborted.'): Error {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException(message, 'AbortError');
+  }
+  const err = new Error(message);
+  err.name = 'AbortError';
+  return err;
+}
+
+export function isAbortError(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === 'object' &&
+      ((err as { name?: string }).name === 'AbortError' ||
+        String((err as { message?: string }).message || '').includes('aborted'))
+  );
+}
+
+function waitWithSignal(ms: number, signal?: AbortSignal | null): Promise<void> {
+  if (ms <= 0) {
+    return signal?.aborted ? Promise.reject(createAbortError()) : Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createAbortError());
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(createAbortError());
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 export async function apiFetch<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  if (options.signal?.aborted) {
+    throw createAbortError();
+  }
+
   const activeTenantId = getActiveTenantId();
   const token = getAuthToken();
 
@@ -212,8 +310,10 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
 
   if (activeTenantId) headers['X-Tenant-Id'] = String(activeTenantId);
 
-  const { body: rawBody, ...restOptions } = options;
+  const { body: rawBody, idempotent, ...restOptions } = options;
   const method = (restOptions.method || 'GET').toUpperCase();
+  const isIdempotentRequest = method === 'GET' || method === 'HEAD' || Boolean(idempotent);
+
   const serializedBody =
     rawBody === undefined || rawBody === null
       ? undefined
@@ -238,16 +338,18 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
 
   const isBrowserOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
 
-  // Retry transient network errors or 502/503/504 gateway responses when online; fail fast when offline
-  const retryDelays = isBrowserOffline ? [0] : [0, 400, 800, 1400, 2200, 3200];
+  // Retry transient network errors or 502/503/504 gateway responses ONLY for idempotent requests when online.
+  // Non-idempotent mutations (POST/PUT/PATCH/DELETE) make a single attempt to prevent duplicate writes.
+  const retryDelays = isBrowserOffline || !isIdempotentRequest ? [0] : [0, 400, 800, 1400, 2200, 3200];
   for (let attempt = 0; attempt < retryDelays.length; attempt++) {
     if (retryDelays[attempt] > 0) {
-      await new Promise((r) => setTimeout(r, retryDelays[attempt]));
+      await waitWithSignal(retryDelays[attempt], options.signal);
     }
     try {
       const candidate = await fetch(`/api${endpoint}`, config);
       const candType = candidate.headers.get('content-type') || '';
       if (
+        isIdempotentRequest &&
         (candidate.status === 502 || candidate.status === 503 || candidate.status === 504) &&
         attempt < retryDelays.length - 1
       ) {
@@ -258,6 +360,9 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
       lastNetworkError = null;
       break;
     } catch (err: any) {
+      if (isAbortError(err) || options.signal?.aborted) {
+        throw createAbortError();
+      }
       lastNetworkError = err;
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         break;
@@ -265,16 +370,21 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     }
   }
 
-  // If an iframe proxy or service worker intercepts POST/PUT/PATCH/DELETE or custom headers with non-JSON 403/error
-  // or network reset, automatically retry via GET RPC query bridge so authentication & mutations succeed reliably.
-  if (
+  // If an iframe proxy or service worker intercepts requests with non-JSON 403/405 responses
+  // (or network reset for idempotent GET/HEAD), retry via GET RPC query bridge.
+  // For non-idempotent mutations, only trigger the bridge when a proxy explicitly blocked the HTTP verb (non-JSON 403/405), never on dropped sockets or 502/503/504.
+  const shouldUseGetBridge =
     !isBrowserOffline &&
-    (!response || (!contentType.includes('application/json') && !response.ok))
-  ) {
-    const fallbackDelays = [0, 600, 1400];
+    !options.signal?.aborted &&
+    (isIdempotentRequest
+      ? !response || (!contentType.includes('application/json') && !response.ok)
+      : Boolean(response && !contentType.includes('application/json') && (response.status === 403 || response.status === 405)));
+
+  if (shouldUseGetBridge) {
+    const fallbackDelays = isIdempotentRequest ? [0, 600, 1400] : [0];
     for (let fbAttempt = 0; fbAttempt < fallbackDelays.length; fbAttempt++) {
       if (fallbackDelays[fbAttempt] > 0) {
-        await new Promise((r) => setTimeout(r, fallbackDelays[fbAttempt]));
+        await waitWithSignal(fallbackDelays[fbAttempt], options.signal);
       }
       try {
         const separator = endpoint.includes('?') ? '&' : '?';
@@ -296,9 +406,11 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
           method: 'GET',
           credentials: 'include',
           cache: 'no-store',
+          signal: options.signal,
         });
         const fallbackType = fallbackRes.headers.get('content-type') || '';
         if (
+          isIdempotentRequest &&
           (fallbackRes.status === 502 || fallbackRes.status === 503 || fallbackRes.status === 504) &&
           fbAttempt < fallbackDelays.length - 1
         ) {
@@ -311,6 +423,9 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
         }
         break;
       } catch (fallbackErr: any) {
+        if (isAbortError(fallbackErr) || options.signal?.aborted) {
+          throw createAbortError();
+        }
         if (!lastNetworkError) {
           lastNetworkError = fallbackErr;
         }
@@ -378,14 +493,14 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
 export const api = {
   // Multi-Tenant SaaS & Onboarding Endpoints
   saas: {
-    resolve: (targetTenantId?: number | string | null) => {
+    resolve: (targetTenantId?: number | string | null, reqOptions?: { signal?: AbortSignal }) => {
       let q = '';
       if (targetTenantId) {
         q = `?tenantId=${encodeURIComponent(targetTenantId)}&storeId=${encodeURIComponent(targetTenantId)}`;
       } else if (typeof window !== 'undefined' && window.location.search) {
         q = window.location.search;
       }
-      return apiFetch(`/saas/resolve${q}`);
+      return apiFetch(`/saas/resolve${q}`, { signal: reqOptions?.signal });
     },
     getOnboarding: (tenantId?: number) => {
       const query = tenantId ? `?tenantId=${encodeURIComponent(String(tenantId))}` : '';
@@ -666,7 +781,10 @@ export const api = {
       }),
   },
   products: {
-    list: async (params?: { search?: string; category?: string; brand?: string; lowStock?: boolean; lowStockOnly?: boolean; limit?: number }) => {
+    list: async (
+      params?: { search?: string; category?: string; brand?: string; lowStock?: boolean; lowStockOnly?: boolean; limit?: number },
+      reqOptions?: { signal?: AbortSignal }
+    ) => {
       const activeTenantId = getActiveTenantId();
       const qs = new URLSearchParams();
       if (params?.search) qs.set('search', params.search);
@@ -720,12 +838,15 @@ export const api = {
       }
 
       try {
-        const res = await apiFetch<any>(`/products${query}`);
+        const res = await apiFetch<any>(`/products${query}`, { signal: reqOptions?.signal });
         if (res && Array.isArray(res.products) && res.products.length > 0) {
           cacheCatalogOffline(res.products, activeTenantId).catch(() => {});
         }
         return res;
       } catch (err: any) {
+        if (isAbortError(err) || reqOptions?.signal?.aborted) {
+          throw err;
+        }
         const msg = String(err?.message || '');
         if (
           (typeof navigator !== 'undefined' && navigator.onLine === false) ||
@@ -738,19 +859,24 @@ export const api = {
         throw err;
       }
     },
-    lookupBarcode: async (code: string) => {
+    lookupBarcode: async (code: string, reqOptions?: { signal?: AbortSignal }) => {
       const activeTenantId = getActiveTenantId();
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         const cached = await lookupCachedProductOffline(code, activeTenantId);
         if (cached) return { product: cached, offline: true };
       }
       try {
-        const res = await apiFetch<any>(`/products/barcode/${encodeURIComponent(code)}`);
+        const res = await apiFetch<any>(`/products/barcode/${encodeURIComponent(code)}`, {
+          signal: reqOptions?.signal,
+        });
         if (res && res.product) {
           cacheCatalogOffline([res.product], activeTenantId).catch(() => {});
         }
         return res;
       } catch (err: any) {
+        if (isAbortError(err) || reqOptions?.signal?.aborted) {
+          throw err;
+        }
         const cached = await lookupCachedProductOffline(code, activeTenantId).catch(() => null);
         if (cached) return { product: cached, offline: true };
         throw err;
@@ -882,18 +1008,22 @@ export const api = {
     },
   },
   categories: {
-    getCategories: () => apiFetch('/categories'),
+    getCategories: (reqOptions?: { signal?: AbortSignal }) =>
+      apiFetch('/categories', { signal: reqOptions?.signal }),
   },
   pos: {
     checkout: (saleData: any) => apiFetch('/pos/checkout', { method: 'POST', body: saleData }),
-    listSales: (params?: { startDate?: string; endDate?: string; search?: string; limit?: number }) => {
+    listSales: (
+      params?: { startDate?: string; endDate?: string; search?: string; limit?: number },
+      reqOptions?: { signal?: AbortSignal }
+    ) => {
       const qs = new URLSearchParams();
       if (params?.startDate) qs.set('startDate', params.startDate);
       if (params?.endDate) qs.set('endDate', params.endDate);
       if (params?.search) qs.set('search', params.search);
       if (params?.limit) qs.set('limit', String(params.limit));
       const query = qs.toString() ? `?${qs.toString()}` : '';
-      return apiFetch(`/pos/sales${query}`);
+      return apiFetch(`/pos/sales${query}`, { signal: reqOptions?.signal });
     },
     getSale: (id: number) => apiFetch(`/pos/sales/${id}`),
   },
@@ -903,10 +1033,10 @@ export const api = {
     create: (data: any) => apiFetch('/returns', { method: 'POST', body: data }),
   },
   suppliers: {
-    list: (search?: string | { search?: string }) => {
+    list: (search?: string | { search?: string }, reqOptions?: { signal?: AbortSignal }) => {
       const term = typeof search === 'string' ? search : search?.search;
       const query = term ? `?search=${encodeURIComponent(term)}` : '';
-      return apiFetch(`/suppliers${query}`);
+      return apiFetch(`/suppliers${query}`, { signal: reqOptions?.signal });
     },
     get: (id: number) => apiFetch(`/suppliers/${id}`),
     getLedger: (id: number) => apiFetch(`/suppliers/${id}/ledger`),
@@ -924,10 +1054,10 @@ export const api = {
   },
   purchases: {
     create: (data: any) => apiFetch('/purchases', { method: 'POST', body: data }),
-    list: (search?: string | { search?: string }) => {
+    list: (search?: string | { search?: string }, reqOptions?: { signal?: AbortSignal }) => {
       const term = typeof search === 'string' ? search : search?.search;
       const query = term ? `?search=${encodeURIComponent(term)}` : '';
-      return apiFetch(`/purchases${query}`);
+      return apiFetch(`/purchases${query}`, { signal: reqOptions?.signal });
     },
     get: (id: number) => apiFetch(`/purchases/${id}`),
   },
@@ -935,17 +1065,17 @@ export const api = {
     create: (data: any) => apiFetch('/purchase-returns', { method: 'POST', body: data }),
     verifyPurchase: (purchaseNumber: string) =>
       apiFetch(`/purchase-returns/verify-purchase/${encodeURIComponent(purchaseNumber)}`),
-    list: (search?: string | { search?: string }) => {
+    list: (search?: string | { search?: string }, reqOptions?: { signal?: AbortSignal }) => {
       const term = typeof search === 'string' ? search : search?.search;
       const query = term ? `?search=${encodeURIComponent(term)}` : '';
-      return apiFetch(`/purchase-returns${query}`);
+      return apiFetch(`/purchase-returns${query}`, { signal: reqOptions?.signal });
     },
     get: (id: number) => apiFetch(`/purchase-returns/${id}`),
   },
   customers: {
-    list: (search?: string) => {
+    list: (search?: string, reqOptions?: { signal?: AbortSignal }) => {
       const query = search ? `?search=${encodeURIComponent(search)}` : '';
-      return apiFetch(`/customers${query}`);
+      return apiFetch(`/customers${query}`, { signal: reqOptions?.signal });
     },
     get: (id: number) => apiFetch(`/customers/${id}`),
     recordPayment: (id: number, data: { amount: number; paymentMethod?: string; notes?: string; paymentDate?: string }) =>
@@ -955,13 +1085,16 @@ export const api = {
     delete: (id: number) => apiFetch(`/customers/${id}`, { method: 'DELETE' }),
   },
   inventory: {
-    ledger: (params?: { productId?: number; movementType?: string; limit?: number }) => {
+    ledger: (
+      params?: { productId?: number; movementType?: string; limit?: number },
+      reqOptions?: { signal?: AbortSignal }
+    ) => {
       const qs = new URLSearchParams();
       if (params?.productId) qs.set('productId', String(params.productId));
       if (params?.movementType) qs.set('movementType', String(params.movementType));
       if (params?.limit) qs.set('limit', String(params.limit));
       const query = qs.toString() ? `?${qs.toString()}` : '';
-      return apiFetch(`/inventory/ledger${query}`);
+      return apiFetch(`/inventory/ledger${query}`, { signal: reqOptions?.signal });
     },
     adjust: (data: { productId: number; newStock: number; reason?: string }) =>
       apiFetch('/inventory/adjust', { method: 'POST', body: data }),
@@ -969,18 +1102,24 @@ export const api = {
       apiFetch('/inventory/inline-stock', { method: 'PATCH', body: data }),
   },
   reports: {
-    getDashboard: () => apiFetch('/reports/dashboard'),
-    getProfitLoss: (params?: { startDate?: string; endDate?: string }) => {
+    getDashboard: (reqOptions?: { signal?: AbortSignal }) =>
+      apiFetch('/reports/dashboard', { signal: reqOptions?.signal }),
+    getProfitLoss: (
+      params?: { startDate?: string; endDate?: string },
+      reqOptions?: { signal?: AbortSignal }
+    ) => {
       const qs = new URLSearchParams();
       if (params?.startDate) qs.set('startDate', params.startDate);
       if (params?.endDate) qs.set('endDate', params.endDate);
       const query = qs.toString() ? `?${qs.toString()}` : '';
-      return apiFetch(`/reports/profit-loss${query}`);
+      return apiFetch(`/reports/profit-loss${query}`, { signal: reqOptions?.signal });
     },
-    getTopSelling: () => apiFetch('/reports/top-selling'),
+    getTopSelling: (reqOptions?: { signal?: AbortSignal }) =>
+      apiFetch('/reports/top-selling', { signal: reqOptions?.signal }),
   },
   settings: {
-    get: () => apiFetch('/settings'),
+    get: (reqOptions?: { signal?: AbortSignal }) =>
+      apiFetch('/settings', { signal: reqOptions?.signal }),
     getAppSettings: () => apiFetch<{ appSettings: Record<string, string>; appSettingsGrouped: Record<string, any[]> }>('/settings/app'),
     saveAppSettings: (appSettings: Record<string, string>) =>
       apiFetch('/settings/app', { method: 'PUT', body: { appSettings } }).catch(() =>
@@ -1025,18 +1164,23 @@ export const api = {
       apiFetch('/backup/import-sql', { method: 'POST', body: { sql: sqlContent, sqlContent } }),
   },
   notifications: {
-    grouped: (limit: number = 5) =>
-      apiFetch<GroupedNotificationsResponse>(`/notifications/grouped?limit=${limit}`),
-    all: (params?: {
-      page?: number;
-      limit?: number;
-      tab?: string;
-      category?: string;
-      search?: string;
-      sortBy?: string;
-      sortOrder?: string;
-      unreadOnly?: boolean;
-    }) => {
+    grouped: (limit: number = 5, reqOptions?: { signal?: AbortSignal }) =>
+      apiFetch<GroupedNotificationsResponse>(`/notifications/grouped?limit=${limit}`, {
+        signal: reqOptions?.signal,
+      }),
+    all: (
+      params?: {
+        page?: number;
+        limit?: number;
+        tab?: string;
+        category?: string;
+        search?: string;
+        sortBy?: string;
+        sortOrder?: string;
+        unreadOnly?: boolean;
+      },
+      reqOptions?: { signal?: AbortSignal }
+    ) => {
       const sp = new URLSearchParams();
       if (params?.page) sp.set('page', String(params.page));
       if (params?.limit) sp.set('limit', String(params.limit));
@@ -1047,7 +1191,9 @@ export const api = {
       if (params?.sortOrder) sp.set('sortOrder', params.sortOrder);
       if (params?.unreadOnly !== undefined) sp.set('unreadOnly', String(params.unreadOnly));
       const qs = sp.toString() ? `?${sp.toString()}` : '';
-      return apiFetch<AllNotificationsResponse>(`/notifications/all${qs}`);
+      return apiFetch<AllNotificationsResponse>(`/notifications/all${qs}`, {
+        signal: reqOptions?.signal,
+      });
     },
     dismiss: (id: string | number, itemType?: string) =>
       apiFetch<{ success: boolean; message: string }>(`/notifications/${encodeURIComponent(String(id))}/dismiss`, {

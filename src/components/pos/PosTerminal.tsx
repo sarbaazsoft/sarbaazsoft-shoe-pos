@@ -10,6 +10,7 @@ import { isHalfCartonAllowed } from '../../utils/footwear.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
 import type { ActiveExchange } from '../../types.ts';
 import { offlineQueueService } from '../../services/offlineQueueService.ts';
+import { queryClient, queryKeys } from '../../services/queryClient.ts';
 import { cacheCatalogOffline, lookupCachedProductOffline, searchCachedProductsOffline, resolveActiveTenantId } from '../../utils/offlineDb.ts';
 import { useOfflineSync } from '../../utils/useOfflineSync.ts';
 import { OfflineSyncModal } from './OfflineSyncModal.tsx';
@@ -349,13 +350,12 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     currentUser?.tenantId ?? currentUser?.tenant_id ?? companySettings?.tenant_id ?? companySettings?.tenantId ?? null
   );
 
-  // Sync and cache store catalog products for offline billing (and reconcile in-cart live stock)
-  const syncStoreCatalogForOffline = async () => {
+  // Sync and cache store catalog products for offline billing via deduplicated offlineQueueService (and reconcile in-cart live stock)
+  const syncStoreCatalogForOffline = async (force: boolean = false) => {
     try {
-      const res = await api.products.list({ limit: 500 });
-      if (res?.products && Array.isArray(res.products) && res.products.length > 0) {
-        await cacheCatalogOffline(res.products, activeTenantId);
-        const byId = new Map<number, any>(res.products.map((p: any) => [Number(p.id), p]));
+      const productsList = await offlineQueueService.primeCatalogCache(force);
+      if (Array.isArray(productsList) && productsList.length > 0) {
+        const byId = new Map<number, any>(productsList.map((p: any) => [Number(p.id), p]));
         setCart((prevCart) => {
           if (prevCart.length === 0) return prevCart;
           let changed = false;
@@ -427,7 +427,11 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
   const loadCustomers = async () => {
     try {
-      const res = await api.customers.list();
+      const res = await queryClient.fetchQuery({
+        queryKey: queryKeys.customers.list(undefined, activeTenantId),
+        queryFn: ({ signal }) => api.customers.list(undefined, { signal }),
+        staleTime: 30_000,
+      });
       setCustomers(res.customers || []);
     } catch (err) {
       console.error('Failed to load customers:', err);

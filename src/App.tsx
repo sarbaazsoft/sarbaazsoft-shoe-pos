@@ -9,6 +9,7 @@ import { LoadingWindow } from './components/common/LoadingWindow.tsx';
 import { SaasLandingPage } from './components/saas/SaasLandingPage.tsx';
 import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
 import { emitDataSync } from './utils/dataSyncBus.ts';
+import { evictTenantQueries, queryClient, queryKeys, resetAllQueryCache } from './services/queryClient.ts';
 
 const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
 const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: memo(m.ProductManagement) })));
@@ -483,7 +484,12 @@ export default function App() {
   // Resolve the shared tenant directory and selected store status.
   const refreshTenantDirectory = useCallback(async (targetMode?: SaasRouteMode) => {
     try {
-      const res = await api.saas.resolve();
+      const searchScope = typeof window !== 'undefined' ? window.location.search : '';
+      const res = await queryClient.fetchQuery({
+        queryKey: queryKeys.saas.resolve(searchScope),
+        queryFn: ({ signal }) => api.saas.resolve(undefined, { signal }),
+        staleTime: 30_000,
+      });
 
       if (Array.isArray(res?.availableTenants)) {
         setAvailableTenants(res.availableTenants);
@@ -553,7 +559,13 @@ export default function App() {
   const syncTenantContext = useCallback(async (targetTenantId: number) => {
     try {
       await refreshTenantDirectory('TENANT_ACTIVE');
-      const settingsRes = await api.settings.get().catch(() => null);
+      const settingsRes = await queryClient
+        .fetchQuery({
+          queryKey: queryKeys.settings.store(targetTenantId),
+          queryFn: ({ signal }) => api.settings.get({ signal }),
+          staleTime: 60_000,
+        })
+        .catch(() => null);
       if (settingsRes?.settings) {
         const incomingTenantId = Number(settingsRes.settings.tenantId || settingsRes.settings.tenant_id);
         if (!targetTenantId || !incomingTenantId || incomingTenantId === Number(targetTenantId)) {
@@ -635,7 +647,15 @@ export default function App() {
       const shouldFetchSettings = modeForInit !== 'SUPERADMIN' && Boolean(tenantIdForInit);
       const [userRes, settingsRes] = await Promise.all([
         api.auth.me().catch(() => null),
-        shouldFetchSettings ? api.settings.get().catch(() => null) : Promise.resolve(null),
+        shouldFetchSettings
+          ? queryClient
+              .fetchQuery({
+                queryKey: queryKeys.settings.store(tenantIdForInit),
+                queryFn: ({ signal }) => api.settings.get({ signal }),
+                staleTime: 60_000,
+              })
+              .catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       if (settingsRes?.settings) {
@@ -1102,6 +1122,7 @@ export default function App() {
         }
         return;
       }
+      evictTenantQueries();
       setSaasMode('SUPERADMIN');
       setActiveTenant(null);
       setActiveTenantId(null);
@@ -1147,6 +1168,9 @@ export default function App() {
       setTenantIdParam('');
 
       // Reset stale store settings immediately when switching stores
+      if (!isSameTenant) {
+        evictTenantQueries();
+      }
       if (companySettings && Number(companySettings.tenantId || companySettings.tenant_id) !== targetId) {
         setCompanySettings(null);
         try {
@@ -1290,7 +1314,11 @@ export default function App() {
     setIsLoginModalOpen(false);
     const userTenantId = Number(user?.tenantId);
 
-    // If switching stores, purge previous company settings immediately
+    // If switching stores or signing into a fresh account, purge previous tenant queries & settings immediately
+    const prevTenantId = Number(companySettings?.tenantId || companySettings?.tenant_id || getActiveTenantId() || 0);
+    if (!prevTenantId || prevTenantId !== userTenantId) {
+      evictTenantQueries();
+    }
     if (companySettings && Number(companySettings.tenantId || companySettings.tenant_id) !== userTenantId) {
       setCompanySettings(null);
       setCachedStoreName('');
@@ -1386,6 +1414,7 @@ export default function App() {
 
     revokeSessionOnServer();
     clearAllSessionState();
+    resetAllQueryCache();
     setIsProfileModalOpen(false);
     setMobileMenuOpen(false);
     setActiveTenantId(null);
@@ -1457,17 +1486,26 @@ export default function App() {
 
   const handleSettingsUpdated = useCallback(async (updatedSettings?: any) => {
     try {
+      const targetTid = Number(updatedSettings?.tenantId || updatedSettings?.tenant_id || getActiveTenantId() || 0) || null;
       if (updatedSettings) {
         setCompanySettings(updatedSettings);
+        queryClient.setQueryData(queryKeys.settings.store(targetTid), { settings: updatedSettings });
         try {
           localStorage.setItem('cached_company_settings', JSON.stringify(updatedSettings));
         } catch {}
       }
-      const settingsRes = await api.settings.get().catch(() => null);
+      const settingsRes = await queryClient
+        .fetchQuery({
+          queryKey: queryKeys.settings.store(targetTid),
+          queryFn: ({ signal }) => api.settings.get({ signal }),
+          staleTime: 0,
+        })
+        .catch(() => null);
       if (settingsRes?.settings) {
         setCompanySettings(settingsRes.settings);
       }
       emitDataSync(['settings'], { source: 'settings-updated' });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.saas.all() });
       await refreshTenantDirectory();
     } catch (err) {
       console.error(err);

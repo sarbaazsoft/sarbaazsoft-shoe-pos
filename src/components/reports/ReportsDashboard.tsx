@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'motion/react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, Award, Printer, Receipt, RotateCw, RefreshCw, Search, X, Download, LayoutDashboard, BarChart3, CheckCircle2 } from 'lucide-react';
-import { api } from '../../services/api.ts';
+import { api, getActiveTenantId } from '../../services/api.ts';
 import { InvoicePrintModal } from '../pos/InvoicePrintModal.tsx';
 import { FinancialSummaryPrintModal } from './FinancialSummaryPrintModal.tsx';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver } from '../common/RetailShoeMetrics.tsx';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
+import { useDashboardReportQuery } from '../../hooks/useAppQueries.ts';
+import { queryKeys } from '../../services/queryClient.ts';
 
 interface ReportsDashboardProps {
   currentUser: any;
@@ -31,15 +34,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     padding: 16,
     behavior: 'smooth',
   });
-  const [dashboardData, setDashboardData] = useState<any | null>(null);
-  const [topSelling, setTopSelling] = useState<any[]>([]);
-  const [salesHistory, setSalesHistory] = useState<any[]>([]);
-  const [profitLossData, setProfitLossData] = useState<any | null>(null);
 
   const [selectedSaleForPrint, setSelectedSaleForPrint] = useState<any | null>(null);
   const [isPrintSummaryOpen, setIsPrintSummaryOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingPL, setIsLoadingPL] = useState(true);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,12 +50,85 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   const globalLowStockThreshold =
     Number(companySettings?.lowStockThreshold ?? companySettings?.low_stock_threshold ?? 5) || 5;
 
-  const isRefreshingRef = useRef(false);
-  const isRefreshingPLRef = useRef(false);
+  const tenantId = getActiveTenantId();
+
+  const dashboardQuery = useDashboardReportQuery({
+    enabled: isActive,
+  });
+
+  const topSellingQuery = useQuery({
+    queryKey: queryKeys.reports.topSelling(tenantId),
+    queryFn: ({ signal }) => api.reports.getTopSelling({ signal }),
+    enabled: isActive,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const salesHistoryQuery = useQuery({
+    queryKey: queryKeys.sales.list({ limit: 50 }, tenantId),
+    queryFn: ({ signal }) => api.pos.listSales({ limit: 50 }, { signal }),
+    enabled: isActive,
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const plDateParams = useMemo(() => {
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+    const now = new Date();
+    if (dateRange === 'today') {
+      startDate = now.toISOString().split('T')[0];
+      endDate = startDate;
+    } else if (dateRange === '7days') {
+      const past = new Date();
+      past.setDate(now.getDate() - 7);
+      startDate = past.toISOString().split('T')[0];
+      endDate = now.toISOString().split('T')[0];
+    } else if (dateRange === '30days') {
+      const past = new Date();
+      past.setDate(now.getDate() - 30);
+      startDate = past.toISOString().split('T')[0];
+      endDate = now.toISOString().split('T')[0];
+    } else if (customStartDate && customEndDate) {
+      startDate = customStartDate;
+      endDate = customEndDate;
+    }
+    return { startDate, endDate };
+  }, [dateRange, customStartDate, customEndDate]);
+
+  const plQuery = useQuery({
+    queryKey: queryKeys.reports.profitLoss(plDateParams, tenantId),
+    queryFn: ({ signal }) => api.reports.getProfitLoss(plDateParams, { signal }),
+    enabled: isActive && activeTab === 'profit_loss',
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const dashboardData = dashboardQuery.data ?? null;
+  const topSelling: any[] = topSellingQuery.data?.topSelling || [];
+  const salesHistory: any[] = salesHistoryQuery.data?.sales || [];
+  const profitLossData = plQuery.data ?? null;
+
+  const isLoading =
+    dashboardQuery.isFetching || topSellingQuery.isFetching || salesHistoryQuery.isFetching;
+  const isInitialLoading =
+    dashboardQuery.isPending && topSellingQuery.isPending && salesHistoryQuery.isPending;
+  const isLoadingPL = plQuery.isFetching;
+
+  if (
+    dashboardData ||
+    (!dashboardQuery.isPending && !topSellingQuery.isPending && !salesHistoryQuery.isPending)
+  ) {
+    hasLoadedOnceRef.current = true;
+  }
 
   useEffect(() => {
-    loadReports();
+    if (!isLoading && (dashboardData || profitLossData)) {
+      triggerStatRecount();
+    }
+  }, [isLoading, dashboardData, profitLossData]);
 
+  useEffect(() => {
     const checkDeepLinkInvoice = async (invoiceNum?: string) => {
       const inv = invoiceNum || new URLSearchParams(window.location.search).get('viewInvoice');
       if (inv) {
@@ -91,91 +161,17 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     };
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'profit_loss') {
-      loadProfitLoss();
-    }
-  }, [activeTab, dateRange, customStartDate, customEndDate]);
-
-  const loadReports = async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setIsLoading(true);
-    try {
-      const [dRes, topRes, sRes] = await Promise.all([
-        api.reports.getDashboard(),
-        api.reports.getTopSelling(),
-        api.pos.listSales({ limit: 50 }),
-      ]);
-      setDashboardData(dRes);
-      setTopSelling(topRes.topSelling || []);
-      setSalesHistory(sRes.sales || []);
-      hasLoadedOnceRef.current = true;
-    } catch (e) {
-      console.error('Failed to load reports:', e);
-    } finally {
-      isRefreshingRef.current = false;
-      setIsLoading(false);
-      triggerStatRecount();
-    }
-  };
-
-  useDeferredRouteSync({
-    isActive,
-    topics: ['sales', 'returns', 'products', 'inventory', 'customers', 'purchases'],
-    sourceId: 'reports-dashboard',
-    onSync: () => {
-      void loadReports();
-      if (activeTab === 'profit_loss') {
-        void loadProfitLoss();
-      }
-    },
-  });
-
-  const loadProfitLoss = async () => {
-    if (isRefreshingPLRef.current) return;
-    isRefreshingPLRef.current = true;
-    setIsLoadingPL(true);
-    try {
-      let startDate: string | undefined = undefined;
-      let endDate: string | undefined = undefined;
-
-      const now = new Date();
-      if (dateRange === 'today') {
-        startDate = now.toISOString().split('T')[0];
-        endDate = startDate;
-      } else if (dateRange === '7days') {
-        const past = new Date();
-        past.setDate(now.getDate() - 7);
-        startDate = past.toISOString().split('T')[0];
-        endDate = now.toISOString().split('T')[0];
-      } else if (dateRange === '30days') {
-        const past = new Date();
-        past.setDate(now.getDate() - 30);
-        startDate = past.toISOString().split('T')[0];
-        endDate = now.toISOString().split('T')[0];
-      } else if (customStartDate && customEndDate) {
-        startDate = customStartDate;
-        endDate = customEndDate;
-      }
-
-      const plRes = await api.reports.getProfitLoss({ startDate, endDate });
-      setProfitLossData(plRes);
-    } catch (e) {
-      console.error('Failed to load profit loss report:', e);
-    } finally {
-      isRefreshingPLRef.current = false;
-      setIsLoadingPL(false);
-      triggerStatRecount();
-    }
-  };
-
   const handleRefresh = async () => {
+    const refetches: Promise<unknown>[] = [
+      dashboardQuery.refetch(),
+      topSellingQuery.refetch(),
+      salesHistoryQuery.refetch(),
+    ];
     if (activeTab === 'profit_loss') {
-      await Promise.all([loadReports(), loadProfitLoss()]);
-    } else {
-      await loadReports();
+      refetches.push(plQuery.refetch());
     }
+    await Promise.all(refetches);
+    triggerStatRecount();
   };
 
   const handlePrintPastSale = async (saleId: number) => {
@@ -299,7 +295,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     document.body.removeChild(link);
   };
 
-  if (!hasLoadedOnceRef.current && isLoading) {
+  if (!hasLoadedOnceRef.current && isInitialLoading) {
     return <AnalyticsOverviewSkeleton showFilterBar={true} />;
   }
 

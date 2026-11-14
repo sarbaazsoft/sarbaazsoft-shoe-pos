@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Truck, Plus, Search, DollarSign, X, Trash2, CheckCircle2, Building2, Barcode, Phone, ArrowRight, ArrowLeft, Table, Check, Package, Mail, RefreshCw, Eye, AlertCircle, AlertTriangle, FileText, CreditCard } from 'lucide-react';
-import { api } from '../../services/api.ts';
+import { api, getActiveTenantId } from '../../services/api.ts';
 import { playAudioFeedback } from '../../utils/audio.ts';
 import { cleanStockPriceInput, formatStockPrice } from '../../utils/priceFormat.ts';
 import { ProductFormModal } from '../inventory/ProductFormModal.tsx';
@@ -13,9 +14,15 @@ import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils/textFormat.ts';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
+import {
+  useCategoriesQuery,
+  useProductsQuery,
+  useSuppliersQuery,
+} from '../../hooks/useAppQueries.ts';
+import { queryClient, queryKeys } from '../../services/queryClient.ts';
 
 interface PurchaseManagementProps {
   currentUser: any;
@@ -37,11 +44,10 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   isActiveRef.current = isActive;
   const hasLoadedOnceRef = useRef(false);
 
-  const [purchases, setPurchases] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [committedSearch, setCommittedSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<1 | 2 | 3>(1);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Initial Payment in Purchase Creation Modal (Optional)
   const [initialPaidAmount, setInitialPaidAmount] = useState<string>('');
@@ -61,8 +67,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     padding: 16,
     behavior: 'smooth',
   });
-  const [purchaseReturns, setPurchaseReturns] = useState<any[]>([]);
-  const [isLoadingReturns, setIsLoadingReturns] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [returnModalPurchaseNumber, setReturnModalPurchaseNumber] = useState<string | undefined>();
   const [returnModalSupplierId, setReturnModalSupplierId] = useState<number | undefined>();
@@ -75,7 +79,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   const [isLoadingPurchaseDetails, setIsLoadingPurchaseDetails] = useState(false);
 
   // Suppliers State
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | ''>(initialSupplierId || '');
   const [supplierName, setSupplierName] = useState(initialSupplierName || '');
   const [supplierInvoice, setSupplierInvoice] = useState('');
@@ -94,9 +97,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
 
   // Products & Product Selection
-  const [products, setProducts] = useState<any[]>([]);
-  const [brands, setBrands] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
   const [productQuery, setProductQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
@@ -208,13 +208,78 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     }
   };
 
-  useEffect(() => {
-    loadPurchases();
-    loadPurchaseReturns();
-    loadProducts();
-    loadSuppliers();
-    loadCategories();
+  const tenantId = getActiveTenantId();
+  const purchaseSearchParam = committedSearch.trim() || undefined;
 
+  const purchasesQuery = useQuery({
+    queryKey: queryKeys.purchases.list(purchaseSearchParam, tenantId),
+    queryFn: ({ signal }) => api.purchases.list({ search: purchaseSearchParam }, { signal }),
+    enabled: isActive,
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const purchaseReturnsQuery = useQuery({
+    queryKey: queryKeys.purchaseReturns.list(purchaseSearchParam, tenantId),
+    queryFn: ({ signal }) => api.purchaseReturns.list({ search: purchaseSearchParam }, { signal }),
+    enabled: isActive,
+    staleTime: 20_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const productsQuery = useProductsQuery(undefined, { enabled: isActive });
+  const suppliersQuery = useSuppliersQuery(undefined, { enabled: isActive });
+  const categoriesQuery = useCategoriesQuery({ enabled: isActive });
+
+  const purchases: any[] = purchasesQuery.data?.purchases || [];
+  const purchaseReturns: any[] = purchaseReturnsQuery.data?.returns || [];
+  const products: any[] = productsQuery.data?.products || [];
+  const suppliers: any[] = suppliersQuery.data?.suppliers || [];
+
+  const brands = useMemo(
+    () =>
+      Array.from(
+        new Set(products.map((p: any) => String(p.brand || '').trim()).filter(Boolean))
+      ).sort() as string[],
+    [products]
+  );
+
+  const categories = useMemo(() => {
+    const seenC = new Set<string>();
+    const dedupedCats: any[] = [];
+    for (const c of categoriesQuery.data?.categories || []) {
+      const name = (typeof c === 'string' ? c : c.name || '').trim();
+      if (name && !seenC.has(name.toLowerCase())) {
+        seenC.add(name.toLowerCase());
+        dedupedCats.push(typeof c === 'string' ? { id: name, name } : c);
+      }
+    }
+    return dedupedCats;
+  }, [categoriesQuery.data]);
+
+  const isLoading = purchasesQuery.isFetching;
+  const isLoadingReturns = purchaseReturnsQuery.isFetching;
+
+  if (purchasesQuery.data) {
+    hasLoadedOnceRef.current = true;
+  }
+
+  useEffect(() => {
+    if (purchasesQuery.data) {
+      triggerStatRecount();
+    }
+  }, [purchasesQuery.data]);
+
+  useEffect(() => {
+    if (initialSupplierId && suppliers.length > 0) {
+      const found = suppliers.find((s: any) => s.id === initialSupplierId);
+      if (found) {
+        setSupplierName(found.name);
+      }
+    }
+  }, [initialSupplierId, suppliers]);
+
+  useEffect(() => {
     // Check for pending purchase entry from Quick Price search bar
     const handleNewPurchaseEvent = (e: any) => {
       const product = e.detail?.product;
@@ -268,51 +333,13 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isActive, isSuggestionsOpen]);
 
-  const isRefreshingPurchasesRef = useRef(false);
-  const isRefreshingReturnsRef = useRef(false);
-
   const loadPurchases = async () => {
-    if (isRefreshingPurchasesRef.current) return;
-    isRefreshingPurchasesRef.current = true;
-    setIsLoading(true);
-    try {
-      const res = await api.purchases.list({ search: searchTerm.trim() || undefined });
-      setPurchases(res.purchases || []);
-      hasLoadedOnceRef.current = true;
-    } catch (e: any) {
-      console.warn('Notice loading purchases:', e?.message || e);
-    } finally {
-      isRefreshingPurchasesRef.current = false;
-      setIsLoading(false);
-      triggerStatRecount();
-    }
+    await purchasesQuery.refetch();
+    triggerStatRecount();
   };
 
-  useDeferredRouteSync({
-    isActive,
-    topics: ['purchases', 'suppliers', 'products', 'inventory'],
-    sourceId: 'purchase-management',
-    onSync: () => {
-      void loadPurchases();
-      void loadPurchaseReturns();
-      void loadProducts();
-      void loadSuppliers();
-    },
-  });
-
   const loadPurchaseReturns = async () => {
-    if (isRefreshingReturnsRef.current) return;
-    isRefreshingReturnsRef.current = true;
-    setIsLoadingReturns(true);
-    try {
-      const res = await api.purchaseReturns.list({ search: searchTerm.trim() || undefined });
-      setPurchaseReturns(res.returns || []);
-    } catch (e: any) {
-      console.warn('Notice loading purchase returns:', e?.message || e);
-    } finally {
-      isRefreshingReturnsRef.current = false;
-      setIsLoadingReturns(false);
-    }
+    await purchaseReturnsQuery.refetch();
   };
 
   const handleRefreshAll = async () => {
@@ -332,51 +359,11 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   };
 
   const loadProducts = async () => {
-    try {
-      const res = await api.products.list();
-      const pList = res.products || [];
-      setProducts(pList);
-      const distinctBrands = Array.from(new Set(pList.map((p: any) => String(p.brand || '').trim()).filter(Boolean))).sort() as string[];
-      setBrands(distinctBrands);
-    } catch (e: any) {
-      console.warn('Notice loading products:', e?.message || e);
-    }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const cRes = await api.categories.getCategories().catch(() => ({ categories: [] }));
-      const seenC = new Set<string>();
-      const dedupedCats: any[] = [];
-      for (const c of (cRes.categories || [])) {
-        const name = (typeof c === 'string' ? c : c.name || '').trim();
-        if (name && !seenC.has(name.toLowerCase())) {
-          seenC.add(name.toLowerCase());
-          dedupedCats.push(typeof c === 'string' ? { id: name, name } : c);
-        }
-      }
-      setCategories(dedupedCats);
-    } catch (e) {
-      console.error(e);
-    }
+    await productsQuery.refetch();
   };
 
   const loadSuppliers = async () => {
-    try {
-      const res = await api.suppliers.list();
-      const list = res.suppliers || [];
-      setSuppliers(list);
-
-      // If initialSupplierId was provided, match and set supplierName
-      if (initialSupplierId) {
-        const found = list.find((s: any) => s.id === initialSupplierId);
-        if (found) {
-          setSupplierName(found.name);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load suppliers:', e);
-    }
+    await suppliersQuery.refetch();
   };
 
   const handleSelectSupplierFromTable = (sup: any) => {
@@ -810,7 +797,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     0
   );
 
-  if (!hasLoadedOnceRef.current && isLoading) {
+  if (!hasLoadedOnceRef.current && purchasesQuery.isPending) {
     return <DirectoryCrudSkeleton variant="table" statCount={3} />;
   }
 
@@ -1047,8 +1034,13 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  if (activeTab === 'purchases') loadPurchases();
-                  else loadPurchaseReturns();
+                  if (committedSearch !== searchTerm) {
+                    setCommittedSearch(searchTerm);
+                  } else if (activeTab === 'purchases') {
+                    loadPurchases();
+                  } else {
+                    loadPurchaseReturns();
+                  }
                 }
               }}
               className="app-input w-full pl-[2.125rem] pr-8 py-2 text-xs font-medium dark:bg-slate-900/80 dark:border-purple-800/60 dark:text-white dark:placeholder-slate-400"
@@ -1058,8 +1050,13 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                 type="button"
                 onClick={() => {
                   setSearchTerm('');
-                  if (activeTab === 'purchases') loadPurchases();
-                  else loadPurchaseReturns();
+                  if (committedSearch !== '') {
+                    setCommittedSearch('');
+                  } else if (activeTab === 'purchases') {
+                    loadPurchases();
+                  } else {
+                    loadPurchaseReturns();
+                  }
                 }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 p-1 cursor-pointer"
                 title="Clear search"
@@ -1526,7 +1523,14 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         setErrorMessage(null);
                       }}
                       onSupplierCreated={(newSupplier) => {
-                        setSuppliers((prev) => [newSupplier, ...prev]);
+                        queryClient.setQueryData(
+                          queryKeys.suppliers.list(undefined, tenantId),
+                          (prev: any) => ({
+                            ...(prev || {}),
+                            suppliers: [newSupplier, ...((prev?.suppliers as any[]) || [])],
+                          })
+                        );
+                        emitDataSync(['suppliers', 'purchases'], { source: 'purchase-management' });
                         setSelectedSupplierId(newSupplier.id);
                         setSupplierName(newSupplier.name);
                         setErrorMessage(null);

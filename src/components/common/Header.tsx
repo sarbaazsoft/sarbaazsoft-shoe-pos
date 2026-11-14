@@ -6,8 +6,11 @@ import { ShoeIcon } from './ShoeIcon.tsx';
 import { ThemeDropdown } from './ThemeDropdown.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { ClickableMessage } from './ClickableMessage.tsx';
-import { api } from '../../services/api.ts';
-import { PlatformNotification, PlatformNotificationType } from '../../types.ts';
+import { api, getActiveTenantId, isAbortError } from '../../services/api.ts';
+import { queryClient, queryKeys } from '../../services/queryClient.ts';
+import { useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { GroupedNotificationsResponse, PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { getAllCachedProductsOffline } from '../../utils/offlineDb.ts';
 import { isWebPushSupported, getNotificationPermissionState, isDeviceSubscribedToPush, subscribeDeviceToWebPush, resyncPushSubscriptionIfEnabled, unsubscribeDeviceFromWebPush, connectRealtimeNotificationStream, initNativeNotificationPrompt } from '../../services/pushNotificationClient.ts';
@@ -197,25 +200,35 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Quick price search - strictly displays suggestions ONLY on complete exact barcode, article number, or product name match
   const searchTimeoutRef = useRef<any>(null);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
 
   const executeSingleProductPriceSearch = async (queryText: string) => {
     const q = queryText.trim();
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+      searchAbortControllerRef.current = null;
+    }
+
     if (!q) {
       setPriceSearchResults([]);
       setIsLoadingSearch(false);
       return;
     }
 
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
     setIsLoadingSearch(true);
     try {
       const cleanQ = q.toLowerCase();
       const exactMatchesMap = new Map<number | string, any>();
 
-      // 1. Concurrently query exact scanner/barcode lookup and product list for speed & resilience
+      // 1. Concurrently query exact scanner/barcode lookup and product list with AbortSignal cancellation
       const [directRes, listRes] = await Promise.allSettled([
-        api.products.lookupBarcode(q),
-        api.products.list({ search: q, limit: 50 }),
+        api.products.lookupBarcode(q, { signal: controller.signal }),
+        api.products.list({ search: q, limit: 50 }, { signal: controller.signal }),
       ]);
+
+      if (controller.signal.aborted) return;
 
       // Direct lookup endpoint matches exact barcode, article, or name in Postgres
       if (directRes.status === 'fulfilled' && directRes.value?.product) {
@@ -262,18 +275,28 @@ export const Header: React.FC<HeaderProps> = ({
         }
       }
 
+      if (controller.signal.aborted) return;
+
       // Set results: only complete exact matches are returned (no partial or premature autocomplete items)
       const results = Array.from(exactMatchesMap.values());
       setPriceSearchResults(results);
-    } catch {
+    } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setPriceSearchResults([]);
     } finally {
-      setIsLoadingSearch(false);
+      if (searchAbortControllerRef.current === controller) {
+        searchAbortControllerRef.current = null;
+        setIsLoadingSearch(false);
+      }
     }
   };
 
   useEffect(() => {
     if (!searchQuery.trim()) {
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+        searchAbortControllerRef.current = null;
+      }
       setPriceSearchResults([]);
       setIsLoadingSearch(false);
       return;
@@ -295,8 +318,31 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [searchQuery]);
 
-  // Real-time system notifications
-  const [notifications, setNotifications] = useState<any[]>([]);
+  useEffect(() => {
+    return () => {
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Real-time system notifications & announcements shared via TanStack Query
+  const activeTenantId = getActiveTenantId();
+  const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
+    enabled: Boolean(currentUser),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+  const notifications = useMemo(
+    () => (groupedNotifsQuery.data?.notifications || []).slice(0, 5),
+    [groupedNotifsQuery.data]
+  );
+  const platformAnnouncements = useMemo<PlatformNotification[]>(
+    () => groupedNotifsQuery.data?.notices || [],
+    [groupedNotifsQuery.data]
+  );
+  const isLoadingNotifs = groupedNotifsQuery.isFetching;
+
   const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('pos_read_notifications');
@@ -306,11 +352,8 @@ export const Header: React.FC<HeaderProps> = ({
       return [];
     }
   });
-  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
-  const isFetchingNotifsRef = useRef(false);
 
-  // Platform Announcements from SuperAdmin
-  const [platformAnnouncements, setPlatformAnnouncements] = useState<PlatformNotification[]>([]);
+  // Platform Announcements dismissal state
   const [isDismissingAnnouncement, setIsDismissingAnnouncement] = useState<number | null>(null);
   const [notifDropdownTab, setNotifDropdownTab] = useState<'announcements' | 'notifications'>('announcements');
 
@@ -653,54 +696,17 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const fetchLiveNotifications = async () => {
-    if (isFetchingNotifsRef.current || !currentUser) return;
-    isFetchingNotifsRef.current = true;
+  const fetchLiveNotifications = useCallback(async () => {
+    if (!currentUser) return;
     try {
-      setIsLoadingNotifs(true);
-      const res = await api.notifications.grouped(5);
-      if (res) {
-        if (Array.isArray(res.notifications)) {
-          setNotifications(res.notifications);
-        }
-        if (Array.isArray(res.notices)) {
-          setPlatformAnnouncements(res.notices);
-        }
-      }
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.notifications.allRoot(activeTenantId),
+        refetchType: 'active',
+      });
     } catch {
       // Ignore transient polling errors during server restarts
-    } finally {
-      isFetchingNotifsRef.current = false;
-      setIsLoadingNotifs(false);
     }
-  };
-
-  useEffect(() => {
-    fetchLiveNotifications();
-
-    // Periodic live sync every 30 seconds
-    const interval = setInterval(fetchLiveNotifications, 30000);
-
-    // Event listeners for POS sales, returns, purchases, inventory adjustments, and SuperAdmin announcements
-    const handleLiveEvent = () => {
-      fetchLiveNotifications();
-    };
-
-    window.addEventListener('pos:sale-completed', handleLiveEvent);
-    window.addEventListener('inventory:updated', handleLiveEvent);
-    window.addEventListener('pos:return-completed', handleLiveEvent);
-    window.addEventListener('pos:purchase-completed', handleLiveEvent);
-    window.addEventListener('platform:announcement', handleLiveEvent);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('pos:sale-completed', handleLiveEvent);
-      window.removeEventListener('inventory:updated', handleLiveEvent);
-      window.removeEventListener('pos:return-completed', handleLiveEvent);
-      window.removeEventListener('pos:purchase-completed', handleLiveEvent);
-      window.removeEventListener('platform:announcement', handleLiveEvent);
-    };
-  }, []);
+  }, [currentUser, activeTenantId]);
 
   const markAsRead = (id: string) => {
     setReadNotifIds((prev) => {
@@ -726,9 +732,18 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleDismissActivity = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const key = queryKeys.notifications.grouped(10, activeTenantId);
     try {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+        prev
+          ? {
+              ...prev,
+              notifications: (prev.notifications || []).filter((n) => n.id !== id),
+            }
+          : prev
+      );
       await api.notifications.dismiss(id);
+      emitDataSync(['notifications'], { source: 'header' });
     } catch (err) {
       console.warn('Failed to dismiss activity:', err);
     }
@@ -736,10 +751,19 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleDismissAnnouncement = async (id: number, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const key = queryKeys.notifications.grouped(10, activeTenantId);
     try {
       setIsDismissingAnnouncement(id);
-      setPlatformAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+        prev
+          ? {
+              ...prev,
+              notices: (prev.notices || []).filter((a) => a.id !== id),
+            }
+          : prev
+      );
       await api.notifications.dismiss(id, 'NOTICE');
+      emitDataSync(['notifications'], { source: 'header' });
     } catch (err) {
       console.error('Failed to dismiss announcement:', err);
     } finally {
@@ -748,10 +772,19 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleDismissAllAnnouncements = async () => {
+    const key = queryKeys.notifications.grouped(10, activeTenantId);
     try {
-      setPlatformAnnouncements([]);
-      setNotifications([]);
+      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+        prev
+          ? {
+              ...prev,
+              notices: [],
+              notifications: [],
+            }
+          : prev
+      );
       await api.notifications.dismissAll();
+      emitDataSync(['notifications'], { source: 'header' });
     } catch (err) {
       console.error('Failed to dismiss all announcements:', err);
     }
@@ -1843,7 +1876,7 @@ export const Header: React.FC<HeaderProps> = ({
                               </span>
 
                               <span className="text-[9px] text-slate-400 dark:text-purple-300/70">
-                                {formatAnnouncementTime(n.timestamp || n.created_at || n.sale_date)}
+                                {formatAnnouncementTime(n.timestamp || (n as any).createdAt || (n as any).created_at || (n as any).sale_date)}
                               </span>
                             </div>
 

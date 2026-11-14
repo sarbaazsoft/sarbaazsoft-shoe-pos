@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -10,6 +10,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
 import type { PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { connectRealtimeNotificationStream } from '../../services/pushNotificationClient.ts';
@@ -55,7 +56,6 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
   const dismissedStorageKey = `pos_cashier_dismissed_notices_${userId}`;
   const welcomeDismissedKey = `pos_cashier_dismissed_welcome_${userId}`;
 
-  const [rawServerNotices, setRawServerNotices] = useState<PlatformNotification[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dismissedIds, setDismissedIds] = useState<Set<string | number>>(() => {
     try {
@@ -100,37 +100,19 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
     };
   }, []);
 
-  const isFetchingRef = useRef(false);
+  const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
+    enabled: Boolean(currentUser),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
 
-  // Fetch Super Admin notices and cashier announcements from backend
-  const fetchNotices = useCallback(async () => {
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
-    try {
-      const res = await api.notifications.grouped(10);
-      if (res && Array.isArray(res.notices)) {
-        setRawServerNotices(res.notices);
-      }
-    } catch (err) {
-      console.warn('Failed to fetch POS banner notices:', err);
-    } finally {
-      isFetchingRef.current = false;
-    }
-  }, []);
+  const rawServerNotices = useMemo<PlatformNotification[]>(
+    () => groupedNotifsQuery.data?.notices || [],
+    [groupedNotifsQuery.data]
+  );
 
+  // Refetch on real-time notification stream events for immediate delivery of notices
   useEffect(() => {
-    fetchNotices();
-
-    // Auto-refresh notices every 30 seconds
-    const interval = setInterval(fetchNotices, 30000);
-
-    // Listen to custom platform announcement events dispatched in window
-    const handlePlatformEvent = () => {
-      fetchNotices();
-    };
-    window.addEventListener('platform:announcement', handlePlatformEvent);
-
-    // Connect to real-time notification stream for immediate delivery of notices
     const cleanupStream = connectRealtimeNotificationStream((payload) => {
       const targetRole = payload.targetRole ? String(payload.targetRole).toUpperCase() : 'ALL';
       const isSuperAdminOnly =
@@ -139,16 +121,14 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
         (payload.title || '').toLowerCase().includes('renewal request');
 
       if (!isSuperAdminOnly && (targetRole === 'ALL' || targetRole === 'CASHIER')) {
-        fetchNotices();
+        void groupedNotifsQuery.refetch();
       }
     });
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('platform:announcement', handlePlatformEvent);
       if (cleanupStream) cleanupStream();
     };
-  }, [fetchNotices]);
+  }, [groupedNotifsQuery.refetch]);
 
   // Combine Super Admin notices + exactly ONE cashier welcome message with strict deduplication
   const activeNotices = useMemo<BannerNoticeItem[]>(() => {

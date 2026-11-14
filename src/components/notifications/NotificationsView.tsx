@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Bell,
   CheckCircle2,
@@ -22,12 +22,15 @@ import {
   Layers,
   Sparkles,
 } from 'lucide-react';
-import { api } from '../../services/api.ts';
-import type { HistoricalNotificationItem } from '../../types.ts';
+import { api, getActiveTenantId } from '../../services/api.ts';
+import type { AllNotificationsResponse, HistoricalNotificationItem } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { NotificationAlertProvidersSettings } from '../settings/NotificationAlertProvidersSettings.tsx';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
+import { useAllNotificationsQuery, useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
+import { queryClient, queryKeys } from '../../services/queryClient.ts';
+import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 interface NotificationsViewProps {
   currentUser?: any;
@@ -45,91 +48,84 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
   const searchInitRef = useRef(true);
+  const hasAutoSelectedTabRef = useRef(false);
   const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
-  const [items, setItems] = useState<HistoricalNotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const userSelectedTabRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 15,
-    total: 0,
-    totalPages: 1,
-  });
-  const [stats, setStats] = useState({
-    totalNotices: 0,
-    totalOperational: 0,
-    unreadNotices: 0,
-    unreadOperational: 0,
-  });
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [showProviderSettings, setShowProviderSettings] = useState(false);
   const searchTimeoutRef = useRef<any>(null);
 
-  const fetchHistory = async () => {
-    try {
-      setLoading(true);
-      const res = await api.notifications.all({
-        page,
-        limit,
-        tab: activeTab,
-        search: searchQuery,
-        sortOrder,
-        unreadOnly,
-      });
+  const groupedQuery = useGroupedNotificationsQuery(10, {
+    enabled: isActive,
+  });
 
-      if (res) {
-        hasLoadedOnceRef.current = true;
-        setItems(res.items || []);
-        if (res.pagination) {
-          setPagination(res.pagination);
-        }
-        if (res.stats) {
-          setStats(res.stats);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to load notification history:', err);
-    } finally {
-      setLoading(false);
-    }
+  const queryParams = useMemo(
+    () => ({
+      page,
+      limit,
+      tab: activeTab,
+      search: debouncedSearchQuery,
+      sortOrder,
+      unreadOnly,
+    }),
+    [page, limit, activeTab, debouncedSearchQuery, sortOrder, unreadOnly]
+  );
+
+  const allNotificationsQuery = useAllNotificationsQuery(queryParams, {
+    enabled: isActive,
+  });
+
+  if (allNotificationsQuery.data) {
+    hasLoadedOnceRef.current = true;
+  }
+
+  const items = allNotificationsQuery.data?.items || [];
+  const pagination = allNotificationsQuery.data?.pagination || {
+    page,
+    limit,
+    total: 0,
+    totalPages: 1,
+  };
+  const stats = allNotificationsQuery.data?.stats || {
+    totalNotices: 0,
+    totalOperational: 0,
+    unreadNotices: 0,
+    unreadOperational: 0,
+  };
+  const loading = allNotificationsQuery.isFetching;
+
+  const fetchHistory = async () => {
+    await allNotificationsQuery.refetch();
   };
 
   // Dynamically set default active tab to whichever tab contains the latest incoming message or timestamp
   useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        const grouped = await api.notifications.grouped(1);
-        if (!isMounted || userSelectedTabRef.current) return;
-        const latestNoticeTime = grouped.notices?.[0]?.createdAt
-          ? new Date(grouped.notices[0].createdAt).getTime()
-          : 0;
-        const latestOperationalTime = grouped.notifications?.[0]?.createdAt
-          ? new Date(grouped.notifications[0].createdAt).getTime()
-          : 0;
+    if (hasAutoSelectedTabRef.current || userSelectedTabRef.current || !groupedQuery.data) {
+      return;
+    }
+    hasAutoSelectedTabRef.current = true;
+    const grouped = groupedQuery.data;
+    const latestNoticeTime = grouped.notices?.[0]?.createdAt
+      ? new Date(grouped.notices[0].createdAt).getTime()
+      : 0;
+    const latestOperationalTime = grouped.notifications?.[0]?.createdAt
+      ? new Date(grouped.notifications[0].createdAt).getTime()
+      : 0;
 
-        if (latestOperationalTime > 0 && latestOperationalTime > latestNoticeTime) {
-          setActiveTab('operational');
-        } else if (latestNoticeTime > 0) {
-          setActiveTab('announcements');
-        }
-      } catch {}
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    fetchHistory();
-  }, [page, limit, activeTab, sortOrder, unreadOnly]);
+    if (latestOperationalTime > 0 && latestOperationalTime > latestNoticeTime) {
+      setActiveTab('operational');
+    } else if (latestNoticeTime > 0) {
+      setActiveTab('announcements');
+    }
+  }, [groupedQuery.data]);
 
   useEffect(() => {
     if (searchInitRef.current) {
@@ -141,7 +137,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     }
     searchTimeoutRef.current = setTimeout(() => {
       setPage(1);
-      fetchHistory();
+      setDebouncedSearchQuery(searchQuery);
     }, 280);
 
     return () => {
@@ -149,53 +145,71 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     };
   }, [searchQuery]);
 
-  useDeferredRouteSync({
-    isActive,
-    topics: ['notifications', 'sales', 'returns', 'purchases'],
-    sourceId: 'notifications-view',
-    onSync: () => {
-      void fetchHistory();
-    },
-  });
-
   const handleDismiss = async (item: HistoricalNotificationItem) => {
+    const tenantId = getActiveTenantId();
+    const cacheKey = queryKeys.notifications.all(queryParams, tenantId);
     try {
       setDismissingId(item.id);
-      // Instant optimistic UI update
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: true } : i)));
+      // Instant optimistic UI update in query cache
+      queryClient.setQueryData<AllNotificationsResponse>(cacheKey, (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: (prev.items || []).map((i) => (i.id === item.id ? { ...i, isRead: true } : i)),
+          stats:
+            !item.isRead && prev.stats
+              ? {
+                  ...prev.stats,
+                  unreadNotices:
+                    item.kind === 'NOTICE'
+                      ? Math.max(0, prev.stats.unreadNotices - 1)
+                      : prev.stats.unreadNotices,
+                  unreadOperational:
+                    item.kind === 'OPERATIONAL'
+                      ? Math.max(0, prev.stats.unreadOperational - 1)
+                      : prev.stats.unreadOperational,
+                }
+              : prev.stats,
+        };
+      });
 
       await api.notifications.dismiss(item.id, item.itemType);
-
-      // Decrement unread counts
-      if (!item.isRead) {
-        setStats((prev) => ({
-          ...prev,
-          unreadNotices: item.kind === 'NOTICE' ? Math.max(0, prev.unreadNotices - 1) : prev.unreadNotices,
-          unreadOperational: item.kind === 'OPERATIONAL' ? Math.max(0, prev.unreadOperational - 1) : prev.unreadOperational,
-        }));
-      }
+      emitDataSync(['notifications'], { source: 'notifications-view' });
     } catch (err) {
       console.warn('Failed to dismiss item:', err);
+      await allNotificationsQuery.refetch();
     } finally {
       setDismissingId(null);
     }
   };
 
   const handleMarkAllRead = async () => {
+    const tenantId = getActiveTenantId();
+    const cacheKey = queryKeys.notifications.all(queryParams, tenantId);
     try {
       setIsMarkingAll(true);
-      // Optimistic update
-      setItems((prev) => prev.map((i) => ({ ...i, isRead: true })));
-      setStats((prev) => ({
-        ...prev,
-        unreadNotices: 0,
-        unreadOperational: 0,
-      }));
+      // Optimistic update in query cache
+      queryClient.setQueryData<AllNotificationsResponse>(cacheKey, (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: (prev.items || []).map((i) => ({ ...i, isRead: true })),
+          stats: prev.stats
+            ? {
+                ...prev.stats,
+                unreadNotices: 0,
+                unreadOperational: 0,
+              }
+            : prev.stats,
+        };
+      });
 
       await api.notifications.markAllRead();
+      emitDataSync(['notifications'], { source: 'notifications-view' });
       await fetchHistory();
     } catch (err) {
       console.warn('Failed to mark all as read:', err);
+      await allNotificationsQuery.refetch();
     } finally {
       setIsMarkingAll(false);
     }
@@ -344,7 +358,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
   const totalUnreadCount = stats.unreadNotices + stats.unreadOperational;
 
-  if (!hasLoadedOnceRef.current && loading) {
+  if (!hasLoadedOnceRef.current && allNotificationsQuery.isPending) {
     return <FeedLedgerSkeleton />;
   }
 
@@ -594,7 +608,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
       {/* NOTIFICATION CARDS LIST */}
       <div className="space-y-2.5">
-        {loading ? (
+        {allNotificationsQuery.isPending ? (
           <div className="py-16 text-center space-y-3">
             <RefreshCw className="w-7 h-7 mx-auto animate-spin text-purple-600" />
             <p className="text-xs font-semibold text-slate-500 dark:text-purple-300">

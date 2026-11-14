@@ -6,7 +6,8 @@ import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { CustomerFormModal } from './CustomerFormModal.tsx';
 import { CustomerDetailsModal } from './CustomerDetailsModal.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
-import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
+import { useCustomersQuery } from '../../hooks/useAppQueries.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 
@@ -17,9 +18,7 @@ interface CustomerManagementProps {
 export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companySettings }) => {
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
-  const [customers, setCustomers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -36,37 +35,21 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
 
   const currencySymbol = companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.';
 
-  const isRefreshingRef = useRef(false);
+  const customersQuery = useCustomersQuery(undefined, { enabled: isActive });
+  const customers = useMemo<any[]>(() => customersQuery.data?.customers || [], [customersQuery.data]);
+  const isLoading = customersQuery.isPending || customersQuery.isFetching;
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  const loadCustomers = async () => {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
-    setIsLoading(true);
-    try {
-      const res = await api.customers.list(searchTerm.trim() || undefined);
-      setCustomers(res.customers || []);
+    if (customersQuery.data) {
       hasLoadedOnceRef.current = true;
-    } catch (e: any) {
-      console.warn('Notice loading customers:', e?.message || e);
-    } finally {
-      isRefreshingRef.current = false;
-      setIsLoading(false);
       triggerStatRecount();
     }
-  };
+  }, [customersQuery.data]);
 
-  useDeferredRouteSync({
-    isActive,
-    topics: ['customers', 'sales', 'returns'],
-    sourceId: 'customer-management',
-    onSync: () => {
-      void loadCustomers();
-    },
-  });
+  const loadCustomers = async () => {
+    await customersQuery.refetch();
+    triggerStatRecount();
+  };
 
   const handleOpenAddModal = () => {
     setEditingCustomer(null);
@@ -277,7 +260,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
             <button
               onClick={() => {
                 setSearchTerm('');
-                api.customers.list().then((res) => setCustomers(res.customers || []));
+                void loadCustomers();
               }}
               className="absolute right-16 top-1/2 -translate-y-1/2 text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 p-1 cursor-pointer"
             >

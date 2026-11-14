@@ -1,6 +1,7 @@
 // Offline Sales Queue Manager: PWA Background Sync Service, Service Worker bridge, queue status listener, and local fallback
 
 import { api, getAuthToken } from './api.ts';
+import { queryClient, queryKeys } from './queryClient.ts';
 import { QueuedSale, queueOfflineSale, getOfflineSales, getPendingOfflineSalesCount, updateOfflineSaleStatus, deleteOfflineSale, cacheCatalogOffline, resolveActiveTenantId } from '../utils/offlineDb.ts';
 import { buildCheckoutRequestPayload, processOfflineSalesQueue } from './offline/syncEngine.ts';
 import { emitDataSync } from '../utils/dataSyncBus.ts';
@@ -22,8 +23,9 @@ class OfflineQueueService {
   private listeners: Set<QueueListener> = new Set();
   private syncIntervalId: any = null;
   private healthCheckIntervalId: any = null;
-  private primePromise: Promise<void> | null = null;
+  private primePromise: Promise<any[]> | null = null;
   private lastPrimedAt: number = 0;
+  private lastPrimedProducts: any[] = [];
 
   constructor() {
     // Restore cached lastSyncedAt if available
@@ -404,27 +406,37 @@ class OfflineQueueService {
   }
 
   /**
-   * Helper to refresh offline catalog cache (coalesces concurrent/redundant calls)
+   * Helper to refresh offline catalog cache (coalesces concurrent/redundant calls via shared queryClient)
    */
-  public async primeCatalogCache(force: boolean = false): Promise<void> {
+  public async primeCatalogCache(force: boolean = false): Promise<any[]> {
     const token = getAuthToken();
-    if (!token) return;
+    if (!token) return [];
     if (this.primePromise) return this.primePromise;
-    if (!force && Date.now() - this.lastPrimedAt < 10000) return;
+    const tenantId = resolveActiveTenantId();
+    if (!force && Date.now() - this.lastPrimedAt < 10000 && this.lastPrimedProducts.length > 0) {
+      return this.lastPrimedProducts;
+    }
 
     this.primePromise = (async () => {
       try {
-        const res = await api.products.list({ limit: 500 } as any);
-        if (res && res.products) {
-          await cacheCatalogOffline(res.products);
+        const res = await queryClient.fetchQuery({
+          queryKey: queryKeys.products.catalog(500, tenantId),
+          queryFn: ({ signal }) => api.products.list({ limit: 500 }, { signal }),
+          staleTime: force ? 0 : 10000,
+        });
+        if (res && Array.isArray(res.products)) {
+          await cacheCatalogOffline(res.products, tenantId);
           this.lastPrimedAt = Date.now();
+          this.lastPrimedProducts = res.products;
           console.log(`[OfflineSync] Cached ${res.products.length} products for offline POS use.`);
+          return res.products;
         }
       } catch {
         // Ignore transient network blips during background cache priming
       } finally {
         this.primePromise = null;
       }
+      return this.lastPrimedProducts;
     })();
 
     return this.primePromise;
