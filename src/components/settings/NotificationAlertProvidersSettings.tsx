@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Flame,
   Key,
@@ -51,6 +51,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
 
   // Test push state
   const [isTestingPush, setIsTestingPush] = useState(false);
+  const isTestingPushRef = useRef(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Device registration state
@@ -147,6 +148,8 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
   };
 
   const handleTestPush = async () => {
+    if (isTestingPushRef.current) return;
+    isTestingPushRef.current = true;
     setIsTestingPush(true);
     setTestResult(null);
 
@@ -170,6 +173,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
       });
     } finally {
       setIsTestingPush(false);
+      isTestingPushRef.current = false;
     }
   };
 

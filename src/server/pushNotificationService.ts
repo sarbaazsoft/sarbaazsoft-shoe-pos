@@ -412,8 +412,11 @@ export async function notifyPosAction(
 ): Promise<void> {
   const cleanTenantId = Number(tenantId) || 1;
   const allowedRoles = payload.targetRoles || ['ADMIN', 'CASHIER'];
-  const enrichedPayload: PosActionNotification = {
+  const eventTag = `pos-${payload.type.toLowerCase()}-${payload.invoiceNumber || Date.now()}`;
+  const enrichedPayload: PosActionNotification & { eventId: string; tag: string } = {
     ...payload,
+    eventId: eventTag,
+    tag: eventTag,
     targetRole: payload.targetRole || 'ALL',
     targetRoles: allowedRoles,
   };
@@ -474,9 +477,11 @@ export async function notifyPosAction(
         deepLinkUrl: enrichedPayload.deepLinkUrl || '/pos',
         icon: DEFAULT_NOTIFICATION_ICON,
         badge: NOTIFICATION_BADGE_ICON,
-        tag: `pos-${enrichedPayload.type.toLowerCase()}-${enrichedPayload.invoiceNumber || Date.now()}`,
+        tag: eventTag,
         data: {
           type: enrichedPayload.type,
+          eventId: eventTag,
+          tag: eventTag,
           invoiceNumber: enrichedPayload.invoiceNumber || '',
           orderId: String(enrichedPayload.orderId || ''),
           totalAmount: String(enrichedPayload.totalAmount || ''),
@@ -508,6 +513,34 @@ export interface PlatformAnnouncementNotification {
   actionUrl?: string;
   actionLabel?: string;
   timestamp?: string;
+}
+
+function broadcastSsePlatformAnnouncement(
+  eventPayload: Record<string, any>,
+  options: { isGlobal: boolean; cleanTenantId: number | null; targetRole: string }
+): number {
+  const { isGlobal, cleanTenantId, targetRole } = options;
+  const sseMessage = `event: platform_announcement\ndata: ${JSON.stringify(eventPayload)}\n\n`;
+  let deliveredCount = 0;
+
+  for (const client of sseClients) {
+    const isTenantMatch = isGlobal ? true : client.tenantId === cleanTenantId;
+    if (!isTenantMatch) continue;
+
+    if (targetRole === 'SUPERADMIN' && client.role !== 'SUPERADMIN') continue;
+    if (targetRole === 'ADMIN' && client.role !== 'ADMIN') continue;
+    if (targetRole === 'CASHIER' && client.role !== 'CASHIER') continue;
+    if (targetRole === 'ALL' && cleanTenantId !== null && client.role === 'SUPERADMIN') continue;
+
+    try {
+      client.res.write(sseMessage);
+      deliveredCount++;
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+
+  return deliveredCount;
 }
 
 export async function notifyPlatformAnnouncement(
@@ -545,8 +578,11 @@ export async function notifyPlatformAnnouncement(
     }
   }
 
+  const eventTag = `platform-${payload.id || Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const eventPayload = {
     id: payload.id,
+    eventId: eventTag,
+    tag: eventTag,
     type: payload.type || 'INFO',
     title: payload.title,
     message: payload.message,
@@ -558,22 +594,7 @@ export async function notifyPlatformAnnouncement(
   };
 
   // 1. Deliver to active browser sessions via SSE
-  const sseMessage = `event: platform_announcement\ndata: ${JSON.stringify(eventPayload)}\n\n`;
-  for (const client of sseClients) {
-    const isTenantMatch = isGlobal ? true : (client.tenantId === cleanTenantId);
-    if (!isTenantMatch) continue;
-
-    if (targetRole === 'SUPERADMIN' && client.role !== 'SUPERADMIN') continue;
-    if (targetRole === 'ADMIN' && client.role !== 'ADMIN') continue;
-    if (targetRole === 'CASHIER' && client.role !== 'CASHIER') continue;
-    if (targetRole === 'ALL' && cleanTenantId !== null && client.role === 'SUPERADMIN') continue;
-
-    try {
-      client.res.write(sseMessage);
-    } catch {
-      sseClients.delete(client);
-    }
-  }
+  broadcastSsePlatformAnnouncement(eventPayload, { isGlobal, cleanTenantId, targetRole });
 
   // 2. Deliver via Firebase Cloud Messaging (FCM)
   try {
@@ -612,9 +633,11 @@ export async function notifyPlatformAnnouncement(
       deepLinkUrl: payload.actionUrl || (isAdminAnnouncement ? '/admin' : '/'),
       icon: isAdminAnnouncement ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON,
       badge: NOTIFICATION_BADGE_ICON,
-      tag: `platform-${payload.id || Date.now()}`,
+      tag: eventTag,
       data: {
         type: payload.type || 'INFO',
+        eventId: eventTag,
+        tag: eventTag,
         notificationId: String(payload.id || ''),
         isAdmin: isAdminAnnouncement ? 'true' : 'false',
       },
@@ -628,68 +651,116 @@ export async function notifyPlatformAnnouncement(
 // TEST FCM ALERT DISPATCH
 // ============================================================================
 
+export interface TestFcmPushResult {
+  success: boolean;
+  message: string;
+  sentCount: number;
+  fcmSentCount: number;
+  failureCount: number;
+  channel: 'fcm' | 'sse';
+  eventId: string;
+  error?: string;
+}
+
+export interface TestFcmPushDeps {
+  eventId?: string;
+  getFirebaseAdminFn?: () => App | null;
+  sendFcmPushToTokensFn?: typeof sendFcmPushToTokens;
+  fetchTokensFn?: (tenantId: number, isSuperAdminTest: boolean) => Promise<string[]>;
+}
+
 export async function testFcmPush(
   tenantId: number,
   customTitle?: string,
-  customMessage?: string
-): Promise<{ success: boolean; message: string; sentCount: number; failureCount: number; error?: string }> {
+  customMessage?: string,
+  deps?: TestFcmPushDeps
+): Promise<TestFcmPushResult> {
   const isSuperAdminTest = tenantId === 0;
   const alertTitle = customTitle || (isSuperAdminTest ? '🔔 SuperAdmin Test Push Alert' : '🔔 POS Test Push Alert');
   const alertBody = customMessage || (isSuperAdminTest
     ? `SuperAdmin Push Alert received successfully at ${new Date().toLocaleTimeString()}! Device notifications are fully operational.`
     : `Push Alert received successfully at ${new Date().toLocaleTimeString()}! Device notifications are fully operational.`);
 
-  // 1. Deliver real-time alert to active browser sessions via SSE stream immediately
-  await notifyPlatformAnnouncement({
-    title: alertTitle,
-    message: alertBody,
-    type: 'INFO',
-    targetRole: isSuperAdminTest ? 'SUPERADMIN' : 'ALL',
-    tenantId: isSuperAdminTest ? null : tenantId,
-  }).catch(() => {});
+  const rawEventId = typeof deps?.eventId === 'string' ? deps.eventId.trim() : '';
+  const eventId = rawEventId || `test-push-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const targetRole = isSuperAdminTest ? 'SUPERADMIN' : 'ALL';
+  const cleanTenantId = isSuperAdminTest ? null : (Number(tenantId) || 1);
 
-  await loadAppSettingsCache();
-  const app = getFirebaseAdmin();
+  // 1. Deliver real-time alert to active browser sessions via SSE stream ONLY (no duplicate FCM send)
+  broadcastSsePlatformAnnouncement(
+    {
+      eventId,
+      tag: eventId,
+      type: 'TEST_PUSH',
+      title: alertTitle,
+      message: alertBody,
+      actionUrl: '',
+      actionLabel: '',
+      tenantId: cleanTenantId,
+      targetRole,
+      timestamp: new Date().toISOString(),
+    },
+    {
+      isGlobal: isSuperAdminTest,
+      cleanTenantId,
+      targetRole,
+    }
+  );
+
+  await loadAppSettingsCache().catch(() => {});
+  const app = deps?.getFirebaseAdminFn ? deps.getFirebaseAdminFn() : getFirebaseAdmin();
   if (!app) {
     return {
       success: true,
       message: '✓ Test alert dispatched to your open browser session(s)! (Configure Firebase Admin SDK in Settings to enable background push while the app is closed.)',
       sentCount: 1,
+      fcmSentCount: 0,
       failureCount: 0,
+      channel: 'sse',
+      eventId,
     };
   }
 
-  await ensureFcmTokensSchema();
-
-  // Query tokens: if tenantId is 0 or SuperAdmin, send to all tokens; otherwise filter by tenantId
-  let query = 'SELECT token FROM public.fcm_tokens';
-  let params: any[] = [];
-  if (tenantId && tenantId > 0) {
-    query = 'SELECT token FROM public.fcm_tokens WHERE tenant_id = $1';
-    params = [tenantId];
+  let tokens: string[] = [];
+  if (deps?.fetchTokensFn) {
+    tokens = await deps.fetchTokensFn(tenantId, isSuperAdminTest);
+  } else {
+    await ensureFcmTokensSchema();
+    // Scope FCM tokens strictly: SuperAdmin test targets SUPERADMIN tokens; Store test targets that tenant's store tokens
+    const query = isSuperAdminTest
+      ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'SUPERADMIN'`
+      : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) != 'SUPERADMIN'`;
+    const params = isSuperAdminTest ? [] : [cleanTenantId];
+    const tokensRes = await pgClient.query<{ token: string }>(query, params);
+    tokens = tokensRes.rows.map((r) => r.token);
   }
 
-  const tokensRes = await pgClient.query<{ token: string }>(query, params);
-  const tokens = tokensRes.rows.map((r) => r.token);
-
-  if (tokens.length === 0) {
+  const uniqueTokens = Array.from(new Set(tokens.map((t) => String(t || '').trim()).filter(Boolean)));
+  if (uniqueTokens.length === 0) {
     return {
       success: true,
       message: '✓ Test alert delivered to your open session! Tap "Enable Push" to register this device for background alerts when the app is closed.',
       sentCount: 0,
+      fcmSentCount: 0,
       failureCount: 0,
+      channel: 'sse',
+      eventId,
     };
   }
 
-  const result = await sendFcmPushToTokens(tokens, {
+  // 2. Dispatch FCM push notification ONCE with matching eventId/tag for cross-channel deduplication
+  const sender = deps?.sendFcmPushToTokensFn || sendFcmPushToTokens;
+  const result = await sender(uniqueTokens, {
     title: alertTitle,
     body: alertBody,
     deepLinkUrl: isSuperAdminTest ? '/admin' : '/pos',
     icon: isSuperAdminTest ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON,
     badge: NOTIFICATION_BADGE_ICON,
-    tag: `fcm-test-${Date.now()}`,
+    tag: eventId,
     data: {
       type: 'TEST_PUSH',
+      eventId,
+      tag: eventId,
       isAdmin: isSuperAdminTest ? 'true' : 'false',
       timestamp: new Date().toISOString(),
     },
@@ -701,7 +772,11 @@ export async function testFcmPush(
       ? `✓ Test notification successfully dispatched to ${result.sentCount} device(s)!`
       : `Test alert sent to active session, but FCM delivery reported: ${result.error || 'Unknown error'}`,
     sentCount: result.sentCount,
+    fcmSentCount: result.sentCount,
     failureCount: result.failureCount,
+    channel: result.sentCount > 0 ? 'fcm' : 'sse',
+    eventId,
     error: result.error,
   };
 }
+

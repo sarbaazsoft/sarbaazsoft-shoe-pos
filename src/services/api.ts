@@ -1282,19 +1282,30 @@ export const api = {
         method: 'POST',
         body: { token },
       }),
-    testFcm: (data?: { title?: string; message?: string }) =>
+    testFcm: (data?: { title?: string; message?: string; eventId?: string }) =>
       apiFetch<{
         success: boolean;
         message: string;
         sentCount: number;
+        fcmSentCount?: number;
         failureCount: number;
+        channel?: 'fcm' | 'sse';
+        eventId?: string;
         error?: string;
       }>('/notifications/test-fcm', {
         method: 'POST',
         body: data || {},
       }),
-    testPush: (data?: { title?: string; message?: string }) =>
-      apiFetch<{ success: boolean; message: string; sentCount?: number; failureCount?: number }>('/notifications/test-push', { method: 'POST', body: data || {} }),
+    testPush: (data?: { title?: string; message?: string; eventId?: string }) =>
+      apiFetch<{
+        success: boolean;
+        message: string;
+        sentCount?: number;
+        fcmSentCount?: number;
+        failureCount?: number;
+        channel?: 'fcm' | 'sse';
+        eventId?: string;
+      }>('/notifications/test-push', { method: 'POST', body: data || {} }),
     dismissAnnouncement: (id: number) =>
       apiFetch<{ success: boolean; message: string }>(`/notifications/platform/${id}/dismiss`, {
         method: 'POST',

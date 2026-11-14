@@ -2,6 +2,10 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
 import { api, getActiveTenantId } from './api.ts';
 import { playAudioFeedback } from '../utils/audio.ts';
+import {
+  claimNotificationChannel,
+  getNotificationDedupeKey,
+} from '../utils/notificationDedupe.ts';
 
 let cachedFirebaseApp: FirebaseApp | null = null;
 let cachedMessaging: Messaging | null = null;
@@ -70,18 +74,26 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
         const icon = payload.notification?.icon || payload.data?.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
         const rawBadge = payload.data?.badge || (payload.notification as Record<string, any> | undefined)?.badge;
         const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
+        const dedupeKey = getNotificationDedupeKey(payload);
+        const tag = payload.data?.tag || payload.data?.eventId || `fcm-fg-${Date.now()}`;
 
-        // Play alert audio chime
-        playAudioFeedback.success();
+        // Play alert audio chime only if SSE did not already play it for this event
+        if (claimNotificationChannel(dedupeKey, 'audio')) {
+          playAudioFeedback.success();
+        }
 
-        // Show browser notification if permitted
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        // Show browser notification once per eventId/tag if permitted
+        if (
+          typeof Notification !== 'undefined' &&
+          Notification.permission === 'granted' &&
+          claimNotificationChannel(dedupeKey, 'os_notification')
+        ) {
           try {
             const notif = new Notification(title, {
               body,
               icon,
               badge,
-              tag: payload.data?.tag || `fcm-fg-${Date.now()}`,
+              tag,
               data: { url: deepLinkUrl },
             });
             notif.onclick = () => {

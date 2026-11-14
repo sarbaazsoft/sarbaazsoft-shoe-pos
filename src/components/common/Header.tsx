@@ -361,6 +361,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [isTogglingPush, setIsTogglingPush] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => getNotificationPermissionState());
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
+  const isSendingTestPushRef = useRef(false);
+  const suppressedLocalTestIdsRef = useRef<Set<string>>(new Set());
   const [notificationModalData, setNotificationModalData] = useState<NotificationModalData | null>(null);
   const [livePushToast, setLivePushToast] = useState<{
     id: string;
@@ -490,9 +492,17 @@ export const Header: React.FC<HeaderProps> = ({
       // Animate notification bell icon to pulse when a push notification arrives
       triggerBellPulse();
       fetchLiveNotifications();
+
+      const incomingEventId = String(payload.eventId || payload.tag || '');
+      if (incomingEventId && suppressedLocalTestIdsRef.current.has(incomingEventId)) {
+        suppressedLocalTestIdsRef.current.delete(incomingEventId);
+        return;
+      }
+
       // Display instant floating notification toast
+      const toastId = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       setLivePushToast({
-        id: `toast-${Date.now()}`,
+        id: toastId,
         type: payload.type || 'SALE',
         title: payload.title || 'POS Alert',
         message: payload.message || 'Transaction confirmed.',
@@ -506,15 +516,9 @@ export const Header: React.FC<HeaderProps> = ({
 
       // Automatically dismiss after 9 seconds
       setTimeout(() => {
-        setLivePushToast((prev) => (prev?.invoiceNumber === payload.invoiceNumber ? null : prev));
+        setLivePushToast((prev) => (prev?.id === toastId ? null : prev));
       }, 9000);
     });
-
-    // Also trigger bell pulse on foreground push events and platform announcements
-    const handleInAppPushAlert = () => {
-      triggerBellPulse();
-      fetchLiveNotifications();
-    };
 
     const handleShowNotificationModal = (event: any) => {
       if (event?.detail) {
@@ -525,16 +529,12 @@ export const Header: React.FC<HeaderProps> = ({
       }
     };
 
-    window.addEventListener('pos:action-notification', handleInAppPushAlert);
-    window.addEventListener('platform:announcement', handleInAppPushAlert);
     window.addEventListener('pos:show-notification-modal', handleShowNotificationModal);
 
     return () => {
       cleanupNativePrompt();
       cleanupStream();
       window.removeEventListener('pos:push-status-changed', handlePushStatusChanged);
-      window.removeEventListener('pos:action-notification', handleInAppPushAlert);
-      window.removeEventListener('platform:announcement', handleInAppPushAlert);
       window.removeEventListener('pos:show-notification-modal', handleShowNotificationModal);
       if (bellPulseTimeoutRef.current) {
         clearTimeout(bellPulseTimeoutRef.current);
@@ -621,9 +621,15 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleSendTestPush = async () => {
+    if (isSendingTestPushRef.current) return;
+    isSendingTestPushRef.current = true;
+    const eventId = `test-push-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    suppressedLocalTestIdsRef.current.add(eventId);
+    setTimeout(() => suppressedLocalTestIdsRef.current.delete(eventId), 15_000);
+
     try {
       setTestPushStatus('sending');
-      const res = await api.notifications.testPush();
+      const res = await api.notifications.testPush({ eventId });
       setTestPushStatus(res.success ? 'success' : 'error');
       if (res.success) {
         triggerBellPulse();
@@ -631,7 +637,9 @@ export const Header: React.FC<HeaderProps> = ({
           isOpen: true,
           type: 'success',
           title: 'Test Notification Delivered',
-          message: 'A test alert has been delivered to your active store devices. Real-time counter alerts are functioning properly.',
+          message:
+            res.message ||
+            'A test alert has been delivered to your active store devices. Real-time counter alerts are functioning properly.',
         });
       } else {
         setNotificationModalData({
@@ -645,6 +653,7 @@ export const Header: React.FC<HeaderProps> = ({
         setTestPushStatus(null);
       }, 4000);
     } catch (err: any) {
+      suppressedLocalTestIdsRef.current.delete(eventId);
       setTestPushStatus('error');
       setNotificationModalData({
         isOpen: true,
@@ -655,6 +664,8 @@ export const Header: React.FC<HeaderProps> = ({
       setTimeout(() => {
         setTestPushStatus(null);
       }, 5000);
+    } finally {
+      isSendingTestPushRef.current = false;
     }
   };
 

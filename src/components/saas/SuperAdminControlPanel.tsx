@@ -23,6 +23,7 @@ import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength';
 import { initNativeNotificationPrompt, isDeviceSubscribedToPush, getNotificationPermissionState, subscribeDeviceToWebPush, unsubscribeDeviceFromWebPush, connectRealtimeNotificationStream } from '../../services/pushNotificationClient';
+import { claimNotificationChannel } from '../../utils/notificationDedupe';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { getStandardDocumentTitle } from '../../utils/documentTitle';
@@ -77,6 +78,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
   const [isTogglingPush, setIsTogglingPush] = useState(false);
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
+  const isSendingTestPushRef = useRef(false);
   const [notificationModalData, setNotificationModalData] = useState<NotificationModalData | null>(null);
 
   // SuperAdmin Platform Tools Dropdown state (Send Notification, Import Data, Export Platform Backup)
@@ -420,22 +422,35 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   };
 
   const handleSendTestPush = async () => {
+    if (isSendingTestPushRef.current) return;
+    isSendingTestPushRef.current = true;
+    const eventId = `test-push-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     try {
       setTestPushStatus('sending');
       const res = await api.notifications.testPush({
         title: '🔔 SuperAdmin Test Push Alert',
         message: 'SuperAdmin push notification test delivered successfully to registered devices!',
+        eventId,
       });
       setTestPushStatus(res.success ? 'success' : 'error');
 
-      // Fallback local desktop alert if browser permission is already granted
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      // Fallback local desktop alert ONLY when FCM did not deliver and SSE did not already show an OS alert
+      const deliveredViaFcm = res.channel === 'fcm' || (typeof res.fcmSentCount === 'number' && res.fcmSentCount > 0);
+      const dedupeKey = `id:${res.eventId || eventId}`;
+      if (
+        res.success &&
+        !deliveredViaFcm &&
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted' &&
+        claimNotificationChannel(dedupeKey, 'os_notification')
+      ) {
         try {
-          new Notification('🔔 SuperAdmin Test Alert', {
+          new Notification('🔔 SuperAdmin Test Push Alert', {
             body: 'SuperAdmin push alert test confirmed on this device.',
             icon: '/admin/pwa-192x192.png',
             badge: '/icons/badge-favicon.png',
-            tag: `superadmin-test-${Date.now()}`,
+            tag: res.eventId || eventId,
           });
         } catch {}
       }
@@ -445,7 +460,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           isOpen: true,
           type: 'success',
           title: 'Test Alert Delivered',
-          message: 'SuperAdmin test notification was delivered to registered devices. Real-time counter and system alerts are working properly.',
+          message:
+            res.message ||
+            'SuperAdmin test notification was delivered to registered devices. Real-time counter and system alerts are working properly.',
         });
       } else {
         setNotificationModalData({
@@ -470,6 +487,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       setTimeout(() => {
         setTestPushStatus(null);
       }, 4000);
+    } finally {
+      isSendingTestPushRef.current = false;
     }
   };
 

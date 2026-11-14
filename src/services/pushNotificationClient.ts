@@ -6,6 +6,10 @@ import {
   syncFcmTokenSilently,
   unregisterFcmDeviceToken,
 } from './firebaseConfig.ts';
+import {
+  claimNotificationChannel,
+  getNotificationDedupeKey,
+} from '../utils/notificationDedupe.ts';
 
 export function isIOSDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -170,9 +174,190 @@ export async function unsubscribeDeviceFromWebPush(): Promise<boolean> {
   }
 }
 
+const activeStreamSubscribers = new Set<(payload: any) => void>();
+let sharedEventSource: EventSource | null = null;
+let sharedStreamSignature = '';
+let sharedReconnectTimeout: any = null;
+
+function buildStreamConnectionInfo() {
+  const token = getAuthToken() || '';
+  const tenantId = getActiveTenantId() || 1;
+  let currentRole = 'ADMIN';
+  let currentUserId = 0;
+  try {
+    const stored = localStorage.getItem('pos_current_user');
+    if (stored) {
+      const u = JSON.parse(stored);
+      if (u.role) currentRole = String(u.role).toUpperCase();
+      if (u.id) currentUserId = Number(u.id) || 0;
+    }
+  } catch {}
+
+  const signature = `${token}|${tenantId}|${currentRole}|${currentUserId}`;
+  const params = new URLSearchParams();
+  if (token) params.set('__token', token);
+  if (tenantId) params.set('__tenantId', String(tenantId));
+  params.set('role', currentRole);
+  if (currentUserId > 0) params.set('userId', String(currentUserId));
+  params.set('_t', String(Date.now()));
+
+  return {
+    signature,
+    streamUrl: `/api/notifications/stream?${params.toString()}`,
+  };
+}
+
+function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: boolean = false) {
+  const normalizedPayload = isPlatformAnnouncement
+    ? { ...payload, isPlatformAnnouncement: true }
+    : payload;
+  const dedupeKey = getNotificationDedupeKey(normalizedPayload);
+
+  if (!claimNotificationChannel(dedupeKey, 'sse')) {
+    return;
+  }
+
+  if (isPlatformAnnouncement) {
+    window.dispatchEvent(new CustomEvent('platform:announcement', { detail: payload }));
+  }
+
+  // 1. Play audio chime once per notification event
+  if (claimNotificationChannel(dedupeKey, 'audio')) {
+    try {
+      playAudioFeedback.success();
+    } catch {}
+  }
+
+  // 2. Dispatch custom event for in-app UI toasts & modals
+  window.dispatchEvent(
+    new CustomEvent('pos:action-notification', { detail: normalizedPayload })
+  );
+
+  // 3. Trigger OS desktop notification if permitted and tab is not active
+  if (
+    typeof Notification !== 'undefined' &&
+    Notification.permission === 'granted' &&
+    (document.hidden || !document.hasFocus()) &&
+    claimNotificationChannel(dedupeKey, 'os_notification')
+  ) {
+    try {
+      const deepLinkUrl = normalizedPayload.deepLinkUrl || normalizedPayload.url || '';
+      const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || normalizedPayload.targetRole === 'SUPERADMIN';
+      const icon = normalizedPayload.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
+      const rawBadge = normalizedPayload.badge;
+      const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
+      const tag =
+        normalizedPayload.tag ||
+        normalizedPayload.eventId ||
+        `pos-${normalizedPayload.type?.toLowerCase()}-${normalizedPayload.invoiceNumber || Date.now()}`;
+      const notif = new Notification(normalizedPayload.title || 'POS Alert', {
+        body: normalizedPayload.message || 'Transaction confirmed.',
+        icon,
+        badge,
+        tag,
+        data: normalizedPayload,
+      });
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+        if (normalizedPayload.deepLinkUrl) {
+          window.dispatchEvent(
+            new CustomEvent('pos:navigate-deep-link', { detail: normalizedPayload })
+          );
+        }
+      };
+    } catch {}
+  }
+
+  for (const subscriber of Array.from(activeStreamSubscribers)) {
+    try {
+      subscriber(normalizedPayload);
+    } catch (err) {
+      console.warn('Error in notification stream subscriber:', err);
+    }
+  }
+}
+
+function closeSharedStream() {
+  if (sharedReconnectTimeout) {
+    clearTimeout(sharedReconnectTimeout);
+    sharedReconnectTimeout = null;
+  }
+  if (sharedEventSource) {
+    sharedEventSource.close();
+    sharedEventSource = null;
+  }
+  sharedStreamSignature = '';
+}
+
+function ensureSharedStreamConnected() {
+  if (activeStreamSubscribers.size === 0) return;
+  const { signature, streamUrl } = buildStreamConnectionInfo();
+
+  if (sharedEventSource && sharedStreamSignature === signature) {
+    return;
+  }
+
+  closeSharedStream();
+  sharedStreamSignature = signature;
+
+  try {
+    const es = new EventSource(streamUrl);
+    sharedEventSource = es;
+
+    es.addEventListener('pos_action', (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        handleSharedIncomingNotification(payload, false);
+      } catch (e) {
+        console.warn('Error parsing POS action event data:', e);
+      }
+    });
+
+    es.addEventListener('platform_announcement', (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        handleSharedIncomingNotification(payload, true);
+      } catch (e) {
+        console.warn('Error parsing platform announcement event data:', e);
+      }
+    });
+
+    es.onmessage = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload && payload.type && payload.type !== 'CONNECTED') {
+          handleSharedIncomingNotification(payload, false);
+        }
+      } catch {}
+    };
+
+    es.onerror = () => {
+      if (sharedEventSource === es) {
+        es.close();
+        sharedEventSource = null;
+        sharedStreamSignature = '';
+      }
+      if (activeStreamSubscribers.size > 0 && !sharedReconnectTimeout) {
+        sharedReconnectTimeout = setTimeout(() => {
+          sharedReconnectTimeout = null;
+          ensureSharedStreamConnected();
+        }, 6000);
+      }
+    };
+  } catch {
+    if (activeStreamSubscribers.size > 0 && !sharedReconnectTimeout) {
+      sharedReconnectTimeout = setTimeout(() => {
+        sharedReconnectTimeout = null;
+        ensureSharedStreamConnected();
+      }, 8000);
+    }
+  }
+}
+
 /**
- * Connects to the real-time Server-Sent Events (SSE) notification stream.
- * Fires instant events to active browser tabs with desktop notifications and in-app sound chimes.
+ * Connects to the real-time Server-Sent Events (SSE) notification stream using a
+ * single shared EventSource per browser tab so mounted components never duplicate deliveries.
  */
 export function connectRealtimeNotificationStream(
   onNotification: (payload: any) => void
@@ -181,137 +366,14 @@ export function connectRealtimeNotificationStream(
     return () => {};
   }
 
-  let eventSource: EventSource | null = null;
-  let isClosed = false;
-  let reconnectTimeout: any = null;
-
-  const connect = () => {
-    if (isClosed) return;
-    const token = getAuthToken() || '';
-    const tenantId = getActiveTenantId() || 1;
-    let currentRole = 'ADMIN';
-    let currentUserId = 0;
-    try {
-      const stored = localStorage.getItem('pos_current_user');
-      if (stored) {
-        const u = JSON.parse(stored);
-        if (u.role) currentRole = String(u.role).toUpperCase();
-        if (u.id) currentUserId = Number(u.id) || 0;
-      }
-    } catch {}
-
-    const params = new URLSearchParams();
-    if (token) params.set('__token', token);
-    if (tenantId) params.set('__tenantId', String(tenantId));
-    params.set('role', currentRole);
-    if (currentUserId > 0) params.set('userId', String(currentUserId));
-    params.set('_t', String(Date.now()));
-
-    const streamUrl = `/api/notifications/stream?${params.toString()}`;
-
-    try {
-      eventSource = new EventSource(streamUrl);
-
-      eventSource.addEventListener('pos_action', (event: MessageEvent) => {
-        try {
-          const payload = JSON.parse(event.data);
-          handleIncomingNotification(payload);
-        } catch (e) {
-          console.warn('Error parsing POS action event data:', e);
-        }
-      });
-
-      eventSource.addEventListener('platform_announcement', (event: MessageEvent) => {
-        try {
-          const payload = JSON.parse(event.data);
-          window.dispatchEvent(new CustomEvent('platform:announcement', { detail: payload }));
-          handleIncomingNotification({
-            ...payload,
-            isPlatformAnnouncement: true,
-          });
-        } catch (e) {
-          console.warn('Error parsing platform announcement event data:', e);
-        }
-      });
-
-      eventSource.onmessage = (event: MessageEvent) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload && payload.type && payload.type !== 'CONNECTED') {
-            handleIncomingNotification(payload);
-          }
-        } catch {}
-      };
-
-      eventSource.onerror = () => {
-        if (eventSource) {
-          eventSource.close();
-          eventSource = null;
-        }
-        if (!isClosed) {
-          reconnectTimeout = setTimeout(connect, 6000);
-        }
-      };
-    } catch (err) {
-      if (!isClosed) {
-        reconnectTimeout = setTimeout(connect, 8000);
-      }
-    }
-  };
-
-  const handleIncomingNotification = (payload: any) => {
-    // 1. Play audio chime
-    try {
-      playAudioFeedback.success();
-    } catch {}
-
-    // 2. Dispatch custom event for in-app UI toasts & modals
-    window.dispatchEvent(
-      new CustomEvent('pos:action-notification', { detail: payload })
-    );
-
-    // 3. Trigger OS desktop notification if permitted and tab is not active
-    if (
-      typeof Notification !== 'undefined' &&
-      Notification.permission === 'granted' &&
-      (document.hidden || !document.hasFocus())
-    ) {
-      try {
-        const deepLinkUrl = payload.deepLinkUrl || payload.url || '';
-        const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || payload.targetRole === 'SUPERADMIN';
-        const icon = payload.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
-        const rawBadge = payload.badge;
-        const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
-        const notif = new Notification(payload.title || 'POS Alert', {
-          body: payload.message || 'Transaction confirmed.',
-          icon,
-          badge,
-          tag: `pos-${payload.type?.toLowerCase()}-${payload.invoiceNumber || Date.now()}`,
-          data: payload,
-        });
-        notif.onclick = () => {
-          window.focus();
-          notif.close();
-          if (payload.deepLinkUrl) {
-            window.dispatchEvent(
-              new CustomEvent('pos:navigate-deep-link', { detail: payload })
-            );
-          }
-        };
-      } catch {}
-    }
-
-    onNotification(payload);
-  };
-
-  connect();
+  activeStreamSubscribers.add(onNotification);
+  ensureSharedStreamConnected();
 
   return () => {
-    isClosed = true;
-    if (reconnectTimeout) clearTimeout(reconnectTimeout);
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
+    activeStreamSubscribers.delete(onNotification);
+    if (activeStreamSubscribers.size === 0) {
+      closeSharedStream();
     }
   };
 }
+

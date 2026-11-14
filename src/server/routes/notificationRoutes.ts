@@ -891,8 +891,9 @@ router.post(['/test-fcm', '/test-push'], async (req: Request, res: Response) => 
     const targetTenantId = identity.role === 'SUPERADMIN' ? 0 : identity.tenantId;
     const customTitle = req.body?.title;
     const customMessage = req.body?.message;
+    const eventId = typeof req.body?.eventId === 'string' ? req.body.eventId : undefined;
 
-    const result = await testFcmPush(targetTenantId, customTitle, customMessage);
+    const result = await testFcmPush(targetTenantId, customTitle, customMessage, eventId ? { eventId } : undefined);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Failed to trigger test FCM alert' });
