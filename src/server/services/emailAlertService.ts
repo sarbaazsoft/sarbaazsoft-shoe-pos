@@ -40,7 +40,7 @@ export async function dispatchPosEmailAlert(
       ),
       pgClient.query<{ email: string }>(
         `SELECT email FROM users
-         WHERE tenant_id = $1 AND role = 'ADMIN' AND status IN ('ACTIVE', 'APPROVED')`,
+         WHERE tenant_id = $1 AND role = 'ADMIN' AND status = 'APPROVED' AND COALESCE(active, true) = true`,
         [cleanTenantId]
       ),
     ]);

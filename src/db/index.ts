@@ -1487,9 +1487,21 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
           Number(u.tenant_id) === Number(params[1])
       );
     } else if (upper.includes("ROLE = 'ADMIN'") && upper.includes('TENANT_ID = $1')) {
-      rows = rows.filter((u) => Number(u.tenant_id) === Number(params[0]) && u.role === 'ADMIN');
+      rows = rows.filter(
+        (u) =>
+          Number(u.tenant_id) === Number(params[0]) &&
+          u.role === 'ADMIN' &&
+          (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
+          (!upper.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
+      );
     } else if (upper.includes("ROLE = 'CASHIER'") && upper.includes('TENANT_ID = $1')) {
-      rows = rows.filter((u) => Number(u.tenant_id) === Number(params[0]) && u.role === 'CASHIER');
+      rows = rows.filter(
+        (u) =>
+          Number(u.tenant_id) === Number(params[0]) &&
+          u.role === 'CASHIER' &&
+          (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
+          (!upper.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
+      );
     } else if (upper.includes("ROLE = 'ADMIN'")) {
       rows = rows.filter((u) => u.role === 'ADMIN' && (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
     } else if (upper.includes("ROLE = 'CASHIER'")) {

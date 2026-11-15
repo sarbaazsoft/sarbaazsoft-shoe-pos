@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { pgClient } from '../src/db/index.ts';
+import { dispatchPosEmailAlert } from '../src/server/services/emailAlertService.ts';
 import {
   registerSseClient,
   testFcmPush,
@@ -164,4 +168,41 @@ test('notificationDedupe claims each delivery channel only once across SSE and F
 
   // Any subsequent OS notification fallback for the same event is rejected
   assert.equal(claimNotificationChannel(fcmKey, 'os_notification'), false);
+});
+
+test('dispatchPosEmailAlert queries users with valid user_status_enum (APPROVED) and avoids invalid ACTIVE literal', async () => {
+  const source = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'server', 'services', 'emailAlertService.ts'),
+    'utf8'
+  );
+  assert.equal(/\bstatus\s+IN\s*\([^)]*'ACTIVE'/i.test(source), false);
+  assert.equal(/\bstatus\s*=\s*'ACTIVE'/i.test(source), false);
+
+  const capturedQueries: string[] = [];
+  const origQuery = pgClient.query.bind(pgClient);
+  (pgClient as any).query = async (sql: string, params?: any[]) => {
+    capturedQueries.push(String(sql));
+    if (String(sql).includes('FROM users')) {
+      assert.doesNotMatch(String(sql), /'ACTIVE'/i);
+      assert.match(String(sql), /status\s*=\s*'APPROVED'/i);
+      return { rows: [], rowCount: 0 };
+    }
+    return { rows: [], rowCount: 0 };
+  };
+
+  try {
+    const result = await dispatchPosEmailAlert(1, {
+      type: 'SALE',
+      title: 'Sale #INV-1',
+      message: 'Sale recorded',
+      invoiceNumber: 'INV-1',
+      totalAmount: 1500,
+      deepLinkUrl: '/pos',
+      timestamp: new Date().toISOString(),
+    });
+    assert.equal(result, false);
+    assert.ok(capturedQueries.some((q) => q.includes('FROM users')));
+  } finally {
+    (pgClient as any).query = origQuery;
+  }
 });
