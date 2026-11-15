@@ -89,6 +89,7 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
           Notification.permission === 'granted' &&
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
+          const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
           void showGroupedShadeNotification(
             title,
             {
@@ -96,9 +97,15 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
               icon,
               badge,
               tag,
+              timestamp: parsedTimestamp,
+              actions: [
+                { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+                { action: 'dismiss', title: 'Dismiss' },
+              ],
               data: {
                 url: deepLinkUrl,
                 isAdmin: isAdminTarget ? 'true' : 'false',
+                timestamp: parsedTimestamp,
               },
             },
             () => {

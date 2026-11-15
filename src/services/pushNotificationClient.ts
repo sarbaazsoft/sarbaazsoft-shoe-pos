@@ -251,6 +251,9 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         normalizedPayload.tag ||
         normalizedPayload.eventId ||
         `pos-${normalizedPayload.type?.toLowerCase()}-${normalizedPayload.invoiceNumber || Date.now()}`;
+      const parsedTimestamp = normalizedPayload.timestamp
+        ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
+        : Date.now();
       void showGroupedShadeNotification(
         normalizedPayload.title || 'POS Alert',
         {
@@ -258,10 +261,16 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
           icon,
           badge,
           tag,
+          timestamp: parsedTimestamp,
+          actions: [
+            { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+            { action: 'dismiss', title: 'Dismiss' },
+          ],
           data: {
             ...normalizedPayload,
             url: deepLinkUrl || '/notifications',
             isAdmin: isAdminTarget ? 'true' : 'false',
+            timestamp: parsedTimestamp,
           },
         },
         () => {

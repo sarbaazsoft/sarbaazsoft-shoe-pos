@@ -5,7 +5,6 @@ import path from 'node:path';
 import vm from 'node:vm';
 import {
   ADMIN_SUMMARY_TAG,
-  MAX_UNGROUPED_SHADE_NOTIFICATIONS,
   POS_SUMMARY_TAG,
   showGroupedWithRegistration,
 } from '../src/utils/notificationShade.ts';
@@ -66,9 +65,9 @@ function createSwShadeHarness() {
           icon: options.icon || '',
           badge: options.badge || '',
           tag,
+          timestamp: options.timestamp || Date.now(),
           data: options.data || {},
           actions: options.actions || [],
-          timestamp: Date.now(),
           close: () => {
             activeNotifications.delete(tag);
           },
@@ -120,126 +119,151 @@ function createSwShadeHarness() {
   };
 }
 
-test('public/sw.js keeps 1 POS notification individual and collapses into a grouped summary at 2 or more', async () => {
+test('public/sw.js keeps every notification distinct with isolated body, timestamp, actions, and groupKey', async () => {
   const harness = createSwShadeHarness();
+  const baseTs = 1760000000000;
 
-  // 1st notification stays ungrouped
   await harness.dispatchPush({
     title: 'Sale Confirmed #INV-101',
-    body: 'Invoice for Rs. 1000 completed.',
+    body: 'Invoice #INV-101 for Rs. 1000 completed.',
+    timestamp: baseTs + 1000,
     data: {
       tag: 'pos-sale-INV-101',
-      url: '/?tab=reports',
+      url: '/?tab=reports&invoice=INV-101',
     },
   });
 
-  assert.equal(MAX_UNGROUPED_SHADE_NOTIFICATIONS, 1);
-  assert.equal(harness.activeNotifications.size, 1);
-  assert.equal(harness.activeNotifications.has(POS_SUMMARY_TAG), false);
-
-  // 2nd notification triggers grouping (>= 2 items)
   await harness.dispatchPush({
     title: 'Sale Confirmed #INV-102',
-    body: 'Invoice for Rs. 2000 completed.',
+    body: 'Invoice #INV-102 for Rs. 2000 completed.',
+    timestamp: baseTs + 2000,
     data: {
       tag: 'pos-sale-INV-102',
-      url: '/?tab=reports',
+      url: '/?tab=reports&invoice=INV-102',
     },
   });
 
-  assert.equal(harness.activeNotifications.size, 1);
-  const summary2 = harness.activeNotifications.get(POS_SUMMARY_TAG);
-  assert.ok(summary2, '2nd notification must produce pos-grouped-summary');
-  assert.equal(summary2.title, '2 POS Notifications');
-  assert.equal(summary2.icon, '/pwa-192x192.png');
-  assert.equal(summary2.badge, '/icons/badge-favicon.png');
-  assert.equal(summary2.data.isGroupSummary, true);
-  assert.equal(summary2.data.groupedCount, 2);
-
-  // 3rd through 5th notifications keep updating the grouped summary
-  for (let i = 3; i <= 5; i++) {
-    await harness.dispatchPush({
-      title: `Sale Confirmed #INV-${100 + i}`,
-      body: `Invoice for Rs. ${1000 * i} completed.`,
-      data: {
-        tag: `pos-sale-INV-${100 + i}`,
-        url: '/?tab=reports',
-      },
-    });
-  }
-
-  assert.equal(harness.activeNotifications.size, 1);
-  const summary5 = harness.activeNotifications.get(POS_SUMMARY_TAG);
-  assert.equal(summary5.title, '5 POS Notifications');
-  assert.equal(summary5.data.groupedCount, 5);
-  assert.match(summary5.body, /\+1 more alerts/);
-
-  // Duplicate tag re-delivery must NOT inflate groupedCount
-  await harness.dispatchPush({
-    title: 'Sale Confirmed #INV-105',
-    body: 'Invoice for Rs. 5000 completed.',
-    data: {
-      tag: 'pos-sale-INV-105',
-      url: '/?tab=reports',
-    },
-  });
-
-  const summaryStill5 = harness.activeNotifications.get(POS_SUMMARY_TAG);
-  assert.equal(summaryStill5.title, '5 POS Notifications');
-  assert.equal(summaryStill5.data.groupedCount, 5);
-
-  // 6th distinct notification updates existing summary cleanly
   await harness.dispatchPush({
     title: 'Customer Return #RET-201',
-    body: 'Refund processed.',
+    body: 'Refund #RET-201 processed for Rs. 500.',
+    timestamp: baseTs + 3000,
     data: {
       tag: 'pos-return-RET-201',
-      url: '/?tab=returns',
+      url: '/?tab=returns&return=RET-201',
     },
   });
 
-  assert.equal(harness.activeNotifications.size, 1);
-  const summary6 = harness.activeNotifications.get(POS_SUMMARY_TAG);
-  assert.equal(summary6.title, '6 POS Notifications');
-  assert.equal(summary6.data.groupedCount, 6);
-  assert.match(summary6.body, /\+2 more alerts/);
+  // All 3 remain distinct (never collapsed into a merged summary blob)
+  assert.equal(harness.activeNotifications.size, 3);
+  assert.equal(harness.activeNotifications.has(POS_SUMMARY_TAG), false);
 
-  // Tapping grouped summary opens /notifications
-  await harness.dispatchClick(summary6, '');
-  assert.equal(harness.openWindows[0], '/notifications');
-  assert.equal(harness.activeNotifications.size, 0);
+  const n1 = harness.activeNotifications.get('pos-sale-INV-101');
+  const n2 = harness.activeNotifications.get('pos-sale-INV-102');
+  const n3 = harness.activeNotifications.get('pos-return-RET-201');
+
+  assert.equal(n1.title, 'Sale Confirmed #INV-101');
+  assert.equal(n1.body, 'Invoice #INV-101 for Rs. 1000 completed.');
+  assert.equal(n1.timestamp, baseTs + 1000);
+  assert.equal(n1.data.groupKey, 'pos_alerts');
+  assert.equal(n1.data.isGroupSummary, false);
+  assert.equal(n1.body.includes('INV-102'), false);
+  assert.equal(n1.body.includes('RET-201'), false);
+
+  assert.equal(n2.title, 'Sale Confirmed #INV-102');
+  assert.equal(n2.body, 'Invoice #INV-102 for Rs. 2000 completed.');
+  assert.equal(n2.timestamp, baseTs + 2000);
+  assert.equal(n2.body.includes('INV-101'), false);
+
+  assert.equal(n3.title, 'Customer Return #RET-201');
+  assert.equal(n3.body, 'Refund #RET-201 processed for Rs. 500.');
+  assert.equal(n3.timestamp, baseTs + 3000);
+  assert.deepEqual(
+    Array.from(n3.actions, (a: any) => a.action),
+    ['open_pos', 'open_receipt', 'dismiss']
+  );
+
+  // Re-delivering matching tag updates only that notification without altering others
+  await harness.dispatchPush({
+    title: 'Sale Confirmed #INV-102',
+    body: 'Invoice #INV-102 updated total Rs. 2100.',
+    timestamp: baseTs + 2500,
+    data: {
+      tag: 'pos-sale-INV-102',
+      url: '/?tab=reports&invoice=INV-102',
+    },
+  });
+
+  assert.equal(harness.activeNotifications.size, 3);
+  assert.equal(
+    harness.activeNotifications.get('pos-sale-INV-102').body,
+    'Invoice #INV-102 updated total Rs. 2100.'
+  );
+  assert.equal(
+    harness.activeNotifications.get('pos-sale-INV-101').body,
+    'Invoice #INV-101 for Rs. 1000 completed.'
+  );
+
+  // Clicking a specific notification navigates to that specific notification's URL
+  await harness.dispatchClick(n3, '');
+  assert.equal(harness.openWindows[0], '/?tab=returns&return=RET-201');
+  assert.equal(harness.activeNotifications.size, 2);
 });
 
-test('public/sw.js separates Admin and POS notification shade groups at 2+ notifications', async () => {
+test('public/sw.js clears stale legacy summary notifications and isolates Admin vs POS groups', async () => {
   const harness = createSwShadeHarness();
 
-  // 1 POS notification (stays individual) + 2 Admin notifications (grouped)
+  // Seed stale legacy summary notifications from older SW versions
+  harness.activeNotifications.set(POS_SUMMARY_TAG, {
+    tag: POS_SUMMARY_TAG,
+    title: '2 POS Notifications',
+    data: { isGroupSummary: true, isAdmin: 'false' },
+    close: () => harness.activeNotifications.delete(POS_SUMMARY_TAG),
+  });
+  harness.activeNotifications.set(ADMIN_SUMMARY_TAG, {
+    tag: ADMIN_SUMMARY_TAG,
+    title: '2 Admin Notifications',
+    data: { isGroupSummary: true, isAdmin: 'true' },
+    close: () => harness.activeNotifications.delete(ADMIN_SUMMARY_TAG),
+  });
+
   await harness.dispatchPush({
     title: 'POS Sale #1',
     body: 'Completed',
     data: { tag: 'pos-1', url: '/?tab=reports' },
   });
+  await harness.dispatchPush({
+    title: 'New Free Trial #1',
+    body: 'Store 1 registered',
+    data: { tag: 'admin-1', url: '/admin', isAdmin: 'true' },
+  });
+  await harness.dispatchPush({
+    title: 'Renewal Request #2',
+    body: 'Store 2 requested upgrade',
+    data: { tag: 'admin-2', url: '/admin?tab=renewals', isAdmin: 'true' },
+  });
 
-  for (let i = 1; i <= 2; i++) {
-    await harness.dispatchPush({
-      title: `New Free Trial #${i}`,
-      body: `Store ${i} registered`,
-      data: { tag: `admin-${i}`, url: '/admin', isAdmin: 'true' },
-    });
-  }
+  assert.equal(harness.activeNotifications.has(POS_SUMMARY_TAG), false);
+  assert.equal(harness.activeNotifications.has(ADMIN_SUMMARY_TAG), false);
+  assert.equal(harness.activeNotifications.size, 3);
 
-  // 1 POS individual + 1 Admin grouped summary
-  assert.equal(harness.activeNotifications.size, 2);
-  const adminSummary = harness.activeNotifications.get(ADMIN_SUMMARY_TAG);
-  assert.ok(adminSummary);
-  assert.equal(adminSummary.title, '2 Admin Notifications');
-  assert.equal(adminSummary.icon, '/admin/pwa-192x192.png');
+  const pos1 = harness.activeNotifications.get('pos-1');
+  const admin1 = harness.activeNotifications.get('admin-1');
+  const admin2 = harness.activeNotifications.get('admin-2');
 
-  await harness.dispatchClick(adminSummary, 'open_notifications');
-  assert.equal(harness.openWindows[0], '/admin');
+  assert.equal(pos1.data.groupKey, 'pos_alerts');
+  assert.equal(pos1.icon, '/pwa-192x192.png');
+
+  assert.equal(admin1.data.groupKey, 'admin_alerts');
+  assert.equal(admin1.icon, '/admin/pwa-192x192.png');
+
+  assert.equal(admin2.data.groupKey, 'admin_alerts');
+  assert.equal(admin2.body, 'Store 2 requested upgrade');
+
+  await harness.dispatchClick(admin2, '');
+  assert.equal(harness.openWindows[0], '/admin?tab=renewals');
 });
 
-test('showGroupedWithRegistration bundles 2 or more foreground notifications identically', async () => {
+test('showGroupedWithRegistration preserves isolated bodies, timestamps, and group metadata in foreground alerts', async () => {
   const active = new Map<string, any>();
   const mockRegistration = {
     getNotifications: async () => Array.from(active.values()),
@@ -251,26 +275,44 @@ test('showGroupedWithRegistration bundles 2 or more foreground notifications ide
         icon: options.icon || '',
         badge: options.badge || '',
         tag,
+        timestamp: options.timestamp,
+        actions: options.actions || [],
         data: options.data || {},
-        timestamp: Date.now(),
         close: () => active.delete(tag),
       });
     },
   };
 
-  for (let i = 1; i <= 2; i++) {
-    await showGroupedWithRegistration(mockRegistration, `POS Alert #${i}`, {
-      body: `Item ${i}`,
-      icon: '/pwa-192x192.png',
-      badge: '/icons/badge-favicon.png',
-      tag: `fg-pos-${i}`,
-      data: { url: '/pos', isAdmin: 'false' },
-    });
-  }
+  await showGroupedWithRegistration(mockRegistration, 'POS Alert #1', {
+    body: 'First alert body',
+    icon: '/pwa-192x192.png',
+    badge: '/icons/badge-favicon.png',
+    tag: 'fg-pos-1',
+    timestamp: 1760000001000,
+    data: { url: '/pos', isAdmin: 'false' },
+  });
 
-  assert.equal(active.size, 1);
-  const summary = active.get(POS_SUMMARY_TAG);
-  assert.ok(summary);
-  assert.equal(summary.title, '2 POS Notifications');
-  assert.equal(summary.data.groupedCount, 2);
+  await showGroupedWithRegistration(mockRegistration, 'POS Alert #2', {
+    body: 'Second alert body',
+    icon: '/pwa-192x192.png',
+    badge: '/icons/badge-favicon.png',
+    tag: 'fg-pos-2',
+    timestamp: 1760000002000,
+    data: { url: '/?tab=reports', isAdmin: 'false' },
+  });
+
+  assert.equal(active.size, 2);
+  assert.equal(active.has(POS_SUMMARY_TAG), false);
+
+  const first = active.get('fg-pos-1');
+  const second = active.get('fg-pos-2');
+  assert.equal(first.title, 'POS Alert #1');
+  assert.equal(first.body, 'First alert body');
+  assert.equal(first.timestamp, 1760000001000);
+  assert.equal(first.data.groupKey, 'pos_alerts');
+
+  assert.equal(second.title, 'POS Alert #2');
+  assert.equal(second.body, 'Second alert body');
+  assert.equal(second.timestamp, 1760000002000);
+  assert.equal(second.data.groupKey, 'pos_alerts');
 });

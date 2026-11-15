@@ -425,16 +425,17 @@ function isAdminShadeTarget(options) {
   );
 }
 
-function formatShadeSummaryBody(items, totalCount) {
-  const previewLines = items.slice(0, 4).map((item) => {
-    const cleanTitle = String(item.title || 'POS Alert').trim();
-    const cleanBody = String(item.body || '').replace(/\s+/g, ' ').trim();
-    return cleanBody ? `• ${cleanTitle}: ${cleanBody}` : `• ${cleanTitle}`;
-  });
-  if (totalCount > 4) {
-    previewLines.push(`+${totalCount - 4} more alerts — tap to view all`);
+function resolveShadeTimestamp(rawTimestamp) {
+  if (typeof rawTimestamp === 'number' && Number.isFinite(rawTimestamp) && rawTimestamp > 0) {
+    return rawTimestamp;
   }
-  return previewLines.join('\n');
+  if (typeof rawTimestamp === 'string' && rawTimestamp.trim()) {
+    const asNum = Number(rawTimestamp);
+    if (Number.isFinite(asNum) && asNum > 0) return asNum;
+    const parsed = Date.parse(rawTimestamp);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return Date.now();
 }
 
 async function showGroupedShadeNotification(title, options = {}) {
@@ -442,117 +443,78 @@ async function showGroupedShadeNotification(title, options = {}) {
     return;
   }
 
-  if (typeof self.registration.getNotifications !== 'function') {
-    return self.registration.showNotification(title, options);
-  }
-
   const isAdminTarget = isAdminShadeTarget(options);
+  const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
   const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
   const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-  const incomingTag = String(options.tag || '').trim();
-
-  const existingAll = await self.registration.getNotifications().catch(() => []);
-  const sameScope = existingAll.filter((n) => {
-    const nData = (n && n.data) || {};
-    const nIsAdmin =
-      nData.isAdmin === true ||
-      nData.isAdmin === 'true' ||
-      String(nData.url || '').startsWith('/admin') ||
-      String((n && n.icon) || '').includes('/admin/') ||
-      (n && n.tag === ADMIN_SUMMARY_TAG);
-    return nIsAdmin === isAdminTarget;
-  });
-
-  const existingSummary = sameScope.find(
-    (n) => (n && n.tag === summaryTag) || (n && n.data && n.data.isGroupSummary === true)
-  );
-  const otherActive = sameScope.filter(
-    (n) =>
-      n !== existingSummary &&
-      n.tag !== summaryTag &&
-      !(n.data && n.data.isGroupSummary === true) &&
-      (!incomingTag || n.tag !== incomingTag)
+  const incomingTag = String(options.tag || '').trim() || `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
+  const cleanTitle = String(title || 'SarbaazSoft Shoe POS Alert');
+  const cleanBody = String(options.body || '');
+  const timestamp = resolveShadeTimestamp(options.timestamp || (options.data && options.data.timestamp));
+  const targetUrl = String(
+    (options.data && (options.data.url || options.data.deepLinkUrl)) ||
+      (isAdminTarget ? '/admin' : '/?tab=reports')
   );
 
-  const summaryItems =
-    existingSummary && existingSummary.data && Array.isArray(existingSummary.data.groupedItems)
-      ? existingSummary.data.groupedItems
-      : [];
-  const alreadyInSummary = Boolean(
-    incomingTag && summaryItems.some((item) => item && item.tag === incomingTag)
-  );
-
-  const baseSummaryCount = existingSummary
-    ? Math.max(Number((existingSummary.data && existingSummary.data.groupedCount) || 1), summaryItems.length || 1)
-    : 0;
-  const totalCount = baseSummaryCount + otherActive.length + (alreadyInSummary ? 0 : 1);
-
-  if (!existingSummary && totalCount <= MAX_UNGROUPED_SHADE_NOTIFICATIONS) {
-    return self.registration.showNotification(title, options);
-  }
-
-  const incomingItem = {
-    title: String(title || 'SarbaazSoft Shoe POS Alert'),
-    body: String(options.body || ''),
-    url: String((options.data && (options.data.url || options.data.deepLinkUrl)) || (isAdminTarget ? '/admin' : '/notifications')),
-    tag: incomingTag,
-    timestamp: Date.now(),
-  };
-
-  const activeItems = otherActive.map((n) => ({
-    title: String((n && n.title) || 'SarbaazSoft Shoe POS Alert'),
-    body: String((n && n.body) || ''),
-    url: String((n && n.data && n.data.url) || (isAdminTarget ? '/admin' : '/notifications')),
-    tag: String((n && n.tag) || ''),
-    timestamp: Number((n && n.timestamp) || Date.now()),
-  }));
-
-  const combined = [incomingItem, ...activeItems, ...summaryItems];
-  const deduped = [];
-  const seenTags = new Set();
-  for (const item of combined) {
-    if (item.tag) {
-      if (seenTags.has(item.tag)) continue;
-      seenTags.add(item.tag);
+  // Clean up any stale legacy merged-summary notification from prior SW versions
+  // without closing individual notifications in the same group.
+  if (typeof self.registration.getNotifications === 'function') {
+    const existingAll = await self.registration.getNotifications().catch(() => []);
+    for (const existing of existingAll) {
+      if (!existing) continue;
+      const existingData = existing.data || {};
+      const existingIsAdmin =
+        existingData.isAdmin === true ||
+        existingData.isAdmin === 'true' ||
+        String(existingData.url || '').startsWith('/admin') ||
+        String(existing.icon || '').includes('/admin/') ||
+        existing.tag === ADMIN_SUMMARY_TAG;
+      if (
+        existingIsAdmin === isAdminTarget &&
+        (existing.tag === summaryTag || existingData.isGroupSummary === true)
+      ) {
+        try {
+          existing.close();
+        } catch {}
+      }
     }
-    deduped.push(item);
   }
 
-  for (const n of otherActive) {
-    try {
-      n.close();
-    } catch {}
-  }
+  const defaultActions = isAdminTarget
+    ? [
+        { action: 'open_pos', title: 'Open Admin' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ]
+    : [
+        { action: 'open_pos', title: 'Open POS' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ];
 
-  const summaryTitle = `${totalCount} ${isAdminTarget ? 'Admin' : 'POS'} Notifications`;
-  const summaryBody = formatShadeSummaryBody(deduped, totalCount);
-  const targetUrl = isAdminTarget ? '/admin' : '/notifications';
-
-  const summaryOptions = {
-    body: summaryBody,
-    icon: defaultIcon,
+  const notificationOptions = Object.assign({}, options, {
+    body: cleanBody,
+    icon: options.icon || defaultIcon,
     badge:
       options.badge && !String(options.badge).includes('pwa-192x192')
         ? options.badge
         : NOTIFICATION_BADGE_ICON,
-    tag: summaryTag,
-    renotify: true,
-    requireInteraction: Boolean(options.requireInteraction),
+    tag: incomingTag,
+    timestamp,
+    renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
     vibrate: options.vibrate || [200, 100, 200],
-    data: {
+    actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
+    data: Object.assign({}, options.data || {}, {
       url: targetUrl,
       isAdmin: isAdminTarget ? 'true' : 'false',
-      isGroupSummary: true,
-      groupedCount: totalCount,
-      groupedItems: deduped.slice(0, 25),
-    },
-    actions: [
-      { action: 'open_notifications', title: 'View All' },
-      { action: 'dismiss', title: 'Dismiss' },
-    ],
-  };
+      groupKey,
+      isGroupSummary: false,
+      notificationTitle: cleanTitle,
+      notificationBody: cleanBody,
+      timestamp,
+      tag: incomingTag,
+    }),
+  });
 
-  return self.registration.showNotification(summaryTitle, summaryOptions);
+  return self.registration.showNotification(cleanTitle, notificationOptions);
 }
 
 async function initFirebaseInWorker() {
@@ -584,13 +546,15 @@ async function initFirebaseInWorker() {
           rawBadge && !String(rawBadge).includes('pwa-192x192')
             ? rawBadge
             : NOTIFICATION_BADGE_ICON;
-        const tag = payload.data?.tag || `pos-${Date.now()}`;
+        const tag = payload.data?.tag || payload.data?.eventId || `pos-${Date.now()}`;
+        const timestamp = resolveShadeTimestamp(payload.data?.timestamp);
 
         const notificationOptions = {
           body,
           icon,
           badge,
           tag,
+          timestamp,
           vibrate: [200, 100, 200],
           data: {
             url,
@@ -629,7 +593,7 @@ self.addEventListener('push', (event) => {
 
   const notification = data.notification || data;
   const title = notification.title || 'SarbaazSoft Shoe POS Alert';
-  const tag = data.data?.tag || data.tag || `pos-alert-${Date.now()}`;
+  const tag = data.data?.tag || data.tag || data.eventId || `pos-alert-${Date.now()}`;
   const targetUrl = (data.data && data.data.url) || data.url || '/?tab=reports';
   const isAdminTarget =
     String(targetUrl).startsWith('/admin') ||
@@ -641,20 +605,24 @@ self.addEventListener('push', (event) => {
     rawBadge && !String(rawBadge).includes('pwa-192x192')
       ? rawBadge
       : NOTIFICATION_BADGE_ICON;
+  const timestamp = resolveShadeTimestamp(notification.timestamp || data.timestamp || (data.data && data.data.timestamp));
   const options = {
     body: notification.body || data.body || data.message || 'New Point of Sale transaction confirmed.',
     icon: notification.icon || data.icon || data.data?.icon || defaultIcon,
     badge,
     tag,
+    timestamp,
     data: Object.assign({ url: targetUrl, isAdmin: isAdminTarget ? 'true' : 'false' }, data.data || {}),
     vibrate: [250, 100, 250, 100, 250],
     requireInteraction: true,
     renotify: true,
-    actions: [
-      { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-      { action: 'open_receipt', title: 'Open Receipt' },
-      { action: 'dismiss', title: 'Dismiss' },
-    ],
+    actions: Array.isArray(notification.actions) && notification.actions.length > 0
+      ? notification.actions
+      : [
+          { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+          { action: 'open_receipt', title: 'Open Receipt' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ],
   };
 
   event.waitUntil(showGroupedShadeNotification(title, options));
@@ -670,7 +638,7 @@ self.addEventListener('notificationclick', (event) => {
   const notifData = event.notification.data || {};
   const isAdminTarget = notifData.isAdmin === true || notifData.isAdmin === 'true' || String(notifData.url || '').startsWith('/admin');
   let targetUrl = notifData.url || '/?tab=reports';
-  if (event.action === 'open_notifications' || notifData.isGroupSummary) {
+  if (event.action === 'open_notifications') {
     targetUrl = isAdminTarget ? '/admin' : '/notifications';
   } else if (event.action === 'open_pos') {
     targetUrl = isAdminTarget ? '/admin' : '/?tab=pos';

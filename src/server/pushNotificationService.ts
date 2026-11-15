@@ -243,6 +243,8 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
   const tag = payload.tag || `pos-${Date.now()}`;
 
   const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
+  const rawTimestamp = payload.data?.timestamp;
+  const numericTimestamp = rawTimestamp ? Number(rawTimestamp) || Date.parse(rawTimestamp) || Date.now() : Date.now();
 
   const stringData: Record<string, string> = {
     url: linkUrl,
@@ -253,6 +255,7 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
     tag,
     groupKey,
     isAdmin: isAdminTarget ? 'true' : 'false',
+    timestamp: String(numericTimestamp),
   };
   if (payload.data) {
     for (const [k, v] of Object.entries(payload.data)) {
@@ -282,6 +285,7 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
       icon,
       badge,
       tag,
+      timestamp: numericTimestamp,
       vibrate: [200, 100, 200],
     },
   };
