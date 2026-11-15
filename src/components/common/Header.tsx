@@ -20,6 +20,8 @@ import {
   resyncPushSubscriptionIfEnabled,
   unsubscribeDeviceFromWebPush,
   connectRealtimeNotificationStream,
+  refreshRealtimeNotificationStream,
+  triggerTestNotificationShadeFallback,
   initNativeNotificationPrompt,
   getDetailedPushPermissionStatus,
   watchNotificationPermissionChanges,
@@ -420,8 +422,9 @@ export const Header: React.FC<HeaderProps> = ({
     setPushPermission(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission);
   }, []);
 
-  // Sync Firebase push token & permission snapshot on mount and whenever active role changes
+  // Sync Firebase push token, SSE stream identity, & permission snapshot on mount and whenever active role/tenant changes
   useEffect(() => {
+    refreshRealtimeNotificationStream();
     const cleanupNativePrompt = initNativeNotificationPrompt(currentRole || 'ADMIN');
 
     void getDetailedPushPermissionStatus()
@@ -436,7 +439,7 @@ export const Header: React.FC<HeaderProps> = ({
       cleanupNativePrompt();
       cleanupWatcher();
     };
-  }, [currentRole, applyPermissionSnapshot]);
+  }, [currentRole, activeTenantId, applyPermissionSnapshot]);
 
   // Setup real-time SSE stream and global modal listener
   useEffect(() => {
@@ -727,6 +730,14 @@ export const Header: React.FC<HeaderProps> = ({
       setTestPushStatus(res.success ? 'success' : 'error');
       if (res.success) {
         triggerBellPulse();
+        void triggerTestNotificationShadeFallback({
+          eventId: res.eventId || eventId,
+          title: '🔔 POS Test Push Alert',
+          body: 'Push Alert received successfully! Device notifications are operational.',
+          url: '/pos',
+          isAdmin: false,
+          fcmSentCount: res.fcmSentCount,
+        });
         setNotificationModalData({
           isOpen: true,
           type: 'success',

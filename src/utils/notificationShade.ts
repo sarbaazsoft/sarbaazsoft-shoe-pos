@@ -327,10 +327,13 @@ export async function showGroupedShadeNotification(
   if ('serviceWorker' in navigator) {
     try {
       let reg = await navigator.serviceWorker.getRegistration('/');
+      if (!reg && typeof navigator.serviceWorker.register === 'function') {
+        reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
+      }
       if (!reg || !reg.active) {
         reg = await Promise.race([
           navigator.serviceWorker.ready,
-          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500)),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2000)),
         ]);
       }
       if (reg && reg.active && typeof reg.showNotification === 'function') {
@@ -370,12 +373,17 @@ export async function showGroupedShadeNotification(
 
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      const fallbackOptions: ShadeNotificationOptions = {
-        ...options,
+      // Strip ServiceWorker-only options (`actions`, `vibrate`, `renotify`) so `new Notification()`
+      // never throws TypeError ("Actions are only supported for persistent notifications") in Chromium.
+      const { actions: _actions, vibrate: _vibrate, renotify: _renotify, ...windowSafeOptions } = options;
+      const fallbackOptions: NotificationOptions = {
+        ...windowSafeOptions,
         requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
-        renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
       };
-      const notif = new Notification(title, fallbackOptions as NotificationOptions);
+      const notif = new Notification(title, fallbackOptions);
+      if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pos:notification-delivery-restored'));
+      }
       if (onFallbackClick) {
         notif.onclick = () => {
           onFallbackClick();

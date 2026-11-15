@@ -7,15 +7,26 @@ import {
   FCM_TOKEN_KEY,
   PUSH_ENABLED_KEY,
   PUSH_PERMISSION_DENIED_KEY,
+  PUSH_USER_OPTED_OUT_KEY,
+  acquireAndSyncFcmToken,
+  isExplicitUserPushOptOut,
   requestFcmPermissionAndToken,
 } from '../src/services/firebaseConfig.ts';
 import {
+  connectRealtimeNotificationStream,
   getDetailedPushPermissionStatus,
   isDeviceSubscribedToPush,
   resolveEffectivePermissionSnapshot,
+  resyncPushSubscriptionIfEnabled,
   shouldShowSoftPushPrompt,
   shouldShowSoftPushPromptAsync,
+  triggerTestNotificationShadeFallback,
+  unsubscribeDeviceFromWebPush,
 } from '../src/services/pushNotificationClient.ts';
+import {
+  recordSwNotificationShown,
+  resetNotificationDedupeCache,
+} from '../src/utils/notificationDedupe.ts';
 import { showGroupedShadeNotification } from '../src/utils/notificationShade.ts';
 
 function createMemoryStorage() {
@@ -42,14 +53,21 @@ function setupMockBrowserEnv(options: {
   permissionsApiState?: PermissionState;
   pushManagerState?: PermissionState;
   hasSubscription?: boolean;
+  hasSwRegistration?: boolean;
   isAndroid?: boolean;
   isAndroidTwa?: boolean;
   showNotificationError?: Error | null;
 }) {
   const storage = createMemoryStorage();
   const dispatchedEvents: Array<{ type: string; detail?: any }> = [];
+  const swShownNotifications: Array<{ title: string; options: any }> = [];
+  const windowNotifications: Array<{ title: string; options: any }> = [];
+  const eventSourceInstances: any[] = [];
   let requestPermissionCalls = 0;
+  let permissionsQueryCalls = 0;
   let unsubscribeCalls = 0;
+
+  const hasSw = options.hasSwRegistration !== false;
 
   const mockSubscription = options.hasSubscription
     ? {
@@ -62,22 +80,28 @@ function setupMockBrowserEnv(options: {
       }
     : null;
 
-  const mockSwRegistration = {
-    active: { state: 'activated' },
-    pushManager: {
-      async getSubscription() {
-        return mockSubscription;
-      },
-      async permissionState() {
-        return options.pushManagerState ?? (options.permission === 'granted' ? 'granted' : 'prompt');
-      },
-    },
-    async showNotification() {
-      if (options.showNotificationError) {
-        throw options.showNotificationError;
+  const mockSwRegistration = hasSw
+    ? {
+        active: { state: 'activated' },
+        pushManager: {
+          async getSubscription() {
+            return mockSubscription;
+          },
+          async permissionState() {
+            return options.pushManagerState ?? (options.permission === 'granted' ? 'granted' : 'prompt');
+          },
+        },
+        async getNotifications() {
+          return [];
+        },
+        async showNotification(title: string, opts: any) {
+          if (options.showNotificationError) {
+            throw options.showNotificationError;
+          }
+          swShownNotifications.push({ title, options: opts });
+        },
       }
-    },
-  };
+    : undefined;
 
   class MockCustomEvent {
     type: string;
@@ -88,7 +112,39 @@ function setupMockBrowserEnv(options: {
     }
   }
 
-  const mockNotification = function MockNotification() {} as any;
+  class MockEventSource {
+    url: string;
+    listeners: Record<string, Array<(evt: any) => void>> = {};
+    onmessage: ((evt: any) => void) | null = null;
+    onerror: ((evt: any) => void) | null = null;
+    constructor(url: string) {
+      this.url = url;
+      eventSourceInstances.push(this);
+    }
+    addEventListener(type: string, fn: (evt: any) => void) {
+      this.listeners[type] = this.listeners[type] || [];
+      this.listeners[type].push(fn);
+    }
+    emit(type: string, payload: any) {
+      const evt = { data: JSON.stringify(payload) };
+      for (const fn of this.listeners[type] || []) {
+        fn(evt);
+      }
+    }
+    close() {}
+  }
+
+  const mockNotification = function MockNotification(title: string, opts: any) {
+    if (opts && 'actions' in opts) {
+      throw new TypeError("Failed to construct 'Notification': Actions are only supported for persistent notifications shown using ServiceWorkerRegistration.showNotification().");
+    }
+    windowNotifications.push({ title, options: opts });
+    return {
+      title,
+      close() {},
+      onclick: null,
+    };
+  } as any;
   Object.defineProperty(mockNotification, 'permission', {
     configurable: true,
     get() {
@@ -111,14 +167,19 @@ function setupMockBrowserEnv(options: {
       platform: options.isAndroid ? 'Linux armv8l' : 'Win32',
       maxTouchPoints: options.isAndroid ? 5 : 0,
       serviceWorker: {
-        controller: mockSwRegistration.active,
-        ready: Promise.resolve(mockSwRegistration),
+        controller: mockSwRegistration?.active || null,
+        ready: mockSwRegistration ? Promise.resolve(mockSwRegistration) : new Promise(() => {}),
         async getRegistration() {
           return mockSwRegistration;
         },
+        async getRegistrations() {
+          return mockSwRegistration ? [mockSwRegistration] : [];
+        },
+        addEventListener() {},
       },
       permissions: {
         async query() {
+          permissionsQueryCalls++;
           return {
             state:
               options.permissionsApiState ??
@@ -134,9 +195,12 @@ function setupMockBrowserEnv(options: {
     },
     Notification: mockNotification,
     PushManager: function MockPushManager() {},
+    EventSource: MockEventSource,
     matchMedia: (query: string) => ({
       matches: Boolean(options.isAndroidTwa && query.includes('standalone')),
     }),
+    addEventListener() {},
+    removeEventListener() {},
     dispatchEvent(evt: any) {
       dispatchedEvents.push({ type: evt.type, detail: evt.detail });
       return true;
@@ -146,7 +210,10 @@ function setupMockBrowserEnv(options: {
   const mockDocument: any = {
     referrer: options.isAndroidTwa ? 'android-app://com.sarbaazsoft.shoepos' : '',
     hidden: false,
+    visibilityState: 'visible',
     hasFocus: () => true,
+    addEventListener() {},
+    removeEventListener() {},
   };
 
   const originals = {
@@ -156,6 +223,7 @@ function setupMockBrowserEnv(options: {
     localStorage: (globalThis as any).localStorage,
     Notification: (globalThis as any).Notification,
     CustomEvent: (globalThis as any).CustomEvent,
+    EventSource: (globalThis as any).EventSource,
   };
 
   (globalThis as any).window = mockWindow;
@@ -167,11 +235,16 @@ function setupMockBrowserEnv(options: {
   (globalThis as any).localStorage = storage;
   (globalThis as any).Notification = mockNotification;
   (globalThis as any).CustomEvent = MockCustomEvent;
+  (globalThis as any).EventSource = MockEventSource;
 
   return {
     storage,
     dispatchedEvents,
+    swShownNotifications,
+    windowNotifications,
+    eventSourceInstances,
     getRequestPermissionCalls: () => requestPermissionCalls,
+    getPermissionsQueryCalls: () => permissionsQueryCalls,
     getUnsubscribeCalls: () => unsubscribeCalls,
     restore() {
       (globalThis as any).window = originals.window;
@@ -184,6 +257,7 @@ function setupMockBrowserEnv(options: {
       (globalThis as any).localStorage = originals.localStorage;
       (globalThis as any).Notification = originals.Notification;
       (globalThis as any).CustomEvent = originals.CustomEvent;
+      (globalThis as any).EventSource = originals.EventSource;
     },
   };
 }
@@ -362,5 +436,194 @@ test('showGroupedShadeNotification detects Android OS rejection even when browse
     assert.equal(blockedEvt?.detail?.reason, 'delivery-rejected');
   } finally {
     env.restore();
+  }
+});
+
+test('Granted permission with prompt Permissions/PushManager state (Android TWA Delegation & Chrome) is NOT falsely blocked', async () => {
+  const twaPromptSnap = resolveEffectivePermissionSnapshot({
+    supported: true,
+    isAndroid: true,
+    isAndroidTwa: true,
+    isWindowsPwa: false,
+    isStandalone: true,
+    userOptedOut: false,
+    storedDenialFlag: false,
+    androidSystemBlockedFlag: false,
+    androidSystemBlockedReason: null,
+    hasStoredToken: false,
+    hasPushSubscription: false,
+    userExplicitlyEnabledFlag: false,
+    browserPermission: 'granted',
+    permissionsApiState: 'prompt',
+    pushManagerState: 'prompt',
+  });
+  assert.equal(twaPromptSnap.effectiveStatus, 'granted');
+  assert.equal(twaPromptSnap.canReceiveSystemNotifications, true);
+  assert.equal(twaPromptSnap.androidSystemDisabled, false);
+
+  // Also ensure stale 'permission-api' / 'push-manager' block markers clear automatically once granted
+  const env = setupMockBrowserEnv({
+    permission: 'granted',
+    permissionsApiState: 'prompt',
+    pushManagerState: 'prompt',
+    isAndroid: true,
+    isAndroidTwa: true,
+  });
+
+  try {
+    env.storage.setItem(ANDROID_SYSTEM_DISABLED_KEY, 'true');
+    env.storage.setItem(ANDROID_SYSTEM_DISABLED_REASON_KEY, 'push-manager');
+
+    const snap = await getDetailedPushPermissionStatus();
+    assert.equal(snap.effectiveStatus, 'granted');
+    assert.equal(snap.canReceiveSystemNotifications, true);
+    assert.equal(env.storage.getItem(ANDROID_SYSTEM_DISABLED_KEY), null);
+
+    const syncRes = await acquireAndSyncFcmToken('ADMIN');
+    assert.notEqual(syncRes.androidSystemDisabled, true);
+    assert.equal(env.storage.getItem(ANDROID_SYSTEM_DISABLED_KEY), null);
+  } finally {
+    env.restore();
+  }
+});
+
+test('Prior denial does not permanently lock out notifications once re-allowed in Chrome or Android settings', async () => {
+  const env = setupMockBrowserEnv({
+    permission: 'denied',
+    permissionsApiState: 'denied',
+    pushManagerState: 'denied',
+  });
+
+  try {
+    const deniedRes = await requestFcmPermissionAndToken('ADMIN');
+    assert.equal(deniedRes.success, false);
+    assert.equal(env.storage.getItem(PUSH_PERMISSION_DENIED_KEY), 'true');
+    assert.notEqual(
+      env.storage.getItem(PUSH_ENABLED_KEY),
+      'false',
+      'Browser/OS denial must not set user opt-out PUSH_ENABLED_KEY=false'
+    );
+
+    // Simulate legacy browser state where an older version had set PUSH_ENABLED_KEY='false' during denial
+    env.storage.setItem(PUSH_ENABLED_KEY, 'false');
+
+    // User re-enables notifications in Chrome / Android Settings (without setting PUSH_USER_OPTED_OUT_KEY)
+    (env as any).restore();
+  } finally {
+    env.restore();
+  }
+
+  const healedEnv = setupMockBrowserEnv({
+    permission: 'granted',
+    permissionsApiState: 'granted',
+    pushManagerState: 'granted',
+  });
+
+  try {
+    healedEnv.storage.setItem(PUSH_ENABLED_KEY, 'false');
+    healedEnv.storage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
+    assert.equal(healedEnv.storage.getItem(PUSH_USER_OPTED_OUT_KEY), null);
+    assert.equal(isExplicitUserPushOptOut(), false);
+
+    const snap = await getDetailedPushPermissionStatus();
+    assert.equal(snap.effectiveStatus, 'granted');
+    assert.equal(snap.canReceiveSystemNotifications, true);
+    assert.equal(healedEnv.storage.getItem(PUSH_ENABLED_KEY), null);
+    assert.equal(healedEnv.storage.getItem(PUSH_PERMISSION_DENIED_KEY), null);
+
+    const queriesBefore = healedEnv.getPermissionsQueryCalls();
+    await resyncPushSubscriptionIfEnabled('ADMIN');
+    assert.ok(
+      healedEnv.getPermissionsQueryCalls() > queriesBefore,
+      'Healed permission state must enter acquireAndSyncFcmToken rather than bailing out'
+    );
+
+    // Explicit opt-out via unsubscribe MUST prevent background resync
+    await unsubscribeDeviceFromWebPush();
+    assert.equal(healedEnv.storage.getItem(PUSH_USER_OPTED_OUT_KEY), 'true');
+    assert.equal(isExplicitUserPushOptOut(), true);
+    const queriesAfterOptOut = healedEnv.getPermissionsQueryCalls();
+    const optedOutResync = await resyncPushSubscriptionIfEnabled('ADMIN');
+    assert.equal(optedOutResync, false);
+    assert.equal(healedEnv.getPermissionsQueryCalls(), queriesAfterOptOut);
+  } finally {
+    healedEnv.restore();
+  }
+});
+
+test('Focused Chrome/APK windows show shade notification from SSE & Test Alert without throwing on SW-only actions', async () => {
+  resetNotificationDedupeCache();
+
+  // 1. Verify window Notification fallback strips SW-only `actions` when SW is unavailable
+  const noSwEnv = setupMockBrowserEnv({
+    permission: 'granted',
+    hasSwRegistration: false,
+  });
+
+  try {
+    const shownFallback = await showGroupedShadeNotification('Fallback Alert', {
+      body: 'No SW active',
+      actions: [{ action: 'open_pos', title: 'Open POS' }],
+      vibrate: [200, 100],
+      renotify: false,
+    });
+    assert.equal(shownFallback, true);
+    assert.equal(noSwEnv.windowNotifications.length, 1);
+    assert.equal('actions' in noSwEnv.windowNotifications[0].options, false);
+  } finally {
+    noSwEnv.restore();
+  }
+
+  // 2. Verify focused Chrome/APK displays SSE OS notification via SW when SW push did not claim it first
+  resetNotificationDedupeCache();
+  const sseEnv = setupMockBrowserEnv({
+    permission: 'granted',
+    permissionsApiState: 'granted',
+    pushManagerState: 'granted',
+    isAndroid: true,
+    isAndroidTwa: true,
+  });
+
+  const receivedPayloads: any[] = [];
+  const disconnect = connectRealtimeNotificationStream((p) => receivedPayloads.push(p));
+
+  try {
+    assert.equal(sseEnv.eventSourceInstances.length, 1);
+    sseEnv.eventSourceInstances[0].emit('pos_action', {
+      eventId: 'sale-fg-101',
+      tag: 'sale-fg-101',
+      type: 'SALE',
+      title: 'Sale #INV-101',
+      message: 'Rs. 2,500 completed',
+      deepLinkUrl: '/?tab=reports',
+    });
+
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(receivedPayloads.length, 1);
+    assert.equal(sseEnv.swShownNotifications.length, 1);
+    assert.equal(sseEnv.swShownNotifications[0].title, 'Sale #INV-101');
+
+    // 3. Test Alert fallback delivers once and skips duplicate if SW already claimed the event
+    const testShown = await triggerTestNotificationShadeFallback({
+      eventId: 'test-fg-202',
+      title: 'Test POS Alert',
+      body: 'Operational',
+      fcmSentCount: 0,
+    });
+    assert.equal(testShown, true);
+    assert.equal(sseEnv.swShownNotifications.length, 2);
+
+    recordSwNotificationShown({ eventId: 'test-sw-303', tag: 'test-sw-303', dedupeKey: 'id:test-sw-303' });
+    const dedupedTestShown = await triggerTestNotificationShadeFallback({
+      eventId: 'test-sw-303',
+      title: 'Duplicate Test',
+      body: 'Should skip',
+      fcmSentCount: 0,
+    });
+    assert.equal(dedupedTestShown, false);
+    assert.equal(sseEnv.swShownNotifications.length, 2);
+  } finally {
+    disconnect();
+    sseEnv.restore();
   }
 });

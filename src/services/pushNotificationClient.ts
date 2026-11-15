@@ -6,7 +6,9 @@ import {
   FCM_TOKEN_KEY,
   PUSH_ENABLED_KEY,
   PUSH_PERMISSION_DENIED_KEY,
+  PUSH_USER_OPTED_OUT_KEY,
   initFirebaseClient,
+  isExplicitUserPushOptOut,
   requestFcmPermissionAndToken,
   syncFcmTokenSilently,
   unregisterFcmDeviceToken,
@@ -16,7 +18,10 @@ import {
   getNotificationDedupeKey,
   isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
-import { showGroupedShadeNotification } from '../utils/notificationShade.ts';
+import {
+  NOTIFICATION_BADGE_ICON,
+  showGroupedShadeNotification,
+} from '../utils/notificationShade.ts';
 
 export function isIOSDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -122,8 +127,8 @@ export function resolveEffectivePermissionSnapshot(
     };
   }
 
-  const permApiBlocked = permissionsApiState === 'denied' || permissionsApiState === 'prompt';
-  const pushMgrBlocked = pushManagerState === 'denied' || pushManagerState === 'prompt';
+  const permApiBlocked = permissionsApiState === 'denied';
+  const pushMgrBlocked = pushManagerState === 'denied';
 
   if (browserPermission === 'granted') {
     // Distinguish browser-origin 'granted' from Android OS / TWA delegation / system-level disablement
@@ -171,7 +176,7 @@ export function resolveEffectivePermissionSnapshot(
       };
     }
 
-    const active = userExplicitlyEnabledFlag || hasStoredToken || hasPushSubscription;
+    const active = userExplicitlyEnabledFlag || hasStoredToken || hasPushSubscription || browserPermission === 'granted';
     return {
       browserPermission,
       permissionsApiState,
@@ -355,20 +360,38 @@ export async function getDetailedPushPermissionStatus(): Promise<PushPermissionS
   let userExplicitlyEnabledFlag = false;
 
   try {
-    userOptedOut = localStorage.getItem(PUSH_ENABLED_KEY) === 'false';
-    userExplicitlyEnabledFlag = localStorage.getItem(PUSH_ENABLED_KEY) === 'true';
+    const rawEnabledVal = localStorage.getItem(PUSH_ENABLED_KEY);
+    const rawUserOptedOutVal = localStorage.getItem(PUSH_USER_OPTED_OUT_KEY);
+    userExplicitlyEnabledFlag = rawEnabledVal === 'true';
     storedDenialFlag = localStorage.getItem(PUSH_PERMISSION_DENIED_KEY) === 'true';
     androidSystemBlockedFlag = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
     androidSystemBlockedReason = localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
     hasStoredToken = Boolean(localStorage.getItem(FCM_TOKEN_KEY));
+
+    // Distinguish genuine user toggle-off from legacy denial-induced PUSH_ENABLED_KEY='false'
+    if (rawUserOptedOutVal === 'true') {
+      userOptedOut = true;
+    } else if (rawEnabledVal === 'false') {
+      if (browserPermission === 'granted' && storedDenialFlag) {
+        localStorage.removeItem(PUSH_ENABLED_KEY);
+        localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+        storedDenialFlag = false;
+        userOptedOut = false;
+      } else {
+        userOptedOut = !storedDenialFlag;
+      }
+    }
   } catch {}
 
-  // Automatically clear permission-api / push-manager block flag if OS + Chrome now both report granted
+  // Automatically clear permission-api / push-manager / post-notifications block flags
+  // when browser permission is granted and neither Permissions API nor PushManager is explicitly 'denied'
   if (
     browserPermission === 'granted' &&
-    (permissionsApiState === 'granted' || permissionsApiState === 'unsupported') &&
-    (pushManagerState === 'granted' || pushManagerState === 'unsupported') &&
-    (androidSystemBlockedReason === 'permission-api' || androidSystemBlockedReason === 'push-manager')
+    permissionsApiState !== 'denied' &&
+    pushManagerState !== 'denied' &&
+    (androidSystemBlockedReason === 'permission-api' ||
+      androidSystemBlockedReason === 'push-manager' ||
+      androidSystemBlockedReason === 'post-notifications')
   ) {
     clearSystemNotificationDeliveryBlocked();
     androidSystemBlockedFlag = false;
@@ -445,11 +468,7 @@ export async function subscribeDeviceToWebPush(overrideRole?: string): Promise<{
  */
 export async function resyncPushSubscriptionIfEnabled(overrideRole?: string): Promise<boolean> {
   if (!isWebPushSupported() || Notification.permission !== 'granted') return false;
-  try {
-    if (localStorage.getItem(PUSH_ENABLED_KEY) === 'false') return false;
-  } catch {
-    return false;
-  }
+  if (isExplicitUserPushOptOut()) return false;
   return syncFcmTokenSilently(overrideRole);
 }
 
@@ -476,6 +495,7 @@ export function shouldShowSoftPushPrompt(): boolean {
   try {
     if (localStorage.getItem(PUSH_PERMISSION_DENIED_KEY) === 'true') return false;
     if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true') return false;
+    if (localStorage.getItem(PUSH_USER_OPTED_OUT_KEY) === 'true') return false;
     if (localStorage.getItem(PUSH_ENABLED_KEY) === 'false') return false;
   } catch {
     return false;
@@ -614,6 +634,8 @@ export function initNativeNotificationPrompt(overrideRole?: string): () => void 
 export async function unsubscribeDeviceFromWebPush(): Promise<boolean> {
   try {
     localStorage.setItem(PUSH_ENABLED_KEY, 'false');
+    localStorage.setItem(PUSH_USER_OPTED_OUT_KEY, 'true');
+    localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
   } catch {}
 
   if (!isWebPushSupported()) return true;
@@ -693,20 +715,23 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
     new CustomEvent('pos:action-notification', { detail: normalizedPayload })
   );
 
-  // 3. Trigger OS desktop notification if permitted and tab is not active.
-  // When Web Push (FCM + active SW) is registered on this browser, briefly yield
+  // 3. Trigger OS/shade notification whenever notification permission is granted
+  // (both focused tabs/APK windows and background tabs) unless explicitly opted out or blocked at OS level.
+  // When Web Push (FCM + active SW) is registered on this browser, briefly yield (1200ms)
   // so the Service Worker `push` event can display and claim `os_notification`
-  // first without duplicating alerts in background tabs.
+  // first without duplicating alerts; if SW did not claim within 1200ms, deliver via shade fallback.
   let androidSystemDisabled = false;
   try {
-    androidSystemDisabled = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
+    androidSystemDisabled =
+      localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
+      localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
   } catch {}
 
   if (
     typeof Notification !== 'undefined' &&
     Notification.permission === 'granted' &&
     !androidSystemDisabled &&
-    (document.hidden || !document.hasFocus()) &&
+    !isExplicitUserPushOptOut() &&
     !isNotificationChannelClaimed(dedupeKey, 'os_notification')
   ) {
     const dispatchOsFallback = () => {
@@ -721,7 +746,7 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || normalizedPayload.targetRole === 'SUPERADMIN';
         const icon = normalizedPayload.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
         const rawBadge = normalizedPayload.badge;
-        const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
+        const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : NOTIFICATION_BADGE_ICON;
         const tag =
           normalizedPayload.tag ||
           normalizedPayload.eventId ||
@@ -765,7 +790,7 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
     const hasActiveWebPush =
       isWebPushSupported() &&
       Boolean(navigator.serviceWorker?.controller) &&
-      Boolean(localStorage.getItem('pos_fcm_token'));
+      Boolean(localStorage.getItem(FCM_TOKEN_KEY));
 
     if (hasActiveWebPush) {
       setTimeout(dispatchOsFallback, 1200);
@@ -858,6 +883,90 @@ function ensureSharedStreamConnected() {
       }, 8000);
     }
   }
+}
+
+export function refreshRealtimeNotificationStream(): void {
+  if (typeof window === 'undefined' || activeStreamSubscribers.size === 0) return;
+  ensureSharedStreamConnected();
+}
+
+/**
+ * Ensures a Test Alert produces a real OS/shade notification on the current Chrome or Android TWA
+ * device whenever permission is granted, yielding briefly for SW FCM delivery if this device has
+ * a local FCM token and never duplicating if SW/SSE already claimed `os_notification`.
+ */
+export async function triggerTestNotificationShadeFallback(params: {
+  eventId: string;
+  title: string;
+  body: string;
+  url?: string;
+  isAdmin?: boolean;
+  fcmSentCount?: number;
+}): Promise<boolean> {
+  if (typeof window === 'undefined' || typeof Notification === 'undefined') return false;
+  if (Notification.permission !== 'granted') return false;
+
+  let androidSystemDisabled = false;
+  let hasLocalToken = false;
+  try {
+    androidSystemDisabled =
+      localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
+      localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
+    hasLocalToken = Boolean(localStorage.getItem(FCM_TOKEN_KEY));
+  } catch {}
+
+  if (androidSystemDisabled || isExplicitUserPushOptOut()) return false;
+
+  const dedupeKey = `id:${params.eventId}`;
+  const shouldYieldForSw =
+    hasLocalToken &&
+    (params.fcmSentCount || 0) > 0 &&
+    isWebPushSupported() &&
+    Boolean(navigator.serviceWorker?.controller);
+
+  if (shouldYieldForSw) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 1250));
+  }
+
+  if (isNotificationChannelClaimed(dedupeKey, 'os_notification')) {
+    return false;
+  }
+  if (!claimNotificationChannel(dedupeKey, 'os_notification')) {
+    return false;
+  }
+
+  const isAdminTarget = Boolean(params.isAdmin);
+  const icon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+  const targetUrl = params.url || (isAdminTarget ? '/admin' : '/pos');
+
+  return showGroupedShadeNotification(
+    params.title,
+    {
+      body: params.body,
+      icon,
+      badge: NOTIFICATION_BADGE_ICON,
+      tag: params.eventId,
+      timestamp: Date.now(),
+      requireInteraction: false,
+      renotify: false,
+      actions: [
+        { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ],
+      data: {
+        url: targetUrl,
+        isAdmin: isAdminTarget ? 'true' : 'false',
+        eventId: params.eventId,
+        tag: params.eventId,
+      },
+    },
+    () => {
+      window.focus();
+      if (window.location.pathname !== targetUrl) {
+        window.location.href = targetUrl;
+      }
+    }
+  );
 }
 
 /**

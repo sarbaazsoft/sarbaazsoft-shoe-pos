@@ -595,8 +595,7 @@ async function showGroupedShadeNotification(title, options = {}) {
 
   const isFirstSwDeliveryForTag = claimSwPushTag(incomingTag);
 
-  // Broadcast immediately so any open background/foreground tabs suppress duplicate SSE/onMessage alerts
-  broadcastPushDedupeEvent({
+  const dedupeBroadcastPayload = {
     type: 'SW_NOTIFICATION_SHOWN',
     tag: incomingTag,
     eventId: (options.data && options.data.eventId) || incomingTag,
@@ -604,7 +603,7 @@ async function showGroupedShadeNotification(title, options = {}) {
     title: cleanTitle,
     body: cleanBody,
     timestamp,
-  });
+  };
 
   const incomingItem = {
     title: cleanTitle,
@@ -707,7 +706,6 @@ async function showGroupedShadeNotification(title, options = {}) {
       renotify: allowSummaryRenotify,
       requireInteraction: allowRequireInteraction,
       silent: shouldBeSilent,
-      vibrate: shouldBeSilent ? undefined : options.vibrate || [200, 100, 200],
       actions: summaryActions,
       data: Object.assign({}, options.data || {}, {
         url: summaryUrl,
@@ -722,8 +720,27 @@ async function showGroupedShadeNotification(title, options = {}) {
         tag: summaryTag,
       }),
     });
+    if (shouldBeSilent) {
+      delete summaryOptions.vibrate;
+    } else {
+      summaryOptions.vibrate = options.vibrate || [200, 100, 200];
+    }
 
-    return self.registration.showNotification(summaryTitle, summaryOptions);
+    try {
+      await self.registration.showNotification(summaryTitle, summaryOptions);
+      broadcastPushDedupeEvent(dedupeBroadcastPayload);
+      return;
+    } catch (showErr) {
+      const errName = String((showErr && showErr.name) || '').toLowerCase();
+      if (errName === 'notallowederror' || errName === 'securityerror') {
+        broadcastPushDedupeEvent({
+          type: 'SW_NOTIFICATION_DELIVERY_BLOCKED',
+          reason: 'delivery-rejected',
+          timestamp: Date.now(),
+        });
+      }
+      throw showErr;
+    }
   }
 
   const defaultActions = isAdminTarget
@@ -747,7 +764,6 @@ async function showGroupedShadeNotification(title, options = {}) {
     renotify: allowRenotify,
     requireInteraction: allowRequireInteraction,
     silent: shouldBeSilent,
-    vibrate: shouldBeSilent ? undefined : options.vibrate || [200, 100, 200],
     actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
     data: Object.assign({}, options.data || {}, {
       url: targetUrl,
@@ -762,8 +778,26 @@ async function showGroupedShadeNotification(title, options = {}) {
       tag: incomingTag,
     }),
   });
+  if (shouldBeSilent) {
+    delete notificationOptions.vibrate;
+  } else {
+    notificationOptions.vibrate = options.vibrate || [200, 100, 200];
+  }
 
-  return self.registration.showNotification(cleanTitle, notificationOptions);
+  try {
+    await self.registration.showNotification(cleanTitle, notificationOptions);
+    broadcastPushDedupeEvent(dedupeBroadcastPayload);
+  } catch (showErr) {
+    const errName = String((showErr && showErr.name) || '').toLowerCase();
+    if (errName === 'notallowederror' || errName === 'securityerror') {
+      broadcastPushDedupeEvent({
+        type: 'SW_NOTIFICATION_DELIVERY_BLOCKED',
+        reason: 'delivery-rejected',
+        timestamp: Date.now(),
+      });
+    }
+    throw showErr;
+  }
 }
 
 // -------------------------------------------------------------------------
@@ -851,14 +885,31 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    showGroupedShadeNotification(title, options).catch(() =>
-      self.registration.showNotification('SarbaazSoft Shoe POS Alert', {
-        body: 'New store activity received.',
-        icon: defaultIcon,
-        badge: NOTIFICATION_BADGE_ICON,
-        tag: `pos-fallback-${Date.now()}`,
-      })
-    )
+    showGroupedShadeNotification(title, options).catch((err) => {
+      const errName = String((err && err.name) || '').toLowerCase();
+      if (errName === 'notallowederror' || errName === 'securityerror') {
+        return;
+      }
+      return self.registration
+        .showNotification(title || 'SarbaazSoft Shoe POS Alert', {
+          body: (options && options.body) || 'New store activity received.',
+          icon: defaultIcon,
+          badge: NOTIFICATION_BADGE_ICON,
+          tag: tag || `pos-fallback-${Date.now()}`,
+        })
+        .then(() => {
+          broadcastPushDedupeEvent({
+            type: 'SW_NOTIFICATION_SHOWN',
+            tag,
+            eventId: (options.data && options.data.eventId) || tag,
+            dedupeKey: `id:${(options.data && options.data.eventId) || tag}`,
+            title,
+            body: (options && options.body) || '',
+            timestamp,
+          });
+        })
+        .catch(() => {});
+    })
   );
 });
 

@@ -28,13 +28,13 @@ import {
   subscribeDeviceToWebPush,
   unsubscribeDeviceFromWebPush,
   connectRealtimeNotificationStream,
+  triggerTestNotificationShadeFallback,
   getDetailedPushPermissionStatus,
   watchNotificationPermissionChanges,
   resyncPushSubscriptionIfEnabled,
   isWebPushSupported,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient';
-import { claimNotificationChannel } from '../../utils/notificationDedupe';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { getStandardDocumentTitle } from '../../utils/documentTitle';
@@ -562,55 +562,15 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       });
       setTestPushStatus(res.success ? 'success' : 'error');
 
-      // Fallback local desktop alert ONLY when FCM did not deliver and SSE did not already show an OS alert
-      const deliveredViaFcm = res.channel === 'fcm' || (typeof res.fcmSentCount === 'number' && res.fcmSentCount > 0);
-      const dedupeKey = `id:${res.eventId || eventId}`;
-      if (
-        res.success &&
-        !deliveredViaFcm &&
-        !isAndroidSystemDisabled &&
-        typeof Notification !== 'undefined' &&
-        Notification.permission === 'granted' &&
-        claimNotificationChannel(dedupeKey, 'os_notification')
-      ) {
-        try {
-          if ('serviceWorker' in navigator) {
-            const reg = await navigator.serviceWorker.getRegistration('/');
-            if (reg?.active && typeof reg.showNotification === 'function') {
-              await reg.showNotification('🔔 SuperAdmin Test Push Alert', {
-                body: 'SuperAdmin push alert test confirmed on this device.',
-                icon: '/admin/pwa-192x192.png',
-                badge: '/icons/badge-favicon.png',
-                tag: res.eventId || eventId,
-                data: { url: '/admin', isAdmin: 'true' },
-              });
-              window.dispatchEvent(new CustomEvent('pos:notification-delivery-restored'));
-            } else {
-              new Notification('🔔 SuperAdmin Test Push Alert', {
-                body: 'SuperAdmin push alert test confirmed on this device.',
-                icon: '/admin/pwa-192x192.png',
-                badge: '/icons/badge-favicon.png',
-                tag: res.eventId || eventId,
-              });
-            }
-          } else {
-            new Notification('🔔 SuperAdmin Test Push Alert', {
-              body: 'SuperAdmin push alert test confirmed on this device.',
-              icon: '/admin/pwa-192x192.png',
-              badge: '/icons/badge-favicon.png',
-              tag: res.eventId || eventId,
-            });
-          }
-        } catch (notifErr: any) {
-          const errName = String(notifErr?.name || '').toLowerCase();
-          if (errName === 'notallowederror' || errName === 'securityerror') {
-            window.dispatchEvent(
-              new CustomEvent('pos:notification-delivery-blocked', {
-                detail: { reason: 'delivery-rejected' },
-              })
-            );
-          }
-        }
+      if (res.success) {
+        void triggerTestNotificationShadeFallback({
+          eventId: res.eventId || eventId,
+          title: '🔔 SuperAdmin Test Push Alert',
+          body: 'SuperAdmin push alert test confirmed on this device.',
+          url: '/admin',
+          isAdmin: true,
+          fcmSentCount: res.fcmSentCount,
+        });
       }
 
       if (res.success) {

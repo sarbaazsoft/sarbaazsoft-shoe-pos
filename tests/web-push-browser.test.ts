@@ -312,3 +312,92 @@ test('buildFcmNotificationConfig hardens webpush anti-spam defaults & HTTPS link
   });
   assert.equal(prodCfg.httpsLinkUrl, 'https://pos.sarbaazsoft.com/?tab=reports');
 });
+
+test('public/sw.js does not emit SW_NOTIFICATION_SHOWN when showNotification rejects with NotAllowedError', async () => {
+  const swCode = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+
+  const orderedListeners: Record<string, Array<(event: any) => void>> = {};
+  const broadcastMessages: any[] = [];
+  let showCalls = 0;
+
+  class MockBroadcastChannel {
+    name: string;
+    constructor(name: string) {
+      this.name = name;
+    }
+    postMessage(msg: any) {
+      broadcastMessages.push(msg);
+    }
+    close() {}
+  }
+
+  const sandbox: Record<string, any> = {
+    URL,
+    Promise,
+    Response,
+    BroadcastChannel: MockBroadcastChannel,
+    fetch: async () => ({ ok: false }),
+    importScripts: () => {},
+    caches: {
+      open: async () => ({ add: async () => {}, put: async () => {} }),
+      keys: async () => [],
+      match: async () => null,
+      delete: async () => true,
+    },
+  };
+
+  sandbox.self = {
+    location: { origin: 'https://pos.example.com' },
+    skipWaiting: () => {},
+    clients: {
+      claim: async () => {},
+      matchAll: async () => [],
+      openWindow: async () => null,
+    },
+    registration: {
+      getNotifications: async () => [],
+      showNotification: async () => {
+        showCalls++;
+        const err = new Error('Notifications disabled by OS');
+        err.name = 'NotAllowedError';
+        throw err;
+      },
+    },
+    addEventListener: (name: string, fn: (event: any) => void) => {
+      orderedListeners[name] = orderedListeners[name] || [];
+      orderedListeners[name].push(fn);
+    },
+  };
+
+  vm.runInNewContext(swCode, sandbox, { filename: 'public/sw.js' });
+  await new Promise((r) => setTimeout(r, 20));
+
+  let waitPromise: Promise<any> = Promise.resolve();
+  for (const fn of orderedListeners.push || []) {
+    fn({
+      data: {
+        json: () => ({
+          notification: { title: 'Sale #INV-88', body: 'Rs. 1200' },
+          data: { tag: 'pos-sale-INV-88', eventId: 'pos-sale-INV-88' },
+        }),
+      },
+      stopImmediatePropagation: () => {},
+      waitUntil: (p: Promise<any>) => {
+        waitPromise = p;
+      },
+    });
+  }
+  await waitPromise;
+
+  assert.equal(showCalls, 1, 'Should not retry showNotification after NotAllowedError');
+  assert.equal(
+    broadcastMessages.some((m) => m.type === 'SW_NOTIFICATION_SHOWN'),
+    false,
+    'Must never emit SW_NOTIFICATION_SHOWN when showNotification fails'
+  );
+  assert.equal(
+    broadcastMessages.some((m) => m.type === 'SW_NOTIFICATION_DELIVERY_BLOCKED'),
+    true,
+    'Should emit SW_NOTIFICATION_DELIVERY_BLOCKED on NotAllowedError'
+  );
+});

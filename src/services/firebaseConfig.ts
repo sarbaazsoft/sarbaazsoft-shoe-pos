@@ -68,9 +68,22 @@ function attachPushSubscriptionChangeListener(): void {
   swSubscriptionListenerAttached = true;
 
   const handleMessage = (data: any) => {
-    if (data && data.type === 'SW_PUSH_SUBSCRIPTION_CHANGED') {
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'SW_PUSH_SUBSCRIPTION_CHANGED') {
       lastSyncedSignature = '';
       void syncFcmTokenSilently();
+      return;
+    }
+    if (data.type === 'SW_NOTIFICATION_DELIVERY_BLOCKED') {
+      window.dispatchEvent(
+        new CustomEvent('pos:notification-delivery-blocked', {
+          detail: { reason: data.reason || 'delivery-rejected' },
+        })
+      );
+      return;
+    }
+    if (data.type === 'SW_NOTIFICATION_DELIVERY_RESTORED') {
+      window.dispatchEvent(new CustomEvent('pos:notification-delivery-restored'));
     }
   };
 
@@ -241,9 +254,17 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
         }
 
         // Show browser/Android shade notification once per eventId/tag if permitted and not already shown by SW
+        let androidDeliveryBlocked = false;
+        try {
+          androidDeliveryBlocked =
+            localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
+            localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
+        } catch {}
+
         if (
           typeof Notification !== 'undefined' &&
           Notification.permission === 'granted' &&
+          !androidDeliveryBlocked &&
           !isNotificationChannelClaimed(dedupeKey, 'os_notification') &&
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
@@ -290,7 +311,30 @@ export const ANDROID_SYSTEM_DISABLED_KEY = 'pos_android_system_notifications_dis
 export const ANDROID_SYSTEM_DISABLED_REASON_KEY = 'pos_android_system_notifications_disabled_reason';
 export const PUSH_PERMISSION_DENIED_KEY = 'pos_push_permission_denied';
 export const PUSH_ENABLED_KEY = 'pos_push_notifications_enabled';
+export const PUSH_USER_OPTED_OUT_KEY = 'pos_push_user_opted_out';
 export const FCM_TOKEN_KEY = 'pos_fcm_token';
+
+export function isExplicitUserPushOptOut(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (localStorage.getItem(PUSH_USER_OPTED_OUT_KEY) === 'true') {
+      return true;
+    }
+    const enabledVal = localStorage.getItem(PUSH_ENABLED_KEY);
+    const denialVal = localStorage.getItem(PUSH_PERMISSION_DENIED_KEY);
+    // Legacy builds set PUSH_ENABLED_KEY='false' alongside PUSH_PERMISSION_DENIED_KEY='true' on OS/browser denial.
+    // Once Notification.permission is 'granted', treat denial-induced 'false' as healed rather than user opt-out.
+    if (enabledVal === 'false') {
+      if (denialVal === 'true' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        localStorage.removeItem(PUSH_ENABLED_KEY);
+        localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+        return false;
+      }
+      return denialVal !== 'true';
+    }
+  } catch {}
+  return false;
+}
 
 function isAndroidDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -379,11 +423,12 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
       const activeSwReg = await resolveActivePushServiceWorker();
       const pushManagerState = await queryPushManagerPermissionState(activeSwReg);
 
+      // Note: On Chrome before a PushSubscription exists and in Android TWA (Notification Delegation),
+      // Permissions API and/or pushManager.permissionState() legitimately return 'prompt' even when
+      // Notification.permission is 'granted'. Only explicit 'denied' indicates OS/browser blockage here.
       const discrepancyBlocked =
         permissionsApiState === 'denied' ||
-        permissionsApiState === 'prompt' ||
-        pushManagerState === 'denied' ||
-        pushManagerState === 'prompt';
+        pushManagerState === 'denied';
 
       if (discrepancyBlocked) {
         const androidBlocked = isAndroidDevice();
@@ -391,7 +436,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
           localStorage.setItem(ANDROID_SYSTEM_DISABLED_KEY, 'true');
           localStorage.setItem(
             ANDROID_SYSTEM_DISABLED_REASON_KEY,
-            permissionsApiState && permissionsApiState !== 'granted' ? 'permission-api' : 'push-manager'
+            permissionsApiState === 'denied' ? 'permission-api' : 'push-manager'
           );
         }
         window.dispatchEvent(
@@ -412,9 +457,13 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         };
       }
 
-      // If permissions API / PushManager both confirm 'granted', clear prior permission-api / push-manager block markers
+      // If permissions API / PushManager are not 'denied', clear prior permission-api / push-manager / post-notifications block markers
       const priorReason = localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
-      if (priorReason === 'permission-api' || priorReason === 'push-manager') {
+      if (
+        priorReason === 'permission-api' ||
+        priorReason === 'push-manager' ||
+        priorReason === 'post-notifications'
+      ) {
         localStorage.removeItem(ANDROID_SYSTEM_DISABLED_KEY);
         localStorage.removeItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
       }
@@ -572,9 +621,10 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
         localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
 
-      // Mark notifications as enabled in localStorage and clear denial flag
+      // Mark notifications as enabled in localStorage and clear denial / explicit opt-out flags
       localStorage.setItem(PUSH_ENABLED_KEY, 'true');
       localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+      localStorage.removeItem(PUSH_USER_OPTED_OUT_KEY);
 
       // Notify other components that notification state updated
       window.dispatchEvent(
@@ -622,6 +672,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         }
         localStorage.setItem(PUSH_ENABLED_KEY, 'true');
         localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+        localStorage.removeItem(PUSH_USER_OPTED_OUT_KEY);
         window.dispatchEvent(
           new CustomEvent('pos:push-status-changed', {
             detail: { permission: 'granted', isSubscribed: true, mode: 'realtime' },
@@ -652,7 +703,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
 export async function syncFcmTokenSilently(overrideRole?: string): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) return false;
   if (Notification.permission !== 'granted') return false;
-  if (localStorage.getItem(PUSH_ENABLED_KEY) === 'false') return false;
+  if (isExplicitUserPushOptOut()) return false;
 
   try {
     const res = await acquireAndSyncFcmToken(overrideRole);
@@ -694,7 +745,6 @@ export async function requestFcmPermissionAndToken(overrideRole?: string): Promi
     // Never call requestPermission() if browser or Permissions API already says denied
     if (permission === 'denied' || (permission === 'default' && permissionsApiState === 'denied')) {
       localStorage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
-      localStorage.setItem(PUSH_ENABLED_KEY, 'false');
       const androidTwa = isAndroidTwaEnvironment();
       window.dispatchEvent(
         new CustomEvent('pos:push-status-changed', {
@@ -732,7 +782,6 @@ export async function requestFcmPermissionAndToken(overrideRole?: string): Promi
     if (permission !== 'granted') {
       if (permission === 'denied') {
         localStorage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
-        localStorage.setItem(PUSH_ENABLED_KEY, 'false');
       }
       const androidBlocked = isAndroidTwaEnvironment() && (permission === 'denied' || localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true');
       window.dispatchEvent(
@@ -753,9 +802,16 @@ export async function requestFcmPermissionAndToken(overrideRole?: string): Promi
       };
     }
 
-    // Permission is 'granted' — clear explicit prior delivery-rejection flag only if user clicked to re-verify,
+    // Permission is 'granted' — clear explicit user opt-out and transient permission flags,
     // then run token reuse/sync (which still re-validates Permissions API & PushManager state)
-    if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'post-notifications') {
+    localStorage.removeItem(PUSH_USER_OPTED_OUT_KEY);
+    localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+    const disabledReason = localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
+    if (
+      disabledReason === 'post-notifications' ||
+      disabledReason === 'permission-api' ||
+      disabledReason === 'push-manager'
+    ) {
       localStorage.removeItem(ANDROID_SYSTEM_DISABLED_KEY);
       localStorage.removeItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
     }
@@ -815,7 +871,9 @@ export async function unregisterFcmDeviceToken(): Promise<boolean> {
       }
     } catch {}
   }
-  localStorage.setItem('pos_push_notifications_enabled', 'false');
+  localStorage.setItem(PUSH_ENABLED_KEY, 'false');
+  localStorage.setItem(PUSH_USER_OPTED_OUT_KEY, 'true');
+  localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
   window.dispatchEvent(
     new CustomEvent('pos:push-status-changed', {
       detail: { permission: typeof Notification !== 'undefined' ? Notification.permission : 'default', isSubscribed: false },

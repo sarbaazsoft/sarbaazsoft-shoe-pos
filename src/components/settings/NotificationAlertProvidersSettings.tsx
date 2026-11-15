@@ -23,6 +23,7 @@ import {
   getDetailedPushPermissionStatus,
   watchNotificationPermissionChanges,
   resyncPushSubscriptionIfEnabled,
+  triggerTestNotificationShadeFallback,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
 
@@ -191,10 +192,26 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     setTestResult(null);
 
     try {
+      const eventId = `test-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const testTitle = '🔥 Firebase Cloud Messaging Test';
+      const testMessage = `FCM push delivery confirmed at ${new Date().toLocaleTimeString()}! Real-time alerts are operational.`;
       const res = await api.notifications.testFcm({
-        title: '🔥 Firebase Cloud Messaging Test',
-        message: `FCM push delivery confirmed at ${new Date().toLocaleTimeString()}! Real-time alerts are operational.`,
+        title: testTitle,
+        message: testMessage,
+        eventId,
       });
+
+      if (res.success) {
+        const isSuperAdmin = getActiveUserRole() === 'SUPERADMIN';
+        void triggerTestNotificationShadeFallback({
+          eventId: res.eventId || eventId,
+          title: testTitle,
+          body: testMessage,
+          url: isSuperAdmin ? '/admin' : '/pos',
+          isAdmin: isSuperAdmin,
+          fcmSentCount: res.fcmSentCount,
+        });
+      }
 
       setTestResult({
         success: res.success,
