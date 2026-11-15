@@ -77,6 +77,9 @@ function attachPushSubscriptionChangeListener(): void {
   if (typeof BroadcastChannel !== 'undefined') {
     try {
       const channel = new BroadcastChannel(PUSH_DEDUPE_CHANNEL_NAME);
+      if (typeof (channel as any).unref === 'function') {
+        (channel as any).unref();
+      }
       channel.addEventListener('message', (event: MessageEvent) => handleMessage(event.data));
     } catch {}
   }
@@ -119,9 +122,14 @@ export async function resolveActivePushServiceWorker(): Promise<ServiceWorkerReg
       } catch {}
     }
 
+    let readyTimeout: ReturnType<typeof setTimeout> | null = null;
     const readyReg = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<ServiceWorkerRegistration | null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      navigator.serviceWorker.ready.finally(() => {
+        if (readyTimeout) clearTimeout(readyTimeout);
+      }),
+      new Promise<ServiceWorkerRegistration | null>((resolve) => {
+        readyTimeout = setTimeout(() => resolve(null), 5000);
+      }),
     ]);
     if (readyReg?.active && readyReg.scope === reg?.scope) {
       reg = readyReg;
@@ -278,10 +286,71 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
   }
 }
 
+export const ANDROID_SYSTEM_DISABLED_KEY = 'pos_android_system_notifications_disabled';
+export const ANDROID_SYSTEM_DISABLED_REASON_KEY = 'pos_android_system_notifications_disabled_reason';
+export const PUSH_PERMISSION_DENIED_KEY = 'pos_push_permission_denied';
+export const PUSH_ENABLED_KEY = 'pos_push_notifications_enabled';
+export const FCM_TOKEN_KEY = 'pos_fcm_token';
+
+function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /android/i.test(navigator.userAgent || '');
+}
+
+function isAndroidTwaEnvironment(): boolean {
+  if (typeof window === 'undefined' || !isAndroidDevice()) return false;
+  const ref = typeof document !== 'undefined' ? document.referrer || '' : '';
+  const isStandalone =
+    (window.navigator as any).standalone === true ||
+    window.matchMedia?.('(display-mode: standalone)')?.matches ||
+    window.matchMedia?.('(display-mode: fullscreen)')?.matches;
+  return ref.startsWith('android-app://') || Boolean(isStandalone);
+}
+
+async function queryBrowserPermissionsState(): Promise<PermissionState | null> {
+  if (typeof navigator === 'undefined' || !navigator.permissions?.query) {
+    return null;
+  }
+  try {
+    const status = await navigator.permissions.query({ name: 'notifications' as PermissionName });
+    return status?.state || null;
+  } catch {
+    return null;
+  }
+}
+
+async function queryPushManagerPermissionState(
+  reg: ServiceWorkerRegistration | null
+): Promise<PermissionState | null> {
+  if (!reg?.pushManager || typeof reg.pushManager.permissionState !== 'function') {
+    return null;
+  }
+  try {
+    return await reg.pushManager.permissionState({ userVisibleOnly: true });
+  } catch {
+    return null;
+  }
+}
+
+function isPermissionBlockedError(err: any): boolean {
+  const code = String(err?.code || '').toLowerCase();
+  const name = String(err?.name || '').toLowerCase();
+  const msg = String(err?.message || err || '').toLowerCase();
+  return (
+    code.includes('permission-blocked') ||
+    code.includes('permission-default') ||
+    name === 'notallowederror' ||
+    msg.includes('permission-blocked') ||
+    msg.includes('notification permission') ||
+    msg.includes('permission denied') ||
+    msg.includes('notifications are disabled')
+  );
+}
+
 /**
  * Core background token acquisition and database sync.
  * Assumes Notification.permission is 'granted' or already established.
- * Fetches the FCM device token and persists it to backend without requesting UI permission.
+ * Reuses any existing valid PushManager subscription and FCM token without requesting UI permission.
  */
 export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
   success: boolean;
@@ -289,6 +358,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
   error?: string;
   warning?: string;
   mode?: 'fcm' | 'realtime';
+  androidSystemDisabled?: boolean;
 }> {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Notifications are only available in a browser environment.' };
@@ -304,7 +374,52 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
 
   inFlightTokenSync = (async () => {
     try {
-      // 1. Initialize Firebase client
+      // 1. Check Permissions API & active SW PushManager permission state before assuming OS permission is active
+      const permissionsApiState = await queryBrowserPermissionsState();
+      const activeSwReg = await resolveActivePushServiceWorker();
+      const pushManagerState = await queryPushManagerPermissionState(activeSwReg);
+
+      const discrepancyBlocked =
+        permissionsApiState === 'denied' ||
+        permissionsApiState === 'prompt' ||
+        pushManagerState === 'denied' ||
+        pushManagerState === 'prompt';
+
+      if (discrepancyBlocked) {
+        const androidBlocked = isAndroidDevice();
+        if (androidBlocked) {
+          localStorage.setItem(ANDROID_SYSTEM_DISABLED_KEY, 'true');
+          localStorage.setItem(
+            ANDROID_SYSTEM_DISABLED_REASON_KEY,
+            permissionsApiState && permissionsApiState !== 'granted' ? 'permission-api' : 'push-manager'
+          );
+        }
+        window.dispatchEvent(
+          new CustomEvent('pos:push-status-changed', {
+            detail: {
+              permission: Notification.permission,
+              isSubscribed: false,
+              androidSystemDisabled: androidBlocked,
+            },
+          })
+        );
+        return {
+          success: false,
+          androidSystemDisabled: androidBlocked,
+          error: androidBlocked
+            ? 'Browser notification permission is granted, but Android system or app notifications appear disabled. Enable Notifications in Android Settings → Apps → Notifications.'
+            : 'Notification permission is blocked or incomplete in your browser settings.',
+        };
+      }
+
+      // If permissions API / PushManager both confirm 'granted', clear prior permission-api / push-manager block markers
+      const priorReason = localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
+      if (priorReason === 'permission-api' || priorReason === 'push-manager') {
+        localStorage.removeItem(ANDROID_SYSTEM_DISABLED_KEY);
+        localStorage.removeItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
+      }
+
+      // 2. Initialize Firebase client
       const { messaging } = await initFirebaseClient();
       if (!messaging) {
         return {
@@ -313,10 +428,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         };
       }
 
-      // 2. Ensure the single root Service Worker (/sw.js) is active
-      const activeSwReg = await resolveActivePushServiceWorker();
-
-      // 3. Validate VAPID key and reconcile any stale PushManager subscription
+      // 3. Validate VAPID key and preserve existing valid PushManager subscription + token wherever possible
       let token: string | undefined;
       let vapidWarning: string | undefined;
 
@@ -331,8 +443,18 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         console.warn('[firebaseConfig]', vapidWarning);
       }
 
+      const storedToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
+
       if (messaging && activeSwReg?.active) {
         await ensureCleanPushSubscriptionForVapid(activeSwReg, vapidKey);
+
+        const existingSub = await activeSwReg.pushManager?.getSubscription?.().catch(() => null);
+        const existingSubMatchesVapid = Boolean(
+          existingSub &&
+            (!vapidKey ||
+              !existingSub.options?.applicationServerKey ||
+              doVapidKeysMatch(existingSub.options.applicationServerKey, vapidKey))
+        );
 
         try {
           token = await getToken(messaging, {
@@ -340,14 +462,40 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
             vapidKey,
           });
         } catch (fcmErr: any) {
+          if (isPermissionBlockedError(fcmErr)) {
+            const androidBlocked = isAndroidDevice();
+            if (androidBlocked) {
+              localStorage.setItem(ANDROID_SYSTEM_DISABLED_KEY, 'true');
+              localStorage.setItem(ANDROID_SYSTEM_DISABLED_REASON_KEY, 'push-manager');
+            } else {
+              localStorage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
+            }
+            window.dispatchEvent(
+              new CustomEvent('pos:push-status-changed', {
+                detail: {
+                  permission: Notification.permission,
+                  isSubscribed: false,
+                  androidSystemDisabled: androidBlocked,
+                },
+              })
+            );
+            return {
+              success: false,
+              androidSystemDisabled: androidBlocked,
+              error: androidBlocked
+                ? 'Android system notification permission (POST_NOTIFICATIONS) or app notifications appear disabled in Android Settings.'
+                : 'Notifications are blocked by browser settings.',
+            };
+          }
+
           const msg = String(fcmErr?.message || fcmErr || '');
-          // Recover cleanly from InvalidStateError / mismatched applicationServerKey / stale subscription
-          if (
+          const isKeyMismatchOrCorruptSub =
             msg.includes('applicationServerKey') ||
-            msg.includes('InvalidStateError') ||
-            msg.includes('subscription') ||
-            msg.includes('AbortError')
-          ) {
+            msg.includes('InvalidAccessError') ||
+            (msg.includes('InvalidStateError') && !existingSubMatchesVapid);
+
+          if (isKeyMismatchOrCorruptSub) {
+            // Only unsubscribe & re-subscribe when the existing PushSubscription key actually mismatches or is corrupt
             try {
               const staleSub = await activeSwReg.pushManager.getSubscription();
               if (staleSub) {
@@ -360,10 +508,13 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
               });
             } catch (retryErr) {
               console.warn(
-                '[firebaseConfig] Background push token retry failed (activating real-time alert stream fallback):',
+                '[firebaseConfig] Background push token retry failed:',
                 retryErr
               );
             }
+          } else if (storedToken && existingSub && existingSubMatchesVapid) {
+            // Transient network/AbortError while existing PushSubscription and FCM token are valid: reuse stored token
+            token = storedToken;
           } else {
             console.warn(
               '[firebaseConfig] Background push token notice (activating real-time alert stream fallback):',
@@ -372,9 +523,13 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
           }
         }
       } else if (!activeSwReg?.active) {
-        console.warn(
-          '[firebaseConfig] Root Service Worker (/sw.js) did not reach active state; skipping competing SW registration.'
-        );
+        if (storedToken) {
+          token = storedToken;
+        } else {
+          console.warn(
+            '[firebaseConfig] Root Service Worker (/sw.js) did not reach active state; skipping competing SW registration.'
+          );
+        }
       }
 
       // 4. Send token to backend if obtained (coalescing unchanged session signatures & cleaning up rotated tokens)
@@ -393,7 +548,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         } catch {}
 
         const syncSignature = `${tenantId}:${userId}:${userRole}:${token}`;
-        const previousToken = localStorage.getItem('pos_fcm_token') || undefined;
+        const previousToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
 
         if (lastSyncedSignature !== syncSignature || (previousToken && previousToken !== token)) {
           const deviceName = `${navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop/Laptop'} (${navigator.platform || 'Web'})`;
@@ -408,21 +563,41 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
             deviceName,
           });
 
-          localStorage.setItem('pos_fcm_token', token);
+          localStorage.setItem(FCM_TOKEN_KEY, token);
           lastSyncedSignature = syncSignature;
         }
       }
 
+      const stillDeliveryBlocked =
+        localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
+        localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
+
       // Mark notifications as enabled in localStorage and clear denial flag
-      localStorage.setItem('pos_push_notifications_enabled', 'true');
-      localStorage.removeItem('pos_push_permission_denied');
+      localStorage.setItem(PUSH_ENABLED_KEY, 'true');
+      localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
 
       // Notify other components that notification state updated
       window.dispatchEvent(
         new CustomEvent('pos:push-status-changed', {
-          detail: { token, permission: 'granted', isSubscribed: true, mode: token ? 'fcm' : 'realtime' },
+          detail: {
+            token,
+            permission: 'granted',
+            isSubscribed: !stillDeliveryBlocked,
+            androidSystemDisabled: stillDeliveryBlocked,
+            mode: token ? 'fcm' : 'realtime',
+          },
         })
       );
+
+      if (stillDeliveryBlocked) {
+        return {
+          success: false,
+          token,
+          androidSystemDisabled: true,
+          error:
+            'Browser permission is granted, but Android system notifications for this app appear disabled. Enable Notifications in Android Settings and tap Check Status.',
+        };
+      }
 
       return {
         success: true,
@@ -436,8 +611,17 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
     } catch (err: any) {
       console.error('[firebaseConfig] Exception in acquireAndSyncFcmToken:', err);
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        localStorage.setItem('pos_push_notifications_enabled', 'true');
-        localStorage.removeItem('pos_push_permission_denied');
+        const stillBlocked = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
+        if (stillBlocked) {
+          return {
+            success: false,
+            androidSystemDisabled: true,
+            error:
+              'Browser permission is granted, but Android system notifications appear disabled in device settings.',
+          };
+        }
+        localStorage.setItem(PUSH_ENABLED_KEY, 'true');
+        localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
         window.dispatchEvent(
           new CustomEvent('pos:push-status-changed', {
             detail: { permission: 'granted', isSubscribed: true, mode: 'realtime' },
@@ -468,7 +652,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
 export async function syncFcmTokenSilently(overrideRole?: string): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) return false;
   if (Notification.permission !== 'granted') return false;
-  if (localStorage.getItem('pos_push_notifications_enabled') === 'false') return false;
+  if (localStorage.getItem(PUSH_ENABLED_KEY) === 'false') return false;
 
   try {
     const res = await acquireAndSyncFcmToken(overrideRole);
@@ -480,9 +664,11 @@ export async function syncFcmTokenSilently(overrideRole?: string): Promise<boole
 
 /**
  * Two-step permission flow entrypoint:
- * Step 1: Explicitly requests browser/OS permission (triggered only by user intent).
- * Step 2: If granted, automatically calls acquireAndSyncFcmToken() to obtain and store the FCM token.
- * If denied: sets local denial flag and returns clean feedback for manual settings fallback.
+ * Step 1: Checks existing Notification.permission + Permissions API before ever calling requestPermission().
+ *   - If already 'granted', never re-prompts; reuses/syncs existing FCM registration cleanly.
+ *   - If already 'denied', never re-prompts; returns guidance for browser / Android settings.
+ *   - Only calls Notification.requestPermission() when state is genuinely 'default'.
+ * Step 2: If granted, calls acquireAndSyncFcmToken() to obtain/reuse and store the FCM token.
  */
 export async function requestFcmPermissionAndToken(overrideRole?: string): Promise<{
   success: boolean;
@@ -491,6 +677,7 @@ export async function requestFcmPermissionAndToken(overrideRole?: string): Promi
   warning?: string;
   mode?: 'fcm' | 'realtime';
   permission?: NotificationPermission;
+  androidSystemDisabled?: boolean;
 }> {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Notifications are only available in a browser environment.' };
@@ -501,33 +688,78 @@ export async function requestFcmPermissionAndToken(overrideRole?: string): Promi
   }
 
   try {
-    // 1. Request browser/system notification permission
     let permission = Notification.permission;
-    if (permission !== 'granted') {
+    const permissionsApiState = await queryBrowserPermissionsState();
+
+    // Never call requestPermission() if browser or Permissions API already says denied
+    if (permission === 'denied' || (permission === 'default' && permissionsApiState === 'denied')) {
+      localStorage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
+      localStorage.setItem(PUSH_ENABLED_KEY, 'false');
+      const androidTwa = isAndroidTwaEnvironment();
+      window.dispatchEvent(
+        new CustomEvent('pos:push-status-changed', {
+          detail: { permission: 'denied', isSubscribed: false, androidSystemDisabled: androidTwa },
+        })
+      );
+      return {
+        success: false,
+        permission: 'denied',
+        androidSystemDisabled: androidTwa,
+        error: androidTwa
+          ? 'Notifications are blocked in Android or Chrome settings. Enable Notifications in Android Settings → Apps → Notifications and Chrome site settings.'
+          : 'Notifications are currently blocked by your browser settings. Please click the lock or site settings icon in your address bar to allow alerts.',
+      };
+    }
+
+    // Only prompt when permission is genuinely 'default' (never when 'granted' or 'denied')
+    if (permission === 'default') {
       permission = await Notification.requestPermission();
+
+      // If user explicitly dismissed or OS suppressed POST_NOTIFICATIONS on Android 13+, prevent loop re-prompting
+      if (permission === 'default') {
+        const postPromptApiState = await queryBrowserPermissionsState();
+        const androidTwa = isAndroidTwaEnvironment();
+        if (postPromptApiState === 'denied' || androidTwa) {
+          localStorage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
+          if (androidTwa) {
+            localStorage.setItem(ANDROID_SYSTEM_DISABLED_KEY, 'true');
+            localStorage.setItem(ANDROID_SYSTEM_DISABLED_REASON_KEY, 'post-notifications');
+          }
+        }
+      }
     }
 
     if (permission !== 'granted') {
       if (permission === 'denied') {
-        localStorage.setItem('pos_push_permission_denied', 'true');
-        localStorage.setItem('pos_push_notifications_enabled', 'false');
+        localStorage.setItem(PUSH_PERMISSION_DENIED_KEY, 'true');
+        localStorage.setItem(PUSH_ENABLED_KEY, 'false');
       }
+      const androidBlocked = isAndroidTwaEnvironment() && (permission === 'denied' || localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true');
       window.dispatchEvent(
         new CustomEvent('pos:push-status-changed', {
-          detail: { permission, isSubscribed: false },
+          detail: { permission, isSubscribed: false, androidSystemDisabled: androidBlocked },
         })
       );
       return {
         success: false,
         permission,
+        androidSystemDisabled: androidBlocked,
         error:
-          permission === 'denied'
-            ? 'Notifications are currently blocked by your browser settings. Please click the lock or site settings icon in your address bar to allow alerts.'
+          permission === 'denied' || androidBlocked
+            ? isAndroidDevice()
+              ? 'Notifications are blocked in Chrome or Android system settings. Allow notifications in Android Settings → Apps → Notifications, then tap Check Status.'
+              : 'Notifications are currently blocked by your browser settings. Please click the lock or site settings icon in your address bar to allow alerts.'
             : 'Notification permission request was dismissed.',
       };
     }
 
-    // 2. Permission granted! Automatically acquire token and sync with backend
+    // Permission is 'granted' — clear explicit prior delivery-rejection flag only if user clicked to re-verify,
+    // then run token reuse/sync (which still re-validates Permissions API & PushManager state)
+    if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'post-notifications') {
+      localStorage.removeItem(ANDROID_SYSTEM_DISABLED_KEY);
+      localStorage.removeItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
+    }
+
     const acquireRes = await acquireAndSyncFcmToken(overrideRole);
     return {
       success: acquireRes.success,
@@ -536,6 +768,7 @@ export async function requestFcmPermissionAndToken(overrideRole?: string): Promi
       mode: acquireRes.mode,
       warning: acquireRes.warning,
       error: acquireRes.error,
+      androidSystemDisabled: acquireRes.androidSystemDisabled,
     };
   } catch (err: any) {
     console.error('[firebaseConfig] Exception in requestFcmPermissionAndToken:', err);
@@ -556,6 +789,7 @@ export async function requestFcmDeviceToken(overrideRole?: string): Promise<{
   warning?: string;
   mode?: 'fcm' | 'realtime';
   permission?: NotificationPermission;
+  androidSystemDisabled?: boolean;
 }> {
   return requestFcmPermissionAndToken(overrideRole);
 }

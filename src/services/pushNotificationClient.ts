@@ -1,6 +1,11 @@
 import { getAuthToken, getActiveTenantId } from './api.ts';
 import { playAudioFeedback } from '../utils/audio.ts';
 import {
+  ANDROID_SYSTEM_DISABLED_KEY,
+  ANDROID_SYSTEM_DISABLED_REASON_KEY,
+  FCM_TOKEN_KEY,
+  PUSH_ENABLED_KEY,
+  PUSH_PERMISSION_DENIED_KEY,
   initFirebaseClient,
   requestFcmPermissionAndToken,
   syncFcmTokenSilently,
@@ -36,6 +41,367 @@ export function isWebPushSupported(): boolean {
   );
 }
 
+export type EffectiveNotificationStatus =
+  | 'unsupported'
+  | 'default'
+  | 'granted'
+  | 'browser-denied'
+  | 'android-system-disabled'
+  | 'disabled-by-user';
+
+export interface PushPermissionSnapshot {
+  browserPermission: NotificationPermission | 'unsupported';
+  permissionsApiState?: PermissionState | 'unsupported';
+  pushManagerState?: PermissionState | 'unsupported';
+  isAndroid: boolean;
+  isAndroidTwa: boolean;
+  isWindowsPwa: boolean;
+  isStandalone: boolean;
+  userOptedOut: boolean;
+  androidSystemDisabled: boolean;
+  hasStoredToken: boolean;
+  hasPushSubscription: boolean;
+  effectiveStatus: EffectiveNotificationStatus;
+  canReceiveSystemNotifications: boolean;
+}
+
+export interface ResolveSnapshotInput {
+  supported: boolean;
+  browserPermission: NotificationPermission | 'unsupported';
+  permissionsApiState?: PermissionState | 'unsupported';
+  pushManagerState?: PermissionState | 'unsupported';
+  isAndroid: boolean;
+  isAndroidTwa: boolean;
+  isWindowsPwa: boolean;
+  isStandalone: boolean;
+  userOptedOut: boolean;
+  storedDenialFlag: boolean;
+  androidSystemBlockedFlag: boolean;
+  androidSystemBlockedReason?: string | null;
+  hasStoredToken: boolean;
+  hasPushSubscription: boolean;
+  userExplicitlyEnabledFlag: boolean;
+}
+
+export function resolveEffectivePermissionSnapshot(
+  input: ResolveSnapshotInput
+): PushPermissionSnapshot {
+  const {
+    supported,
+    browserPermission,
+    permissionsApiState = 'unsupported',
+    pushManagerState = 'unsupported',
+    isAndroid,
+    isAndroidTwa,
+    isWindowsPwa,
+    isStandalone,
+    userOptedOut,
+    storedDenialFlag,
+    androidSystemBlockedFlag,
+    androidSystemBlockedReason,
+    hasStoredToken,
+    hasPushSubscription,
+    userExplicitlyEnabledFlag,
+  } = input;
+
+  if (!supported || browserPermission === 'unsupported') {
+    return {
+      browserPermission: 'unsupported',
+      permissionsApiState,
+      pushManagerState,
+      isAndroid,
+      isAndroidTwa,
+      isWindowsPwa,
+      isStandalone,
+      userOptedOut,
+      androidSystemDisabled: false,
+      hasStoredToken,
+      hasPushSubscription,
+      effectiveStatus: 'unsupported',
+      canReceiveSystemNotifications: false,
+    };
+  }
+
+  const permApiBlocked = permissionsApiState === 'denied' || permissionsApiState === 'prompt';
+  const pushMgrBlocked = pushManagerState === 'denied' || pushManagerState === 'prompt';
+
+  if (browserPermission === 'granted') {
+    // Distinguish browser-origin 'granted' from Android OS / TWA delegation / system-level disablement
+    const systemOrDelegationBlocked =
+      permApiBlocked ||
+      pushMgrBlocked ||
+      (androidSystemBlockedFlag &&
+        (isAndroid || androidSystemBlockedReason === 'delivery-rejected'));
+
+    if (systemOrDelegationBlocked) {
+      const effectiveStatus: EffectiveNotificationStatus =
+        isAndroid || androidSystemBlockedFlag ? 'android-system-disabled' : 'browser-denied';
+      return {
+        browserPermission,
+        permissionsApiState,
+        pushManagerState,
+        isAndroid,
+        isAndroidTwa,
+        isWindowsPwa,
+        isStandalone,
+        userOptedOut,
+        androidSystemDisabled: isAndroid || effectiveStatus === 'android-system-disabled',
+        hasStoredToken,
+        hasPushSubscription,
+        effectiveStatus,
+        canReceiveSystemNotifications: false,
+      };
+    }
+
+    if (userOptedOut) {
+      return {
+        browserPermission,
+        permissionsApiState,
+        pushManagerState,
+        isAndroid,
+        isAndroidTwa,
+        isWindowsPwa,
+        isStandalone,
+        userOptedOut: true,
+        androidSystemDisabled: false,
+        hasStoredToken,
+        hasPushSubscription,
+        effectiveStatus: 'disabled-by-user',
+        canReceiveSystemNotifications: false,
+      };
+    }
+
+    const active = userExplicitlyEnabledFlag || hasStoredToken || hasPushSubscription;
+    return {
+      browserPermission,
+      permissionsApiState,
+      pushManagerState,
+      isAndroid,
+      isAndroidTwa,
+      isWindowsPwa,
+      isStandalone,
+      userOptedOut: false,
+      androidSystemDisabled: false,
+      hasStoredToken,
+      hasPushSubscription,
+      effectiveStatus: 'granted',
+      canReceiveSystemNotifications: active,
+    };
+  }
+
+  if (browserPermission === 'denied') {
+    const isAndroidBlocked = isAndroidTwa && (androidSystemBlockedFlag || permissionsApiState === 'denied');
+    return {
+      browserPermission,
+      permissionsApiState,
+      pushManagerState,
+      isAndroid,
+      isAndroidTwa,
+      isWindowsPwa,
+      isStandalone,
+      userOptedOut,
+      androidSystemDisabled: isAndroidBlocked,
+      hasStoredToken,
+      hasPushSubscription,
+      effectiveStatus: isAndroidBlocked ? 'android-system-disabled' : 'browser-denied',
+      canReceiveSystemNotifications: false,
+    };
+  }
+
+  // browserPermission === 'default'
+  if (
+    permissionsApiState === 'denied' ||
+    pushManagerState === 'denied' ||
+    androidSystemBlockedFlag
+  ) {
+    return {
+      browserPermission,
+      permissionsApiState,
+      pushManagerState,
+      isAndroid,
+      isAndroidTwa,
+      isWindowsPwa,
+      isStandalone,
+      userOptedOut,
+      androidSystemDisabled: isAndroid || androidSystemBlockedFlag,
+      hasStoredToken,
+      hasPushSubscription,
+      effectiveStatus: isAndroid || androidSystemBlockedFlag ? 'android-system-disabled' : 'browser-denied',
+      canReceiveSystemNotifications: false,
+    };
+  }
+
+  if (storedDenialFlag) {
+    return {
+      browserPermission,
+      permissionsApiState,
+      pushManagerState,
+      isAndroid,
+      isAndroidTwa,
+      isWindowsPwa,
+      isStandalone,
+      userOptedOut,
+      androidSystemDisabled: isAndroidTwa,
+      hasStoredToken,
+      hasPushSubscription,
+      effectiveStatus: isAndroidTwa ? 'android-system-disabled' : 'browser-denied',
+      canReceiveSystemNotifications: false,
+    };
+  }
+
+  return {
+    browserPermission,
+    permissionsApiState,
+    pushManagerState,
+    isAndroid,
+    isAndroidTwa,
+    isWindowsPwa,
+    isStandalone,
+    userOptedOut,
+    androidSystemDisabled: false,
+    hasStoredToken,
+    hasPushSubscription,
+    effectiveStatus: 'default',
+    canReceiveSystemNotifications: false,
+  };
+}
+
+export function isAndroidDeviceClient(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /android/i.test(navigator.userAgent || '');
+}
+
+export function isAndroidTwaClient(): boolean {
+  if (typeof window === 'undefined' || !isAndroidDeviceClient()) return false;
+  const ref = typeof document !== 'undefined' ? document.referrer || '' : '';
+  return ref.startsWith('android-app://') || isStandalonePWA();
+}
+
+export function isWindowsPwaClient(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /windows/i.test(navigator.userAgent || '') && isStandalonePWA();
+}
+
+export function markSystemNotificationDeliveryBlocked(reason = 'delivery-rejected'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(ANDROID_SYSTEM_DISABLED_KEY, 'true');
+    localStorage.setItem(ANDROID_SYSTEM_DISABLED_REASON_KEY, reason);
+  } catch {}
+  window.dispatchEvent(
+    new CustomEvent('pos:push-status-changed', {
+      detail: {
+        permission: getNotificationPermissionState(),
+        isSubscribed: false,
+        androidSystemDisabled: true,
+      },
+    })
+  );
+}
+
+export function clearSystemNotificationDeliveryBlocked(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(ANDROID_SYSTEM_DISABLED_KEY);
+    localStorage.removeItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
+  } catch {}
+}
+
+export async function getDetailedPushPermissionStatus(): Promise<PushPermissionSnapshot> {
+  const isAndroid = isAndroidDeviceClient();
+  const isStandalone = isStandalonePWA();
+  const isAndroidTwa = isAndroidTwaClient();
+  const isWindowsPwa = isWindowsPwaClient();
+  const supported = isWebPushSupported();
+  const browserPermission: NotificationPermission | 'unsupported' =
+    typeof window !== 'undefined' && 'Notification' in window
+      ? Notification.permission
+      : 'unsupported';
+
+  let permissionsApiState: PermissionState | 'unsupported' = 'unsupported';
+  if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+    try {
+      const permStatus = await navigator.permissions.query({ name: 'notifications' as PermissionName });
+      if (permStatus?.state) {
+        permissionsApiState = permStatus.state;
+      }
+    } catch {}
+  }
+
+  let pushManagerState: PermissionState | 'unsupported' = 'unsupported';
+  let hasPushSubscription = false;
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      if (reg?.pushManager) {
+        if (typeof reg.pushManager.permissionState === 'function') {
+          pushManagerState = await reg.pushManager
+            .permissionState({ userVisibleOnly: true })
+            .catch(() => 'unsupported' as const);
+        }
+        if (typeof reg.pushManager.getSubscription === 'function') {
+          const sub = await reg.pushManager.getSubscription().catch(() => null);
+          hasPushSubscription = Boolean(sub);
+        }
+      }
+    } catch {}
+  }
+
+  let userOptedOut = false;
+  let storedDenialFlag = false;
+  let androidSystemBlockedFlag = false;
+  let androidSystemBlockedReason: string | null = null;
+  let hasStoredToken = false;
+  let userExplicitlyEnabledFlag = false;
+
+  try {
+    userOptedOut = localStorage.getItem(PUSH_ENABLED_KEY) === 'false';
+    userExplicitlyEnabledFlag = localStorage.getItem(PUSH_ENABLED_KEY) === 'true';
+    storedDenialFlag = localStorage.getItem(PUSH_PERMISSION_DENIED_KEY) === 'true';
+    androidSystemBlockedFlag = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
+    androidSystemBlockedReason = localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY);
+    hasStoredToken = Boolean(localStorage.getItem(FCM_TOKEN_KEY));
+  } catch {}
+
+  // Automatically clear permission-api / push-manager block flag if OS + Chrome now both report granted
+  if (
+    browserPermission === 'granted' &&
+    (permissionsApiState === 'granted' || permissionsApiState === 'unsupported') &&
+    (pushManagerState === 'granted' || pushManagerState === 'unsupported') &&
+    (androidSystemBlockedReason === 'permission-api' || androidSystemBlockedReason === 'push-manager')
+  ) {
+    clearSystemNotificationDeliveryBlocked();
+    androidSystemBlockedFlag = false;
+    androidSystemBlockedReason = null;
+  }
+
+  // Also clear stale denial flag if user manually re-granted notifications in browser/Android settings
+  if (browserPermission === 'granted' && storedDenialFlag && !userOptedOut) {
+    try {
+      localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+      storedDenialFlag = false;
+    } catch {}
+  }
+
+  return resolveEffectivePermissionSnapshot({
+    supported,
+    browserPermission,
+    permissionsApiState,
+    pushManagerState,
+    isAndroid,
+    isAndroidTwa,
+    isWindowsPwa,
+    isStandalone,
+    userOptedOut,
+    storedDenialFlag,
+    androidSystemBlockedFlag,
+    androidSystemBlockedReason,
+    hasStoredToken,
+    hasPushSubscription,
+    userExplicitlyEnabledFlag,
+  });
+}
+
 export function getNotificationPermissionState(): NotificationPermission {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return 'denied';
@@ -44,10 +410,8 @@ export function getNotificationPermissionState(): NotificationPermission {
 }
 
 export async function isDeviceSubscribedToPush(): Promise<boolean> {
-  if (typeof window === 'undefined' || !('Notification' in window)) return false;
-  if (Notification.permission !== 'granted') return false;
-  if (localStorage.getItem('pos_push_notifications_enabled') === 'false') return false;
-  return localStorage.getItem('pos_push_notifications_enabled') === 'true' || Boolean(localStorage.getItem('pos_fcm_token'));
+  const snapshot = await getDetailedPushPermissionStatus();
+  return snapshot.effectiveStatus === 'granted' && snapshot.canReceiveSystemNotifications;
 }
 
 export async function subscribeDeviceToWebPush(overrideRole?: string): Promise<{
@@ -57,6 +421,7 @@ export async function subscribeDeviceToWebPush(overrideRole?: string): Promise<{
   warning?: string;
   mode?: 'fcm' | 'realtime';
   permission?: NotificationPermission;
+  androidSystemDisabled?: boolean;
 }> {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Web Push is not available in non-browser environments.' };
@@ -70,22 +435,22 @@ export async function subscribeDeviceToWebPush(overrideRole?: string): Promise<{
     };
   }
 
-  // Delegate directly to Firebase Cloud Messaging (FCM) with graceful Real-time Stream fallback
+  // Delegate directly to Firebase Cloud Messaging (FCM) with strict permission checks & token reuse
   return requestFcmPermissionAndToken(overrideRole);
 }
 
 /**
- * Silently re-registers this device with the server when notification permission is already granted.
- * Keeps the server-side subscription row fresh (new DB, rotated VAPID keys, expired endpoint) without UI popups.
+ * Silently re-registers / verifies this device with the server when permission is already granted.
+ * Keeps existing valid tokens intact without prompting or disrupting UI.
  */
-export async function resyncPushSubscriptionIfEnabled(overrideRole?: string): Promise<void> {
-  if (!isWebPushSupported() || Notification.permission !== 'granted') return;
+export async function resyncPushSubscriptionIfEnabled(overrideRole?: string): Promise<boolean> {
+  if (!isWebPushSupported() || Notification.permission !== 'granted') return false;
   try {
-    if (localStorage.getItem('pos_push_notifications_enabled') === 'false') return;
+    if (localStorage.getItem(PUSH_ENABLED_KEY) === 'false') return false;
   } catch {
-    return;
+    return false;
   }
-  await syncFcmTokenSilently(overrideRole);
+  return syncFcmTokenSilently(overrideRole);
 }
 
 const SOFT_PROMPT_STORAGE_KEY = 'pos_push_soft_prompt_dismissed_until';
@@ -103,12 +468,25 @@ export function isSoftPromptDismissed(): boolean {
 }
 
 export function shouldShowSoftPushPrompt(): boolean {
-  if (typeof window === 'undefined' || !('Notification' in window)) return false;
-  // If permission has already been decided (granted or denied), do not show soft prompt
+  if (typeof window === 'undefined' || !isWebPushSupported()) return false;
+  // Never prompt if permission was already granted or denied
   if (Notification.permission !== 'default') return false;
-  // If user dismissed it recently, do not show
+  // Never re-prompt if user snoozed, denied, opted out, or Android system notifications are disabled
   if (isSoftPromptDismissed()) return false;
+  try {
+    if (localStorage.getItem(PUSH_PERMISSION_DENIED_KEY) === 'true') return false;
+    if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true') return false;
+    if (localStorage.getItem(PUSH_ENABLED_KEY) === 'false') return false;
+  } catch {
+    return false;
+  }
   return true;
+}
+
+export async function shouldShowSoftPushPromptAsync(): Promise<boolean> {
+  if (!shouldShowSoftPushPrompt()) return false;
+  const snapshot = await getDetailedPushPermissionStatus();
+  return snapshot.effectiveStatus === 'default';
 }
 
 export function dismissSoftPushPrompt(days = 3): void {
@@ -129,10 +507,90 @@ export function resetSoftPushPromptDismissal(): void {
 }
 
 /**
+ * Watches browser Permissions API, app visibility/focus (e.g. returning from Android Settings),
+ * and internal push status events so UI reflects real browser + OS state immediately.
+ */
+export function watchNotificationPermissionChanges(
+  onUpdate: (snapshot: PushPermissionSnapshot) => void
+): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  let disposed = false;
+  let permStatusObj: PermissionStatus | null = null;
+
+  const emitSnapshot = () => {
+    void getDetailedPushPermissionStatus().then((snap) => {
+      if (!disposed) {
+        onUpdate(snap);
+      }
+    });
+  };
+
+  const handleVisibilityOrFocus = () => {
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      emitSnapshot();
+    }
+  };
+
+  const handleDeliveryBlocked = (e: any) => {
+    markSystemNotificationDeliveryBlocked(e?.detail?.reason || 'delivery-rejected');
+  };
+
+  const handleDeliveryRestored = () => {
+    try {
+      if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected') {
+        clearSystemNotificationDeliveryBlocked();
+        window.dispatchEvent(
+          new CustomEvent('pos:push-status-changed', {
+            detail: {
+              permission: getNotificationPermissionState(),
+              androidSystemDisabled: false,
+            },
+          })
+        );
+      }
+    } catch {}
+  };
+
+  window.addEventListener('pos:push-status-changed', emitSnapshot);
+  window.addEventListener('focus', handleVisibilityOrFocus);
+  document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+  window.addEventListener('pos:notification-delivery-blocked', handleDeliveryBlocked);
+  window.addEventListener('pos:notification-delivery-restored', handleDeliveryRestored);
+
+  if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+    navigator.permissions
+      .query({ name: 'notifications' as PermissionName })
+      .then((status) => {
+        if (disposed || !status) return;
+        permStatusObj = status;
+        permStatusObj.onchange = () => {
+          emitSnapshot();
+        };
+      })
+      .catch(() => {});
+  }
+
+  return () => {
+    disposed = true;
+    window.removeEventListener('pos:push-status-changed', emitSnapshot);
+    window.removeEventListener('focus', handleVisibilityOrFocus);
+    document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.removeEventListener('pos:notification-delivery-blocked', handleDeliveryBlocked);
+    window.removeEventListener('pos:notification-delivery-restored', handleDeliveryRestored);
+    if (permStatusObj) {
+      permStatusObj.onchange = null;
+    }
+  };
+}
+
+/**
  * Background FCM initialization on session load:
  * 1. Warm up the Firebase client and foreground listener.
- * 2. If permission is already granted, silently synchronize the FCM device token with the backend.
- * 3. Does NOT force native permission prompts on page load or clicks, allowing the soft prompt to guide the user.
+ * 2. If permission is already granted (and user hasn't disabled notifications), silently verify & reuse/sync FCM token.
+ * 3. Does NOT force native permission prompts on page load or clicks.
  */
 export function initNativeNotificationPrompt(overrideRole?: string): () => void {
   if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -142,7 +600,7 @@ export function initNativeNotificationPrompt(overrideRole?: string): () => void 
   // Pre-initialize Firebase client in the background
   initFirebaseClient().catch(() => {});
 
-  // If already granted, perform silent token verification/resync in background
+  // If already granted, perform silent token verification/resync in background without re-prompting
   if (Notification.permission === 'granted') {
     syncFcmTokenSilently(overrideRole).catch(() => {});
   }
@@ -155,7 +613,7 @@ export function initNativeNotificationPrompt(overrideRole?: string): () => void 
  */
 export async function unsubscribeDeviceFromWebPush(): Promise<boolean> {
   try {
-    localStorage.setItem('pos_push_notifications_enabled', 'false');
+    localStorage.setItem(PUSH_ENABLED_KEY, 'false');
   } catch {}
 
   if (!isWebPushSupported()) return true;
@@ -239,9 +697,15 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
   // When Web Push (FCM + active SW) is registered on this browser, briefly yield
   // so the Service Worker `push` event can display and claim `os_notification`
   // first without duplicating alerts in background tabs.
+  let androidSystemDisabled = false;
+  try {
+    androidSystemDisabled = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
+  } catch {}
+
   if (
     typeof Notification !== 'undefined' &&
     Notification.permission === 'granted' &&
+    !androidSystemDisabled &&
     (document.hidden || !document.hasFocus()) &&
     !isNotificationChannelClaimed(dedupeKey, 'os_notification')
   ) {

@@ -13,7 +13,18 @@ import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { GroupedNotificationsResponse, PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { getAllCachedProductsOffline } from '../../utils/offlineDb.ts';
-import { isWebPushSupported, getNotificationPermissionState, isDeviceSubscribedToPush, subscribeDeviceToWebPush, resyncPushSubscriptionIfEnabled, unsubscribeDeviceFromWebPush, connectRealtimeNotificationStream, initNativeNotificationPrompt } from '../../services/pushNotificationClient.ts';
+import {
+  isWebPushSupported,
+  getNotificationPermissionState,
+  subscribeDeviceToWebPush,
+  resyncPushSubscriptionIfEnabled,
+  unsubscribeDeviceFromWebPush,
+  connectRealtimeNotificationStream,
+  initNativeNotificationPrompt,
+  getDetailedPushPermissionStatus,
+  watchNotificationPermissionChanges,
+  type PushPermissionSnapshot,
+} from '../../services/pushNotificationClient.ts';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal.tsx';
 
 interface HeaderProps {
@@ -360,6 +371,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
   const [isTogglingPush, setIsTogglingPush] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => getNotificationPermissionState());
+  const [permissionSnapshot, setPermissionSnapshot] = useState<PushPermissionSnapshot | null>(null);
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
   const isSendingTestPushRef = useRef(false);
   const suppressedLocalTestIdsRef = useRef<Set<string>>(new Set());
@@ -402,32 +414,32 @@ export const Header: React.FC<HeaderProps> = ({
     currentRoleRef.current = currentRole;
   }, [currentRole]);
 
-  // Check push subscription on mount, setup real-time SSE stream, and listen for push status updates
+  const applyPermissionSnapshot = useCallback((snap: PushPermissionSnapshot) => {
+    setPermissionSnapshot(snap);
+    setIsPushSubscribed(snap.effectiveStatus === 'granted' && snap.canReceiveSystemNotifications);
+    setPushPermission(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission);
+  }, []);
+
+  // Sync Firebase push token & permission snapshot on mount and whenever active role changes
   useEffect(() => {
-    // Warm up Firebase client and perform silent background sync if already granted
-    const cleanupNativePrompt = initNativeNotificationPrompt(currentRole);
+    const cleanupNativePrompt = initNativeNotificationPrompt(currentRole || 'ADMIN');
 
-    if (isWebPushSupported()) {
-      resyncPushSubscriptionIfEnabled(currentRole)
-        .catch(() => {})
-        .then(() => isDeviceSubscribedToPush())
-        .then((subbed) => {
-          setIsPushSubscribed(subbed);
-          setPushPermission(getNotificationPermissionState());
-        });
-    }
+    void getDetailedPushPermissionStatus()
+      .then((snap) => applyPermissionSnapshot(snap))
+      .catch(() => {});
 
-    const handlePushStatusChanged = (e: any) => {
-      if (typeof e?.detail?.isSubscribed === 'boolean') {
-        setIsPushSubscribed(e.detail.isSubscribed);
-      }
-      if (e?.detail?.permission) {
-        setPushPermission(e.detail.permission);
-      } else {
-        setPushPermission(getNotificationPermissionState());
-      }
+    const cleanupWatcher = watchNotificationPermissionChanges((snap) => {
+      applyPermissionSnapshot(snap);
+    });
+
+    return () => {
+      cleanupNativePrompt();
+      cleanupWatcher();
     };
-    window.addEventListener('pos:push-status-changed', handlePushStatusChanged);
+  }, [currentRole, applyPermissionSnapshot]);
+
+  // Setup real-time SSE stream and global modal listener
+  useEffect(() => {
 
     // Connect to real-time event stream for active sessions with strict role isolation
     const cleanupStream = connectRealtimeNotificationStream((payload) => {
@@ -532,9 +544,7 @@ export const Header: React.FC<HeaderProps> = ({
     window.addEventListener('pos:show-notification-modal', handleShowNotificationModal);
 
     return () => {
-      cleanupNativePrompt();
       cleanupStream();
-      window.removeEventListener('pos:push-status-changed', handlePushStatusChanged);
       window.removeEventListener('pos:show-notification-modal', handleShowNotificationModal);
       if (bellPulseTimeoutRef.current) {
         clearTimeout(bellPulseTimeoutRef.current);
@@ -542,57 +552,138 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [triggerBellPulse]);
 
+  const effectivePushStatus =
+    permissionSnapshot?.effectiveStatus ||
+    (isPushSubscribed ? 'granted' : pushPermission === 'denied' ? 'browser-denied' : 'default');
+  const isAndroidSystemDisabled = effectivePushStatus === 'android-system-disabled';
+  const isBrowserBlocked = effectivePushStatus === 'browser-denied';
+  const isPushBlockedOrOsDisabled = isAndroidSystemDisabled || isBrowserBlocked;
+
+  const showBlockedOrDisabledModal = useCallback(
+    (snap: PushPermissionSnapshot) => {
+      const androidDisabled =
+        snap.effectiveStatus === 'android-system-disabled' || snap.androidSystemDisabled;
+      setNotificationModalData({
+        isOpen: true,
+        type: 'warning',
+        title: androidDisabled
+          ? 'Android System Notifications Disabled'
+          : 'Notifications Blocked in Browser',
+        message: androidDisabled
+          ? 'Browser notification permission may be granted or unavailable, but Android system notifications (POST_NOTIFICATIONS) or app notifications appear disabled for this app. Enable them in Android Settings so you do not miss live sales and inventory alerts.'
+          : 'Notifications are currently blocked by your browser settings for this store. Please allow notifications in your browser address bar so you do not miss live sales, returns, and inventory alerts.',
+        showAndroidGuide: androidDisabled,
+        showBrowserGuide: !snap.isAndroidTwa,
+        actionText: 'Check Status',
+        onAction: () => {
+          void handleCheckPushPermissionStatus();
+        },
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const handleCheckPushPermissionStatus = async () => {
+    if (isTogglingPush) return;
+    setIsTogglingPush(true);
+    try {
+      const snap = await getDetailedPushPermissionStatus();
+      applyPermissionSnapshot(snap);
+
+      if (snap.effectiveStatus === 'granted') {
+        await resyncPushSubscriptionIfEnabled(currentRole || 'ADMIN').catch(() => false);
+        const refreshed = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(refreshed);
+        if (refreshed.effectiveStatus === 'granted' && refreshed.canReceiveSystemNotifications) {
+          setNotificationModalData({
+            isOpen: true,
+            type: 'success',
+            title: 'Push Notifications Active',
+            message: 'Notifications are enabled and verified on this device.',
+          });
+        } else if (refreshed.effectiveStatus === 'android-system-disabled') {
+          showBlockedOrDisabledModal(refreshed);
+        }
+        return;
+      }
+
+      if (snap.effectiveStatus === 'default') {
+        const res = await subscribeDeviceToWebPush(currentRole || 'ADMIN');
+        const refreshed = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(refreshed);
+        if (res.success && !res.androidSystemDisabled) {
+          setNotificationModalData({
+            isOpen: true,
+            type: 'success',
+            title: res.mode === 'fcm' ? 'Push Notifications Active' : 'Real-Time Alerts Enabled',
+            message:
+              res.warning ||
+              'Real-time notifications are active! You will now receive instant desktop and sound alerts for sales, returns, and inventory movements.',
+          });
+        } else if (res.androidSystemDisabled || res.permission === 'denied') {
+          showBlockedOrDisabledModal(refreshed);
+        }
+        return;
+      }
+
+      showBlockedOrDisabledModal(snap);
+    } finally {
+      setIsTogglingPush(false);
+    }
+  };
+
   const handleTogglePushNotifications = async () => {
     if (isTogglingPush) return;
     setIsTogglingPush(true);
     try {
       if (isPushSubscribed) {
         await unsubscribeDeviceFromWebPush();
-        setIsPushSubscribed(false);
-        setPushPermission(getNotificationPermissionState());
+        const snap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(snap);
         setNotificationModalData({
           isOpen: true,
           type: 'info',
           title: 'Notifications Disabled',
-          message: 'Push notifications have been turned off for this browser session.',
+          message: 'Push notifications have been turned off for this device.',
         });
       } else {
-        const currentPerm = getNotificationPermissionState();
-        if (currentPerm === 'denied') {
-          setPushPermission('denied');
+        const currentSnap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(currentSnap);
+
+        if (!isWebPushSupported() || currentSnap.effectiveStatus === 'unsupported') {
           setNotificationModalData({
             isOpen: true,
-            type: 'warning',
-            title: 'Notifications Blocked in Browser',
-            message: 'Notifications are currently blocked by your browser settings for this store. Please allow notifications in your browser address bar so you do not miss live sales, returns, and inventory alerts.',
-            showBrowserGuide: true,
-            actionText: 'Check Permission',
-            onAction: () => handleTogglePushNotifications(),
+            type: 'error',
+            title: 'Push Notifications Unsupported',
+            message: 'Push notifications require a modern browser with Service Worker and Notification support.',
           });
           return;
         }
 
+        if (
+          currentSnap.effectiveStatus === 'android-system-disabled' ||
+          currentSnap.effectiveStatus === 'browser-denied'
+        ) {
+          showBlockedOrDisabledModal(currentSnap);
+          return;
+        }
+
         const res = await subscribeDeviceToWebPush(currentRole || 'ADMIN');
-        if (res.success) {
-          setIsPushSubscribed(true);
-          setPushPermission('granted');
+        const updatedSnap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(updatedSnap);
+
+        if (res.success && !res.androidSystemDisabled) {
           setNotificationModalData({
             isOpen: true,
             type: 'success',
             title: res.mode === 'fcm' ? 'Push Notifications Active' : 'Real-Time Alerts Enabled',
-            message: res.warning || 'Real-time notifications are active! You will now receive instant desktop and sound alerts for sales, returns, and inventory movements.',
+            message:
+              res.warning ||
+              'Real-time notifications are active! You will now receive instant desktop and sound alerts for sales, returns, and inventory movements.',
           });
-        } else if (res.permission === 'denied') {
-          setPushPermission('denied');
-          setNotificationModalData({
-            isOpen: true,
-            type: 'warning',
-            title: 'Notification Permission Blocked',
-            message: 'Notification permission was denied. You can unblock notifications anytime in your browser address bar.',
-            showBrowserGuide: true,
-            actionText: 'Check Again',
-            onAction: () => handleTogglePushNotifications(),
-          });
+        } else if (res.androidSystemDisabled || res.permission === 'denied') {
+          showBlockedOrDisabledModal(updatedSnap);
         } else if (res.error) {
           setNotificationModalData({
             isOpen: true,
@@ -600,8 +691,10 @@ export const Header: React.FC<HeaderProps> = ({
             title: 'Notification Setup Notice',
             message: res.error,
             details: res.error,
-            actionText: 'Retry',
-            onAction: () => handleTogglePushNotifications(),
+            actionText: 'Check Status',
+            onAction: () => {
+              void handleCheckPushPermissionStatus();
+            },
           });
         }
       }
@@ -611,12 +704,13 @@ export const Header: React.FC<HeaderProps> = ({
         type: 'error',
         title: 'Notification Error',
         message: 'Could not update notification settings: ' + (err?.message || err),
-        actionText: 'Try Again',
-        onAction: () => handleTogglePushNotifications(),
+        actionText: 'Check Status',
+        onAction: () => {
+          void handleCheckPushPermissionStatus();
+        },
       });
     } finally {
       setIsTogglingPush(false);
-      setPushPermission(getNotificationPermissionState());
     }
   };
 
@@ -1651,23 +1745,40 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                       isPushSubscribed
                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                        : pushPermission === 'denied'
+                        : isAndroidSystemDisabled
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                        : isBrowserBlocked
                         ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700'
                         : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     }`}>
-                      {isPushSubscribed ? 'Active' : pushPermission === 'denied' ? 'Blocked' : 'Off'}
+                      {isPushSubscribed
+                        ? 'Active'
+                        : isAndroidSystemDisabled
+                        ? 'OS Disabled'
+                        : isBrowserBlocked
+                        ? 'Blocked'
+                        : 'Off'}
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-600 dark:text-purple-200/80 leading-snug mb-2">
-                    Real-time alerts for Sales, Returns & Exchanges sent to your phone and browser.
+                    Real-time alerts for Sales, Returns &amp; Exchanges sent to your phone and browser.
                   </p>
 
-                  {/* Contextual guidance if user previously blocked notifications in browser settings */}
-                  {pushPermission === 'denied' && (
+                  {/* Contextual guidance when Android system settings or browser site settings block notifications */}
+                  {isAndroidSystemDisabled && (
                     <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-800 dark:text-amber-200 flex items-start gap-1.5 leading-snug">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <span>
-                        Notifications are blocked in your browser. Click the site settings icon (🔒) in your address bar, set Notifications to <strong>Allow</strong>, then tap <strong>Check Permission</strong>.
+                        Android system notifications appear disabled. Open <strong>Android Settings → Apps → SarbaazSoft POS → Notifications</strong> to allow alerts, then tap <strong>Check Status</strong>.
+                      </span>
+                    </div>
+                  )}
+
+                  {isBrowserBlocked && (
+                    <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-800 dark:text-amber-200 flex items-start gap-1.5 leading-snug">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <span>
+                        Notifications are blocked in your browser. Click the site settings icon (🔒) in your address bar, set Notifications to <strong>Allow</strong>, then tap <strong>Check Status</strong>.
                       </span>
                     </div>
                   )}
@@ -1677,13 +1788,17 @@ export const Header: React.FC<HeaderProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleTogglePushNotifications();
+                        if (isPushBlockedOrOsDisabled) {
+                          void handleCheckPushPermissionStatus();
+                        } else {
+                          void handleTogglePushNotifications();
+                        }
                       }}
                       disabled={isTogglingPush}
                       className={`flex-1 py-1 px-2 rounded-md font-semibold text-[10.5px] transition cursor-pointer flex items-center justify-center gap-1 ${
                         isPushSubscribed
                           ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
-                          : pushPermission === 'denied'
+                          : isPushBlockedOrOsDisabled
                           ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                           : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
                       }`}
@@ -1692,8 +1807,8 @@ export const Header: React.FC<HeaderProps> = ({
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : isPushSubscribed ? (
                         'Disable Push'
-                      ) : pushPermission === 'denied' ? (
-                        'Check Permission'
+                      ) : isPushBlockedOrOsDisabled ? (
+                        'Check Status'
                       ) : (
                         'Enable Push'
                       )}

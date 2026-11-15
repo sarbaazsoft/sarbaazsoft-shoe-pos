@@ -335,10 +335,36 @@ export async function showGroupedShadeNotification(
       }
       if (reg && reg.active && typeof reg.showNotification === 'function') {
         await showGroupedWithRegistration(reg, title, options);
+        if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('pos:notification-delivery-restored'));
+        }
         return true;
       }
-    } catch {
-      // Fall back to window.Notification if SW showNotification fails
+    } catch (swErr: any) {
+      const errName = String(swErr?.name || '').toLowerCase();
+      const errMsg = String(swErr?.message || swErr || '').toLowerCase();
+      const isPermissionOrDelegationError =
+        errName === 'notallowederror' ||
+        errName === 'securityerror' ||
+        errMsg.includes('permission') ||
+        errMsg.includes('not allowed') ||
+        errMsg.includes('blocked') ||
+        errMsg.includes('disabled');
+      if (
+        isPermissionOrDelegationError &&
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted' &&
+        typeof window !== 'undefined' &&
+        typeof CustomEvent !== 'undefined'
+      ) {
+        window.dispatchEvent(
+          new CustomEvent('pos:notification-delivery-blocked', {
+            detail: { reason: 'delivery-rejected' },
+          })
+        );
+        return false;
+      }
+      // Fall back to window.Notification if SW showNotification fails for non-permission reasons
     }
   }
 
@@ -357,8 +383,21 @@ export async function showGroupedShadeNotification(
         };
       }
       return true;
-    } catch {
-      // Android Chrome throws Illegal constructor on `new Notification()` when no active SW handled it
+    } catch (fallbackErr: any) {
+      // Android Chrome throws Illegal constructor on `new Notification()` when no active SW handled it,
+      // or NotAllowedError if OS notifications are blocked.
+      const errName = String(fallbackErr?.name || '').toLowerCase();
+      if (
+        errName === 'notallowederror' &&
+        typeof window !== 'undefined' &&
+        typeof CustomEvent !== 'undefined'
+      ) {
+        window.dispatchEvent(
+          new CustomEvent('pos:notification-delivery-blocked', {
+            detail: { reason: 'delivery-rejected' },
+          })
+        );
+      }
     }
   }
 

@@ -22,7 +22,18 @@ import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength';
-import { initNativeNotificationPrompt, isDeviceSubscribedToPush, getNotificationPermissionState, subscribeDeviceToWebPush, unsubscribeDeviceFromWebPush, connectRealtimeNotificationStream } from '../../services/pushNotificationClient';
+import {
+  initNativeNotificationPrompt,
+  getNotificationPermissionState,
+  subscribeDeviceToWebPush,
+  unsubscribeDeviceFromWebPush,
+  connectRealtimeNotificationStream,
+  getDetailedPushPermissionStatus,
+  watchNotificationPermissionChanges,
+  resyncPushSubscriptionIfEnabled,
+  isWebPushSupported,
+  type PushPermissionSnapshot,
+} from '../../services/pushNotificationClient';
 import { claimNotificationChannel } from '../../utils/notificationDedupe';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -75,7 +86,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   // SuperAdmin Push Notification state (equivalent to Store Owner Header.tsx)
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
-  const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => getNotificationPermissionState());
+  const [permissionSnapshot, setPermissionSnapshot] = useState<PushPermissionSnapshot | null>(null);
   const [isTogglingPush, setIsTogglingPush] = useState(false);
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
   const isSendingTestPushRef = useRef(false);
@@ -316,17 +328,31 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     }
   }, [isSuperAdmin]);
 
-  // Sync push notification subscription status and permission on mount
+  const applyPermissionSnapshot = useCallback((snap: PushPermissionSnapshot) => {
+    setPermissionSnapshot(snap);
+    setIsPushSubscribed(snap.effectiveStatus === 'granted' && snap.canReceiveSystemNotifications);
+    setPushPermission(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission);
+  }, []);
+
+  // Sync push notification subscription status, silent token reuse, and permission on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPushPermission(getNotificationPermissionState());
-      isDeviceSubscribedToPush()
-        .then((subscribed) => {
-          setIsPushSubscribed(subscribed);
-        })
-        .catch(() => {});
-    }
-  }, [isSuperAdmin]);
+    const cleanupNativePrompt = isSuperAdmin
+      ? initNativeNotificationPrompt('SUPERADMIN')
+      : () => {};
+
+    void getDetailedPushPermissionStatus()
+      .then((snap) => applyPermissionSnapshot(snap))
+      .catch(() => {});
+
+    const cleanupWatcher = watchNotificationPermissionChanges((snap) => {
+      applyPermissionSnapshot(snap);
+    });
+
+    return () => {
+      cleanupNativePrompt();
+      cleanupWatcher();
+    };
+  }, [isSuperAdmin, applyPermissionSnapshot]);
 
   // Connect real-time Server-Sent Events (SSE) stream for SuperAdmin
   useEffect(() => {
@@ -352,6 +378,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           actionText: e.detail.actionText,
           onAction: e.detail.onAction,
           showBrowserGuide: e.detail.showBrowserGuide,
+          showAndroidGuide: e.detail.showAndroidGuide,
         });
       }
     };
@@ -359,13 +386,95 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     return () => window.removeEventListener('pos:show-notification-modal', handleShowModal);
   }, []);
 
+  const effectivePushStatus =
+    permissionSnapshot?.effectiveStatus ||
+    (isPushSubscribed ? 'granted' : pushPermission === 'denied' ? 'browser-denied' : 'default');
+  const isAndroidSystemDisabled = effectivePushStatus === 'android-system-disabled';
+  const isBrowserBlocked = effectivePushStatus === 'browser-denied';
+  const isPushBlockedOrOsDisabled = isAndroidSystemDisabled || isBrowserBlocked;
+
+  const showBlockedOrDisabledModal = useCallback(
+    (snap: PushPermissionSnapshot) => {
+      const androidDisabled =
+        snap.effectiveStatus === 'android-system-disabled' || snap.androidSystemDisabled;
+      setNotificationModalData({
+        isOpen: true,
+        type: 'warning',
+        title: androidDisabled
+          ? 'Android System Notifications Disabled'
+          : 'Notifications Blocked in Browser',
+        message: androidDisabled
+          ? 'Browser notification permission may be granted or unavailable, but Android system notifications (POST_NOTIFICATIONS) or app notifications appear disabled for this app. Enable them in Android Settings to receive instant SuperAdmin alerts.'
+          : 'Notification permission is blocked by your browser settings. Please allow notifications in your browser address bar to receive instant SuperAdmin alerts.',
+        showAndroidGuide: androidDisabled,
+        showBrowserGuide: !snap.isAndroidTwa,
+        actionText: 'Check Status',
+        onAction: () => {
+          void handleCheckPushPermissionStatus();
+        },
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const handleCheckPushPermissionStatus = async () => {
+    if (isTogglingPush) return;
+    setIsTogglingPush(true);
+    try {
+      const snap = await getDetailedPushPermissionStatus();
+      applyPermissionSnapshot(snap);
+
+      if (snap.effectiveStatus === 'granted') {
+        await resyncPushSubscriptionIfEnabled('SUPERADMIN').catch(() => false);
+        const refreshed = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(refreshed);
+        if (refreshed.effectiveStatus === 'granted' && refreshed.canReceiveSystemNotifications) {
+          setNotificationModalData({
+            isOpen: true,
+            type: 'success',
+            title: 'SuperAdmin Push Notifications Active',
+            message: 'SuperAdmin notifications are enabled and verified on this device.',
+          });
+        } else if (refreshed.effectiveStatus === 'android-system-disabled') {
+          showBlockedOrDisabledModal(refreshed);
+        }
+        return;
+      }
+
+      if (snap.effectiveStatus === 'default') {
+        const res = await subscribeDeviceToWebPush('SUPERADMIN');
+        const refreshed = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(refreshed);
+        if (res.success && !res.androidSystemDisabled) {
+          setNotificationModalData({
+            isOpen: true,
+            type: 'success',
+            title: res.mode === 'fcm' ? 'SuperAdmin Push Notifications Active' : 'Real-Time Alerts Enabled',
+            message:
+              res.warning ||
+              'SuperAdmin push notifications are active on this device! You will receive instant alerts for subscriptions, new store trials, and operational updates.',
+          });
+        } else if (res.androidSystemDisabled || res.permission === 'denied') {
+          showBlockedOrDisabledModal(refreshed);
+        }
+        return;
+      }
+
+      showBlockedOrDisabledModal(snap);
+    } finally {
+      setIsTogglingPush(false);
+    }
+  };
+
   const handleTogglePushNotifications = async () => {
     if (isTogglingPush) return;
     setIsTogglingPush(true);
     try {
       if (isPushSubscribed) {
         await unsubscribeDeviceFromWebPush();
-        setIsPushSubscribed(false);
+        const snap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(snap);
         setNotificationModalData({
           isOpen: true,
           type: 'info',
@@ -373,27 +482,42 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           message: 'Push notifications have been disabled on this browser device.',
         });
       } else {
+        const currentSnap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(currentSnap);
+
+        if (!isWebPushSupported() || currentSnap.effectiveStatus === 'unsupported') {
+          setNotificationModalData({
+            isOpen: true,
+            type: 'error',
+            title: 'Push Notifications Unsupported',
+            message: 'Push notifications require a modern browser with Service Worker and Notification support.',
+          });
+          return;
+        }
+
+        if (
+          currentSnap.effectiveStatus === 'android-system-disabled' ||
+          currentSnap.effectiveStatus === 'browser-denied'
+        ) {
+          showBlockedOrDisabledModal(currentSnap);
+          return;
+        }
+
         const res = await subscribeDeviceToWebPush('SUPERADMIN');
-        if (res.success) {
-          setIsPushSubscribed(true);
-          setPushPermission('granted');
+        const updatedSnap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(updatedSnap);
+
+        if (res.success && !res.androidSystemDisabled) {
           setNotificationModalData({
             isOpen: true,
             type: 'success',
             title: res.mode === 'fcm' ? 'SuperAdmin Push Notifications Active' : 'Real-Time Alerts Enabled',
-            message: res.warning || 'SuperAdmin push notifications are active on this device! You will receive instant alerts for subscriptions, new store trials, and operational updates.',
+            message:
+              res.warning ||
+              'SuperAdmin push notifications are active on this device! You will receive instant alerts for subscriptions, new store trials, and operational updates.',
           });
-        } else if (res.permission === 'denied') {
-          setPushPermission('denied');
-          setNotificationModalData({
-            isOpen: true,
-            type: 'warning',
-            title: 'Notifications Blocked in Browser',
-            message: 'Notification permission is blocked by your browser settings. Please allow notifications in your browser address bar to receive instant SuperAdmin alerts.',
-            showBrowserGuide: true,
-            actionText: 'Check Permission',
-            onAction: () => handleTogglePushNotifications(),
-          });
+        } else if (res.androidSystemDisabled || res.permission === 'denied') {
+          showBlockedOrDisabledModal(updatedSnap);
         } else if (res.error) {
           setNotificationModalData({
             isOpen: true,
@@ -401,8 +525,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             title: 'Notification Setup Notice',
             message: res.error,
             details: res.error,
-            actionText: 'Retry',
-            onAction: () => handleTogglePushNotifications(),
+            actionText: 'Check Status',
+            onAction: () => {
+              void handleCheckPushPermissionStatus();
+            },
           });
         }
       }
@@ -412,12 +538,13 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         type: 'error',
         title: 'Notification Setup Error',
         message: 'Could not update push notification settings: ' + (err?.message || err),
-        actionText: 'Try Again',
-        onAction: () => handleTogglePushNotifications(),
+        actionText: 'Check Status',
+        onAction: () => {
+          void handleCheckPushPermissionStatus();
+        },
       });
     } finally {
       setIsTogglingPush(false);
-      setPushPermission(getNotificationPermissionState());
     }
   };
 
@@ -441,6 +568,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       if (
         res.success &&
         !deliveredViaFcm &&
+        !isAndroidSystemDisabled &&
         typeof Notification !== 'undefined' &&
         Notification.permission === 'granted' &&
         claimNotificationChannel(dedupeKey, 'os_notification')
@@ -456,6 +584,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 tag: res.eventId || eventId,
                 data: { url: '/admin', isAdmin: 'true' },
               });
+              window.dispatchEvent(new CustomEvent('pos:notification-delivery-restored'));
             } else {
               new Notification('🔔 SuperAdmin Test Push Alert', {
                 body: 'SuperAdmin push alert test confirmed on this device.',
@@ -472,7 +601,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               tag: res.eventId || eventId,
             });
           }
-        } catch {}
+        } catch (notifErr: any) {
+          const errName = String(notifErr?.name || '').toLowerCase();
+          if (errName === 'notallowederror' || errName === 'securityerror') {
+            window.dispatchEvent(
+              new CustomEvent('pos:notification-delivery-blocked', {
+                detail: { reason: 'delivery-rejected' },
+              })
+            );
+          }
+        }
       }
 
       if (res.success) {
@@ -2390,27 +2528,51 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                           isPushSubscribed
                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                            : pushPermission === 'denied'
+                            : isAndroidSystemDisabled
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                            : isBrowserBlocked
                             ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700'
                             : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                         }`}>
-                          {isPushSubscribed ? 'Active' : pushPermission === 'denied' ? 'Blocked' : 'Off'}
+                          {isPushSubscribed
+                            ? 'Active'
+                            : isAndroidSystemDisabled
+                            ? 'OS Disabled'
+                            : isBrowserBlocked
+                            ? 'Blocked'
+                            : 'Off'}
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-600 dark:text-purple-200/80 leading-snug mb-1.5">
                         Real-time push alerts for store trial requests, license renewals &amp; system notices.
                       </p>
+                      {isAndroidSystemDisabled && (
+                        <p className="text-[9.5px] text-amber-700 dark:text-amber-300 leading-snug mb-1.5">
+                          Android system notifications disabled. Enable in Android Settings → Apps → Notifications.
+                        </p>
+                      )}
+                      {isBrowserBlocked && (
+                        <p className="text-[9.5px] text-rose-700 dark:text-rose-300 leading-snug mb-1.5">
+                          Notifications blocked in browser settings. Allow via the 🔒 icon, then tap Check Status.
+                        </p>
+                      )}
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleTogglePushNotifications();
+                            if (isPushBlockedOrOsDisabled) {
+                              void handleCheckPushPermissionStatus();
+                            } else {
+                              void handleTogglePushNotifications();
+                            }
                           }}
                           disabled={isTogglingPush}
                           className={`flex-1 py-1 px-2 rounded-md font-semibold text-[10.5px] transition cursor-pointer flex items-center justify-center gap-1 ${
                             isPushSubscribed
                               ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
+                              : isPushBlockedOrOsDisabled
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                               : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
                           }`}
                         >
@@ -2418,6 +2580,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                             <Loader2 className="w-3 h-3 animate-spin" />
                           ) : isPushSubscribed ? (
                             'Disable Push'
+                          ) : isPushBlockedOrOsDisabled ? (
+                            'Check Status'
                           ) : (
                             'Enable Push'
                           )}
@@ -4952,21 +5116,41 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   <div className="flex items-center gap-2 flex-wrap shrink-0 self-start md:self-center">
                     <button
                       type="button"
-                      onClick={handleTogglePushNotifications}
+                      onClick={() => {
+                        if (isPushBlockedOrOsDisabled) {
+                          void handleCheckPushPermissionStatus();
+                        } else {
+                          void handleTogglePushNotifications();
+                        }
+                      }}
                       disabled={isTogglingPush}
                       className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 border ${
                         isPushSubscribed
                           ? 'bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-800/40'
+                          : isPushBlockedOrOsDisabled
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs border-amber-500'
                           : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs border-purple-500'
                       }`}
-                      title={isPushSubscribed ? 'Disable push notifications on this device' : 'Enable push notifications on this device'}
+                      title={
+                        isPushSubscribed
+                          ? 'Disable push notifications on this device'
+                          : isPushBlockedOrOsDisabled
+                          ? 'Check notification permission status'
+                          : 'Enable push notifications on this device'
+                      }
                     >
                       {isTogglingPush ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <Radio className={`w-3.5 h-3.5 ${isPushSubscribed ? 'text-emerald-500 animate-pulse' : ''}`} />
                       )}
-                      <span>{isPushSubscribed ? 'Disable Push' : 'Enable Push'}</span>
+                      <span>
+                        {isPushSubscribed
+                          ? 'Disable Push'
+                          : isPushBlockedOrOsDisabled
+                          ? 'Check Status'
+                          : 'Enable Push'}
+                      </span>
                     </button>
 
                     <button
@@ -5021,33 +5205,57 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                           isPushSubscribed
                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                            : pushPermission === 'denied'
+                            : isAndroidSystemDisabled
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                            : isBrowserBlocked
                             ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700'
                             : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                         }`}>
-                          {isPushSubscribed ? 'Active' : pushPermission === 'denied' ? 'Blocked' : 'Off'}
+                          {isPushSubscribed
+                            ? 'Active'
+                            : isAndroidSystemDisabled
+                            ? 'OS Disabled'
+                            : isBrowserBlocked
+                            ? 'Blocked'
+                            : 'Off'}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Receive instant alerts on this browser and mobile device for store trial activations, subscription renewals &amp; critical platform events.
+                        {isAndroidSystemDisabled
+                          ? 'Android system notifications (POST_NOTIFICATIONS) appear disabled for this app. Enable them in Android Settings → Apps → Notifications, then tap Check Status.'
+                          : isBrowserBlocked
+                          ? 'Notifications are blocked in your browser site settings. Allow notifications via the 🔒 icon in the address bar, then tap Check Status.'
+                          : 'Receive instant alerts on this browser and mobile device for store trial activations, subscription renewals & critical platform events.'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={handleTogglePushNotifications}
+                      onClick={() => {
+                        if (isPushBlockedOrOsDisabled) {
+                          void handleCheckPushPermissionStatus();
+                        } else {
+                          void handleTogglePushNotifications();
+                        }
+                      }}
                       disabled={isTogglingPush}
                       className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs ${
                         isPushSubscribed
                           ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
+                          : isPushBlockedOrOsDisabled
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white'
                           : 'bg-purple-600 hover:bg-purple-700 text-white'
                       }`}
                     >
                       {isTogglingPush ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : isPushSubscribed ? (
+                        'Disable Push'
+                      ) : isPushBlockedOrOsDisabled ? (
+                        'Check Status'
                       ) : (
-                        isPushSubscribed ? 'Disable Push' : 'Enable Push'
+                        'Enable Push'
                       )}
                     </button>
                     <button

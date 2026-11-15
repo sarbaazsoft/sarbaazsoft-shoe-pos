@@ -11,6 +11,7 @@ export interface NotificationModalData {
   actionText?: string;
   onAction?: () => void;
   showBrowserGuide?: boolean;
+  showAndroidGuide?: boolean;
 }
 
 interface NotificationStatusModalProps {
@@ -29,6 +30,7 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
     actionText,
     onAction,
     showBrowserGuide,
+    showAndroidGuide,
   } = modal;
 
   const getIcon = () => {
@@ -115,6 +117,27 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
               <p>{message}</p>
             </div>
 
+            {/* Android System / TWA Guide when Android 13+ POST_NOTIFICATIONS or app notifications are disabled */}
+            {showAndroidGuide && (
+              <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300 text-xs">
+                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Enable Notifications in Android Settings:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-amber-800 dark:text-amber-300/90 pl-1 leading-normal">
+                  <li>
+                    Open <strong>Android Settings → Apps → SarbaazSoft POS</strong> (and Chrome if using the web app).
+                  </li>
+                  <li>
+                    Tap <strong>Notifications</strong> and turn ON <strong>Allow notifications</strong>.
+                  </li>
+                  <li>
+                    Return here and tap <strong>Check Status</strong> to confirm system delivery is active.
+                  </li>
+                </ol>
+              </div>
+            )}
+
             {/* Browser Guide when permission is blocked */}
             {showBrowserGuide && (
               <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 space-y-2">
@@ -124,7 +147,7 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
                 </div>
                 <ol className="list-decimal list-inside space-y-1 text-[11px] text-amber-800 dark:text-amber-300/90 pl-1 leading-normal">
                   <li>
-                    Look at your browser's address bar at the top and tap the{' '}
+                    Look at your browser&apos;s address bar at the top and tap the{' '}
                     <strong>lock or site settings icon (🔒)</strong>.
                   </li>
                   <li>
@@ -132,7 +155,7 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
                     <strong>Allow</strong>.
                   </li>
                   <li>
-                    Return here and tap <strong>Check Permission</strong> or refresh the page.
+                    Return here and tap <strong>Check Status</strong> or refresh the page.
                   </li>
                 </ol>
               </div>

@@ -17,9 +17,14 @@ import {
 import { api } from '../../services/api.ts';
 import {
   requestFcmDeviceToken,
-  getStoredFcmToken,
   invalidateFcmConfigCache,
 } from '../../services/firebaseConfig.ts';
+import {
+  getDetailedPushPermissionStatus,
+  watchNotificationPermissionChanges,
+  resyncPushSubscriptionIfEnabled,
+  type PushPermissionSnapshot,
+} from '../../services/pushNotificationClient.ts';
 
 interface NotificationAlertProvidersSettingsProps {
   formData?: any;
@@ -61,6 +66,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
   // Device registration state
   const [isSubscribingThisDevice, setIsSubscribingThisDevice] = useState(false);
   const [thisDeviceSubscribed, setThisDeviceSubscribed] = useState(false);
+  const [permissionSnapshot, setPermissionSnapshot] = useState<PushPermissionSnapshot | null>(null);
   const [deviceStats, setDeviceStats] = useState<{
     configured: boolean;
     projectId: string;
@@ -73,13 +79,30 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     tokensByRole: {},
   });
 
+  const getActiveUserRole = (): string => {
+    try {
+      const raw = localStorage.getItem('pos_current_user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.role) return String(parsed.role).toUpperCase();
+      }
+    } catch {}
+    return 'ADMIN';
+  };
+
+  const applyPermissionSnapshot = (snap: PushPermissionSnapshot) => {
+    setPermissionSnapshot(snap);
+    setThisDeviceSubscribed(snap.effectiveStatus === 'granted' && snap.canReceiveSystemNotifications);
+  };
+
   // Load app settings from server
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const [appSettingsRes, statsRes] = await Promise.all([
+      const [appSettingsRes, statsRes, permSnap] = await Promise.all([
         api.settings.getAppSettings().catch(() => null),
         api.notifications.getFcmStats().catch(() => null),
+        getDetailedPushPermissionStatus().catch(() => null),
       ]);
 
       if (appSettingsRes?.appSettings) {
@@ -100,7 +123,9 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         setDeviceStats(statsRes);
       }
 
-      setThisDeviceSubscribed(Boolean(getStoredFcmToken()));
+      if (permSnap) {
+        applyPermissionSnapshot(permSnap);
+      }
     } catch (err: any) {
       console.warn('Could not load FCM settings:', err);
     } finally {
@@ -109,7 +134,13 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
   };
 
   useEffect(() => {
-    loadSettings();
+    void loadSettings();
+    const cleanup = watchNotificationPermissionChanges((snap) => {
+      applyPermissionSnapshot(snap);
+    });
+    return () => {
+      cleanup();
+    };
   }, []);
 
   const handleChange = (key: keyof typeof fcmSettings, value: string) => {
@@ -185,10 +216,51 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
 
   const handleSubscribeThisDevice = async () => {
     setIsSubscribingThisDevice(true);
+    setTestResult(null);
+    const activeRole = getActiveUserRole();
     try {
-      const res = await requestFcmDeviceToken('ADMIN');
-      if (res.success) {
-        setThisDeviceSubscribed(true);
+      const currentSnap = await getDetailedPushPermissionStatus();
+      applyPermissionSnapshot(currentSnap);
+
+      if (currentSnap.effectiveStatus === 'android-system-disabled') {
+        setTestResult({
+          success: false,
+          message:
+            'Browser permission may be granted, but Android system notifications (POST_NOTIFICATIONS) are disabled for this app. Enable them in Android Settings → Apps → Notifications, then tap Check Status.',
+        });
+        return;
+      }
+
+      if (currentSnap.effectiveStatus === 'browser-denied') {
+        setTestResult({
+          success: false,
+          message:
+            'Notifications are blocked in your browser site settings. Click the lock/site-settings icon (🔒) in your address bar to set Notifications to Allow.',
+        });
+        return;
+      }
+
+      if (currentSnap.effectiveStatus === 'granted' && currentSnap.canReceiveSystemNotifications) {
+        const synced = await resyncPushSubscriptionIfEnabled(activeRole);
+        const latestSnap = await getDetailedPushPermissionStatus();
+        applyPermissionSnapshot(latestSnap);
+        const stats = await api.notifications.getFcmStats().catch(() => null);
+        if (stats) setDeviceStats(stats);
+        setTestResult({
+          success: synced || latestSnap.canReceiveSystemNotifications,
+          message:
+            synced || latestSnap.canReceiveSystemNotifications
+              ? '✓ Existing notification permission & FCM subscription verified for this device!'
+              : 'Could not verify push token with the server. Check your FCM credentials above.',
+        });
+        return;
+      }
+
+      const res = await requestFcmDeviceToken(activeRole);
+      const refreshedSnap = await getDetailedPushPermissionStatus();
+      applyPermissionSnapshot(refreshedSnap);
+
+      if (res.success && !res.androidSystemDisabled) {
         const stats = await api.notifications.getFcmStats().catch(() => null);
         if (stats) setDeviceStats(stats);
         setTestResult({
@@ -259,14 +331,26 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         </div>
 
         <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">This Browser</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">This Device</span>
           <span
             className={`text-xs font-bold font-mono mt-0.5 flex items-center gap-1 ${
-              thisDeviceSubscribed ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
+              thisDeviceSubscribed
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : permissionSnapshot?.effectiveStatus === 'android-system-disabled'
+                ? 'text-amber-600 dark:text-amber-400'
+                : permissionSnapshot?.effectiveStatus === 'browser-denied'
+                ? 'text-rose-600 dark:text-rose-400'
+                : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             <Laptop className="w-3.5 h-3.5" />
-            {thisDeviceSubscribed ? 'Subscribed' : 'Not Subscribed'}
+            {thisDeviceSubscribed
+              ? 'Subscribed'
+              : permissionSnapshot?.effectiveStatus === 'android-system-disabled'
+              ? 'OS Disabled'
+              : permissionSnapshot?.effectiveStatus === 'browser-denied'
+              ? 'Blocked'
+              : 'Not Subscribed'}
           </span>
         </div>
       </div>
@@ -474,7 +558,14 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
             <BellRing className={`w-3.5 h-3.5 text-purple-500 ${isSubscribingThisDevice ? 'animate-spin' : ''}`} />
-            <span>{thisDeviceSubscribed ? 'Re-register This Device' : 'Enable Push on This Device'}</span>
+            <span>
+              {thisDeviceSubscribed
+                ? 'Verify Device Registration'
+                : permissionSnapshot?.effectiveStatus === 'android-system-disabled' ||
+                  permissionSnapshot?.effectiveStatus === 'browser-denied'
+                ? 'Check Status'
+                : 'Enable Push on This Device'}
+            </span>
           </button>
 
           <button

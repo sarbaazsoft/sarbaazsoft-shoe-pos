@@ -12,9 +12,13 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import {
-  shouldShowSoftPushPrompt,
+  shouldShowSoftPushPromptAsync,
   dismissSoftPushPrompt,
   subscribeDeviceToWebPush,
+  getDetailedPushPermissionStatus,
+  watchNotificationPermissionChanges,
+  resyncPushSubscriptionIfEnabled,
+  type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
 import { playAudioFeedback } from '../../utils/audio.ts';
 
@@ -40,42 +44,90 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
 
   const userRole = String(currentUser?.role || 'ADMIN').toUpperCase();
 
-  const evaluateVisibility = () => {
-    // Only show if user is authenticated and browser hasn't decided or user hasn't dismissed recently
+  const evaluateVisibility = async () => {
+    // Only show if user is authenticated and permission state is genuinely undecided ('default')
     if (!currentUser) {
       setIsVisible(false);
       return;
     }
-    const eligible = shouldShowSoftPushPrompt();
+    const eligible = await shouldShowSoftPushPromptAsync();
     setIsVisible(eligible);
   };
 
   useEffect(() => {
     // Delay prompt slightly so user lands on dashboard first
     const timer = setTimeout(() => {
-      evaluateVisibility();
+      void evaluateVisibility();
     }, 1200);
 
     const handleSoftPromptUpdated = () => {
-      evaluateVisibility();
+      void evaluateVisibility();
     };
 
-    const handlePushStatusChanged = (e: any) => {
-      const perm = e?.detail?.permission;
-      if (perm && perm !== 'default') {
+    const cleanupWatcher = watchNotificationPermissionChanges((snap: PushPermissionSnapshot) => {
+      if (snap.effectiveStatus !== 'default') {
         setIsVisible(false);
+      } else {
+        void evaluateVisibility();
       }
-    };
+    });
 
     window.addEventListener('pos:push-soft-prompt-updated', handleSoftPromptUpdated);
-    window.addEventListener('pos:push-status-changed', handlePushStatusChanged);
 
     return () => {
       clearTimeout(timer);
+      cleanupWatcher();
       window.removeEventListener('pos:push-soft-prompt-updated', handleSoftPromptUpdated);
-      window.removeEventListener('pos:push-status-changed', handlePushStatusChanged);
     };
   }, [currentUser]);
+
+  const showBlockedModal = (snap: PushPermissionSnapshot) => {
+    const isAndroidBlocked = snap.effectiveStatus === 'android-system-disabled' || snap.androidSystemDisabled;
+    window.dispatchEvent(
+      new CustomEvent('pos:show-notification-modal', {
+        detail: {
+          type: 'warning',
+          title: isAndroidBlocked ? 'Android Notifications Disabled' : 'Notifications Blocked in Browser',
+          message: isAndroidBlocked
+            ? 'Notifications appear disabled in Android system settings or app permissions. Please allow notifications for SarbaazSoft POS (and Chrome) in Android Settings so you do not miss live sales, returns, and inventory alerts.'
+            : 'Notifications are currently blocked by your browser settings for this store. Please allow notifications in your browser address bar so you do not miss live sales, returns, and inventory alerts.',
+          showAndroidGuide: isAndroidBlocked,
+          showBrowserGuide: !snap.isAndroidTwa,
+          actionText: 'Check Status',
+          onAction: () => {
+            void handleInspectPermissionStatus();
+          },
+        },
+      })
+    );
+  };
+
+  const handleInspectPermissionStatus = async () => {
+    const snap = await getDetailedPushPermissionStatus();
+    if (snap.effectiveStatus === 'granted') {
+      await resyncPushSubscriptionIfEnabled(userRole).catch(() => false);
+      onPermissionChange?.('granted', true);
+      setIsVisible(false);
+      window.dispatchEvent(
+        new CustomEvent('pos:show-notification-modal', {
+          detail: {
+            type: 'success',
+            title: 'Push Notifications Active',
+            message: 'Real-time notifications are enabled and active on this device.',
+          },
+        })
+      );
+      return;
+    }
+
+    if (snap.effectiveStatus === 'default') {
+      await handleAllowClick();
+      return;
+    }
+
+    onPermissionChange?.(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission, false);
+    showBlockedModal(snap);
+  };
 
   const handleAllowClick = async () => {
     if (isSubscribing) return;
@@ -83,6 +135,29 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
     setStatusFeedback(null);
 
     try {
+      const currentSnap = await getDetailedPushPermissionStatus();
+
+      if (currentSnap.effectiveStatus === 'granted') {
+        await resyncPushSubscriptionIfEnabled(userRole).catch(() => false);
+        onPermissionChange?.('granted', true);
+        setIsVisible(false);
+        return;
+      }
+
+      if (
+        currentSnap.effectiveStatus === 'browser-denied' ||
+        currentSnap.effectiveStatus === 'android-system-disabled'
+      ) {
+        onPermissionChange?.(
+          currentSnap.browserPermission === 'unsupported' ? 'denied' : currentSnap.browserPermission,
+          false
+        );
+        showBlockedModal(currentSnap);
+        dismissSoftPushPrompt(7);
+        setIsVisible(false);
+        return;
+      }
+
       const res = await subscribeDeviceToWebPush(userRole);
 
       if (res.success && res.permission === 'granted') {
@@ -111,26 +186,17 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
         setTimeout(() => {
           setIsVisible(false);
         }, 1600);
-      } else if (res.permission === 'denied') {
+      } else if (res.androidSystemDisabled || res.permission === 'denied') {
+        const updatedSnap = await getDetailedPushPermissionStatus();
         setStatusFeedback({
           type: 'denied',
-          message: 'Notifications are blocked in your browser. You can enable them anytime from the top notification menu.',
+          message: res.androidSystemDisabled
+            ? 'Notifications appear disabled in Android system settings. Enable them in Android Settings → Apps → Notifications.'
+            : 'Notifications are blocked in your browser. You can check status anytime from the top notification menu.',
         });
 
-        onPermissionChange?.('denied', false);
-
-        window.dispatchEvent(
-          new CustomEvent('pos:show-notification-modal', {
-            detail: {
-              type: 'warning',
-              title: 'Notifications Blocked in Browser',
-              message: 'Notifications are currently blocked by your browser settings for this store. Please allow notifications in your browser address bar so you do not miss live sales, returns, and inventory alerts.',
-              showBrowserGuide: true,
-              actionText: 'Check Permission',
-              onAction: () => handleAllowClick(),
-            },
-          })
-        );
+        onPermissionChange?.(res.permission || 'denied', false);
+        showBlockedModal(updatedSnap);
 
         // Dismiss soft prompt and remember denial
         setTimeout(() => {
@@ -154,8 +220,10 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
             type: 'error',
             title: 'Notification Setup Notice',
             message: err?.message || 'Could not enable notifications. Please check your browser permissions.',
-            actionText: 'Retry',
-            onAction: () => handleAllowClick(),
+            actionText: 'Check Status',
+            onAction: () => {
+              void handleInspectPermissionStatus();
+            },
           },
         })
       );
