@@ -6,6 +6,9 @@ import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'development';
+}
 
 // Database & Seed
 import { pgClient, dbInfo, txStorage } from './src/db/index.ts';
@@ -111,13 +114,27 @@ app.get(['/sw.js', '/firebase-messaging-sw.js', '/sw-background-sync.js'], (req,
   const targetPath = resolveServiceWorkerFilePath(rootDir, filename, isProduction);
 
   if (targetPath) {
-    const headers = resolveStaticCacheHeaders(targetPath);
+    const headers = resolveStaticCacheHeaders(targetPath, isProduction);
     for (const [key, value] of Object.entries(headers)) {
       res.setHeader(key, value);
     }
     return res.sendFile(targetPath);
   }
   next();
+});
+
+app.get('/version.json', (_req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    return next();
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  return res.status(200).json({
+    version: 'dev',
+    env: 'development',
+  });
 });
 
 // Cross-Origin API Authentication & Store Isolation Middleware
@@ -446,6 +463,7 @@ app.get('/api/health', async (_req, res) => {
     const isConnected = ping.rows.length > 0;
     res.json({
       status: isConnected ? 'ok' : 'error',
+      environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
       timestamp: new Date().toISOString(),
       service: 'Multi-Tenant POS SaaS Platform',
       database: {
@@ -542,8 +560,9 @@ async function startServer() {
   }
 
   if (!isServerless) {
+    const activeEnv = process.env.NODE_ENV === 'production' ? 'production' : 'development';
     const httpServer = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Multi-Tenant POS SaaS Server running on http://localhost:${PORT}`);
+      console.log(`🚀 Multi-Tenant POS SaaS Server running on http://localhost:${PORT} (${activeEnv} mode)`);
     });
     httpServer.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
