@@ -490,6 +490,88 @@ function broadcastPushDedupeEvent(payload) {
   }
 }
 
+function formatShadeItemTime(timestamp) {
+  try {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return '';
+  }
+}
+
+function normalizeInlineShadeText(value, maxLen) {
+  const clean = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  if (clean.length <= maxLen) return clean;
+  return `${clean.slice(0, Math.max(0, maxLen - 1)).trimEnd()}…`;
+}
+
+function stripLeadingTitleFromShadeBody(title, body) {
+  const cleanTitle = normalizeInlineShadeText(title, 120);
+  const cleanBody = String(body == null ? '' : body).replace(/\s+/g, ' ').trim();
+  if (!cleanBody) return '';
+  if (cleanTitle && cleanBody.toLowerCase().startsWith(cleanTitle.toLowerCase())) {
+    return cleanBody.slice(cleanTitle.length).replace(/^[\s:•\-—]+/, '').trim();
+  }
+  return cleanBody;
+}
+
+function formatShadeGroupSummaryBody(items) {
+  const MAX_VISIBLE_LINES = 6;
+  const sorted = items.slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const hasOverflow = sorted.length > MAX_VISIBLE_LINES;
+  const visible = hasOverflow ? sorted.slice(0, MAX_VISIBLE_LINES - 1) : sorted;
+
+  const lines = visible.map((item) => {
+    const itemTitle = normalizeInlineShadeText(item.title || 'POS Notification', 48);
+    const timeStr = formatShadeItemTime(item.timestamp || Date.now());
+    const strippedBody = stripLeadingTitleFromShadeBody(item.title, item.body);
+    const shortDetail = normalizeInlineShadeText(strippedBody, 76);
+    const headerPart = timeStr ? `• ${itemTitle} • ${timeStr}` : `• ${itemTitle}`;
+    return shortDetail ? `${headerPart} — ${shortDetail}` : headerPart;
+  });
+
+  if (hasOverflow) {
+    const remaining = sorted.length - visible.length;
+    lines.push(`• +${remaining} more ${remaining === 1 ? 'alert' : 'alerts'} — Tap to view all`);
+  }
+
+  return lines.join('\n');
+}
+
+function extractItemsFromExistingSwNotification(existing, defaultUrl) {
+  const existingData = (existing && existing.data) || {};
+  if (Array.isArray(existingData.items) && existingData.items.length > 0) {
+    return existingData.items
+      .filter((it) => it && (it.title || it.body))
+      .map((it, idx) => ({
+        title: String(it.title || 'POS Notification'),
+        body: String(it.body || ''),
+        url: String(it.url || defaultUrl),
+        tag: String(it.tag || `${existing.tag || 'item'}-${idx}`),
+        timestamp: resolveShadeTimestamp(it.timestamp),
+      }));
+  }
+
+  const tag = String((existing && existing.tag) || '').trim();
+  if (!tag || tag === POS_SUMMARY_TAG || tag === ADMIN_SUMMARY_TAG || existingData.isGroupSummary === true) {
+    return [];
+  }
+
+  return [
+    {
+      title: String(existingData.notificationTitle || (existing && existing.title) || 'POS Notification'),
+      body: String(existingData.notificationBody || (existing && existing.body) || ''),
+      url: String(existingData.url || defaultUrl),
+      tag,
+      timestamp: resolveShadeTimestamp((existing && existing.timestamp) || existingData.timestamp),
+    },
+  ];
+}
+
 async function showGroupedShadeNotification(title, options = {}) {
   if (!self.registration || typeof self.registration.showNotification !== 'function') {
     return;
@@ -499,6 +581,7 @@ async function showGroupedShadeNotification(title, options = {}) {
   const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
   const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
   const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+  const defaultFallbackUrl = isAdminTarget ? '/admin' : '/?tab=reports';
   const incomingTag =
     String(options.tag || (options.data && (options.data.tag || options.data.eventId)) || '').trim() ||
     `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
@@ -523,8 +606,18 @@ async function showGroupedShadeNotification(title, options = {}) {
     timestamp,
   });
 
-  // Clean up any stale legacy merged-summary notification from prior SW versions
-  // without closing individual notifications in the same group.
+  const incomingItem = {
+    title: cleanTitle,
+    body: cleanBody,
+    url: targetUrl,
+    tag: incomingTag,
+    timestamp,
+  };
+
+  const itemsByTag = new Map();
+  const nonSummaryNotificationsToClose = [];
+  let alreadyHadTagInShade = false;
+
   if (typeof self.registration.getNotifications === 'function') {
     const existingAll = await self.registration.getNotifications().catch(() => []);
     for (const existing of existingAll) {
@@ -536,15 +629,101 @@ async function showGroupedShadeNotification(title, options = {}) {
         String(existingData.url || '').startsWith('/admin') ||
         String(existing.icon || '').includes('/admin/') ||
         existing.tag === ADMIN_SUMMARY_TAG;
+
+      if (existingIsAdmin !== isAdminTarget) {
+        continue;
+      }
+
+      const extracted = extractItemsFromExistingSwNotification(existing, defaultFallbackUrl);
+      for (const item of extracted) {
+        itemsByTag.set(item.tag, item);
+      }
+
       if (
-        existingIsAdmin === isAdminTarget &&
-        (existing.tag === summaryTag || existingData.isGroupSummary === true)
+        existing.tag === incomingTag ||
+        extracted.some((item) => item.tag === incomingTag)
       ) {
-        try {
-          existing.close();
-        } catch {}
+        alreadyHadTagInShade = true;
+      }
+
+      if (existing.tag !== summaryTag) {
+        nonSummaryNotificationsToClose.push(existing);
       }
     }
+  }
+
+  itemsByTag.set(incomingItem.tag, incomingItem);
+  const mergedItems = Array.from(itemsByTag.values()).sort(
+    (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
+  );
+
+  const icon = options.icon || defaultIcon;
+  const badge =
+    options.badge && !String(options.badge).includes('pwa-192x192')
+      ? options.badge
+      : NOTIFICATION_BADGE_ICON;
+  const shouldBeSilent = !isFirstSwDeliveryForTag || Boolean(options.silent === true);
+  const allowRequireInteraction = Boolean(options.requireInteraction === true);
+
+  if (mergedItems.length > MAX_UNGROUPED_SHADE_NOTIFICATIONS) {
+    for (const oldNotif of nonSummaryNotificationsToClose) {
+      try {
+        oldNotif.close();
+      } catch {}
+    }
+
+    const latestTimestamp = mergedItems[0]?.timestamp || timestamp;
+    const uniqueUrls = Array.from(new Set(mergedItems.map((it) => it.url).filter(Boolean)));
+    const summaryUrl =
+      uniqueUrls.length === 1
+        ? uniqueUrls[0]
+        : isAdminTarget
+        ? '/admin'
+        : '/notifications';
+    const summaryTitle = isAdminTarget
+      ? `${mergedItems.length} Admin Notifications`
+      : `${mergedItems.length} POS Notifications`;
+    const summaryBody = formatShadeGroupSummaryBody(mergedItems);
+    const summaryActions = isAdminTarget
+      ? [
+          { action: 'open_pos', title: 'Open Admin' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : [
+          { action: 'open_notifications', title: 'View All Alerts' },
+          { action: 'open_pos', title: 'Open POS' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ];
+
+    const allowSummaryRenotify =
+      isFirstSwDeliveryForTag && (!alreadyHadTagInShade || options.renotify === true);
+
+    const summaryOptions = Object.assign({}, options, {
+      body: summaryBody,
+      icon,
+      badge,
+      tag: summaryTag,
+      timestamp: latestTimestamp,
+      renotify: allowSummaryRenotify,
+      requireInteraction: allowRequireInteraction,
+      silent: shouldBeSilent,
+      vibrate: shouldBeSilent ? undefined : options.vibrate || [200, 100, 200],
+      actions: summaryActions,
+      data: Object.assign({}, options.data || {}, {
+        url: summaryUrl,
+        isAdmin: isAdminTarget ? 'true' : 'false',
+        groupKey,
+        isGroupSummary: true,
+        count: mergedItems.length,
+        items: mergedItems,
+        notificationTitle: summaryTitle,
+        notificationBody: summaryBody,
+        timestamp: latestTimestamp,
+        tag: summaryTag,
+      }),
+    });
+
+    return self.registration.showNotification(summaryTitle, summaryOptions);
   }
 
   const defaultActions = isAdminTarget
@@ -558,16 +737,11 @@ async function showGroupedShadeNotification(title, options = {}) {
       ];
 
   const allowRenotify = isFirstSwDeliveryForTag ? Boolean(options.renotify === true) : false;
-  const allowRequireInteraction = Boolean(options.requireInteraction === true);
-  const shouldBeSilent = !isFirstSwDeliveryForTag || Boolean(options.silent === true);
 
   const notificationOptions = Object.assign({}, options, {
     body: cleanBody,
-    icon: options.icon || defaultIcon,
-    badge:
-      options.badge && !String(options.badge).includes('pwa-192x192')
-        ? options.badge
-        : NOTIFICATION_BADGE_ICON,
+    icon,
+    badge,
     tag: incomingTag,
     timestamp,
     renotify: allowRenotify,
@@ -580,6 +754,8 @@ async function showGroupedShadeNotification(title, options = {}) {
       isAdmin: isAdminTarget ? 'true' : 'false',
       groupKey,
       isGroupSummary: false,
+      count: 1,
+      items: [incomingItem],
       notificationTitle: cleanTitle,
       notificationBody: cleanBody,
       timestamp,

@@ -40,6 +40,215 @@ interface NotificationsViewProps {
 
 type TabCategory = 'all' | 'announcements' | 'notices' | 'operational' | 'sales' | 'returns' | 'urgent';
 
+type SlideEnterPhase = 'enter' | 'active' | 'settled';
+
+interface NotificationBadgeMeta {
+  label: string;
+  badgeClass: string;
+  cardBg: string;
+  icon: React.ReactNode;
+}
+
+interface NotificationFeedItemProps {
+  item: HistoricalNotificationItem;
+  index: number;
+  badge: NotificationBadgeMeta;
+  isDismissing: boolean;
+  onActionClick: (item: HistoricalNotificationItem) => void;
+  onDismiss: (item: HistoricalNotificationItem) => void;
+  formatTimestamp: (dateStr?: string | null) => string;
+  formatFullDate: (dateStr?: string | null) => string;
+}
+
+const prefersReducedMotion = (): boolean => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+};
+
+const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
+  item,
+  index,
+  badge,
+  isDismissing,
+  onActionClick,
+  onDismiss,
+  formatTimestamp,
+  formatFullDate,
+}) => {
+  const [enterPhase, setEnterPhase] = useState<SlideEnterPhase>(() =>
+    prefersReducedMotion() ? 'settled' : 'enter'
+  );
+  const initialDelayBucketRef = useRef<number>(Math.min(Math.max(index, 0), 8));
+
+  useEffect(() => {
+    if (enterPhase !== 'enter') {
+      return;
+    }
+    if (typeof requestAnimationFrame === 'undefined') {
+      setEnterPhase('settled');
+      return;
+    }
+
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        setEnterPhase('active');
+      });
+    });
+
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [enterPhase]);
+
+  useEffect(() => {
+    if (enterPhase !== 'active') {
+      return;
+    }
+    const settleDelayMs = 420 + initialDelayBucketRef.current * 35;
+    const timer = window.setTimeout(() => {
+      setEnterPhase('settled');
+    }, settleDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [enterPhase]);
+
+  const handleTransitionEnd = (event: React.TransitionEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget && event.propertyName === 'transform') {
+      setEnterPhase('settled');
+    }
+  };
+
+  const isUnread = !item.isRead;
+  const slideStateClass =
+    enterPhase === 'enter'
+      ? `notif-slide-enter notif-slide-delay-${initialDelayBucketRef.current}`
+      : enterPhase === 'active'
+      ? `notif-slide-enter-active notif-slide-delay-${initialDelayBucketRef.current}`
+      : 'notif-slide-settled';
+
+  return (
+    <div
+      onTransitionEnd={handleTransitionEnd}
+      className={`p-4 rounded-2xl border notif-slide-item ${slideStateClass} ${
+        isUnread
+          ? `shadow-xs ${badge.cardBg} ring-1 ring-purple-400/20`
+          : 'bg-white/80 dark:bg-[#120726]/40 border-slate-200/80 dark:border-purple-900/30 opacity-85 hover:opacity-100 hover:bg-white dark:hover:bg-[#120726]/60'
+      }`}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        {/* Left Column: Badges, Title, Message */}
+        <div className="space-y-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 border ${badge.badgeClass}`}
+            >
+              {badge.icon}
+              <span>{badge.label}</span>
+            </span>
+
+            {/* Scope Badge */}
+            {item.kind === 'NOTICE' ? (
+              <span className="text-[10px] font-medium text-slate-500 dark:text-purple-300/80 flex items-center gap-1">
+                {!item.tenantId ? (
+                  <>
+                    <Globe className="w-3 h-3 text-slate-400 dark:text-purple-400" />
+                    <span>Platform Announcement</span>
+                  </>
+                ) : (
+                  <>
+                    <Store className="w-3 h-3 text-indigo-500" />
+                    <span>Direct Store Alert</span>
+                  </>
+                )}
+              </span>
+            ) : (
+              <span className="text-[10px] font-medium text-slate-500 dark:text-purple-300/80 flex items-center gap-1">
+                <Store className="w-3 h-3 text-emerald-500" />
+                <span>Counter Register Activity</span>
+              </span>
+            )}
+
+            {/* Unread indicator */}
+            {isUnread && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-full border border-rose-200 dark:border-rose-900">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                <span>Unread</span>
+              </span>
+            )}
+          </div>
+
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug font-heading">
+            {item.title}
+          </h4>
+
+          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+            <ClickableMessage text={item.message} />
+          </div>
+
+          {/* Metadata line: Timestamp & Expiry */}
+          <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-400 dark:text-slate-500 flex-wrap">
+            <span className="flex items-center gap-1" title={formatFullDate(item.createdAt)}>
+              <Clock className="w-3 h-3" />
+              <span>{formatTimestamp(item.createdAt)}</span>
+              <span className="opacity-60">({formatFullDate(item.createdAt)})</span>
+            </span>
+
+            {item.expiresAt && (
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                <Calendar className="w-3 h-3" />
+                <span>Expires: {formatTimestamp(item.expiresAt)}</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Actions */}
+        <div className="flex items-center sm:flex-col gap-2 shrink-0 self-end sm:self-start">
+          {(item.actionUrl || item.invoiceNumber || item.returnNumber) && (
+            <button
+              type="button"
+              onClick={() => onActionClick(item)}
+              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
+            >
+              <span>
+                {item.actionLabel ||
+                  (item.itemType === 'SALE'
+                    ? 'View Receipt'
+                    : item.itemType === 'RETURN'
+                    ? 'Inspect Return'
+                    : 'Open Link')}
+              </span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          )}
+
+          {isUnread ? (
+            <button
+              type="button"
+              onClick={() => onDismiss(item)}
+              disabled={isDismissing}
+              className="px-2.5 py-1 rounded-xl bg-white dark:bg-purple-900/40 hover:bg-slate-100 dark:hover:bg-purple-800/40 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700 text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-50"
+              title="Mark as read / dismiss"
+            >
+              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>{isDismissing ? 'Saving...' : 'Dismiss'}</span>
+            </button>
+          ) : (
+            <span className="text-[10px] font-medium text-slate-400 dark:text-purple-300/60 flex items-center gap-1 px-2 py-1">
+              <CheckCheck className="w-3 h-3 text-emerald-500" />
+              <span>Acknowledged</span>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const NotificationsView: React.FC<NotificationsViewProps> = ({
   currentUser,
   companySettings: _companySettings,
@@ -639,129 +848,19 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             )}
           </div>
         ) : (
-          items.map((item) => {
-            const badge = getTypeBadge(item);
-            const isUnread = !item.isRead;
-            const isDismissing = dismissingId === item.id;
-
-            return (
-              <div
-                key={item.id}
-                className={`p-4 rounded-2xl border transition-all duration-200 ${
-                  isUnread
-                    ? `shadow-xs ${badge.cardBg} ring-1 ring-purple-400/20`
-                    : 'bg-white/80 dark:bg-[#120726]/40 border-slate-200/80 dark:border-purple-900/30 opacity-85 hover:opacity-100 hover:bg-white dark:hover:bg-[#120726]/60'
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  {/* Left Column: Badges, Title, Message */}
-                  <div className="space-y-1.5 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 border ${badge.badgeClass}`}
-                      >
-                        {badge.icon}
-                        <span>{badge.label}</span>
-                      </span>
-
-                      {/* Scope Badge */}
-                      {item.kind === 'NOTICE' ? (
-                        <span className="text-[10px] font-medium text-slate-500 dark:text-purple-300/80 flex items-center gap-1">
-                          {!item.tenantId ? (
-                            <>
-                              <Globe className="w-3 h-3 text-slate-400 dark:text-purple-400" />
-                              <span>Platform Announcement</span>
-                            </>
-                          ) : (
-                            <>
-                              <Store className="w-3 h-3 text-indigo-500" />
-                              <span>Direct Store Alert</span>
-                            </>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-medium text-slate-500 dark:text-purple-300/80 flex items-center gap-1">
-                          <Store className="w-3 h-3 text-emerald-500" />
-                          <span>Counter Register Activity</span>
-                        </span>
-                      )}
-
-                      {/* Unread indicator */}
-                      {isUnread && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-full border border-rose-200 dark:border-rose-900">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                          <span>Unread</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug font-heading">
-                      {item.title}
-                    </h4>
-
-                    <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                      <ClickableMessage text={item.message} />
-                    </div>
-
-                    {/* Metadata line: Timestamp & Expiry */}
-                    <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-400 dark:text-slate-500 flex-wrap">
-                      <span className="flex items-center gap-1" title={formatFullDate(item.createdAt)}>
-                        <Clock className="w-3 h-3" />
-                        <span>{formatTimestamp(item.createdAt)}</span>
-                        <span className="opacity-60">({formatFullDate(item.createdAt)})</span>
-                      </span>
-
-                      {item.expiresAt && (
-                        <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                          <Calendar className="w-3 h-3" />
-                          <span>Expires: {formatTimestamp(item.expiresAt)}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right Column: Actions */}
-                  <div className="flex items-center sm:flex-col gap-2 shrink-0 self-end sm:self-start">
-                    {(item.actionUrl || item.invoiceNumber || item.returnNumber) && (
-                      <button
-                        type="button"
-                        onClick={() => handleActionClick(item)}
-                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
-                      >
-                        <span>
-                          {item.actionLabel ||
-                            (item.itemType === 'SALE'
-                              ? 'View Receipt'
-                              : item.itemType === 'RETURN'
-                              ? 'Inspect Return'
-                              : 'Open Link')}
-                        </span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    )}
-
-                    {isUnread ? (
-                      <button
-                        type="button"
-                        onClick={() => handleDismiss(item)}
-                        disabled={isDismissing}
-                        className="px-2.5 py-1 rounded-xl bg-white dark:bg-purple-900/40 hover:bg-slate-100 dark:hover:bg-purple-800/40 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700 text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-50"
-                        title="Mark as read / dismiss"
-                      >
-                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>{isDismissing ? 'Saving...' : 'Dismiss'}</span>
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-medium text-slate-400 dark:text-purple-300/60 flex items-center gap-1 px-2 py-1">
-                        <CheckCheck className="w-3 h-3 text-emerald-500" />
-                        <span>Acknowledged</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          items.map((item, index) => (
+            <NotificationFeedItem
+              key={item.id}
+              item={item}
+              index={index}
+              badge={getTypeBadge(item)}
+              isDismissing={dismissingId === item.id}
+              onActionClick={handleActionClick}
+              onDismiss={handleDismiss}
+              formatTimestamp={formatTimestamp}
+              formatFullDate={formatFullDate}
+            />
+          ))
         )}
       </div>
 

@@ -3414,4 +3414,53 @@ html.dark .saas-panel .app-stat-card.app-stat-card:hover {
   animation: soundWaveBar 0.95s ease-in-out infinite 0.15s;
 }
 
+/* ========================================================================= */
+/* NOTIFICATION HISTORY: Smooth Slide-In CSS Transitions                     */
+/* Placed after [class*="rounded-2xl"] base rule so transform & opacity      */
+/* transition cleanly alongside theme color/border transitions.              */
+/* ========================================================================= */
+.notif-slide-item.notif-slide-item {
+  transition-property: transform, opacity, background-color, border-color, color, box-shadow;
+  transition-duration: 340ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
 
+.notif-slide-item.notif-slide-settled {
+  transition-property: background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-delay: 0ms;
+  will-change: auto;
+}
+
+.notif-slide-item.notif-slide-enter {
+  opacity: 0;
+  transform: translate3d(20px, 6px, 0);
+}
+
+.notif-slide-item.notif-slide-enter-active {
+  transform: translate3d(0, 0, 0);
+}
+
+.notif-slide-delay-0 { transition-delay: 0ms; }
+.notif-slide-delay-1 { transition-delay: 35ms; }
+.notif-slide-delay-2 { transition-delay: 70ms; }
+.notif-slide-delay-3 { transition-delay: 105ms; }
+.notif-slide-delay-4 { transition-delay: 140ms; }
+.notif-slide-delay-5 { transition-delay: 175ms; }
+.notif-slide-delay-6 { transition-delay: 210ms; }
+.notif-slide-delay-7 { transition-delay: 245ms; }
+.notif-slide-delay-8 { transition-delay: 280ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-slide-item.notif-slide-item {
+    transition: none !important;
+    transform: none !important;
+    will-change: auto;
+  }
+  .notif-slide-item.notif-slide-enter {
+    opacity: 1;
+    transform: none;
+  }
+}
