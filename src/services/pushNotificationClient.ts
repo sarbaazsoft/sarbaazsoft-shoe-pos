@@ -10,6 +10,7 @@ import {
   claimNotificationChannel,
   getNotificationDedupeKey,
 } from '../utils/notificationDedupe.ts';
+import { showGroupedShadeNotification } from '../utils/notificationShade.ts';
 
 export function isIOSDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -250,22 +251,28 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         normalizedPayload.tag ||
         normalizedPayload.eventId ||
         `pos-${normalizedPayload.type?.toLowerCase()}-${normalizedPayload.invoiceNumber || Date.now()}`;
-      const notif = new Notification(normalizedPayload.title || 'POS Alert', {
-        body: normalizedPayload.message || 'Transaction confirmed.',
-        icon,
-        badge,
-        tag,
-        data: normalizedPayload,
-      });
-      notif.onclick = () => {
-        window.focus();
-        notif.close();
-        if (normalizedPayload.deepLinkUrl) {
-          window.dispatchEvent(
-            new CustomEvent('pos:navigate-deep-link', { detail: normalizedPayload })
-          );
+      void showGroupedShadeNotification(
+        normalizedPayload.title || 'POS Alert',
+        {
+          body: normalizedPayload.message || 'Transaction confirmed.',
+          icon,
+          badge,
+          tag,
+          data: {
+            ...normalizedPayload,
+            url: deepLinkUrl || '/notifications',
+            isAdmin: isAdminTarget ? 'true' : 'false',
+          },
+        },
+        () => {
+          window.focus();
+          if (normalizedPayload.deepLinkUrl) {
+            window.dispatchEvent(
+              new CustomEvent('pos:navigate-deep-link', { detail: normalizedPayload })
+            );
+          }
         }
-      };
+      );
     } catch {}
   }
 

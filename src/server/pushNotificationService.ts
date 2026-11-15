@@ -242,6 +242,8 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
   const badge = payload.badge || NOTIFICATION_BADGE_ICON;
   const tag = payload.tag || `pos-${Date.now()}`;
 
+  const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
+
   const stringData: Record<string, string> = {
     url: linkUrl,
     title: payload.title,
@@ -249,6 +251,8 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
     icon,
     badge,
     tag,
+    groupKey,
+    isAdmin: isAdminTarget ? 'true' : 'false',
   };
   if (payload.data) {
     for (const [k, v] of Object.entries(payload.data)) {

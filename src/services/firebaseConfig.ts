@@ -6,6 +6,7 @@ import {
   claimNotificationChannel,
   getNotificationDedupeKey,
 } from '../utils/notificationDedupe.ts';
+import { showGroupedShadeNotification } from '../utils/notificationShade.ts';
 
 let cachedFirebaseApp: FirebaseApp | null = null;
 let cachedMessaging: Messaging | null = null;
@@ -82,30 +83,31 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
           playAudioFeedback.success();
         }
 
-        // Show browser notification once per eventId/tag if permitted
+        // Show browser/Android shade notification once per eventId/tag if permitted
         if (
           typeof Notification !== 'undefined' &&
           Notification.permission === 'granted' &&
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
-          try {
-            const notif = new Notification(title, {
+          void showGroupedShadeNotification(
+            title,
+            {
               body,
               icon,
               badge,
               tag,
-              data: { url: deepLinkUrl },
-            });
-            notif.onclick = () => {
+              data: {
+                url: deepLinkUrl,
+                isAdmin: isAdminTarget ? 'true' : 'false',
+              },
+            },
+            () => {
               window.focus();
               if (window.location.pathname !== deepLinkUrl) {
                 window.location.href = deepLinkUrl;
               }
-              notif.close();
-            };
-          } catch {
-            // Some mobile browsers restrict new Notification() in foreground; ServiceWorker handles background
-          }
+            }
+          );
         }
       });
     }

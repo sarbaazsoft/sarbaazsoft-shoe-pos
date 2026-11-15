@@ -18,6 +18,9 @@ const IMMUTABLE_CACHE_NAME = `${CACHE_PREFIX}-immutable-v1`;
 const CACHE_NAME = PRECACHE_CACHE_NAME;
 const MAX_IMMUTABLE_RUNTIME_ENTRIES = 160;
 const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
+const MAX_UNGROUPED_SHADE_NOTIFICATIONS = 1;
+const POS_SUMMARY_TAG = 'pos-grouped-summary';
+const ADMIN_SUMMARY_TAG = 'admin-grouped-summary';
 const SW_SYNC_TAG = 'pos-offline-transactions-sync';
 const SW_PERIODIC_SYNC_TAG = 'pos-offline-periodic-sync';
 const DB_NAME = 'ShoePosOfflineDB';
@@ -411,6 +414,147 @@ try {
   // Graceful fallback if running offline or in network-isolated environments
 }
 
+function isAdminShadeTarget(options) {
+  const data = (options && options.data) || {};
+  const url = String(data.url || data.deepLinkUrl || '');
+  return (
+    data.isAdmin === true ||
+    data.isAdmin === 'true' ||
+    url.startsWith('/admin') ||
+    String((options && options.icon) || '').includes('/admin/')
+  );
+}
+
+function formatShadeSummaryBody(items, totalCount) {
+  const previewLines = items.slice(0, 4).map((item) => {
+    const cleanTitle = String(item.title || 'POS Alert').trim();
+    const cleanBody = String(item.body || '').replace(/\s+/g, ' ').trim();
+    return cleanBody ? `• ${cleanTitle}: ${cleanBody}` : `• ${cleanTitle}`;
+  });
+  if (totalCount > 4) {
+    previewLines.push(`+${totalCount - 4} more alerts — tap to view all`);
+  }
+  return previewLines.join('\n');
+}
+
+async function showGroupedShadeNotification(title, options = {}) {
+  if (!self.registration || typeof self.registration.showNotification !== 'function') {
+    return;
+  }
+
+  if (typeof self.registration.getNotifications !== 'function') {
+    return self.registration.showNotification(title, options);
+  }
+
+  const isAdminTarget = isAdminShadeTarget(options);
+  const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
+  const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+  const incomingTag = String(options.tag || '').trim();
+
+  const existingAll = await self.registration.getNotifications().catch(() => []);
+  const sameScope = existingAll.filter((n) => {
+    const nData = (n && n.data) || {};
+    const nIsAdmin =
+      nData.isAdmin === true ||
+      nData.isAdmin === 'true' ||
+      String(nData.url || '').startsWith('/admin') ||
+      String((n && n.icon) || '').includes('/admin/') ||
+      (n && n.tag === ADMIN_SUMMARY_TAG);
+    return nIsAdmin === isAdminTarget;
+  });
+
+  const existingSummary = sameScope.find(
+    (n) => (n && n.tag === summaryTag) || (n && n.data && n.data.isGroupSummary === true)
+  );
+  const otherActive = sameScope.filter(
+    (n) =>
+      n !== existingSummary &&
+      n.tag !== summaryTag &&
+      !(n.data && n.data.isGroupSummary === true) &&
+      (!incomingTag || n.tag !== incomingTag)
+  );
+
+  const summaryItems =
+    existingSummary && existingSummary.data && Array.isArray(existingSummary.data.groupedItems)
+      ? existingSummary.data.groupedItems
+      : [];
+  const alreadyInSummary = Boolean(
+    incomingTag && summaryItems.some((item) => item && item.tag === incomingTag)
+  );
+
+  const baseSummaryCount = existingSummary
+    ? Math.max(Number((existingSummary.data && existingSummary.data.groupedCount) || 1), summaryItems.length || 1)
+    : 0;
+  const totalCount = baseSummaryCount + otherActive.length + (alreadyInSummary ? 0 : 1);
+
+  if (!existingSummary && totalCount <= MAX_UNGROUPED_SHADE_NOTIFICATIONS) {
+    return self.registration.showNotification(title, options);
+  }
+
+  const incomingItem = {
+    title: String(title || 'SarbaazSoft Shoe POS Alert'),
+    body: String(options.body || ''),
+    url: String((options.data && (options.data.url || options.data.deepLinkUrl)) || (isAdminTarget ? '/admin' : '/notifications')),
+    tag: incomingTag,
+    timestamp: Date.now(),
+  };
+
+  const activeItems = otherActive.map((n) => ({
+    title: String((n && n.title) || 'SarbaazSoft Shoe POS Alert'),
+    body: String((n && n.body) || ''),
+    url: String((n && n.data && n.data.url) || (isAdminTarget ? '/admin' : '/notifications')),
+    tag: String((n && n.tag) || ''),
+    timestamp: Number((n && n.timestamp) || Date.now()),
+  }));
+
+  const combined = [incomingItem, ...activeItems, ...summaryItems];
+  const deduped = [];
+  const seenTags = new Set();
+  for (const item of combined) {
+    if (item.tag) {
+      if (seenTags.has(item.tag)) continue;
+      seenTags.add(item.tag);
+    }
+    deduped.push(item);
+  }
+
+  for (const n of otherActive) {
+    try {
+      n.close();
+    } catch {}
+  }
+
+  const summaryTitle = `${totalCount} ${isAdminTarget ? 'Admin' : 'POS'} Notifications`;
+  const summaryBody = formatShadeSummaryBody(deduped, totalCount);
+  const targetUrl = isAdminTarget ? '/admin' : '/notifications';
+
+  const summaryOptions = {
+    body: summaryBody,
+    icon: defaultIcon,
+    badge:
+      options.badge && !String(options.badge).includes('pwa-192x192')
+        ? options.badge
+        : NOTIFICATION_BADGE_ICON,
+    tag: summaryTag,
+    renotify: true,
+    requireInteraction: Boolean(options.requireInteraction),
+    vibrate: options.vibrate || [200, 100, 200],
+    data: {
+      url: targetUrl,
+      isAdmin: isAdminTarget ? 'true' : 'false',
+      isGroupSummary: true,
+      groupedCount: totalCount,
+      groupedItems: deduped.slice(0, 25),
+    },
+    actions: [
+      { action: 'open_notifications', title: 'View All' },
+      { action: 'dismiss', title: 'Dismiss' },
+    ],
+  };
+
+  return self.registration.showNotification(summaryTitle, summaryOptions);
+}
+
 async function initFirebaseInWorker() {
   if (messagingInitialized || typeof firebase === 'undefined') return;
   try {
@@ -450,6 +594,7 @@ async function initFirebaseInWorker() {
           vibrate: [200, 100, 200],
           data: {
             url,
+            isAdmin: isAdminTarget ? 'true' : 'false',
             ...payload.data,
           },
           actions: [
@@ -458,7 +603,7 @@ async function initFirebaseInWorker() {
           ],
         };
 
-        return self.registration.showNotification(title, notificationOptions);
+        return showGroupedShadeNotification(title, notificationOptions);
       });
       messagingInitialized = true;
     }
@@ -501,7 +646,7 @@ self.addEventListener('push', (event) => {
     icon: notification.icon || data.icon || data.data?.icon || defaultIcon,
     badge,
     tag,
-    data: data.data || { url: targetUrl },
+    data: Object.assign({ url: targetUrl, isAdmin: isAdminTarget ? 'true' : 'false' }, data.data || {}),
     vibrate: [250, 100, 250, 100, 250],
     requireInteraction: true,
     renotify: true,
@@ -512,7 +657,7 @@ self.addEventListener('push', (event) => {
     ],
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(showGroupedShadeNotification(title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -523,9 +668,12 @@ self.addEventListener('notificationclick', (event) => {
   }
 
   const notifData = event.notification.data || {};
+  const isAdminTarget = notifData.isAdmin === true || notifData.isAdmin === 'true' || String(notifData.url || '').startsWith('/admin');
   let targetUrl = notifData.url || '/?tab=reports';
-  if (event.action === 'open_pos') {
-    targetUrl = '/?tab=pos';
+  if (event.action === 'open_notifications' || notifData.isGroupSummary) {
+    targetUrl = isAdminTarget ? '/admin' : '/notifications';
+  } else if (event.action === 'open_pos') {
+    targetUrl = isAdminTarget ? '/admin' : '/?tab=pos';
   } else if (event.action === 'open_receipt') {
     targetUrl = notifData.url || '/?tab=reports';
   }
@@ -853,5 +1001,10 @@ self.addEventListener('message', (event) => {
       self.registration.sync.register(SW_SYNC_TAG).catch(() => {});
     }
     event.waitUntil(processOfflineQueueFromSW('message-trigger').catch(() => {}));
+    return;
+  }
+
+  if (data.type === 'SHOW_SHADE_NOTIFICATION' && data.title) {
+    event.waitUntil(showGroupedShadeNotification(data.title, data.options || {}).catch(() => {}));
   }
 });
