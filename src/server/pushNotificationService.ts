@@ -5,6 +5,10 @@ import { pgClient } from '../db/index.ts';
 import { ensureFcmTokensSchema } from '../db/schemaInit.ts';
 import { getCachedAppSetting, getAppSetting, loadAppSettingsCache, registerSettingsUpdateListener } from './services/appSettingsService.ts';
 import { dispatchPosEmailAlert } from './services/emailAlertService.ts';
+import { getApplicationBaseUrl } from './services/welcomeService.ts';
+import { normalizeVapidPublicKey } from '../utils/vapid.ts';
+
+export { normalizeVapidPublicKey };
 
 // ============================================================================
 // FIREBASE ADMIN SDK SINGLETON & DYNAMIC INITIALIZATION
@@ -124,7 +128,8 @@ export async function saveFcmToken(
   userRole: string,
   token: string,
   userAgent: string = '',
-  deviceName: string = ''
+  deviceName: string = '',
+  previousToken: string = ''
 ): Promise<boolean> {
   try {
     await ensureFcmTokensSchema();
@@ -134,6 +139,13 @@ export async function saveFcmToken(
     const cleanRole = String(userRole || (tenantId === 0 ? 'SUPERADMIN' : 'ADMIN')).trim().toUpperCase();
     const cleanTenantId = Number(tenantId) || 1;
     const cleanUserId = Number(userId) || 0;
+    const cleanPreviousToken = String(previousToken || '').trim();
+
+    if (cleanPreviousToken && cleanPreviousToken !== cleanToken) {
+      await pgClient
+        .query('DELETE FROM public.fcm_tokens WHERE token = $1', [cleanPreviousToken])
+        .catch(() => {});
+    }
 
     await pgClient.query(
       `INSERT INTO public.fcm_tokens (
@@ -235,16 +247,53 @@ export interface FcmPushPayload {
   data?: Record<string, string>;
 }
 
+const FCM_MULTICAST_BATCH_SIZE = 500;
+const RECENT_FCM_DISPATCH_TTL_MS = 4000;
+const recentFcmTokenTagDispatches = new Map<string, number>();
+
+function claimServerTokenTagDispatch(token: string, tag: string): boolean {
+  if (!tag) return true;
+  const now = Date.now();
+  if (recentFcmTokenTagDispatches.size > 500) {
+    for (const [k, exp] of recentFcmTokenTagDispatches.entries()) {
+      if (exp <= now) recentFcmTokenTagDispatches.delete(k);
+    }
+  }
+  const key = `${tag}::${token}`;
+  const existingExp = recentFcmTokenTagDispatches.get(key);
+  if (existingExp && existingExp > now) {
+    return false;
+  }
+  recentFcmTokenTagDispatches.set(key, now + RECENT_FCM_DISPATCH_TTL_MS);
+  return true;
+}
+
+function resolveHttpsWebpushLink(linkUrl: string): string | undefined {
+  const baseUrl = getApplicationBaseUrl();
+  if (!baseUrl || !baseUrl.startsWith('https://')) {
+    return undefined;
+  }
+  try {
+    const resolved = new URL(linkUrl || '/', baseUrl);
+    return resolved.protocol === 'https:' ? resolved.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildFcmNotificationConfig(payload: FcmPushPayload) {
   const linkUrl = payload.deepLinkUrl || '/';
   const isAdminTarget = linkUrl.startsWith('/admin') || payload.data?.isAdmin === 'true';
   const icon = payload.icon || (isAdminTarget ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON);
   const badge = payload.badge || NOTIFICATION_BADGE_ICON;
   const tag = payload.tag || `pos-${Date.now()}`;
+  const cleanWebTitle = String(payload.title || 'SarbaazSoft Shoe POS Alert').trim().slice(0, 120);
+  const cleanWebBody = String(payload.body || 'New store notification received.').trim().slice(0, 320);
 
   const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
   const rawTimestamp = payload.data?.timestamp;
   const numericTimestamp = rawTimestamp ? Number(rawTimestamp) || Date.parse(rawTimestamp) || Date.now() : Date.now();
+  const httpsLinkUrl = resolveHttpsWebpushLink(linkUrl);
 
   const stringData: Record<string, string> = {
     url: linkUrl,
@@ -265,6 +314,7 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
 
   return {
     linkUrl,
+    httpsLinkUrl,
     icon,
     badge,
     tag,
@@ -279,13 +329,19 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
       defaultVibrateTimings: true,
       visibility: 'public' as const,
     },
+    webpushHeaders: {
+      TTL: '86400',
+      Urgency: 'normal',
+    },
     webpushNotification: {
-      title: payload.title,
-      body: payload.body,
+      title: cleanWebTitle,
+      body: cleanWebBody,
       icon,
       badge,
       tag,
       timestamp: numericTimestamp,
+      renotify: false,
+      requireInteraction: false,
       vibrate: [200, 100, 200],
     },
   };
@@ -306,7 +362,12 @@ export async function sendFcmPushToTokens(
     };
   }
 
-  const uniqueTokens = Array.from(new Set(tokens.map((t) => String(t || '').trim()).filter(Boolean)));
+  const config = buildFcmNotificationConfig(payload);
+  const dedupedTokens = Array.from(new Set(tokens.map((t) => String(t || '').trim()).filter(Boolean)));
+  const uniqueTokens = payload.tag
+    ? dedupedTokens.filter((t) => claimServerTokenTagDispatch(t, payload.tag!))
+    : dedupedTokens;
+
   if (uniqueTokens.length === 0) {
     return {
       success: true,
@@ -317,49 +378,62 @@ export async function sendFcmPushToTokens(
 
   try {
     const messaging = getMessaging(app);
-    const config = buildFcmNotificationConfig(payload);
-
-    const response = await messaging.sendEachForMulticast({
-      tokens: uniqueTokens,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-      },
-      data: config.stringData,
-      android: {
-        priority: 'high',
-        notification: config.androidNotification,
-      },
-      webpush: {
-        notification: config.webpushNotification,
-        fcmOptions: {
-          link: config.linkUrl,
-        },
-      },
-    });
-
-    // Cleanup expired or uninstalled tokens automatically
+    let totalSent = 0;
+    let totalFailure = 0;
     const tokensToRemove: string[] = [];
-    response.responses.forEach((resp: any, idx: number) => {
-      if (!resp.success && resp.error) {
-        const errCode = resp.error.code;
-        if (
-          errCode === 'messaging/invalid-registration-token' ||
-          errCode === 'messaging/registration-token-not-registered'
-        ) {
-          tokensToRemove.push(uniqueTokens[idx]);
+
+    for (let offset = 0; offset < uniqueTokens.length; offset += FCM_MULTICAST_BATCH_SIZE) {
+      const batchTokens = uniqueTokens.slice(offset, offset + FCM_MULTICAST_BATCH_SIZE);
+      const response = await messaging.sendEachForMulticast({
+        tokens: batchTokens,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+        },
+        data: config.stringData,
+        android: {
+          priority: 'high',
+          notification: config.androidNotification,
+        },
+        webpush: {
+          headers: config.webpushHeaders,
+          notification: config.webpushNotification,
+          ...(config.httpsLinkUrl
+            ? {
+                fcmOptions: {
+                  link: config.httpsLinkUrl,
+                },
+              }
+            : {}),
+        },
+      });
+
+      totalSent += response.successCount;
+      totalFailure += response.failureCount;
+
+      response.responses.forEach((resp: any, idx: number) => {
+        if (!resp.success && resp.error) {
+          const errCode = resp.error.code;
+          if (
+            errCode === 'messaging/invalid-registration-token' ||
+            errCode === 'messaging/registration-token-not-registered'
+          ) {
+            tokensToRemove.push(batchTokens[idx]);
+          }
         }
-      }
-    });
+      });
+    }
 
     if (tokensToRemove.length > 0) {
-      await pgClient.query('DELETE FROM public.fcm_tokens WHERE token = ANY($1::text[])', [tokensToRemove]).catch(() => {});
+      await pgClient
+        .query('DELETE FROM public.fcm_tokens WHERE token = ANY($1::text[])', [tokensToRemove])
+        .catch(() => {});
     }
 
     return {
-      success: response.successCount > 0 || response.failureCount === 0,
-      sentCount: response.successCount,
-      failureCount: response.failureCount,
+      success: totalSent > 0 || totalFailure === 0,
+      sentCount: totalSent,
+      failureCount: totalFailure,
     };
   } catch (err: any) {
     console.error('[FCM] Error dispatching push notification:', err);

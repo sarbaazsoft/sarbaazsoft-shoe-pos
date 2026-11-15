@@ -7,6 +7,7 @@ import {
   removeFcmToken,
   getFcmStats,
   testFcmPush,
+  normalizeVapidPublicKey,
 } from '../pushNotificationService.ts';
 import { getAppSetting, loadAppSettingsCache } from '../services/appSettingsService.ts';
 import { extractTokenFromRequest } from '../auth.ts';
@@ -816,12 +817,11 @@ router.get('/fcm-config', async (_req: Request, res: Response) => {
     const messagingSenderId = (await getAppSetting('FCM_MESSAGING_SENDER_ID', '')) || process.env.FCM_MESSAGING_SENDER_ID || '';
     const appId = (await getAppSetting('FCM_APP_ID', '')) || process.env.FCM_APP_ID || '';
     const measurementId = (await getAppSetting('FCM_MEASUREMENT_ID', '')) || process.env.FCM_MEASUREMENT_ID || '';
-    let vapidKey = (await getAppSetting('FCM_VAPID_KEY', '')) || process.env.FCM_VAPID_KEY || '';
-    if (vapidKey.includes('@')) {
-      vapidKey = '';
-    }
+    const rawVapidKey = (await getAppSetting('FCM_VAPID_KEY', '')) || process.env.FCM_VAPID_KEY || '';
+    const vapidKey = normalizeVapidPublicKey(rawVapidKey);
 
     const isConfigured = Boolean(projectId && apiKey);
+    res.setHeader('Cache-Control', 'no-store');
     res.json({
       configured: isConfigured,
       projectId,
@@ -851,6 +851,7 @@ router.post('/fcm-token', async (req: Request, res: Response) => {
   try {
     const identity = resolveRequestIdentity(req);
     const token = String(req.body?.token || req.body?.fcmToken || '').trim();
+    const previousToken = String(req.body?.previousToken || '').trim();
 
     if (!token) {
       return res.status(400).json({ success: false, error: 'FCM device token is required' });
@@ -863,7 +864,15 @@ router.post('/fcm-token', async (req: Request, res: Response) => {
     const userAgent = String(req.headers['user-agent'] || req.body?.userAgent || '');
     const deviceName = String(req.body?.deviceName || '');
 
-    const success = await saveFcmToken(tenantId, userId, role, token, userAgent, deviceName);
+    const success = await saveFcmToken(
+      tenantId,
+      userId,
+      role,
+      token,
+      userAgent,
+      deviceName,
+      previousToken
+    );
     res.json({ success, tenantId, role });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Failed to register FCM token' });

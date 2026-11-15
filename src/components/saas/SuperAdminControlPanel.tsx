@@ -446,12 +446,32 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         claimNotificationChannel(dedupeKey, 'os_notification')
       ) {
         try {
-          new Notification('🔔 SuperAdmin Test Push Alert', {
-            body: 'SuperAdmin push alert test confirmed on this device.',
-            icon: '/admin/pwa-192x192.png',
-            badge: '/icons/badge-favicon.png',
-            tag: res.eventId || eventId,
-          });
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration('/');
+            if (reg?.active && typeof reg.showNotification === 'function') {
+              await reg.showNotification('🔔 SuperAdmin Test Push Alert', {
+                body: 'SuperAdmin push alert test confirmed on this device.',
+                icon: '/admin/pwa-192x192.png',
+                badge: '/icons/badge-favicon.png',
+                tag: res.eventId || eventId,
+                data: { url: '/admin', isAdmin: 'true' },
+              });
+            } else {
+              new Notification('🔔 SuperAdmin Test Push Alert', {
+                body: 'SuperAdmin push alert test confirmed on this device.',
+                icon: '/admin/pwa-192x192.png',
+                badge: '/icons/badge-favicon.png',
+                tag: res.eventId || eventId,
+              });
+            }
+          } else {
+            new Notification('🔔 SuperAdmin Test Push Alert', {
+              body: 'SuperAdmin push alert test confirmed on this device.',
+              icon: '/admin/pwa-192x192.png',
+              badge: '/icons/badge-favicon.png',
+              tag: res.eventId || eventId,
+            });
+          }
         } catch {}
       }
 

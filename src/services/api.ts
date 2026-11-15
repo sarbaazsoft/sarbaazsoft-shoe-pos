@@ -1267,6 +1267,7 @@ export const api = {
       }>('/notifications/fcm-stats'),
     registerFcmToken: (data: {
       token: string;
+      previousToken?: string;
       userAgent?: string;
       deviceName?: string;
       userRole?: string;

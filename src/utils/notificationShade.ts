@@ -66,6 +66,8 @@ export async function showGroupedWithRegistration(
     options.data?.url || options.data?.deepLinkUrl || (isAdminTarget ? '/admin' : '/?tab=reports')
   );
 
+  let alreadyDisplayedForTag = false;
+
   // Remove any stale legacy merged-summary notification without closing individual notifications
   if (typeof registration.getNotifications === 'function') {
     const existingAll = await registration.getNotifications().catch(() => [] as Notification[]);
@@ -85,8 +87,18 @@ export async function showGroupedWithRegistration(
         try {
           existing.close();
         } catch {}
+        continue;
+      }
+      if (existing.tag && existing.tag === incomingTag && options.renotify !== true) {
+        alreadyDisplayedForTag = true;
       }
     }
+  }
+
+  // If the Service Worker already displayed this exact notification tag in the shade,
+  // avoid showing a second duplicate notification from foreground SSE / onMessage.
+  if (alreadyDisplayedForTag) {
+    return;
   }
 
   const defaultActions = isAdminTarget
@@ -110,6 +122,7 @@ export async function showGroupedWithRegistration(
     tag: incomingTag,
     timestamp,
     renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
+    requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
     vibrate: options.vibrate || [200, 100, 200],
     actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
     data: {
@@ -139,7 +152,13 @@ export async function showGroupedShadeNotification(
 
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.getRegistration();
+      let reg = await navigator.serviceWorker.getRegistration('/');
+      if (!reg || !reg.active) {
+        reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500)),
+        ]);
+      }
       if (reg && reg.active && typeof reg.showNotification === 'function') {
         await showGroupedWithRegistration(reg, title, options);
         return true;
@@ -151,7 +170,12 @@ export async function showGroupedShadeNotification(
 
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      const notif = new Notification(title, options);
+      const fallbackOptions: ShadeNotificationOptions = {
+        ...options,
+        requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
+        renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
+      };
+      const notif = new Notification(title, fallbackOptions as NotificationOptions);
       if (onFallbackClick) {
         notif.onclick = () => {
           onFallbackClick();

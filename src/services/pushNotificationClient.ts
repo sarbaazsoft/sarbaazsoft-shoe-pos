@@ -9,6 +9,7 @@ import {
 import {
   claimNotificationChannel,
   getNotificationDedupeKey,
+  isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
 import { showGroupedShadeNotification } from '../utils/notificationShade.ts';
 
@@ -160,7 +161,7 @@ export async function unsubscribeDeviceFromWebPush(): Promise<boolean> {
   if (!isWebPushSupported()) return true;
 
   try {
-    const reg = await navigator.serviceWorker.getRegistration();
+    const reg = await navigator.serviceWorker.getRegistration('/');
     if (reg) {
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
@@ -234,55 +235,79 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
     new CustomEvent('pos:action-notification', { detail: normalizedPayload })
   );
 
-  // 3. Trigger OS desktop notification if permitted and tab is not active
+  // 3. Trigger OS desktop notification if permitted and tab is not active.
+  // When Web Push (FCM + active SW) is registered on this browser, briefly yield
+  // so the Service Worker `push` event can display and claim `os_notification`
+  // first without duplicating alerts in background tabs.
   if (
     typeof Notification !== 'undefined' &&
     Notification.permission === 'granted' &&
     (document.hidden || !document.hasFocus()) &&
-    claimNotificationChannel(dedupeKey, 'os_notification')
+    !isNotificationChannelClaimed(dedupeKey, 'os_notification')
   ) {
-    try {
-      const deepLinkUrl = normalizedPayload.deepLinkUrl || normalizedPayload.url || '';
-      const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || normalizedPayload.targetRole === 'SUPERADMIN';
-      const icon = normalizedPayload.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
-      const rawBadge = normalizedPayload.badge;
-      const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
-      const tag =
-        normalizedPayload.tag ||
-        normalizedPayload.eventId ||
-        `pos-${normalizedPayload.type?.toLowerCase()}-${normalizedPayload.invoiceNumber || Date.now()}`;
-      const parsedTimestamp = normalizedPayload.timestamp
-        ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
-        : Date.now();
-      void showGroupedShadeNotification(
-        normalizedPayload.title || 'POS Alert',
-        {
-          body: normalizedPayload.message || 'Transaction confirmed.',
-          icon,
-          badge,
-          tag,
-          timestamp: parsedTimestamp,
-          actions: [
-            { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-            { action: 'dismiss', title: 'Dismiss' },
-          ],
-          data: {
-            ...normalizedPayload,
-            url: deepLinkUrl || '/notifications',
-            isAdmin: isAdminTarget ? 'true' : 'false',
+    const dispatchOsFallback = () => {
+      if (isNotificationChannelClaimed(dedupeKey, 'os_notification')) {
+        return;
+      }
+      if (!claimNotificationChannel(dedupeKey, 'os_notification')) {
+        return;
+      }
+      try {
+        const deepLinkUrl = normalizedPayload.deepLinkUrl || normalizedPayload.url || '';
+        const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || normalizedPayload.targetRole === 'SUPERADMIN';
+        const icon = normalizedPayload.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
+        const rawBadge = normalizedPayload.badge;
+        const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
+        const tag =
+          normalizedPayload.tag ||
+          normalizedPayload.eventId ||
+          `pos-${normalizedPayload.type?.toLowerCase()}-${normalizedPayload.invoiceNumber || Date.now()}`;
+        const parsedTimestamp = normalizedPayload.timestamp
+          ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
+          : Date.now();
+        void showGroupedShadeNotification(
+          normalizedPayload.title || 'POS Alert',
+          {
+            body: normalizedPayload.message || 'Transaction confirmed.',
+            icon,
+            badge,
+            tag,
             timestamp: parsedTimestamp,
+            requireInteraction: false,
+            renotify: false,
+            actions: [
+              { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+              { action: 'dismiss', title: 'Dismiss' },
+            ],
+            data: {
+              ...normalizedPayload,
+              url: deepLinkUrl || '/notifications',
+              isAdmin: isAdminTarget ? 'true' : 'false',
+              timestamp: parsedTimestamp,
+            },
           },
-        },
-        () => {
-          window.focus();
-          if (normalizedPayload.deepLinkUrl) {
-            window.dispatchEvent(
-              new CustomEvent('pos:navigate-deep-link', { detail: normalizedPayload })
-            );
+          () => {
+            window.focus();
+            if (normalizedPayload.deepLinkUrl) {
+              window.dispatchEvent(
+                new CustomEvent('pos:navigate-deep-link', { detail: normalizedPayload })
+              );
+            }
           }
-        }
-      );
-    } catch {}
+        );
+      } catch {}
+    };
+
+    const hasActiveWebPush =
+      isWebPushSupported() &&
+      Boolean(navigator.serviceWorker?.controller) &&
+      Boolean(localStorage.getItem('pos_fcm_token'));
+
+    if (hasActiveWebPush) {
+      setTimeout(dispatchOsFallback, 1200);
+    } else {
+      dispatchOsFallback();
+    }
   }
 
   for (const subscriber of Array.from(activeStreamSubscribers)) {

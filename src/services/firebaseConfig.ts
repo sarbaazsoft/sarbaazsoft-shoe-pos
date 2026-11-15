@@ -3,34 +3,184 @@ import { getMessaging, getToken, onMessage, isSupported, type Messaging } from '
 import { api, getActiveTenantId } from './api.ts';
 import { playAudioFeedback } from '../utils/audio.ts';
 import {
+  PUSH_DEDUPE_CHANNEL_NAME,
   claimNotificationChannel,
   getNotificationDedupeKey,
+  isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
 import { showGroupedShadeNotification } from '../utils/notificationShade.ts';
+import { doVapidKeysMatch, normalizeVapidPublicKey } from '../utils/vapid.ts';
+
+const CONFIG_CACHE_TTL_MS = 60_000;
 
 let cachedFirebaseApp: FirebaseApp | null = null;
 let cachedMessaging: Messaging | null = null;
 let cachedConfig: any = null;
+let cachedConfigFetchedAt = 0;
+let inFlightConfigPromise: Promise<any> | null = null;
 let onMessageUnsubscribe: (() => void) | null = null;
+let inFlightTokenSync: Promise<{
+  success: boolean;
+  token?: string;
+  error?: string;
+  warning?: string;
+  mode?: 'fcm' | 'realtime';
+}> | null = null;
+let lastSyncedSignature = '';
+let swSubscriptionListenerAttached = false;
 
-export async function fetchFcmConfig() {
-  if (cachedConfig) return cachedConfig;
-  try {
-    const config = await api.notifications.getFcmConfig();
-    if (config && config.projectId && config.apiKey) {
-      cachedConfig = config;
-      return config;
-    }
-  } catch (err) {
-    console.warn('[firebaseConfig] Could not fetch FCM config from server:', err);
+export function invalidateFcmConfigCache(): void {
+  cachedConfig = null;
+  cachedConfigFetchedAt = 0;
+  inFlightConfigPromise = null;
+  lastSyncedSignature = '';
+}
+
+export async function fetchFcmConfig(forceRefresh = false) {
+  if (!forceRefresh && cachedConfig && Date.now() - cachedConfigFetchedAt < CONFIG_CACHE_TTL_MS) {
+    return cachedConfig;
   }
-  return null;
+  if (!forceRefresh && inFlightConfigPromise) {
+    return inFlightConfigPromise;
+  }
+
+  inFlightConfigPromise = (async () => {
+    try {
+      const config = await api.notifications.getFcmConfig();
+      if (config && config.projectId && config.apiKey) {
+        cachedConfig = config;
+        cachedConfigFetchedAt = Date.now();
+        return config;
+      }
+    } catch (err) {
+      console.warn('[firebaseConfig] Could not fetch FCM config from server:', err);
+    }
+    return null;
+  })().finally(() => {
+    inFlightConfigPromise = null;
+  });
+
+  return inFlightConfigPromise;
+}
+
+function attachPushSubscriptionChangeListener(): void {
+  if (typeof window === 'undefined' || swSubscriptionListenerAttached) return;
+  swSubscriptionListenerAttached = true;
+
+  const handleMessage = (data: any) => {
+    if (data && data.type === 'SW_PUSH_SUBSCRIPTION_CHANGED') {
+      lastSyncedSignature = '';
+      void syncFcmTokenSilently();
+    }
+  };
+
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const channel = new BroadcastChannel(PUSH_DEDUPE_CHANNEL_NAME);
+      channel.addEventListener('message', (event: MessageEvent) => handleMessage(event.data));
+    } catch {}
+  }
+
+  if ('serviceWorker' in navigator) {
+    try {
+      navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => handleMessage(event.data));
+    } catch {}
+  }
+}
+
+/**
+ * Resolves and activates the single root Service Worker (/sw.js at scope '/').
+ * Removes any competing legacy '/firebase-cloud-messaging-push-scope' worker so
+ * Chrome/Edge/Firefox never split PushManager subscriptions across two scopes.
+ */
+export async function resolveActivePushServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return null;
+  }
+
+  try {
+    if (typeof navigator.serviceWorker.getRegistrations === 'function') {
+      const allRegs = await navigator.serviceWorker.getRegistrations().catch(() => [] as ServiceWorkerRegistration[]);
+      for (const reg of allRegs) {
+        if (reg.scope && reg.scope.includes('firebase-cloud-messaging-push-scope')) {
+          await reg.unregister().catch(() => {});
+        }
+      }
+    }
+
+    let reg = await navigator.serviceWorker.getRegistration('/');
+    if (!reg) {
+      reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    }
+
+    if (reg?.waiting) {
+      try {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } catch {}
+    }
+
+    const readyReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<ServiceWorkerRegistration | null>((resolve) => setTimeout(() => resolve(null), 5000)),
+    ]);
+    if (readyReg?.active && readyReg.scope === reg?.scope) {
+      reg = readyReg;
+    }
+
+    if (reg && (!reg.active || reg.active.state !== 'activated')) {
+      await new Promise<void>((resolve) => {
+        if (reg?.active && reg.active.state === 'activated') return resolve();
+        const timer = setTimeout(resolve, 3500);
+        const worker = reg?.installing || reg?.waiting || reg?.active;
+        if (worker) {
+          worker.addEventListener('statechange', (e: any) => {
+            if (e.target?.state === 'activated' || reg?.active?.state === 'activated') {
+              clearTimeout(timer);
+              resolve();
+            }
+          });
+        } else {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    }
+
+    if (reg?.active) {
+      return reg;
+    }
+
+    const freshReg = await navigator.serviceWorker.getRegistration('/');
+    return freshReg?.active ? freshReg : null;
+  } catch (err) {
+    console.warn('[firebaseConfig] Service worker readiness notice:', err);
+    return null;
+  }
+}
+
+async function ensureCleanPushSubscriptionForVapid(
+  reg: ServiceWorkerRegistration,
+  vapidKey?: string
+): Promise<void> {
+  if (!reg?.pushManager || typeof reg.pushManager.getSubscription !== 'function') return;
+  try {
+    const existingSub = await reg.pushManager.getSubscription();
+    if (!existingSub) return;
+
+    if (vapidKey && existingSub.options?.applicationServerKey) {
+      if (!doVapidKeysMatch(existingSub.options.applicationServerKey, vapidKey)) {
+        await existingSub.unsubscribe().catch(() => {});
+      }
+    }
+  } catch {}
 }
 
 export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; messaging: Messaging | null }> {
   if (typeof window === 'undefined') {
     return { app: null, messaging: null };
   }
+
+  attachPushSubscriptionChangeListener();
 
   const supported = await isSupported().catch(() => false);
   if (!supported) {
@@ -67,7 +217,6 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
     // Attach foreground message listener once
     if (!onMessageUnsubscribe) {
       onMessageUnsubscribe = onMessage(messaging, (payload) => {
-        console.log('🔔 [FCM] Foreground message received:', payload);
         const title = payload.notification?.title || payload.data?.title || 'POS Notification';
         const body = payload.notification?.body || payload.data?.body || 'New operational activity';
         const deepLinkUrl = payload.data?.url || '/pos';
@@ -78,15 +227,16 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
         const dedupeKey = getNotificationDedupeKey(payload);
         const tag = payload.data?.tag || payload.data?.eventId || `fcm-fg-${Date.now()}`;
 
-        // Play alert audio chime only if SSE did not already play it for this event
+        // Play alert audio chime only if SSE / SW did not already play it for this event
         if (claimNotificationChannel(dedupeKey, 'audio')) {
           playAudioFeedback.success();
         }
 
-        // Show browser/Android shade notification once per eventId/tag if permitted
+        // Show browser/Android shade notification once per eventId/tag if permitted and not already shown by SW
         if (
           typeof Notification !== 'undefined' &&
           Notification.permission === 'granted' &&
+          !isNotificationChannelClaimed(dedupeKey, 'os_notification') &&
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
           const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
@@ -98,6 +248,8 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
               badge,
               tag,
               timestamp: parsedTimestamp,
+              requireInteraction: false,
+              renotify: false,
               actions: [
                 { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
                 { action: 'dismiss', title: 'Dismiss' },
@@ -146,167 +298,167 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
     return { success: false, error: 'Notification permission is not granted on this device.' };
   }
 
-  try {
-    // 1. Initialize Firebase client
-    const { messaging } = await initFirebaseClient();
-    if (!messaging) {
-      return {
-        success: false,
-        error: 'Firebase Cloud Messaging is not yet configured in SuperAdmin settings. Please enter FCM credentials.',
-      };
-    }
+  if (inFlightTokenSync) {
+    return inFlightTokenSync;
+  }
 
-    // 2. Ensure Service Worker is registered AND active
-    let activeSwReg: ServiceWorkerRegistration | undefined;
-    if ('serviceWorker' in navigator) {
-      try {
-        // First check existing registration
-        let reg = await navigator.serviceWorker.getRegistration();
-        if (!reg) {
-          reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        }
-
-        // If a waiting worker exists, tell it to activate immediately
-        if (reg?.waiting) {
-          try {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          } catch {}
-        }
-
-        // Await navigator.serviceWorker.ready to guarantee active worker state
-        const readyReg = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise<ServiceWorkerRegistration | null>((resolve) => setTimeout(() => resolve(null), 3000)),
-        ]);
-        if (readyReg?.active) {
-          reg = readyReg;
-        }
-
-        // If worker is still installing or waiting, wait for it to transition to activated
-        if (reg && (!reg.active || reg.active.state !== 'activated')) {
-          await new Promise<void>((resolve) => {
-            if (reg?.active && reg.active.state === 'activated') return resolve();
-            const timer = setTimeout(resolve, 2500);
-            const worker = reg?.installing || reg?.waiting;
-            if (worker) {
-              worker.addEventListener('statechange', (e: any) => {
-                if (e.target?.state === 'activated' || reg?.active?.state === 'activated') {
-                  clearTimeout(timer);
-                  resolve();
-                }
-              });
-            }
-          });
-        }
-
-        // Re-check active state on the registration
-        if (reg?.active) {
-          activeSwReg = reg;
-        } else {
-          const freshReg = await navigator.serviceWorker.getRegistration();
-          if (freshReg?.active) {
-            activeSwReg = freshReg;
-          }
-        }
-      } catch (swErr) {
-        console.warn('[firebaseConfig] Service worker readiness notice:', swErr);
+  inFlightTokenSync = (async () => {
+    try {
+      // 1. Initialize Firebase client
+      const { messaging } = await initFirebaseClient();
+      if (!messaging) {
+        return {
+          success: false,
+          error: 'Firebase Cloud Messaging is not yet configured in SuperAdmin settings. Please enter FCM credentials.',
+        };
       }
-    }
 
-    // 3. Attempt FCM Token acquisition if messaging client is initialized
-    let token: string | undefined;
-    if (messaging) {
-      try {
-        const config = await fetchFcmConfig();
-        const rawVapid = config?.vapidKey?.trim();
-        const vapidKey = rawVapid && !rawVapid.includes('@') && rawVapid.length > 30 ? rawVapid : undefined;
+      // 2. Ensure the single root Service Worker (/sw.js) is active
+      const activeSwReg = await resolveActivePushServiceWorker();
 
-        // ONLY pass serviceWorkerRegistration if we have a verified active worker.
-        // Passing an inactive registration causes Firebase to throw 'Failed to register user. No service workers.'
-        if (activeSwReg?.active) {
+      // 3. Validate VAPID key and reconcile any stale PushManager subscription
+      let token: string | undefined;
+      let vapidWarning: string | undefined;
+
+      const config = await fetchFcmConfig();
+      const rawVapid = typeof config?.vapidKey === 'string' ? config.vapidKey.trim() : '';
+      const normalizedVapid = normalizeVapidPublicKey(rawVapid);
+      const vapidKey = normalizedVapid || undefined;
+
+      if (rawVapid && !normalizedVapid) {
+        vapidWarning =
+          'Configured Web Push VAPID key appears malformed. Re-save the Web Push Certificate key pair in Notification Settings.';
+        console.warn('[firebaseConfig]', vapidWarning);
+      }
+
+      if (messaging && activeSwReg?.active) {
+        await ensureCleanPushSubscriptionForVapid(activeSwReg, vapidKey);
+
+        try {
           token = await getToken(messaging, {
             serviceWorkerRegistration: activeSwReg,
             vapidKey,
           });
-        } else {
-          // Attempt default token acquisition without passing an unconfirmed worker
-          token = await getToken(messaging, { vapidKey });
+        } catch (fcmErr: any) {
+          const msg = String(fcmErr?.message || fcmErr || '');
+          // Recover cleanly from InvalidStateError / mismatched applicationServerKey / stale subscription
+          if (
+            msg.includes('applicationServerKey') ||
+            msg.includes('InvalidStateError') ||
+            msg.includes('subscription') ||
+            msg.includes('AbortError')
+          ) {
+            try {
+              const staleSub = await activeSwReg.pushManager.getSubscription();
+              if (staleSub) {
+                await staleSub.unsubscribe();
+              }
+              await new Promise((r) => setTimeout(r, 150));
+              token = await getToken(messaging, {
+                serviceWorkerRegistration: activeSwReg,
+                vapidKey,
+              });
+            } catch (retryErr) {
+              console.warn(
+                '[firebaseConfig] Background push token retry failed (activating real-time alert stream fallback):',
+                retryErr
+              );
+            }
+          } else {
+            console.warn(
+              '[firebaseConfig] Background push token notice (activating real-time alert stream fallback):',
+              fcmErr
+            );
+          }
         }
-      } catch (fcmErr) {
-        console.warn('[firebaseConfig] Background push token notice (activating real-time alert stream fallback):', fcmErr);
+      } else if (!activeSwReg?.active) {
+        console.warn(
+          '[firebaseConfig] Root Service Worker (/sw.js) did not reach active state; skipping competing SW registration.'
+        );
       }
-    }
 
-    // 4. Send token to backend if obtained
-    if (token) {
-      let userRole = overrideRole || 'ADMIN';
-      let tenantId = getActiveTenantId() || 1;
-      let userId = 0;
-      try {
-        const stored = localStorage.getItem('pos_current_user');
-        if (stored) {
-          const u = JSON.parse(stored);
-          if (u.role) userRole = String(u.role).toUpperCase();
-          if (u.tenantId || u.tenant_id) tenantId = Number(u.tenantId || u.tenant_id);
-          if (u.id) userId = Number(u.id);
+      // 4. Send token to backend if obtained (coalescing unchanged session signatures & cleaning up rotated tokens)
+      if (token) {
+        let userRole = overrideRole || 'ADMIN';
+        let tenantId = getActiveTenantId() || 1;
+        let userId = 0;
+        try {
+          const stored = localStorage.getItem('pos_current_user');
+          if (stored) {
+            const u = JSON.parse(stored);
+            if (u.role) userRole = String(u.role).toUpperCase();
+            if (u.tenantId || u.tenant_id) tenantId = Number(u.tenantId || u.tenant_id);
+            if (u.id) userId = Number(u.id);
+          }
+        } catch {}
+
+        const syncSignature = `${tenantId}:${userId}:${userRole}:${token}`;
+        const previousToken = localStorage.getItem('pos_fcm_token') || undefined;
+
+        if (lastSyncedSignature !== syncSignature || (previousToken && previousToken !== token)) {
+          const deviceName = `${navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop/Laptop'} (${navigator.platform || 'Web'})`;
+
+          await api.notifications.registerFcmToken({
+            token,
+            previousToken: previousToken && previousToken !== token ? previousToken : undefined,
+            tenantId,
+            userId,
+            userRole,
+            userAgent: navigator.userAgent,
+            deviceName,
+          });
+
+          localStorage.setItem('pos_fcm_token', token);
+          lastSyncedSignature = syncSignature;
         }
-      } catch {}
+      }
 
-      const deviceName = `${navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop/Laptop'} (${navigator.platform || 'Web'})`;
-
-      await api.notifications.registerFcmToken({
-        token,
-        tenantId,
-        userId,
-        userRole,
-        userAgent: navigator.userAgent,
-        deviceName,
-      });
-
-      localStorage.setItem('pos_fcm_token', token);
-    }
-
-    // Mark notifications as enabled in localStorage and clear denial flag
-    localStorage.setItem('pos_push_notifications_enabled', 'true');
-    localStorage.removeItem('pos_push_permission_denied');
-
-    // Notify other components that notification state updated
-    window.dispatchEvent(
-      new CustomEvent('pos:push-status-changed', {
-        detail: { token, permission: 'granted', isSubscribed: true, mode: token ? 'fcm' : 'realtime' },
-      })
-    );
-
-    return {
-      success: true,
-      token,
-      mode: token ? 'fcm' : 'realtime',
-      warning: !token
-        ? 'Real-time desktop alerts are active! (Live counter & sales alerts will pop up while POS is open).'
-        : undefined,
-    };
-  } catch (err: any) {
-    console.error('[firebaseConfig] Exception in acquireAndSyncFcmToken:', err);
-    // If notification permission was already granted by user, don't break - enable real-time notifications
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      // Mark notifications as enabled in localStorage and clear denial flag
       localStorage.setItem('pos_push_notifications_enabled', 'true');
       localStorage.removeItem('pos_push_permission_denied');
+
+      // Notify other components that notification state updated
       window.dispatchEvent(
         new CustomEvent('pos:push-status-changed', {
-          detail: { permission: 'granted', isSubscribed: true, mode: 'realtime' },
+          detail: { token, permission: 'granted', isSubscribed: true, mode: token ? 'fcm' : 'realtime' },
         })
       );
+
       return {
         success: true,
-        mode: 'realtime',
-        warning: 'Real-time notifications are enabled! You will receive live desktop and counter alerts while POS is open.',
+        token,
+        mode: token ? 'fcm' : 'realtime',
+        warning: !token
+          ? vapidWarning ||
+            'Real-time desktop alerts are active! (Live counter & sales alerts will pop up while POS is open).'
+          : undefined,
       };
+    } catch (err: any) {
+      console.error('[firebaseConfig] Exception in acquireAndSyncFcmToken:', err);
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        localStorage.setItem('pos_push_notifications_enabled', 'true');
+        localStorage.removeItem('pos_push_permission_denied');
+        window.dispatchEvent(
+          new CustomEvent('pos:push-status-changed', {
+            detail: { permission: 'granted', isSubscribed: true, mode: 'realtime' },
+          })
+        );
+        return {
+          success: true,
+          mode: 'realtime',
+          warning: 'Real-time notifications are enabled! You will receive live desktop and counter alerts while POS is open.',
+        };
+      }
+      return {
+        success: false,
+        error: err?.message || 'Failed to complete notification registration.',
+      };
+    } finally {
+      inFlightTokenSync = null;
     }
-    return {
-      success: false,
-      error: err?.message || 'Failed to complete notification registration.',
-    };
-  }
+  })();
+
+  return inFlightTokenSync;
 }
 
 /**
@@ -412,12 +564,22 @@ export async function requestFcmDeviceToken(overrideRole?: string): Promise<{
  * Unsubscribes and deletes the stored FCM token from the database.
  */
 export async function unregisterFcmDeviceToken(): Promise<boolean> {
+  lastSyncedSignature = '';
   const token = localStorage.getItem('pos_fcm_token');
   if (token) {
     try {
       await api.notifications.removeFcmToken(token);
     } catch {}
     localStorage.removeItem('pos_fcm_token');
+  }
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      const sub = await reg?.pushManager?.getSubscription();
+      if (sub) {
+        await sub.unsubscribe().catch(() => {});
+      }
+    } catch {}
   }
   localStorage.setItem('pos_push_notifications_enabled', 'false');
   window.dispatchEvent(

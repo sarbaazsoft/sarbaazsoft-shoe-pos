@@ -403,16 +403,11 @@ self.addEventListener('fetch', (event) => {
 });
 
 // -------------------------------------------------------------------------
-// 3. Firebase Cloud Messaging (FCM) Integration
+// 3. Notification Helpers & Anti-Spam Deduplication
 // -------------------------------------------------------------------------
-let messagingInitialized = false;
-
-try {
-  importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
-} catch (err) {
-  // Graceful fallback if running offline or in network-isolated environments
-}
+const PUSH_DEDUPE_CHANNEL_NAME = 'pos_push_dedupe_channel';
+const SW_PUSH_DEDUPE_TTL_MS = 15000;
+const swRecentPushTags = new Map();
 
 function isAdminShadeTarget(options) {
   const data = (options && options.data) || {};
@@ -438,6 +433,63 @@ function resolveShadeTimestamp(rawTimestamp) {
   return Date.now();
 }
 
+function sanitizePushTargetUrl(rawUrl, isAdminTarget) {
+  const fallback = isAdminTarget ? '/admin' : '/?tab=reports';
+  if (!rawUrl || typeof rawUrl !== 'string') return fallback;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return fallback;
+  if (trimmed.startsWith('/')) {
+    return trimmed.startsWith('//') ? fallback : trimmed;
+  }
+  try {
+    const parsed = new URL(trimmed, self.location && self.location.origin ? self.location.origin : 'https://localhost');
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.origin === (self.location && self.location.origin)
+        ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+        : parsed.href;
+    }
+  } catch {}
+  return fallback;
+}
+
+function claimSwPushTag(tag) {
+  const now = Date.now();
+  if (swRecentPushTags.size > 100) {
+    for (const [k, exp] of swRecentPushTags.entries()) {
+      if (exp <= now) swRecentPushTags.delete(k);
+    }
+  }
+  const existing = swRecentPushTags.get(tag);
+  if (existing && existing > now) {
+    return false;
+  }
+  swRecentPushTags.set(tag, now + SW_PUSH_DEDUPE_TTL_MS);
+  return true;
+}
+
+function broadcastPushDedupeEvent(payload) {
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel(PUSH_DEDUPE_CHANNEL_NAME);
+      channel.postMessage(payload);
+      channel.close();
+    }
+  } catch {}
+
+  if (self.clients && typeof self.clients.matchAll === 'function') {
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          try {
+            client.postMessage(payload);
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }
+}
+
 async function showGroupedShadeNotification(title, options = {}) {
   if (!self.registration || typeof self.registration.showNotification !== 'function') {
     return;
@@ -447,14 +499,29 @@ async function showGroupedShadeNotification(title, options = {}) {
   const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
   const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
   const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-  const incomingTag = String(options.tag || '').trim() || `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
-  const cleanTitle = String(title || 'SarbaazSoft Shoe POS Alert');
-  const cleanBody = String(options.body || '');
+  const incomingTag =
+    String(options.tag || (options.data && (options.data.tag || options.data.eventId)) || '').trim() ||
+    `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
+  const cleanTitle = String(title || 'SarbaazSoft Shoe POS Alert').slice(0, 120);
+  const cleanBody = String(options.body || 'New store notification.').slice(0, 320);
   const timestamp = resolveShadeTimestamp(options.timestamp || (options.data && options.data.timestamp));
-  const targetUrl = String(
-    (options.data && (options.data.url || options.data.deepLinkUrl)) ||
-      (isAdminTarget ? '/admin' : '/?tab=reports')
+  const targetUrl = sanitizePushTargetUrl(
+    (options.data && (options.data.url || options.data.deepLinkUrl)) || '',
+    isAdminTarget
   );
+
+  const isFirstSwDeliveryForTag = claimSwPushTag(incomingTag);
+
+  // Broadcast immediately so any open background/foreground tabs suppress duplicate SSE/onMessage alerts
+  broadcastPushDedupeEvent({
+    type: 'SW_NOTIFICATION_SHOWN',
+    tag: incomingTag,
+    eventId: (options.data && options.data.eventId) || incomingTag,
+    dedupeKey: `id:${(options.data && options.data.eventId) || incomingTag}`,
+    title: cleanTitle,
+    body: cleanBody,
+    timestamp,
+  });
 
   // Clean up any stale legacy merged-summary notification from prior SW versions
   // without closing individual notifications in the same group.
@@ -490,6 +557,10 @@ async function showGroupedShadeNotification(title, options = {}) {
         { action: 'dismiss', title: 'Dismiss' },
       ];
 
+  const allowRenotify = isFirstSwDeliveryForTag ? Boolean(options.renotify === true) : false;
+  const allowRequireInteraction = Boolean(options.requireInteraction === true);
+  const shouldBeSilent = !isFirstSwDeliveryForTag || Boolean(options.silent === true);
+
   const notificationOptions = Object.assign({}, options, {
     body: cleanBody,
     icon: options.icon || defaultIcon,
@@ -499,8 +570,10 @@ async function showGroupedShadeNotification(title, options = {}) {
         : NOTIFICATION_BADGE_ICON,
     tag: incomingTag,
     timestamp,
-    renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
-    vibrate: options.vibrate || [200, 100, 200],
+    renotify: allowRenotify,
+    requireInteraction: allowRequireInteraction,
+    silent: shouldBeSilent,
+    vibrate: shouldBeSilent ? undefined : options.vibrate || [200, 100, 200],
     actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
     data: Object.assign({}, options.data || {}, {
       url: targetUrl,
@@ -517,10 +590,200 @@ async function showGroupedShadeNotification(title, options = {}) {
   return self.registration.showNotification(cleanTitle, notificationOptions);
 }
 
+// -------------------------------------------------------------------------
+// 4. Authoritative Web Push & Notification Interaction Listeners
+// Registered BEFORE firebase-messaging-compat importScripts so Firebase's
+// internal compat listeners cannot auto-display duplicate notifications or
+// hijack notification clicks in desktop/mobile browsers.
+// -------------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  if (typeof event.stopImmediatePropagation === 'function') {
+    event.stopImmediatePropagation();
+  }
+
+  let data = {};
+  if (event && event.data) {
+    try {
+      data = event.data.json() || {};
+    } catch {
+      try {
+        const textBody = event.data.text();
+        data = { title: 'SarbaazSoft POS Alert', body: textBody };
+      } catch {
+        data = {};
+      }
+    }
+  }
+
+  const notification = (data && data.notification) || data || {};
+  const payloadData = (data && data.data) || {};
+  const title = notification.title || payloadData.title || data.title || 'SarbaazSoft Shoe POS Alert';
+  const tag =
+    payloadData.tag ||
+    payloadData.eventId ||
+    notification.tag ||
+    data.tag ||
+    data.eventId ||
+    `pos-alert-${Date.now()}`;
+  const rawTargetUrl = payloadData.url || payloadData.deepLinkUrl || data.url || '/?tab=reports';
+  const isAdminTarget =
+    String(rawTargetUrl).startsWith('/admin') ||
+    payloadData.isAdmin === true ||
+    payloadData.isAdmin === 'true' ||
+    String(notification.icon || data.icon || payloadData.icon || '').includes('/admin/');
+  const targetUrl = sanitizePushTargetUrl(rawTargetUrl, isAdminTarget);
+  const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+  const rawBadge = notification.badge || data.badge || payloadData.badge;
+  const badge =
+    rawBadge && !String(rawBadge).includes('pwa-192x192')
+      ? rawBadge
+      : NOTIFICATION_BADGE_ICON;
+  const timestamp = resolveShadeTimestamp(
+    notification.timestamp || data.timestamp || payloadData.timestamp
+  );
+
+  const options = {
+    body:
+      notification.body ||
+      payloadData.body ||
+      data.body ||
+      data.message ||
+      'New Point of Sale notification received.',
+    icon: notification.icon || data.icon || payloadData.icon || defaultIcon,
+    badge,
+    tag,
+    timestamp,
+    data: Object.assign({}, payloadData, { url: targetUrl, isAdmin: isAdminTarget ? 'true' : 'false' }),
+    vibrate: [200, 100, 200],
+    requireInteraction: Boolean(
+      notification.requireInteraction === true ||
+        data.requireInteraction === true ||
+        payloadData.requireInteraction === 'true'
+    ),
+    renotify: Boolean(
+      notification.renotify === true ||
+        data.renotify === true ||
+        payloadData.renotify === 'true'
+    ),
+    actions: Array.isArray(notification.actions) && notification.actions.length > 0
+      ? notification.actions
+      : [
+          { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+          { action: 'open_receipt', title: 'Open Receipt' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ],
+  };
+
+  event.waitUntil(
+    showGroupedShadeNotification(title, options).catch(() =>
+      self.registration.showNotification('SarbaazSoft Shoe POS Alert', {
+        body: 'New store activity received.',
+        icon: defaultIcon,
+        badge: NOTIFICATION_BADGE_ICON,
+        tag: `pos-fallback-${Date.now()}`,
+      })
+    )
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  if (typeof event.stopImmediatePropagation === 'function') {
+    event.stopImmediatePropagation();
+  }
+
+  if (event.notification && typeof event.notification.close === 'function') {
+    event.notification.close();
+  }
+
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  const notifData = (event.notification && event.notification.data) || {};
+  const isAdminTarget =
+    notifData.isAdmin === true ||
+    notifData.isAdmin === 'true' ||
+    String(notifData.url || '').startsWith('/admin');
+  let targetUrl = sanitizePushTargetUrl(notifData.url || '/?tab=reports', isAdminTarget);
+  if (event.action === 'open_notifications') {
+    targetUrl = isAdminTarget ? '/admin' : '/notifications';
+  } else if (event.action === 'open_pos') {
+    targetUrl = isAdminTarget ? '/admin' : '/?tab=pos';
+  } else if (event.action === 'open_receipt') {
+    targetUrl = sanitizePushTargetUrl(notifData.url || '/?tab=reports', isAdminTarget);
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // 1. If an active window is already open, notify it and bring to focus
+      for (const client of clientList) {
+        if ('focus' in client) {
+          try {
+            client.postMessage({
+              type: 'POS_DEEP_LINK_NOTIFICATION',
+              payload: notifData,
+              targetUrl,
+            });
+            if (client.url && client.navigate) {
+              Promise.resolve(client.navigate(targetUrl)).catch(() => {});
+            }
+          } catch {}
+          return client.focus();
+        }
+      }
+
+      // 2. If no window is open, open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  broadcastPushDedupeEvent({
+    type: 'SW_PUSH_SUBSCRIPTION_CHANGED',
+    timestamp: Date.now(),
+  });
+  if (
+    event &&
+    typeof event.waitUntil === 'function' &&
+    event.oldSubscription &&
+    event.oldSubscription.options &&
+    self.registration &&
+    self.registration.pushManager
+  ) {
+    event.waitUntil(
+      self.registration.pushManager
+        .subscribe(event.oldSubscription.options)
+        .then(() => {
+          broadcastPushDedupeEvent({
+            type: 'SW_PUSH_SUBSCRIPTION_CHANGED',
+            resubscribed: true,
+            timestamp: Date.now(),
+          });
+        })
+        .catch(() => {})
+    );
+  }
+});
+
+// -------------------------------------------------------------------------
+// 4B. Firebase Cloud Messaging (FCM) Compat Initialization
+// -------------------------------------------------------------------------
+let messagingInitialized = false;
+
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
+} catch (err) {
+  // Graceful fallback if running offline or in network-isolated environments
+}
+
 async function initFirebaseInWorker() {
   if (messagingInitialized || typeof firebase === 'undefined') return;
   try {
-    const res = await fetch('/api/notifications/fcm-config');
+    const res = await fetch('/api/notifications/fcm-config', { cache: 'no-store' });
     if (!res.ok) return;
     const config = await res.json();
     if (config && config.apiKey && config.projectId) {
@@ -577,101 +840,6 @@ async function initFirebaseInWorker() {
 }
 
 initFirebaseInWorker().catch(() => {});
-
-// -------------------------------------------------------------------------
-// 4. Standard Web Push & Notification Interaction
-// -------------------------------------------------------------------------
-self.addEventListener('push', (event) => {
-  let data = {};
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch {
-      data = { title: 'SarbaazSoft POS Alert', body: event.data.text() };
-    }
-  }
-
-  const notification = data.notification || data;
-  const title = notification.title || 'SarbaazSoft Shoe POS Alert';
-  const tag = data.data?.tag || data.tag || data.eventId || `pos-alert-${Date.now()}`;
-  const targetUrl = (data.data && data.data.url) || data.url || '/?tab=reports';
-  const isAdminTarget =
-    String(targetUrl).startsWith('/admin') ||
-    data.data?.isAdmin === true ||
-    data.data?.isAdmin === 'true';
-  const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-  const rawBadge = notification.badge || data.badge || data.data?.badge;
-  const badge =
-    rawBadge && !String(rawBadge).includes('pwa-192x192')
-      ? rawBadge
-      : NOTIFICATION_BADGE_ICON;
-  const timestamp = resolveShadeTimestamp(notification.timestamp || data.timestamp || (data.data && data.data.timestamp));
-  const options = {
-    body: notification.body || data.body || data.message || 'New Point of Sale transaction confirmed.',
-    icon: notification.icon || data.icon || data.data?.icon || defaultIcon,
-    badge,
-    tag,
-    timestamp,
-    data: Object.assign({ url: targetUrl, isAdmin: isAdminTarget ? 'true' : 'false' }, data.data || {}),
-    vibrate: [250, 100, 250, 100, 250],
-    requireInteraction: true,
-    renotify: true,
-    actions: Array.isArray(notification.actions) && notification.actions.length > 0
-      ? notification.actions
-      : [
-          { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-          { action: 'open_receipt', title: 'Open Receipt' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ],
-  };
-
-  event.waitUntil(showGroupedShadeNotification(title, options));
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  if (event.action === 'dismiss') {
-    return;
-  }
-
-  const notifData = event.notification.data || {};
-  const isAdminTarget = notifData.isAdmin === true || notifData.isAdmin === 'true' || String(notifData.url || '').startsWith('/admin');
-  let targetUrl = notifData.url || '/?tab=reports';
-  if (event.action === 'open_notifications') {
-    targetUrl = isAdminTarget ? '/admin' : '/notifications';
-  } else if (event.action === 'open_pos') {
-    targetUrl = isAdminTarget ? '/admin' : '/?tab=pos';
-  } else if (event.action === 'open_receipt') {
-    targetUrl = notifData.url || '/?tab=reports';
-  }
-
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // 1. If an active window is already open, notify it and bring to focus
-      for (const client of clientList) {
-        if ('focus' in client) {
-          try {
-            client.postMessage({
-              type: 'POS_DEEP_LINK_NOTIFICATION',
-              payload: notifData,
-              targetUrl,
-            });
-            if (client.url && client.navigate) {
-              Promise.resolve(client.navigate(targetUrl)).catch(() => {});
-            }
-          } catch {}
-          return client.focus();
-        }
-      }
-
-      // 2. If no window is open, open a new window
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
-      }
-    })
-  );
-});
 
 // -------------------------------------------------------------------------
 // 5. Offline Background Sync for Offline Sales Transactions (IndexedDB)

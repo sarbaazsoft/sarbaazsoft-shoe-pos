@@ -15,7 +15,11 @@ import {
   Laptop,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
-import { requestFcmDeviceToken, getStoredFcmToken } from '../../services/firebaseConfig.ts';
+import {
+  requestFcmDeviceToken,
+  getStoredFcmToken,
+  invalidateFcmConfigCache,
+} from '../../services/firebaseConfig.ts';
 
 interface NotificationAlertProvidersSettingsProps {
   formData?: any;
@@ -128,6 +132,8 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         FCM_MEASUREMENT_ID: fcmSettings.FCM_MEASUREMENT_ID.trim(),
         FCM_VAPID_KEY: fcmSettings.FCM_VAPID_KEY.trim(),
       });
+
+      invalidateFcmConfigCache();
 
       setSaveMessage({
         type: 'success',
