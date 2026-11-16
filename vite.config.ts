@@ -91,10 +91,15 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
       const buildVersion = `${pkgVersion}-${hash.digest('hex').slice(0, 10)}`;
 
       if (swExists) {
+        const pauseSwCachingOnBuild = true;
         swSource = swSource
           .replace(
             /const SW_ENV = ['"][^'"]*['"];/,
-            `const SW_ENV = 'production';`
+            pauseSwCachingOnBuild ? `const SW_ENV = 'development';` : `const SW_ENV = 'production';`
+          )
+          .replace(
+            /const SW_CACHING_PAUSED = (?:true|false);/,
+            `const SW_CACHING_PAUSED = ${pauseSwCachingOnBuild ? 'true' : 'false'};`
           )
           .replace(
             /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
@@ -102,7 +107,9 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
           )
           .replace(
             /const PRECACHE_BUILD_ASSETS = \[[\s\S]*?\];/,
-            `const PRECACHE_BUILD_ASSETS = ${JSON.stringify(precacheBuildAssets, null, 2)};`
+            pauseSwCachingOnBuild
+              ? `const PRECACHE_BUILD_ASSETS = [];`
+              : `const PRECACHE_BUILD_ASSETS = ${JSON.stringify(precacheBuildAssets, null, 2)};`
           );
 
         fs.writeFileSync(swPath, swSource, 'utf8');

@@ -65,7 +65,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
     setIsCheckingSync(true);
     setSyncStatusState('checking');
     try {
-      const res = await fetch('/api/health').catch(() => null);
+      const res = await fetch('/api/health', { cache: 'no-store' }).catch(() => null);
       if (res && res.ok) {
         setSyncStatusState('just-synced');
       } else {

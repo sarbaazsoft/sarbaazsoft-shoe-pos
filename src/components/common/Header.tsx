@@ -732,8 +732,8 @@ export const Header: React.FC<HeaderProps> = ({
         triggerBellPulse();
         void triggerTestNotificationShadeFallback({
           eventId: res.eventId || eventId,
-          title: '🔔 POS Test Push Alert',
-          body: 'Push Alert received successfully! Device notifications are operational.',
+          title: 'POS Test Alert',
+          body: 'POS push alert delivered successfully. Device notifications are operational.',
           url: '/pos',
           isAdmin: false,
           fcmSentCount: res.fcmSentCount,

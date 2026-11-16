@@ -9,8 +9,9 @@
 // =========================================================================
 
 const SW_ENV = 'development';
+const SW_CACHING_PAUSED = true;
 const SW_BUILD_VERSION = 'dev';
-const IS_PRODUCTION_SW = SW_ENV === 'production';
+const IS_PRODUCTION_SW = !SW_CACHING_PAUSED && SW_ENV === 'production';
 const CACHE_PREFIX = 'sarbaazsoft-pos';
 const PRECACHE_CACHE_NAME = `${CACHE_PREFIX}-precache-${SW_BUILD_VERSION}`;
 const RUNTIME_CACHE_NAME = `${CACHE_PREFIX}-runtime-${SW_BUILD_VERSION}`;
@@ -18,7 +19,7 @@ const IMMUTABLE_CACHE_NAME = `${CACHE_PREFIX}-immutable-v1`;
 const CACHE_NAME = PRECACHE_CACHE_NAME;
 const MAX_IMMUTABLE_RUNTIME_ENTRIES = 160;
 const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
-const MAX_UNGROUPED_SHADE_NOTIFICATIONS = 1;
+const MAX_ACTIVE_SHADE_NOTIFICATIONS = 8;
 const POS_SUMMARY_TAG = 'pos-grouped-summary';
 const ADMIN_SUMMARY_TAG = 'admin-grouped-summary';
 const SW_SYNC_TAG = 'pos-offline-transactions-sync';
@@ -195,32 +196,31 @@ async function precacheAppShell() {
 // 1. Service Worker Lifecycle (Install & Activate)
 // -------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
-  // In development, activate immediately without freezing dev modules in Cache Storage.
-  // In production, only auto-skipWaiting on clean first-time install so open tabs do not
-  // swap lazy chunks mid-checkout (unless explicitly requested via SKIP_WAITING).
-  if (!IS_PRODUCTION_SW || !(self.registration && self.registration.active)) {
+  // When caching is paused or in development, activate immediately and clear any old caches.
+  if (SW_CACHING_PAUSED || !IS_PRODUCTION_SW || !(self.registration && self.registration.active)) {
     self.skipWaiting();
   }
-  if (!IS_PRODUCTION_SW) {
+  if (SW_CACHING_PAUSED || !IS_PRODUCTION_SW) {
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        .catch(() => {})
+    );
     return;
   }
   event.waitUntil(precacheAppShell().catch(() => {}));
 });
 
 self.addEventListener('activate', (event) => {
-  if (!IS_PRODUCTION_SW) {
-    // Development: purge all cached shells/runtime buckets so switching from prod to dev never serves stale bundles
+  if (SW_CACHING_PAUSED || !IS_PRODUCTION_SW) {
+    // Caching paused / development: purge all Cache Storage buckets immediately and take control
     event.waitUntil(
       caches
         .keys()
-        .then((keys) =>
-          Promise.all(
-            keys
-              .filter((k) => k.startsWith(CACHE_PREFIX))
-              .map((k) => caches.delete(k))
-          )
-        )
+        .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
         .then(() => self.clients.claim())
+        .catch(() => self.clients.claim())
     );
     return;
   }
@@ -275,8 +275,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // In development, always fetch fresh modules & assets straight from Vite dev server without caching
-  if (!IS_PRODUCTION_SW) {
+  // When caching is paused or in development, always fetch fresh from network with no-store
+  if (SW_CACHING_PAUSED || !IS_PRODUCTION_SW) {
+    if (request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
+      return;
+    }
     if (request.mode === 'navigate') {
       event.respondWith(
         fetch(request, { cache: 'no-store' }).catch(
@@ -581,11 +584,10 @@ async function showGroupedShadeNotification(title, options = {}) {
   const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
   const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
   const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-  const defaultFallbackUrl = isAdminTarget ? '/admin' : '/?tab=reports';
   const incomingTag =
     String(options.tag || (options.data && (options.data.tag || options.data.eventId)) || '').trim() ||
     `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
-  const cleanTitle = String(title || 'SarbaazSoft Shoe POS Alert').slice(0, 120);
+  const cleanTitle = String(title || 'SarbaazSoft POS Alert').slice(0, 120);
   const cleanBody = String(options.body || 'New store notification.').slice(0, 320);
   const timestamp = resolveShadeTimestamp(options.timestamp || (options.data && options.data.timestamp));
   const targetUrl = sanitizePushTargetUrl(
@@ -605,17 +607,8 @@ async function showGroupedShadeNotification(title, options = {}) {
     timestamp,
   };
 
-  const incomingItem = {
-    title: cleanTitle,
-    body: cleanBody,
-    url: targetUrl,
-    tag: incomingTag,
-    timestamp,
-  };
-
-  const itemsByTag = new Map();
-  const nonSummaryNotificationsToClose = [];
   let alreadyHadTagInShade = false;
+  const existingGroupNotifications = [];
 
   if (typeof self.registration.getNotifications === 'function') {
     const existingAll = await self.registration.getNotifications().catch(() => []);
@@ -633,28 +626,42 @@ async function showGroupedShadeNotification(title, options = {}) {
         continue;
       }
 
-      const extracted = extractItemsFromExistingSwNotification(existing, defaultFallbackUrl);
-      for (const item of extracted) {
-        itemsByTag.set(item.tag, item);
-      }
-
+      // Close any legacy synthetic merged summary notification so Android's native
+      // expandable notification group renders individual child cards cleanly
       if (
-        existing.tag === incomingTag ||
-        extracted.some((item) => item.tag === incomingTag)
+        existing.tag === summaryTag ||
+        existing.tag === POS_SUMMARY_TAG ||
+        existing.tag === ADMIN_SUMMARY_TAG ||
+        existingData.isGroupSummary === true
       ) {
-        alreadyHadTagInShade = true;
+        try {
+          existing.close();
+        } catch {}
+        continue;
       }
 
-      if (existing.tag !== summaryTag) {
-        nonSummaryNotificationsToClose.push(existing);
+      if (existing.tag === incomingTag) {
+        alreadyHadTagInShade = true;
+      } else {
+        existingGroupNotifications.push(existing);
+      }
+    }
+
+    // Keep shade bounded to the newest MAX_ACTIVE_SHADE_NOTIFICATIONS per group
+    if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
+      const sortedOldestFirst = existingGroupNotifications.slice().sort(
+        (a, b) =>
+          resolveShadeTimestamp((a && a.timestamp) || (a && a.data && a.data.timestamp)) -
+          resolveShadeTimestamp((b && b.timestamp) || (b && b.data && b.data.timestamp))
+      );
+      const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
+      for (let i = 0; i < excessCount; i++) {
+        try {
+          sortedOldestFirst[i].close();
+        } catch {}
       }
     }
   }
-
-  itemsByTag.set(incomingItem.tag, incomingItem);
-  const mergedItems = Array.from(itemsByTag.values()).sort(
-    (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
-  );
 
   const icon = options.icon || defaultIcon;
   const badge =
@@ -663,89 +670,16 @@ async function showGroupedShadeNotification(title, options = {}) {
       : NOTIFICATION_BADGE_ICON;
   const shouldBeSilent = !isFirstSwDeliveryForTag || Boolean(options.silent === true);
   const allowRequireInteraction = Boolean(options.requireInteraction === true);
-
-  if (mergedItems.length > MAX_UNGROUPED_SHADE_NOTIFICATIONS) {
-    for (const oldNotif of nonSummaryNotificationsToClose) {
-      try {
-        oldNotif.close();
-      } catch {}
-    }
-
-    const latestTimestamp = mergedItems[0]?.timestamp || timestamp;
-    const uniqueUrls = Array.from(new Set(mergedItems.map((it) => it.url).filter(Boolean)));
-    const summaryUrl =
-      uniqueUrls.length === 1
-        ? uniqueUrls[0]
-        : isAdminTarget
-        ? '/admin'
-        : '/notifications';
-    const summaryTitle = isAdminTarget
-      ? `${mergedItems.length} Admin Notifications`
-      : `${mergedItems.length} POS Notifications`;
-    const summaryBody = formatShadeGroupSummaryBody(mergedItems);
-    const summaryActions = isAdminTarget
-      ? [
-          { action: 'open_pos', title: 'Open Admin' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : [
-          { action: 'open_notifications', title: 'View All Alerts' },
-          { action: 'open_pos', title: 'Open POS' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ];
-
-    const allowSummaryRenotify =
-      isFirstSwDeliveryForTag && (!alreadyHadTagInShade || options.renotify === true);
-
-    const summaryOptions = Object.assign({}, options, {
-      body: summaryBody,
-      icon,
-      badge,
-      tag: summaryTag,
-      timestamp: latestTimestamp,
-      renotify: allowSummaryRenotify,
-      requireInteraction: allowRequireInteraction,
-      silent: shouldBeSilent,
-      actions: summaryActions,
-      data: Object.assign({}, options.data || {}, {
-        url: summaryUrl,
-        isAdmin: isAdminTarget ? 'true' : 'false',
-        groupKey,
-        isGroupSummary: true,
-        count: mergedItems.length,
-        items: mergedItems,
-        notificationTitle: summaryTitle,
-        notificationBody: summaryBody,
-        timestamp: latestTimestamp,
-        tag: summaryTag,
-      }),
-    });
-    if (shouldBeSilent) {
-      delete summaryOptions.vibrate;
-    } else {
-      summaryOptions.vibrate = options.vibrate || [200, 100, 200];
-    }
-
-    try {
-      await self.registration.showNotification(summaryTitle, summaryOptions);
-      broadcastPushDedupeEvent(dedupeBroadcastPayload);
-      return;
-    } catch (showErr) {
-      const errName = String((showErr && showErr.name) || '').toLowerCase();
-      if (errName === 'notallowederror' || errName === 'securityerror') {
-        broadcastPushDedupeEvent({
-          type: 'SW_NOTIFICATION_DELIVERY_BLOCKED',
-          reason: 'delivery-rejected',
-          timestamp: Date.now(),
-        });
-      }
-      throw showErr;
-    }
-  }
+  const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
 
   const defaultActions = isAdminTarget
     ? [
         { action: 'open_pos', title: 'Open Admin' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ]
+    : hasReceiptLink
+    ? [
+        { action: 'open_receipt', title: 'Open Receipt' },
         { action: 'dismiss', title: 'Dismiss' },
       ]
     : [
@@ -753,7 +687,9 @@ async function showGroupedShadeNotification(title, options = {}) {
         { action: 'dismiss', title: 'Dismiss' },
       ];
 
-  const allowRenotify = isFirstSwDeliveryForTag ? Boolean(options.renotify === true) : false;
+  const allowRenotify = isFirstSwDeliveryForTag && !alreadyHadTagInShade
+    ? Boolean(options.renotify === true)
+    : false;
 
   const notificationOptions = Object.assign({}, options, {
     body: cleanBody,
@@ -770,8 +706,6 @@ async function showGroupedShadeNotification(title, options = {}) {
       isAdmin: isAdminTarget ? 'true' : 'false',
       groupKey,
       isGroupSummary: false,
-      count: 1,
-      items: [incomingItem],
       notificationTitle: cleanTitle,
       notificationBody: cleanBody,
       timestamp,
@@ -877,9 +811,18 @@ self.addEventListener('push', (event) => {
     ),
     actions: Array.isArray(notification.actions) && notification.actions.length > 0
       ? notification.actions
-      : [
-          { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+      : isAdminTarget
+      ? [
+          { action: 'open_pos', title: 'Open Admin' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : targetUrl.includes('invoice') || targetUrl.includes('return')
+      ? [
           { action: 'open_receipt', title: 'Open Receipt' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : [
+          { action: 'open_pos', title: 'Open POS' },
           { action: 'dismiss', title: 'Dismiss' },
         ],
   };

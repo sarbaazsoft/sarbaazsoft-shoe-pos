@@ -46,6 +46,7 @@ import { recordApplicationBaseUrl } from './src/server/services/welcomeService.t
 import { buildPwaManifest, resolvePwaBranding, type PwaBrandingInput } from './src/utils/pwaBranding.ts';
 import { patchDesktopSetupExe, resolveDesktopTargetUrl } from './src/server/utils/windowsExePatcher.ts';
 import {
+  IS_HTTP_CACHING_PAUSED,
   resolveApiCacheHeaders,
   resolveServiceWorkerFilePath,
   resolveStaticCacheHeaders,
@@ -54,6 +55,50 @@ import {
 const rootDir = path.resolve('.');
 
 export const app = express();
+if (IS_HTTP_CACHING_PAUSED) {
+  app.set('etag', false);
+}
+app.use((req, res, next) => {
+  if (!IS_HTTP_CACHING_PAUSED || req.path === '/api/notifications/stream') {
+    return next();
+  }
+  delete req.headers['if-none-match'];
+  delete req.headers['if-modified-since'];
+
+  const origWriteHead = res.writeHead.bind(res);
+  res.writeHead = function (statusCode: number, ...rest: any[]) {
+    if (!res.headersSent) {
+      const headerObjIndex =
+        rest.length >= 2 && typeof rest[0] === 'string' ? 1 : rest.length >= 1 && rest[0] && typeof rest[0] === 'object' ? 0 : -1;
+      if (headerObjIndex !== -1 && !Array.isArray(rest[headerObjIndex])) {
+        const cleaned: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rest[headerObjIndex])) {
+          const lk = k.toLowerCase();
+          if (
+            lk === 'etag' ||
+            lk === 'last-modified' ||
+            lk === 'cache-control' ||
+            lk === 'pragma' ||
+            lk === 'expires' ||
+            lk === 'surrogate-control'
+          ) {
+            continue;
+          }
+          cleaned[k] = v;
+        }
+        rest[headerObjIndex] = cleaned;
+      }
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+    }
+    return (origWriteHead as any)(statusCode, ...rest);
+  } as typeof res.writeHead;
+  next();
+});
 function resolvePort(): number {
   for (let i = 0; i < process.argv.length; i++) {
     const arg = process.argv[i];
@@ -371,7 +416,13 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  const assetLinksHeaders = resolveStaticCacheHeaders(
+    '/.well-known/assetlinks.json',
+    process.env.NODE_ENV === 'production'
+  );
+  for (const [key, value] of Object.entries(assetLinksHeaders)) {
+    res.setHeader(key, value);
+  }
   return res.json(statements);
 });
 
@@ -536,8 +587,9 @@ async function startServer() {
     const distPath = path.join(rootDir, 'dist');
     app.use(
       express.static(distPath, {
-        etag: true,
-        lastModified: true,
+        etag: !IS_HTTP_CACHING_PAUSED,
+        lastModified: !IS_HTTP_CACHING_PAUSED,
+        cacheControl: !IS_HTTP_CACHING_PAUSED,
         setHeaders: (res, filePath) => {
           const headers = resolveStaticCacheHeaders(filePath, true);
           for (const [key, value] of Object.entries(headers)) {

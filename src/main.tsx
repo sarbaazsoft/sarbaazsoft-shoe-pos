@@ -6,10 +6,31 @@ import './index.css';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { queryClient, registerQueryCacheLifecycle } from './services/queryClient.ts';
 import { registerProductionVersionSync, registerViteChunkErrorRecovery } from './utils/swUpdate.ts';
+import { IS_CACHING_PAUSED } from './utils/cachePolicy.ts';
 
 registerQueryCacheLifecycle();
 registerViteChunkErrorRecovery();
 registerProductionVersionSync();
+
+if (typeof window !== 'undefined' && IS_CACHING_PAUSED) {
+  if ('caches' in window && typeof window.caches?.keys === 'function') {
+    window.caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((k) => window.caches.delete(k))))
+      .catch(() => {});
+  }
+  if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistration === 'function') {
+    navigator.serviceWorker
+      .getRegistration('/')
+      .then((reg) => {
+        if (reg?.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        return reg?.update().catch(() => {});
+      })
+      .catch(() => {});
+  }
+}
 
 // Delete any deprecated registration, slug, or subdomain keys from localStorage
 if (typeof window !== 'undefined' && window.localStorage) {

@@ -1,3 +1,5 @@
+export const IS_CACHING_PAUSED = true;
+
 export type CacheEnvironment = 'development' | 'production';
 export type QueryCacheTier = 'default' | 'realtime' | 'standard' | 'settings' | 'reference';
 
@@ -10,6 +12,10 @@ const PRODUCTION_STALE_TIMES_MS: Record<QueryCacheTier, number> = {
 };
 
 export function resolveCacheEnvironment(isProdOverride?: boolean): CacheEnvironment {
+  if (IS_CACHING_PAUSED) {
+    return 'development';
+  }
+
   if (typeof isProdOverride === 'boolean') {
     return isProdOverride ? 'production' : 'development';
   }
@@ -41,6 +47,9 @@ export function resolveCacheEnvironment(isProdOverride?: boolean): CacheEnvironm
 }
 
 export function isProductionCachingEnabled(isProdOverride?: boolean): boolean {
+  if (IS_CACHING_PAUSED) {
+    return false;
+  }
   return resolveCacheEnvironment(isProdOverride) === 'production';
 }
 
@@ -48,7 +57,7 @@ export function getQueryStaleTime(
   tier: QueryCacheTier = 'default',
   isProdOverride?: boolean
 ): number {
-  if (!isProductionCachingEnabled(isProdOverride)) {
+  if (IS_CACHING_PAUSED || !isProductionCachingEnabled(isProdOverride)) {
     return 0;
   }
   return PRODUCTION_STALE_TIMES_MS[tier];
@@ -61,6 +70,16 @@ export function resolveQueryClientDefaultOptions(isProdOverride?: boolean): {
   refetchOnMount: boolean;
   refetchOnReconnect: boolean;
 } {
+  if (IS_CACHING_PAUSED) {
+    return {
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+    };
+  }
+
   const isProd = isProductionCachingEnabled(isProdOverride);
   if (!isProd) {
     return {

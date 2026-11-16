@@ -126,7 +126,12 @@ export async function resolveActivePushServiceWorker(): Promise<ServiceWorkerReg
 
     let reg = await navigator.serviceWorker.getRegistration('/');
     if (!reg) {
-      reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+        updateViaCache: 'none',
+      });
+    } else {
+      void reg.update().catch(() => {});
     }
 
     if (reg?.waiting) {

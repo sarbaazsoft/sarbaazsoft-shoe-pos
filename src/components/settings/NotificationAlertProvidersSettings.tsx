@@ -193,8 +193,8 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
 
     try {
       const eventId = `test-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const testTitle = '🔥 Firebase Cloud Messaging Test';
-      const testMessage = `FCM push delivery confirmed at ${new Date().toLocaleTimeString()}! Real-time alerts are operational.`;
+      const testTitle = 'Firebase Push Test';
+      const testMessage = 'FCM push delivery confirmed. Real-time alerts are operational.';
       const res = await api.notifications.testFcm({
         title: testTitle,
         message: testMessage,

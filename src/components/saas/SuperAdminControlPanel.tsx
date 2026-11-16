@@ -556,8 +556,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     try {
       setTestPushStatus('sending');
       const res = await api.notifications.testPush({
-        title: '🔔 SuperAdmin Test Push Alert',
-        message: 'SuperAdmin push notification test delivered successfully to registered devices!',
+        title: 'SuperAdmin Test Alert',
+        message: 'SuperAdmin push notification test delivered successfully to registered devices.',
         eventId,
       });
       setTestPushStatus(res.success ? 'success' : 'error');
@@ -565,8 +565,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       if (res.success) {
         void triggerTestNotificationShadeFallback({
           eventId: res.eventId || eventId,
-          title: '🔔 SuperAdmin Test Push Alert',
-          body: 'SuperAdmin push alert test confirmed on this device.',
+          title: 'SuperAdmin Test Alert',
+          body: 'SuperAdmin push alert delivered successfully. Device notifications are operational.',
           url: '/admin',
           isAdmin: true,
           fcmSentCount: res.fcmSentCount,
@@ -1144,7 +1144,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     setLoadingSampleSql(true);
     setImportSqlError(null);
     try {
-      const resp = await fetch('/multi-store-pos-import.sql');
+      const resp = await fetch('/multi-store-pos-import.sql', { cache: 'no-store' });
       if (!resp.ok) {
         throw new Error('Could not fetch /multi-store-pos-import.sql from public folder.');
       }

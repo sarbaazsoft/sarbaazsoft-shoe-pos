@@ -96,38 +96,7 @@ export function formatShadeGroupSummaryBody(items: ShadeNotificationItem[]): str
   return lines.join('\n');
 }
 
-function extractItemsFromExistingNotification(
-  existing: Notification,
-  defaultUrl: string
-): ShadeNotificationItem[] {
-  const existingData = (existing.data || {}) as Record<string, any>;
-  if (Array.isArray(existingData.items) && existingData.items.length > 0) {
-    return existingData.items
-      .filter((it: any) => it && (it.title || it.body))
-      .map((it: any, idx: number) => ({
-        title: String(it.title || 'POS Notification'),
-        body: String(it.body || ''),
-        url: String(it.url || defaultUrl),
-        tag: String(it.tag || `${existing.tag || 'item'}-${idx}`),
-        timestamp: resolveShadeTimestamp(it.timestamp),
-      }));
-  }
-
-  const tag = String(existing.tag || '').trim();
-  if (!tag || tag === POS_SUMMARY_TAG || tag === ADMIN_SUMMARY_TAG || existingData.isGroupSummary === true) {
-    return [];
-  }
-
-  return [
-    {
-      title: String(existingData.notificationTitle || existing.title || 'POS Notification'),
-      body: String(existingData.notificationBody || existing.body || ''),
-      url: String(existingData.url || defaultUrl),
-      tag,
-      timestamp: resolveShadeTimestamp((existing as any).timestamp ?? existingData.timestamp),
-    },
-  ];
-}
+export const MAX_ACTIVE_SHADE_NOTIFICATIONS = 8;
 
 export async function showGroupedWithRegistration(
   registration: Pick<ServiceWorkerRegistration, 'showNotification'> & {
@@ -151,17 +120,8 @@ export async function showGroupedWithRegistration(
   const timestamp = resolveShadeTimestamp(options.timestamp ?? options.data?.timestamp);
   const targetUrl = String(options.data?.url || options.data?.deepLinkUrl || defaultFallbackUrl);
 
-  const incomingItem: ShadeNotificationItem = {
-    title: cleanTitle,
-    body: cleanBody,
-    url: targetUrl,
-    tag: incomingTag,
-    timestamp,
-  };
-
-  const itemsByTag = new Map<string, ShadeNotificationItem>();
-  const nonSummaryNotificationsToClose: Notification[] = [];
   let alreadyDisplayedForTag = false;
+  const existingGroupNotifications: Notification[] = [];
 
   if (typeof registration.getNotifications === 'function') {
     const existingAll = await registration.getNotifications().catch(() => [] as Notification[]);
@@ -179,106 +139,61 @@ export async function showGroupedWithRegistration(
         continue;
       }
 
-      const extracted = extractItemsFromExistingNotification(existing, defaultFallbackUrl);
-      for (const item of extracted) {
-        itemsByTag.set(item.tag, item);
+      if (
+        existing.tag === summaryTag ||
+        existing.tag === POS_SUMMARY_TAG ||
+        existing.tag === ADMIN_SUMMARY_TAG ||
+        existingData.isGroupSummary === true
+      ) {
+        try {
+          existing.close();
+        } catch {}
+        continue;
       }
 
-      if (
-        existing.tag === incomingTag ||
-        extracted.some((item) => item.tag === incomingTag)
-      ) {
+      if (existing.tag === incomingTag) {
         if (options.renotify !== true) {
           alreadyDisplayedForTag = true;
         }
+      } else {
+        existingGroupNotifications.push(existing);
       }
+    }
 
-      if (existing.tag !== summaryTag) {
-        nonSummaryNotificationsToClose.push(existing);
+    if (alreadyDisplayedForTag) {
+      return;
+    }
+
+    if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
+      const sortedOldestFirst = existingGroupNotifications.slice().sort(
+        (a, b) =>
+          resolveShadeTimestamp((a as any).timestamp ?? (a.data as any)?.timestamp) -
+          resolveShadeTimestamp((b as any).timestamp ?? (b.data as any)?.timestamp)
+      );
+      const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
+      for (let i = 0; i < excessCount; i++) {
+        try {
+          sortedOldestFirst[i]?.close();
+        } catch {}
       }
     }
   }
-
-  // If the Service Worker already displayed this exact notification tag in the shade,
-  // avoid showing a second duplicate notification from foreground SSE / onMessage.
-  if (alreadyDisplayedForTag) {
-    return;
-  }
-
-  itemsByTag.set(incomingItem.tag, incomingItem);
-  const mergedItems = Array.from(itemsByTag.values()).sort(
-    (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
-  );
 
   const badge =
     options.badge && !String(options.badge).includes('pwa-192x192')
       ? options.badge
       : NOTIFICATION_BADGE_ICON;
   const icon = options.icon || defaultIcon;
-
-  if (mergedItems.length > MAX_UNGROUPED_SHADE_NOTIFICATIONS) {
-    for (const oldNotif of nonSummaryNotificationsToClose) {
-      try {
-        oldNotif.close();
-      } catch {}
-    }
-
-    const latestTimestamp = mergedItems[0]?.timestamp || timestamp;
-    const uniqueUrls = Array.from(new Set(mergedItems.map((it) => it.url).filter(Boolean)));
-    const summaryUrl =
-      uniqueUrls.length === 1
-        ? uniqueUrls[0]
-        : isAdminTarget
-        ? '/admin'
-        : '/notifications';
-    const summaryTitle = isAdminTarget
-      ? `${mergedItems.length} Admin Notifications`
-      : `${mergedItems.length} POS Notifications`;
-    const summaryBody = formatShadeGroupSummaryBody(mergedItems);
-    const summaryActions = isAdminTarget
-      ? [
-          { action: 'open_pos', title: 'Open Admin' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : [
-          { action: 'open_notifications', title: 'View All Alerts' },
-          { action: 'open_pos', title: 'Open POS' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ];
-
-    const summaryOptions: ShadeNotificationOptions = {
-      ...options,
-      body: summaryBody,
-      icon,
-      badge,
-      tag: summaryTag,
-      timestamp: latestTimestamp,
-      renotify: typeof options.renotify === 'boolean' ? options.renotify : true,
-      requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
-      vibrate: options.vibrate || [200, 100, 200],
-      actions: summaryActions,
-      data: {
-        ...(options.data || {}),
-        url: summaryUrl,
-        isAdmin: isAdminTarget ? 'true' : 'false',
-        groupKey,
-        isGroupSummary: true,
-        count: mergedItems.length,
-        items: mergedItems,
-        notificationTitle: summaryTitle,
-        notificationBody: summaryBody,
-        timestamp: latestTimestamp,
-        tag: summaryTag,
-      },
-    };
-
-    await registration.showNotification(summaryTitle, summaryOptions);
-    return;
-  }
+  const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
 
   const defaultActions = isAdminTarget
     ? [
         { action: 'open_pos', title: 'Open Admin' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ]
+    : hasReceiptLink
+    ? [
+        { action: 'open_receipt', title: 'Open Receipt' },
         { action: 'dismiss', title: 'Dismiss' },
       ]
     : [
@@ -303,8 +218,6 @@ export async function showGroupedWithRegistration(
       isAdmin: isAdminTarget ? 'true' : 'false',
       groupKey,
       isGroupSummary: false,
-      count: 1,
-      items: [incomingItem],
       notificationTitle: cleanTitle,
       notificationBody: cleanBody,
       timestamp,
@@ -328,7 +241,9 @@ export async function showGroupedShadeNotification(
     try {
       let reg = await navigator.serviceWorker.getRegistration('/');
       if (!reg && typeof navigator.serviceWorker.register === 'function') {
-        reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
+        reg = await navigator.serviceWorker
+          .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+          .catch(() => undefined);
       }
       if (!reg || !reg.active) {
         reg = await Promise.race([

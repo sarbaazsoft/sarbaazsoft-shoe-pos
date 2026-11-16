@@ -16,6 +16,7 @@ import {
   resolveMutationInvalidationPlan,
 } from '../src/services/queryClient.ts';
 import {
+  IS_CACHING_PAUSED,
   getQueryStaleTime,
   isProductionCachingEnabled,
   resolveCacheEnvironment,
@@ -238,30 +239,26 @@ test('apiFetch: triggers single GET RPC bridge fallback for mutations only on no
   });
 });
 
-test('cachePolicy: switches automatically between development (freshness) and production (optimized caching)', () => {
+test('cachePolicy: pauses API query caching across both dev and prod until re-enabled', () => {
+  assert.equal(IS_CACHING_PAUSED, true);
   assert.equal(resolveCacheEnvironment(false), 'development');
-  assert.equal(resolveCacheEnvironment(true), 'production');
+  assert.equal(resolveCacheEnvironment(true), 'development');
   assert.equal(isProductionCachingEnabled(false), false);
-  assert.equal(isProductionCachingEnabled(true), true);
+  assert.equal(isProductionCachingEnabled(true), false);
 
-  // Development forces zero staleTime across all tiers and enables focus refetching
   for (const tier of ['realtime', 'standard', 'default', 'settings', 'reference'] as const) {
     assert.equal(getQueryStaleTime(tier, false), 0);
+    assert.equal(getQueryStaleTime(tier, true), 0);
   }
-  const devDefaults = resolveQueryClientDefaultOptions(false);
-  assert.equal(devDefaults.staleTime, 0);
-  assert.equal(devDefaults.refetchOnWindowFocus, true);
-  assert.equal(devDefaults.refetchOnMount, true);
 
-  // Production enables tiered staleTime and avoids spurious focus refetches
-  assert.equal(getQueryStaleTime('realtime', true), 15_000);
-  assert.equal(getQueryStaleTime('standard', true), 25_000);
-  assert.equal(getQueryStaleTime('default', true), 30_000);
-  assert.equal(getQueryStaleTime('settings', true), 60_000);
-  assert.equal(getQueryStaleTime('reference', true), 300_000);
-  const prodDefaults = resolveQueryClientDefaultOptions(true);
-  assert.equal(prodDefaults.staleTime, 30_000);
-  assert.equal(prodDefaults.refetchOnWindowFocus, false);
+  for (const flag of [false, true]) {
+    const defaults = resolveQueryClientDefaultOptions(flag);
+    assert.equal(defaults.staleTime, 0);
+    assert.equal(defaults.gcTime, 0);
+    assert.equal(defaults.refetchOnWindowFocus, true);
+    assert.equal(defaults.refetchOnMount, true);
+    assert.equal(defaults.refetchOnReconnect, true);
+  }
 });
 
 test('apiFetch + registerQueryCacheLifecycle: automatically invalidates cross-route caches after mutations', async () => {

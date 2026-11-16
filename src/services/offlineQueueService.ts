@@ -215,6 +215,7 @@ class OfflineQueueService {
       }
       const res = await fetch('/api/health', {
         method: 'GET',
+        cache: 'no-store',
         signal: controller.signal,
         headers: healthHeaders,
       });

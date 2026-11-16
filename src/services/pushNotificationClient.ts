@@ -754,6 +754,7 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         const parsedTimestamp = normalizedPayload.timestamp
           ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
           : Date.now();
+        const hasReceiptLink = deepLinkUrl.includes('invoice') || deepLinkUrl.includes('return');
         void showGroupedShadeNotification(
           normalizedPayload.title || 'POS Alert',
           {
@@ -764,10 +765,20 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
             timestamp: parsedTimestamp,
             requireInteraction: false,
             renotify: false,
-            actions: [
-              { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-              { action: 'dismiss', title: 'Dismiss' },
-            ],
+            actions: isAdminTarget
+              ? [
+                  { action: 'open_pos', title: 'Open Admin' },
+                  { action: 'dismiss', title: 'Dismiss' },
+                ]
+              : hasReceiptLink
+              ? [
+                  { action: 'open_receipt', title: 'Open Receipt' },
+                  { action: 'dismiss', title: 'Dismiss' },
+                ]
+              : [
+                  { action: 'open_pos', title: 'Open POS' },
+                  { action: 'dismiss', title: 'Dismiss' },
+                ],
             data: {
               ...normalizedPayload,
               url: deepLinkUrl || '/notifications',
@@ -789,7 +800,6 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
 
     const hasActiveWebPush =
       isWebPushSupported() &&
-      Boolean(navigator.serviceWorker?.controller) &&
       Boolean(localStorage.getItem(FCM_TOKEN_KEY));
 
     if (hasActiveWebPush) {
@@ -921,8 +931,7 @@ export async function triggerTestNotificationShadeFallback(params: {
   const shouldYieldForSw =
     hasLocalToken &&
     (params.fcmSentCount || 0) > 0 &&
-    isWebPushSupported() &&
-    Boolean(navigator.serviceWorker?.controller);
+    isWebPushSupported();
 
   if (shouldYieldForSw) {
     await new Promise<void>((resolve) => setTimeout(resolve, 1250));

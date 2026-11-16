@@ -758,10 +758,10 @@ export async function testFcmPush(
   deps?: TestFcmPushDeps
 ): Promise<TestFcmPushResult> {
   const isSuperAdminTest = tenantId === 0;
-  const alertTitle = customTitle || (isSuperAdminTest ? '🔔 SuperAdmin Test Push Alert' : '🔔 POS Test Push Alert');
+  const alertTitle = customTitle || (isSuperAdminTest ? 'SuperAdmin Test Alert' : 'POS Test Alert');
   const alertBody = customMessage || (isSuperAdminTest
-    ? `SuperAdmin Push Alert received successfully at ${new Date().toLocaleTimeString()}! Device notifications are fully operational.`
-    : `Push Alert received successfully at ${new Date().toLocaleTimeString()}! Device notifications are fully operational.`);
+    ? 'SuperAdmin push alert delivered successfully. Device notifications are operational.'
+    : 'POS push alert delivered successfully. Device notifications are operational.');
 
   const rawEventId = typeof deps?.eventId === 'string' ? deps.eventId.trim() : '';
   const eventId = rawEventId || `test-push-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
