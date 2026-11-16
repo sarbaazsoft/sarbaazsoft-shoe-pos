@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, FileCode2, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
+import { Shield, Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, FileCode2, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Settings, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { PublicHeader } from '../common/PublicHeader';
@@ -92,6 +92,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
   const isSendingTestPushRef = useRef(false);
   const [notificationModalData, setNotificationModalData] = useState<NotificationModalData | null>(null);
+  const [superAdminSettingsTab, setSuperAdminSettingsTab] = useState<'app_settings' | 'notifications' | 'backup' | 'install'>('app_settings');
 
   // SuperAdmin Platform Tools Dropdown state (Send Notification, Import Data, Export Platform Backup)
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
@@ -385,6 +386,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const isAndroidSystemDisabled = effectivePushStatus === 'android-system-disabled';
   const isBrowserBlocked = effectivePushStatus === 'browser-denied';
   const isPushBlockedOrOsDisabled = isAndroidSystemDisabled || isBrowserBlocked;
+  const isPermissionGranted = effectivePushStatus === 'granted';
+  const isPermissionDenied = isAndroidSystemDisabled || isBrowserBlocked || pushPermission === 'denied';
 
   const showBlockedOrDisabledModal = useCallback(
     (snap: PushPermissionSnapshot) => {
@@ -2471,91 +2474,83 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* SuperAdmin Device Push Activation & Test Alert Card */}
-                    <div className="p-2 mb-2 rounded-lg bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/50 shrink-0">
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Radio className={`w-3.5 h-3.5 shrink-0 ${isPushSubscribed ? 'text-emerald-500 animate-pulse' : 'text-purple-600 dark:text-purple-300'}`} />
-                          <span className="text-[11px] font-bold text-slate-800 dark:text-purple-100 truncate">
-                            SuperAdmin Push Alerts (Web & Mobile)
-                          </span>
+                    {/* Notification Permission Banner (Shown ONLY when permission is not granted) */}
+                    {!isPermissionGranted && (
+                      <div
+                        className={`p-2.5 mb-2 rounded-xl border shrink-0 ${
+                          isPermissionDenied
+                            ? 'bg-rose-50/90 dark:bg-rose-950/35 border-rose-200 dark:border-rose-800/60'
+                            : 'bg-amber-50/90 dark:bg-amber-950/35 border-amber-200 dark:border-amber-800/60'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <AlertCircle
+                            className={`w-4 h-4 shrink-0 mt-0.5 ${
+                              isPermissionDenied
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          />
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p
+                              className={`text-[11px] font-bold leading-snug ${
+                                isPermissionDenied
+                                  ? 'text-rose-900 dark:text-rose-200'
+                                  : 'text-amber-900 dark:text-amber-200'
+                              }`}
+                            >
+                              {isPermissionDenied
+                                ? isAndroidSystemDisabled
+                                  ? 'Notifications permission blocked for this app'
+                                  : 'Notifications permission blocked for this site'
+                                : effectivePushStatus === 'disabled-by-user'
+                                ? 'Push notifications are turned off'
+                                : effectivePushStatus === 'unsupported'
+                                ? 'Push notifications are unsupported'
+                                : 'Notification permission not granted'}
+                            </p>
+                            <p
+                              className={`text-[10px] leading-snug ${
+                                isPermissionDenied
+                                  ? 'text-rose-700 dark:text-rose-300/90'
+                                  : 'text-amber-800 dark:text-amber-300/90'
+                              }`}
+                            >
+                              {isPermissionDenied
+                                ? isAndroidSystemDisabled
+                                  ? 'Enable notifications in Android Settings → Apps → SarbaazSoft POS → Notifications to receive alerts.'
+                                  : 'Allow notifications in your browser site settings (🔒) so you never miss live SuperAdmin alerts.'
+                                : effectivePushStatus === 'unsupported'
+                                ? 'This browser does not support push notifications.'
+                                : 'Enable device notifications to receive instant store trial, renewal, and system alerts.'}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowNotifDropdown(false);
+                                setSuperAdminSettingsTab('notifications');
+                                window.dispatchEvent(
+                                  new CustomEvent('pos:navigate-settings-tab', {
+                                    detail: { tab: 'notifications' },
+                                  })
+                                );
+                                setActiveTab('settings');
+                              }}
+                              className={`mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-bold text-white transition cursor-pointer shadow-2xs ${
+                                isPermissionDenied
+                                  ? 'bg-rose-600 hover:bg-rose-700'
+                                  : 'bg-amber-600 hover:bg-amber-700'
+                              }`}
+                            >
+                              <Settings className="w-3 h-3" />
+                              <span>View Settings</span>
+                            </button>
+                          </div>
                         </div>
-                        <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
-                          isPushSubscribed
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                            : isAndroidSystemDisabled
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
-                            : isBrowserBlocked
-                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700'
-                            : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}>
-                          {isPushSubscribed
-                            ? 'Active'
-                            : isAndroidSystemDisabled
-                            ? 'OS Disabled'
-                            : isBrowserBlocked
-                            ? 'Blocked'
-                            : 'Off'}
-                        </span>
                       </div>
-                      <p className="text-[10px] text-slate-600 dark:text-purple-200/80 leading-snug mb-1.5">
-                        Real-time push alerts for store trial requests, license renewals &amp; system notices.
-                      </p>
-                      {isAndroidSystemDisabled && (
-                        <p className="text-[9.5px] text-amber-700 dark:text-amber-300 leading-snug mb-1.5">
-                          Android system notifications disabled. Enable in Android Settings → Apps → Notifications.
-                        </p>
-                      )}
-                      {isBrowserBlocked && (
-                        <p className="text-[9.5px] text-rose-700 dark:text-rose-300 leading-snug mb-1.5">
-                          Notifications blocked in browser settings. Allow via the 🔒 icon, then tap Check Status.
-                        </p>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isPushBlockedOrOsDisabled) {
-                              void handleCheckPushPermissionStatus();
-                            } else {
-                              void handleTogglePushNotifications();
-                            }
-                          }}
-                          disabled={isTogglingPush}
-                          className={`flex-1 py-1 px-2 rounded-md font-semibold text-[10.5px] transition cursor-pointer flex items-center justify-center gap-1 ${
-                            isPushSubscribed
-                              ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
-                              : isPushBlockedOrOsDisabled
-                              ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
-                              : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
-                          }`}
-                        >
-                          {isTogglingPush ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : isPushSubscribed ? (
-                            'Disable Push'
-                          ) : isPushBlockedOrOsDisabled ? (
-                            'Check Status'
-                          ) : (
-                            'Enable Push'
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSendTestPush();
-                          }}
-                          disabled={testPushStatus === 'sending'}
-                          className="py-1 px-2 rounded-md bg-white dark:bg-purple-900/40 hover:bg-slate-100 dark:hover:bg-purple-800/40 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-700 font-semibold text-[10.5px] transition cursor-pointer flex items-center gap-1 shrink-0"
-                          title="Test push notification delivery on this device"
-                        >
-                          <BellRing className={`w-3 h-3 ${testPushStatus === 'sending' ? 'animate-bounce' : ''}`} />
-                          <span>{testPushStatus === 'success' ? 'Sent!' : 'Test Alert'}</span>
-                        </button>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Category Filter Tabs */}
                     <div className="flex items-center gap-1 p-1 mb-2 bg-slate-100 dark:bg-purple-950/60 rounded-xl border border-slate-200/80 dark:border-purple-800/40 overflow-x-auto custom-scrollbar shrink-0">
@@ -2831,6 +2826,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       id="superadmin-app-settings-btn"
                       onClick={() => {
                         setShowUserDropdown(false);
+                        setSuperAdminSettingsTab('app_settings');
+                        window.dispatchEvent(
+                          new CustomEvent('pos:navigate-settings-tab', {
+                            detail: { tab: 'app_settings' },
+                          })
+                        );
                         setActiveTab('settings');
                       }}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition cursor-pointer text-slate-700 dark:text-purple-200 hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent"
@@ -5038,7 +5039,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     currency: 'PKR',
                     currency_symbol: 'Rs.',
                   }}
-                  initialTab="app_settings"
+                  initialTab={superAdminSettingsTab}
                   onSettingsUpdated={() => {}}
                 />
               </div>

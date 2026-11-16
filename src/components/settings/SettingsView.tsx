@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, BellRing, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame } from 'lucide-react';
+import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { PrinterHardwareSettings } from './PrinterHardwareSettings.tsx';
 import { DataBackupRestore } from './DataBackupRestore.tsx';
@@ -15,13 +15,25 @@ import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsToolt
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 import { NotificationAlertProvidersSettings } from './NotificationAlertProvidersSettings.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import {
+  isWebPushSupported,
+  getDetailedPushPermissionStatus,
+  watchNotificationPermissionChanges,
+  subscribeDeviceToWebPush,
+  unsubscribeDeviceFromWebPush,
+  resyncPushSubscriptionIfEnabled,
+  triggerTestNotificationShadeFallback,
+  type PushPermissionSnapshot,
+} from '../../services/pushNotificationClient.ts';
+
+type SettingsTabId = 'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install';
 
 interface SettingsViewProps {
   currentUser: any;
   companySettings: any;
   onSettingsUpdated: (updatedSettings?: any) => void;
   onOpenInstallWizard?: () => void;
-  initialTab?: 'store' | 'users' | 'app_settings' | 'printers' | 'backup' | 'install';
+  initialTab?: SettingsTabId;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -39,12 +51,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const isAdmin = isStoreAdmin;
 
   // Strict role-based active tab initialization:
-  // - Platform Owner (SUPERADMIN): strictly restricted to app-level configs ('app_settings', 'backup', 'install')
-  // - Store Owner (ADMIN): store management tabs ('store', 'users', 'printers')
+  // - Platform Owner (SUPERADMIN): app-level configs + notifications ('app_settings', 'notifications', 'backup', 'install')
+  // - Store Owner (ADMIN): store management tabs + notifications ('store', 'users', 'notifications', 'printers')
   // - Cashiers: strictly constrained to 'printers'
-  const [activeTab, setActiveTab] = useState<'store' | 'users' | 'app_settings' | 'printers' | 'backup' | 'install'>(() => {
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(() => {
     if (isSuperAdmin) {
-      if (initialTab && ['app_settings', 'backup', 'install'].includes(initialTab)) {
+      if (initialTab && ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab)) {
         return initialTab;
       }
       return 'app_settings';
@@ -53,15 +65,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return 'printers';
     }
     // Store Admin (ADMIN)
-    if (initialTab && ['store', 'users', 'printers'].includes(initialTab)) {
+    if (initialTab && ['store', 'users', 'notifications', 'printers'].includes(initialTab)) {
       return initialTab;
     }
     return 'store';
   });
 
-  const handleSelectTab = (tab: 'store' | 'users' | 'app_settings' | 'printers' | 'backup' | 'install') => {
+  const handleSelectTab = (tab: SettingsTabId) => {
     if (isSuperAdmin) {
-      if (['app_settings', 'backup', 'install'].includes(tab)) {
+      if (['app_settings', 'notifications', 'backup', 'install'].includes(tab)) {
         setActiveTab(tab);
       } else {
         setActiveTab('app_settings');
@@ -73,7 +85,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     }
     // Store Admin (ADMIN)
-    if (['store', 'users', 'printers'].includes(tab)) {
+    if (['store', 'users', 'notifications', 'printers'].includes(tab)) {
       setActiveTab(tab);
     } else {
       setActiveTab('store');
@@ -87,8 +99,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   useEffect(() => {
     if (isSuperAdmin) {
-      if (!['app_settings', 'backup', 'install'].includes(activeTab)) {
-        setActiveTab(initialTab && ['app_settings', 'backup', 'install'].includes(initialTab) ? initialTab : 'app_settings');
+      if (initialTab && ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab)) {
+        setActiveTab(initialTab);
+      } else if (!['app_settings', 'notifications', 'backup', 'install'].includes(activeTab)) {
+        setActiveTab('app_settings');
       }
     } else if (isCashier) {
       if (activeTab !== 'printers') {
@@ -96,11 +110,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
     } else {
       // Store Admin (ADMIN)
-      if (!['store', 'users', 'printers'].includes(activeTab)) {
-        setActiveTab(initialTab && ['store', 'users', 'printers'].includes(initialTab) ? initialTab : 'store');
+      if (initialTab && ['store', 'users', 'notifications', 'printers'].includes(initialTab)) {
+        setActiveTab(initialTab);
+      } else if (!['store', 'users', 'notifications', 'printers'].includes(activeTab)) {
+        setActiveTab('store');
       }
     }
   }, [isSuperAdmin, isStoreAdmin, isCashier, initialTab]);
+
+  useEffect(() => {
+    const handleNavigateSettingsTab = (event: any) => {
+      const requested = event?.detail?.tab as SettingsTabId | undefined;
+      if (!requested) return;
+      if (isSuperAdmin && ['app_settings', 'notifications', 'backup', 'install'].includes(requested)) {
+        setActiveTab(requested);
+      } else if (isStoreAdmin && ['store', 'users', 'notifications', 'printers'].includes(requested)) {
+        setActiveTab(requested);
+      }
+    };
+    window.addEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
+    return () => window.removeEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
+  }, [isSuperAdmin, isStoreAdmin]);
 
   // Store Subscription Info State
   const extractSubInfo = (src: any) => {
@@ -1062,6 +1092,231 @@ setFormErrors(errors);
     }
   };
 
+  // Device Push Notifications & Test Message UI State (Store Owner & SuperAdmin)
+  const [notifSnapshot, setNotifSnapshot] = useState<PushPermissionSnapshot | null>(null);
+  const [isTogglingNotifs, setIsTogglingNotifs] = useState(false);
+  const [notifToggleMessage, setNotifToggleMessage] = useState<{ type: 'success' | 'warning' | 'error' | 'info'; text: string } | null>(null);
+  const [testNotifTitle, setTestNotifTitle] = useState(() =>
+    isSuperAdmin ? 'SuperAdmin Test Alert' : 'POS Test Alert'
+  );
+  const [testNotifBody, setTestNotifBody] = useState(() =>
+    isSuperAdmin
+      ? 'SuperAdmin push notification test delivered successfully to registered devices.'
+      : 'POS push alert delivered successfully. Device notifications are operational.'
+  );
+  const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
+  const [testNotifFeedback, setTestNotifFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!isStoreAdmin && !isSuperAdmin) return;
+    let active = true;
+    void getDetailedPushPermissionStatus()
+      .then((snap) => {
+        if (active) setNotifSnapshot(snap);
+      })
+      .catch(() => {});
+
+    const cleanupWatcher = watchNotificationPermissionChanges((snap) => {
+      if (active) setNotifSnapshot(snap);
+    });
+
+    return () => {
+      active = false;
+      cleanupWatcher();
+    };
+  }, [isStoreAdmin, isSuperAdmin]);
+
+  const isNotifSubscribed = Boolean(
+    notifSnapshot && notifSnapshot.effectiveStatus === 'granted' && notifSnapshot.canReceiveSystemNotifications
+  );
+  const isNotifAndroidBlocked = notifSnapshot?.effectiveStatus === 'android-system-disabled';
+  const isNotifBrowserBlocked = notifSnapshot?.effectiveStatus === 'browser-denied';
+  const isNotifBlocked = isNotifAndroidBlocked || isNotifBrowserBlocked;
+
+  const handleCheckDeviceNotifStatus = async () => {
+    if (isTogglingNotifs) return;
+    setIsTogglingNotifs(true);
+    setNotifToggleMessage(null);
+    try {
+      const snap = await getDetailedPushPermissionStatus();
+      setNotifSnapshot(snap);
+
+      if (snap.effectiveStatus === 'granted') {
+        await resyncPushSubscriptionIfEnabled(userRole || 'ADMIN').catch(() => false);
+        const refreshed = await getDetailedPushPermissionStatus();
+        setNotifSnapshot(refreshed);
+        if (refreshed.effectiveStatus === 'granted' && refreshed.canReceiveSystemNotifications) {
+          setNotifToggleMessage({
+            type: 'success',
+            text: 'Notification permission is granted and active on this device.',
+          });
+        } else if (refreshed.effectiveStatus === 'android-system-disabled') {
+          setNotifToggleMessage({
+            type: 'warning',
+            text: 'Notifications are disabled in Android Settings → Apps → SarbaazSoft POS → Notifications.',
+          });
+        }
+        return;
+      }
+
+      if (snap.effectiveStatus === 'android-system-disabled') {
+        setNotifToggleMessage({
+          type: 'warning',
+          text: 'Android system notifications are disabled for this app. Enable them in Android Settings → Apps → Notifications, then click Check Status.',
+        });
+        return;
+      }
+
+      if (snap.effectiveStatus === 'browser-denied') {
+        setNotifToggleMessage({
+          type: 'warning',
+          text: 'Notification permission is blocked for this site. Click the site settings icon (🔒) in your address bar, allow Notifications, then click Check Status.',
+        });
+        return;
+      }
+
+      setNotifToggleMessage({
+        type: 'info',
+        text: 'Notification permission has not been granted yet. Click Enable Notifications to activate alerts.',
+      });
+    } finally {
+      setIsTogglingNotifs(false);
+    }
+  };
+
+  const handleToggleDeviceNotifications = async () => {
+    if (isTogglingNotifs) return;
+    setIsTogglingNotifs(true);
+    setNotifToggleMessage(null);
+    try {
+      if (isNotifSubscribed) {
+        await unsubscribeDeviceFromWebPush();
+        const snap = await getDetailedPushPermissionStatus();
+        setNotifSnapshot(snap);
+        setNotifToggleMessage({
+          type: 'info',
+          text: 'Push notifications have been disabled for this device.',
+        });
+        return;
+      }
+
+      const currentSnap = await getDetailedPushPermissionStatus();
+      setNotifSnapshot(currentSnap);
+
+      if (!isWebPushSupported() || currentSnap.effectiveStatus === 'unsupported') {
+        setNotifToggleMessage({
+          type: 'error',
+          text: 'Push notifications require a modern browser with Service Worker and Notification support.',
+        });
+        return;
+      }
+
+      if (
+        currentSnap.effectiveStatus === 'android-system-disabled' ||
+        currentSnap.effectiveStatus === 'browser-denied'
+      ) {
+        setNotifToggleMessage({
+          type: 'warning',
+          text:
+            currentSnap.effectiveStatus === 'android-system-disabled'
+              ? 'Notifications are disabled in Android Settings → Apps → SarbaazSoft POS → Notifications.'
+              : 'Notification permission is blocked in your browser settings. Allow notifications from your address bar site settings (🔒).',
+        });
+        return;
+      }
+
+      const res = await subscribeDeviceToWebPush(userRole || 'ADMIN');
+      const updatedSnap = await getDetailedPushPermissionStatus();
+      setNotifSnapshot(updatedSnap);
+
+      if (res.success && !res.androidSystemDisabled) {
+        setNotifToggleMessage({
+          type: 'success',
+          text:
+            res.warning ||
+            'Notifications enabled! You will now receive real-time alerts on this device.',
+        });
+      } else if (res.androidSystemDisabled || res.permission === 'denied' || res.alreadyPrompted) {
+        setNotifToggleMessage({
+          type: 'warning',
+          text: res.androidSystemDisabled
+            ? 'Notifications appear disabled in Android system settings. Enable them in Android Settings and tap Check Status.'
+            : 'Notification permission is blocked for this site. Enable it from Chrome/browser site settings (🔒) and tap Check Status.',
+        });
+      } else if (res.error) {
+        setNotifToggleMessage({
+          type: 'warning',
+          text: res.error,
+        });
+      }
+    } catch (err: any) {
+      setNotifToggleMessage({
+        type: 'error',
+        text: err?.message || 'Could not update notification settings.',
+      });
+    } finally {
+      setIsTogglingNotifs(false);
+    }
+  };
+
+  const handleSendSettingsTestNotification = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isSendingTestNotif) return;
+    setIsSendingTestNotif(true);
+    setTestNotifFeedback(null);
+
+    const cleanTitle = testNotifTitle.trim() || (isSuperAdmin ? 'SuperAdmin Test Alert' : 'POS Test Alert');
+    const cleanBody =
+      testNotifBody.trim() ||
+      (isSuperAdmin
+        ? 'SuperAdmin push notification test delivered successfully to registered devices.'
+        : 'POS push alert delivered successfully. Device notifications are operational.');
+    const eventId = `test-push-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    window.dispatchEvent(
+      new CustomEvent('pos:local-test-push-dispatched', {
+        detail: { eventId },
+      })
+    );
+
+    try {
+      const res = await api.notifications.testPush({
+        title: cleanTitle,
+        message: cleanBody,
+        eventId,
+      });
+
+      if (res.success) {
+        void triggerTestNotificationShadeFallback({
+          eventId: res.eventId || eventId,
+          title: cleanTitle,
+          body: cleanBody,
+          url: isSuperAdmin ? '/admin' : '/pos',
+          isAdmin: isSuperAdmin,
+          fcmSentCount: res.fcmSentCount,
+        });
+        setTestNotifFeedback({
+          type: 'success',
+          text:
+            res.message ||
+            'Test notification delivered successfully to your registered devices.',
+        });
+      } else {
+        setTestNotifFeedback({
+          type: 'error',
+          text: res.message || 'Could not deliver test notification to registered devices.',
+        });
+      }
+    } catch (err: any) {
+      setTestNotifFeedback({
+        type: 'error',
+        text: err?.message || 'Failed to dispatch test notification.',
+      });
+    } finally {
+      setIsSendingTestNotif(false);
+    }
+  };
+
   return (
     <div className="space-y-4 p-4 max-w-7xl mx-auto">
       {/* Top Banner & Actions matching Product Management */}
@@ -1326,6 +1581,34 @@ setFormErrors(errors);
             <Sliders className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'app_settings' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>App Config</span>
             {activeTab === 'app_settings' && (
+              <motion.div
+                layoutId="settingsActiveUnderline"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              />
+            )}
+          </button>
+        )}
+
+        {(isStoreAdmin || isSuperAdmin) && (
+          <button
+            id="settings-tab-notifications"
+            type="button"
+            data-active={activeTab === 'notifications'}
+            data-tab="notifications"
+            onClick={() => handleSelectTab('notifications')}
+            className={`tab-underline-link relative px-3.5 sm:px-4 py-3.5 text-xs sm:text-sm font-semibold transition-colors duration-300 flex items-center space-x-2 whitespace-nowrap cursor-pointer shrink-0 ${
+              activeTab === 'notifications'
+                ? 'active text-purple-600 dark:text-purple-400 font-bold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300'
+            }`}
+          >
+            <BellRing className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'notifications' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
+            <span>Notifications</span>
+            {isNotifBlocked && (
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Notification permission blocked" />
+            )}
+            {activeTab === 'notifications' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
                 className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
@@ -3818,6 +4101,222 @@ setFormErrors(errors);
           >
             Open Printer Settings
           </button>
+        </div>
+      )}
+
+      {/* TAB: NOTIFICATIONS (Store Owner & SuperAdmin) */}
+      {(isStoreAdmin || isSuperAdmin) && activeTab === 'notifications' && (
+        <div className="space-y-6">
+          {/* Card 1: Enable / Disable Device Push Notifications */}
+          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-purple-900/40">
+              <div className="flex items-center space-x-3.5">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs border ${
+                  isNotifSubscribed
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                    : isNotifBlocked
+                    ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/60'
+                    : 'bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-200 dark:border-purple-400/30'
+                }`}>
+                  <Radio className={`w-5 h-5 ${isNotifSubscribed ? 'animate-pulse' : ''}`} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                      {isSuperAdmin ? 'SuperAdmin Device Push Notifications' : 'Store Device Push Notifications'}
+                    </h3>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                      isNotifSubscribed
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                        : isNotifAndroidBlocked
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                        : isNotifBrowserBlocked
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 border-rose-300 dark:border-rose-700'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}>
+                      {isNotifSubscribed
+                        ? 'Active'
+                        : isNotifAndroidBlocked
+                        ? 'OS Disabled'
+                        : isNotifBrowserBlocked
+                        ? 'Blocked'
+                        : notifSnapshot?.effectiveStatus === 'disabled-by-user'
+                        ? 'Turned Off'
+                        : 'Not Granted'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-purple-200/70 mt-0.5">
+                    {isSuperAdmin
+                      ? 'Enable real-time push alerts on this browser or mobile device for new store trials, renewals, and system alerts.'
+                      : 'Enable real-time push alerts on this browser or mobile device for live POS sales, returns, exchanges, and low stock warnings.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void handleCheckDeviceNotifStatus()}
+                  disabled={isTogglingNotifs}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTogglingNotifs ? 'animate-spin' : ''}`} />
+                  <span>Check Status</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleToggleDeviceNotifications()}
+                  disabled={isTogglingNotifs || isNotifBlocked}
+                  className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-xs ${
+                    isNotifSubscribed
+                      ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700'
+                      : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white shadow-md shadow-purple-600/20'
+                  }`}
+                >
+                  {isTogglingNotifs ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Bell className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isNotifSubscribed ? 'Disable Notifications' : 'Enable Notifications'}</span>
+                </button>
+              </div>
+            </div>
+
+            {isNotifBlocked && (
+              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-bold">
+                    {isNotifAndroidBlocked
+                      ? 'Notifications permission is blocked in Android settings.'
+                      : 'Notifications permission is blocked for this site.'}
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    {isNotifAndroidBlocked
+                      ? 'Open Android Settings → Apps → SarbaazSoft POS → Notifications and turn alerts on, then click Check Status.'
+                      : 'Click the site settings icon (🔒) next to the URL in your browser address bar, set Notifications to Allow, and then click Check Status.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {notifToggleMessage && (
+              <div
+                className={`p-3.5 rounded-xl text-xs font-semibold flex items-start gap-2.5 border ${
+                  notifToggleMessage.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                    : notifToggleMessage.type === 'warning'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+                    : notifToggleMessage.type === 'error'
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                    : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                {notifToggleMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                )}
+                <span>{notifToggleMessage.text}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Card 2: Send Test Notification Message */}
+          <form
+            onSubmit={handleSendSettingsTestNotification}
+            className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-4 transition-colors"
+          >
+            <div className="flex items-center space-x-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-400/30 flex items-center justify-center shrink-0">
+                <Send className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                  Send Test Notification
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-purple-200/70 mt-0.5">
+                  Dispatch a test notification message to verify alert delivery across your active browser and mobile devices.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Notification Title
+                </label>
+                <input
+                  type="text"
+                  value={testNotifTitle}
+                  onChange={(e) => setTestNotifTitle(e.target.value)}
+                  placeholder={isSuperAdmin ? 'SuperAdmin Test Alert' : 'POS Test Alert'}
+                  className="w-full h-10 px-3 bg-slate-50 dark:bg-[#060B18]/90 border border-slate-300 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-600/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Notification Message
+                </label>
+                <textarea
+                  rows={3}
+                  value={testNotifBody}
+                  onChange={(e) => setTestNotifBody(e.target.value)}
+                  placeholder="Enter a test notification message..."
+                  className="w-full p-3 bg-slate-50 dark:bg-[#060B18]/90 border border-slate-300 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-600/20 resize-none"
+                />
+              </div>
+            </div>
+
+            {testNotifFeedback && (
+              <div
+                className={`p-3.5 rounded-xl text-xs font-semibold flex items-start gap-2.5 border ${
+                  testNotifFeedback.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                }`}
+              >
+                {testNotifFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <span>{testNotifFeedback.text}</span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              {isSuperAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServicesIntegrationsTab('fcm');
+                    handleSelectTab('app_settings');
+                  }}
+                  className="text-xs font-semibold text-purple-600 dark:text-purple-300 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Configure Firebase FCM Credentials &amp; Triggers in App Config</span>
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Delivered once to your active store devices via SSE &amp; FCM.
+                </span>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSendingTestNotif}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-md shadow-purple-600/20 active:scale-95"
+              >
+                <BellRing className={`w-3.5 h-3.5 ${isSendingTestNotif ? 'animate-bounce' : ''}`} />
+                <span>{isSendingTestNotif ? 'Sending...' : 'Send Test Notification'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

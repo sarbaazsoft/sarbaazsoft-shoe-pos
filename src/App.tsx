@@ -359,6 +359,19 @@ export default function App() {
     }
   });
 
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install' | undefined>(undefined);
+
+  useEffect(() => {
+    const handleNavigateSettingsTab = (event: any) => {
+      const requested = event?.detail?.tab;
+      if (requested) {
+        setSettingsInitialTab(requested);
+      }
+    };
+    window.addEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
+    return () => window.removeEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
+  }, []);
+
   const [activeExchangeForPos, setActiveExchangeForPos] = useState<ActiveExchange | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1621,7 +1634,7 @@ export default function App() {
             <SettingsView
               currentUser={currentUser}
               companySettings={settingsCompanySettings}
-              initialTab={effectiveUserRole === 'CASHIER' ? 'printers' : undefined}
+              initialTab={effectiveUserRole === 'CASHIER' ? 'printers' : settingsInitialTab}
               onSettingsUpdated={handleSettingsUpdated}
               onOpenInstallWizard={handleOpenInstallWizard}
             />
