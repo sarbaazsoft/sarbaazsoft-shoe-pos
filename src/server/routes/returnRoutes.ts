@@ -310,7 +310,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 
       notifyPosAction(tenantId, {
         type: 'RETURN',
-        title: `🔄 Return Logged: #${returnNumber}`,
+        title: `Return Logged #${returnNumber}`,
         message: `Return #${returnNumber} (Refund: Rs. ${Math.round(totalRefundAmount)}) for Inv #${sale.invoice_number}. Items: ${itemsSummary}. Reason: ${reason.trim()}. Processed by ${cashierDisplayName}.`,
         invoiceNumber: sale.invoice_number,
         orderId: originalSaleId,

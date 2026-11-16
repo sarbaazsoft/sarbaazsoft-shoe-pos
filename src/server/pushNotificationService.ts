@@ -147,6 +147,21 @@ export async function saveFcmToken(
         .catch(() => {});
     }
 
+    const deviceIdMatch = String(deviceName || '').match(/\[id:([a-zA-Z0-9_-]{8,40})\]/);
+    if (deviceIdMatch) {
+      await pgClient
+        .query(
+          `DELETE FROM public.fcm_tokens
+           WHERE tenant_id = $1
+             AND user_id = $2
+             AND UPPER(user_role) = $3
+             AND device_name LIKE $4
+             AND token != $5`,
+          [cleanTenantId, cleanUserId, cleanRole, `%[id:${deviceIdMatch[1]}]%`, cleanToken]
+        )
+        .catch(() => {});
+    }
+
     await pgClient.query(
       `INSERT INTO public.fcm_tokens (
         token, tenant_id, user_id, user_role, user_agent, device_name, updated_at
@@ -248,7 +263,7 @@ export interface FcmPushPayload {
 }
 
 const FCM_MULTICAST_BATCH_SIZE = 500;
-const RECENT_FCM_DISPATCH_TTL_MS = 4000;
+const RECENT_FCM_DISPATCH_TTL_MS = 15000;
 const recentFcmTokenTagDispatches = new Map<string, number>();
 
 function claimServerTokenTagDispatch(token: string, tag: string): boolean {

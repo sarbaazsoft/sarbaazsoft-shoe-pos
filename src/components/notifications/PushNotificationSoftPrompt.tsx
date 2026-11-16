@@ -120,11 +120,6 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
       return;
     }
 
-    if (snap.effectiveStatus === 'default') {
-      await handleAllowClick();
-      return;
-    }
-
     onPermissionChange?.(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission, false);
     showBlockedModal(snap);
   };
@@ -186,26 +181,24 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
         setTimeout(() => {
           setIsVisible(false);
         }, 1600);
-      } else if (res.androidSystemDisabled || res.permission === 'denied') {
+      } else if (res.androidSystemDisabled || res.permission === 'denied' || res.alreadyPrompted) {
         const updatedSnap = await getDetailedPushPermissionStatus();
         setStatusFeedback({
           type: 'denied',
           message: res.androidSystemDisabled
             ? 'Notifications appear disabled in Android system settings. Enable them in Android Settings → Apps → Notifications.'
-            : 'Notifications are blocked in your browser. You can check status anytime from the top notification menu.',
+            : 'Notifications are not yet allowed in your browser. Use the top notification menu once allowed in browser settings.',
         });
 
         onPermissionChange?.(res.permission || 'denied', false);
         showBlockedModal(updatedSnap);
 
-        // Dismiss soft prompt and remember denial
-        setTimeout(() => {
-          dismissSoftPushPrompt(7);
-          setIsVisible(false);
-        }, 3200);
+        // Dismiss soft prompt immediately and suppress repeats
+        dismissSoftPushPrompt(7);
+        setIsVisible(false);
       } else {
-        // User dismissed native prompt or error occurred
-        dismissSoftPushPrompt(3);
+        // User dismissed native prompt or error occurred — suppress repeats
+        dismissSoftPushPrompt(7);
         setIsVisible(false);
       }
     } catch (err: any) {

@@ -718,7 +718,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         const newItemsStr = validatedItems.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
         notifyPosAction(tenantId, {
           type: 'EXCHANGE',
-          title: isWholesaleStore ? `🔁 Wholesale Shoe Return: #${invoiceNumber}` : `🔁 Shoe Exchange: #${invoiceNumber}`,
+          title: isWholesaleStore ? `Wholesale Shoe Return #${invoiceNumber}` : `Shoe Exchange #${invoiceNumber}`,
           message: isWholesaleStore
             ? `Shoe Return against Inv #${invoiceNumber}. Returned: [${oldItemsStr}]. Credit: Rs. ${Math.round(totalExchangeCredit)}. Remaining Balance: Rs. ${Math.round(remainingBalance)}. Handled by ${cashierDisplayName}.`
             : `Exchange against Inv #${origSale?.invoice_number || exchange?.originalInvoiceNumber}. Old: [${oldItemsStr}] ➔ New: [${newItemsStr}]. Net: Rs. ${Math.round(netDifference)}. Handled by ${cashierDisplayName}.`,
@@ -748,7 +748,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         const itemsSummary = `${itemNamesStr}${extraCount}`;
         notifyPosAction(tenantId, {
           type: 'SALE',
-          title: `🛍️ New Sale: #${invoiceNumber}`,
+          title: `New Sale #${invoiceNumber}`,
           message: `Order #${invoiceNumber} for Rs. ${Math.round(totalAmountDue)} (${paymentMethod}). Items: ${itemsSummary}. Customer: ${customerDisplayName}. Processed by ${cashierDisplayName}.`,
           invoiceNumber,
           orderId: saleId,

@@ -98,6 +98,8 @@ export function formatShadeGroupSummaryBody(items: ShadeNotificationItem[]): str
 
 export const MAX_ACTIVE_SHADE_NOTIFICATIONS = 8;
 
+let shadeRegistrationQueue: Promise<void> = Promise.resolve();
+
 export async function showGroupedWithRegistration(
   registration: Pick<ServiceWorkerRegistration, 'showNotification'> & {
     getNotifications?: (filter?: GetNotificationOptions) => Promise<Notification[]>;
@@ -105,127 +107,134 @@ export async function showGroupedWithRegistration(
   title: string,
   options: ShadeNotificationOptions = {}
 ): Promise<void> {
-  if (!registration || typeof registration.showNotification !== 'function') {
-    return;
-  }
-
-  const isAdminTarget = isAdminNotificationTarget(options);
-  const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
-  const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
-  const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-  const defaultFallbackUrl = isAdminTarget ? '/admin' : '/?tab=reports';
-  const incomingTag = String(options.tag || '').trim() || `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
-  const cleanTitle = String(title || 'POS Notification');
-  const cleanBody = String(options.body || '');
-  const timestamp = resolveShadeTimestamp(options.timestamp ?? options.data?.timestamp);
-  const targetUrl = String(options.data?.url || options.data?.deepLinkUrl || defaultFallbackUrl);
-
-  let alreadyDisplayedForTag = false;
-  const existingGroupNotifications: Notification[] = [];
-
-  if (typeof registration.getNotifications === 'function') {
-    const existingAll = await registration.getNotifications().catch(() => [] as Notification[]);
-    for (const existing of existingAll) {
-      if (!existing) continue;
-      const existingData = (existing.data || {}) as Record<string, any>;
-      const existingIsAdmin =
-        existingData.isAdmin === true ||
-        existingData.isAdmin === 'true' ||
-        String(existingData.url || '').startsWith('/admin') ||
-        String(existing.icon || '').includes('/admin/') ||
-        existing.tag === ADMIN_SUMMARY_TAG;
-
-      if (existingIsAdmin !== isAdminTarget) {
-        continue;
-      }
-
-      if (
-        existing.tag === summaryTag ||
-        existing.tag === POS_SUMMARY_TAG ||
-        existing.tag === ADMIN_SUMMARY_TAG ||
-        existingData.isGroupSummary === true
-      ) {
-        try {
-          existing.close();
-        } catch {}
-        continue;
-      }
-
-      if (existing.tag === incomingTag) {
-        if (options.renotify !== true) {
-          alreadyDisplayedForTag = true;
-        }
-      } else {
-        existingGroupNotifications.push(existing);
-      }
-    }
-
-    if (alreadyDisplayedForTag) {
+  const run = async () => {
+    if (!registration || typeof registration.showNotification !== 'function') {
       return;
     }
 
-    if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
-      const sortedOldestFirst = existingGroupNotifications.slice().sort(
-        (a, b) =>
-          resolveShadeTimestamp((a as any).timestamp ?? (a.data as any)?.timestamp) -
-          resolveShadeTimestamp((b as any).timestamp ?? (b.data as any)?.timestamp)
-      );
-      const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
-      for (let i = 0; i < excessCount; i++) {
-        try {
-          sortedOldestFirst[i]?.close();
-        } catch {}
+    const isAdminTarget = isAdminNotificationTarget(options);
+    const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
+    const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
+    const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+    const defaultFallbackUrl = isAdminTarget ? '/admin' : '/?tab=reports';
+    const incomingTag = String(options.tag || '').trim() || `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
+    const cleanTitle = String(title || 'POS Notification');
+    const cleanBody = String(options.body || '');
+    const timestamp = resolveShadeTimestamp(options.timestamp ?? options.data?.timestamp);
+    const targetUrl = String(options.data?.url || options.data?.deepLinkUrl || defaultFallbackUrl);
+
+    let alreadyDisplayedForTag = false;
+    const existingGroupNotifications: Notification[] = [];
+
+    if (typeof registration.getNotifications === 'function') {
+      const existingAll = await registration.getNotifications().catch(() => [] as Notification[]);
+      for (const existing of existingAll) {
+        if (!existing) continue;
+        const existingData = (existing.data || {}) as Record<string, any>;
+        const existingIsAdmin =
+          existingData.isAdmin === true ||
+          existingData.isAdmin === 'true' ||
+          String(existingData.url || '').startsWith('/admin') ||
+          String(existing.icon || '').includes('/admin/') ||
+          existing.tag === ADMIN_SUMMARY_TAG;
+
+        if (existingIsAdmin !== isAdminTarget) {
+          continue;
+        }
+
+        if (
+          existing.tag === summaryTag ||
+          existing.tag === POS_SUMMARY_TAG ||
+          existing.tag === ADMIN_SUMMARY_TAG ||
+          existingData.isGroupSummary === true
+        ) {
+          try {
+            existing.close();
+          } catch {}
+          continue;
+        }
+
+        if (existing.tag === incomingTag) {
+          if (options.renotify !== true) {
+            alreadyDisplayedForTag = true;
+          }
+        } else {
+          existingGroupNotifications.push(existing);
+        }
+      }
+
+      if (alreadyDisplayedForTag) {
+        return;
+      }
+
+      if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
+        const sortedOldestFirst = existingGroupNotifications.slice().sort(
+          (a, b) =>
+            resolveShadeTimestamp((a as any).timestamp ?? (a.data as any)?.timestamp) -
+            resolveShadeTimestamp((b as any).timestamp ?? (b.data as any)?.timestamp)
+        );
+        const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
+        for (let i = 0; i < excessCount; i++) {
+          try {
+            sortedOldestFirst[i]?.close();
+          } catch {}
+        }
       }
     }
-  }
 
-  const badge =
-    options.badge && !String(options.badge).includes('pwa-192x192')
-      ? options.badge
-      : NOTIFICATION_BADGE_ICON;
-  const icon = options.icon || defaultIcon;
-  const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
+    const badge =
+      options.badge && !String(options.badge).includes('pwa-192x192')
+        ? options.badge
+        : NOTIFICATION_BADGE_ICON;
+    const icon = options.icon || defaultIcon;
+    const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
 
-  const defaultActions = isAdminTarget
-    ? [
-        { action: 'open_pos', title: 'Open Admin' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ]
-    : hasReceiptLink
-    ? [
-        { action: 'open_receipt', title: 'Open Receipt' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ]
-    : [
-        { action: 'open_pos', title: 'Open POS' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ];
+    const defaultActions = isAdminTarget
+      ? [
+          { action: 'open_pos', title: 'Open Admin' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : hasReceiptLink
+      ? [
+          { action: 'open_receipt', title: 'Open Receipt' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : [
+          { action: 'open_pos', title: 'Open POS' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ];
 
-  const notificationOptions: ShadeNotificationOptions = {
-    ...options,
-    body: cleanBody,
-    icon,
-    badge,
-    tag: incomingTag,
-    timestamp,
-    renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
-    requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
-    vibrate: options.vibrate || [200, 100, 200],
-    actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
-    data: {
-      ...(options.data || {}),
-      url: targetUrl,
-      isAdmin: isAdminTarget ? 'true' : 'false',
-      groupKey,
-      isGroupSummary: false,
-      notificationTitle: cleanTitle,
-      notificationBody: cleanBody,
-      timestamp,
+    const notificationOptions: ShadeNotificationOptions = {
+      ...options,
+      body: cleanBody,
+      icon,
+      badge,
       tag: incomingTag,
-    },
+      timestamp,
+      renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
+      requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
+      vibrate: options.vibrate || [200, 100, 200],
+      actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
+      data: {
+        ...(options.data || {}),
+        url: targetUrl,
+        isAdmin: isAdminTarget ? 'true' : 'false',
+        groupKey,
+        isGroupSummary: false,
+        notificationTitle: cleanTitle,
+        notificationBody: cleanBody,
+        timestamp,
+        eventId: options.data?.eventId || incomingTag,
+        tag: incomingTag,
+      },
+    };
+
+    await registration.showNotification(cleanTitle, notificationOptions);
   };
 
-  await registration.showNotification(cleanTitle, notificationOptions);
+  const nextTask = shadeRegistrationQueue.then(run, run);
+  shadeRegistrationQueue = nextTask.catch(() => {});
+  return nextTask;
 }
 
 export async function showGroupedShadeNotification(

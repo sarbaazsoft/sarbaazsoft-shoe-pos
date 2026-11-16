@@ -612,21 +612,16 @@ export const Header: React.FC<HeaderProps> = ({
       }
 
       if (snap.effectiveStatus === 'default') {
-        const res = await subscribeDeviceToWebPush(currentRole || 'ADMIN');
-        const refreshed = await getDetailedPushPermissionStatus();
-        applyPermissionSnapshot(refreshed);
-        if (res.success && !res.androidSystemDisabled) {
-          setNotificationModalData({
-            isOpen: true,
-            type: 'success',
-            title: res.mode === 'fcm' ? 'Push Notifications Active' : 'Real-Time Alerts Enabled',
-            message:
-              res.warning ||
-              'Real-time notifications are active! You will now receive instant desktop and sound alerts for sales, returns, and inventory movements.',
-          });
-        } else if (res.androidSystemDisabled || res.permission === 'denied') {
-          showBlockedOrDisabledModal(refreshed);
-        }
+        setNotificationModalData({
+          isOpen: true,
+          type: 'warning',
+          title: 'Notifications Not Allowed Yet',
+          message: snap.isAndroid
+            ? 'Notifications are not yet allowed for this site. To avoid browser spam warnings, enable Notifications from Chrome Site Settings (🔒 icon) or Android Settings → Apps → Notifications, then tap Check Status.'
+            : 'Notifications are not yet allowed for this browser. Click the site settings icon (🔒) in your address bar to set Notifications to Allow, then tap Check Status.',
+          showAndroidGuide: snap.isAndroid,
+          showBrowserGuide: !snap.isAndroidTwa,
+        });
         return;
       }
 
@@ -685,19 +680,16 @@ export const Header: React.FC<HeaderProps> = ({
               res.warning ||
               'Real-time notifications are active! You will now receive instant desktop and sound alerts for sales, returns, and inventory movements.',
           });
-        } else if (res.androidSystemDisabled || res.permission === 'denied') {
+        } else if (res.androidSystemDisabled || res.permission === 'denied' || res.alreadyPrompted) {
           showBlockedOrDisabledModal(updatedSnap);
         } else if (res.error) {
           setNotificationModalData({
             isOpen: true,
-            type: 'error',
-            title: 'Notification Setup Notice',
+            type: 'warning',
+            title: 'Notification Permission Needed',
             message: res.error,
-            details: res.error,
-            actionText: 'Check Status',
-            onAction: () => {
-              void handleCheckPushPermissionStatus();
-            },
+            showAndroidGuide: updatedSnap.isAndroid,
+            showBrowserGuide: !updatedSnap.isAndroidTwa,
           });
         }
       }

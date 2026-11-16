@@ -96,13 +96,19 @@ export function recordSwNotificationShown(msg: {
 }
 
 function broadcastChannelClaim(compositeKey: string, expiresAt: number): void {
+  const message = {
+    type: 'CLAIM_CHANNEL',
+    compositeKey,
+    expiresAt,
+  };
   try {
     if (sharedDedupeBroadcastChannel) {
-      sharedDedupeBroadcastChannel.postMessage({
-        type: 'CLAIM_CHANNEL',
-        compositeKey,
-        expiresAt,
-      });
+      sharedDedupeBroadcastChannel.postMessage(message);
+    }
+  } catch {}
+  try {
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage(message);
     }
   } catch {}
 }

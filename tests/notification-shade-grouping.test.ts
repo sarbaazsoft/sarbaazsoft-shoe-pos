@@ -314,3 +314,39 @@ test('showGroupedWithRegistration keeps individual foreground child cards and sk
   });
   assert.equal(showCalls, callsBeforeDup);
 });
+
+test('public/sw.js cleans legacy summaries on activate and skips duplicate unchanged already-shown alerts', async () => {
+  const harness = createSwShadeHarness();
+  const baseTs = 1760000000000;
+
+  await harness.dispatchPush({
+    title: 'POS Test Alert',
+    body: 'Device notifications are operational.',
+    timestamp: baseTs + 1000,
+    data: {
+      eventId: 'test-push-single-1',
+      tag: 'test-push-single-1',
+      url: '/pos',
+    },
+  });
+
+  assert.equal(harness.activeNotifications.size, 1);
+  const firstCard = harness.activeNotifications.get('test-push-single-1');
+  assert.ok(firstCard);
+
+  // Re-delivering identical title/body/tag (e.g., from a duplicate token or delayed push) leaves single card untouched
+  await harness.dispatchPush({
+    title: 'POS Test Alert',
+    body: 'Device notifications are operational.',
+    timestamp: baseTs + 2000,
+    data: {
+      eventId: 'test-push-single-1',
+      tag: 'test-push-single-1',
+      url: '/pos',
+    },
+  });
+
+  assert.equal(harness.activeNotifications.size, 1);
+  assert.equal(harness.activeNotifications.get('test-push-single-1'), firstCard);
+});
+

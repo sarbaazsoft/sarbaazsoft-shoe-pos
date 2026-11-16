@@ -204,13 +204,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (isSuperAdmin) {
-      const cleanup = initNativeNotificationPrompt('SUPERADMIN');
-      return cleanup;
-    }
-  }, [isSuperAdmin]);
-
   // Control panel state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -443,21 +436,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       }
 
       if (snap.effectiveStatus === 'default') {
-        const res = await subscribeDeviceToWebPush('SUPERADMIN');
-        const refreshed = await getDetailedPushPermissionStatus();
-        applyPermissionSnapshot(refreshed);
-        if (res.success && !res.androidSystemDisabled) {
-          setNotificationModalData({
-            isOpen: true,
-            type: 'success',
-            title: res.mode === 'fcm' ? 'SuperAdmin Push Notifications Active' : 'Real-Time Alerts Enabled',
-            message:
-              res.warning ||
-              'SuperAdmin push notifications are active on this device! You will receive instant alerts for subscriptions, new store trials, and operational updates.',
-          });
-        } else if (res.androidSystemDisabled || res.permission === 'denied') {
-          showBlockedOrDisabledModal(refreshed);
-        }
+        setNotificationModalData({
+          isOpen: true,
+          type: 'warning',
+          title: 'Notifications Not Allowed Yet',
+          message: snap.isAndroid
+            ? 'Notifications are not yet allowed for this site. To avoid browser spam warnings, enable Notifications from Chrome Site Settings (🔒 icon) or Android Settings → Apps → Notifications, then tap Check Status.'
+            : 'Notifications are not yet allowed for this browser. Click the site settings icon (🔒) in your address bar to set Notifications to Allow, then tap Check Status.',
+          showAndroidGuide: snap.isAndroid,
+          showBrowserGuide: !snap.isAndroidTwa,
+        });
         return;
       }
 
@@ -516,19 +504,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               res.warning ||
               'SuperAdmin push notifications are active on this device! You will receive instant alerts for subscriptions, new store trials, and operational updates.',
           });
-        } else if (res.androidSystemDisabled || res.permission === 'denied') {
+        } else if (res.androidSystemDisabled || res.permission === 'denied' || res.alreadyPrompted) {
           showBlockedOrDisabledModal(updatedSnap);
         } else if (res.error) {
           setNotificationModalData({
             isOpen: true,
-            type: 'error',
-            title: 'Notification Setup Notice',
+            type: 'warning',
+            title: 'Notification Permission Needed',
             message: res.error,
-            details: res.error,
-            actionText: 'Check Status',
-            onAction: () => {
-              void handleCheckPushPermissionStatus();
-            },
+            showAndroidGuide: updatedSnap.isAndroid,
+            showBrowserGuide: !updatedSnap.isAndroidTwa,
           });
         }
       }

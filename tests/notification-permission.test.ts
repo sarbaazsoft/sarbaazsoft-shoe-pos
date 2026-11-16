@@ -627,3 +627,36 @@ test('Focused Chrome/APK windows show shade notification from SSE & Test Alert w
     sseEnv.restore();
   }
 });
+
+test('requestFcmPermissionAndToken strictly allows only 1 permission prompt across concurrent clicks and dismissed retries', async () => {
+  const env = setupMockBrowserEnv({
+    permission: 'default',
+    requestPermissionResult: 'default',
+    permissionsApiState: 'prompt',
+    isAndroid: true,
+    isAndroidTwa: false,
+  });
+
+  try {
+    assert.equal(shouldShowSoftPushPrompt(), true);
+
+    // Concurrent rapid clicks must coalesce onto a single Notification.requestPermission() call
+    const [first, second] = await Promise.all([
+      requestFcmPermissionAndToken('ADMIN'),
+      requestFcmPermissionAndToken('ADMIN'),
+    ]);
+
+    assert.equal(env.getRequestPermissionCalls(), 1, 'Concurrent triggers must prompt strictly once');
+    assert.equal(first.success, false);
+    assert.equal(second.success, false);
+    assert.equal(shouldShowSoftPushPrompt(), false, 'Soft prompt must hide immediately after 1 dismissed prompt');
+
+    // Subsequent manual retries while browser still reports default must NOT invoke requestPermission() again
+    const third = await requestFcmPermissionAndToken('ADMIN');
+    assert.equal(env.getRequestPermissionCalls(), 1, 'Must never prompt a second time after dismissal');
+    assert.equal(third.alreadyPrompted, true);
+  } finally {
+    env.restore();
+  }
+});
+

@@ -6,6 +6,7 @@ import {
   FCM_TOKEN_KEY,
   PUSH_ENABLED_KEY,
   PUSH_PERMISSION_DENIED_KEY,
+  PUSH_PERMISSION_PROMPTED_KEY,
   PUSH_USER_OPTED_OUT_KEY,
   initFirebaseClient,
   isExplicitUserPushOptOut,
@@ -398,11 +399,14 @@ export async function getDetailedPushPermissionStatus(): Promise<PushPermissionS
     androidSystemBlockedReason = null;
   }
 
-  // Also clear stale denial flag if user manually re-granted notifications in browser/Android settings
-  if (browserPermission === 'granted' && storedDenialFlag && !userOptedOut) {
+  // Also clear stale denial/prompted flags if user manually re-granted notifications in browser/Android settings
+  if (browserPermission === 'granted') {
     try {
-      localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
-      storedDenialFlag = false;
+      localStorage.removeItem(PUSH_PERMISSION_PROMPTED_KEY);
+      if (storedDenialFlag && !userOptedOut) {
+        localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+        storedDenialFlag = false;
+      }
     } catch {}
   }
 
@@ -445,6 +449,7 @@ export async function subscribeDeviceToWebPush(overrideRole?: string): Promise<{
   mode?: 'fcm' | 'realtime';
   permission?: NotificationPermission;
   androidSystemDisabled?: boolean;
+  alreadyPrompted?: boolean;
 }> {
   if (typeof window === 'undefined') {
     return { success: false, error: 'Web Push is not available in non-browser environments.' };
@@ -490,9 +495,10 @@ export function shouldShowSoftPushPrompt(): boolean {
   if (typeof window === 'undefined' || !isWebPushSupported()) return false;
   // Never prompt if permission was already granted or denied
   if (Notification.permission !== 'default') return false;
-  // Never re-prompt if user snoozed, denied, opted out, or Android system notifications are disabled
+  // Never re-prompt if user snoozed, dismissed/prompted once, denied, opted out, or Android system notifications are disabled
   if (isSoftPromptDismissed()) return false;
   try {
+    if (localStorage.getItem(PUSH_PERMISSION_PROMPTED_KEY) === 'true') return false;
     if (localStorage.getItem(PUSH_PERMISSION_DENIED_KEY) === 'true') return false;
     if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true') return false;
     if (localStorage.getItem(PUSH_USER_OPTED_OUT_KEY) === 'true') return false;
@@ -606,23 +612,34 @@ export function watchNotificationPermissionChanges(
   };
 }
 
+let lastNativePromptInitKey = '';
+let lastNativePromptInitAt = 0;
+
 /**
  * Background FCM initialization on session load:
  * 1. Warm up the Firebase client and foreground listener.
  * 2. If permission is already granted (and user hasn't disabled notifications), silently verify & reuse/sync FCM token.
- * 3. Does NOT force native permission prompts on page load or clicks.
+ * 3. Coalesces concurrent mount calls across App/Header/SuperAdminPanel and NEVER triggers permission prompts.
  */
 export function initNativeNotificationPrompt(overrideRole?: string): () => void {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return () => {};
   }
 
+  const normalizedRole = String(overrideRole || 'ADMIN').toUpperCase();
+  const now = Date.now();
+  if (lastNativePromptInitKey === normalizedRole && now - lastNativePromptInitAt < 5000) {
+    return () => {};
+  }
+  lastNativePromptInitKey = normalizedRole;
+  lastNativePromptInitAt = now;
+
   // Pre-initialize Firebase client in the background
   initFirebaseClient().catch(() => {});
 
   // If already granted, perform silent token verification/resync in background without re-prompting
   if (Notification.permission === 'granted') {
-    syncFcmTokenSilently(overrideRole).catch(() => {});
+    syncFcmTokenSilently(normalizedRole).catch(() => {});
   }
 
   return () => {};
@@ -783,6 +800,8 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
               ...normalizedPayload,
               url: deepLinkUrl || '/notifications',
               isAdmin: isAdminTarget ? 'true' : 'false',
+              eventId: normalizedPayload.eventId || tag,
+              tag,
               timestamp: parsedTimestamp,
             },
           },
@@ -803,7 +822,7 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
       Boolean(localStorage.getItem(FCM_TOKEN_KEY));
 
     if (hasActiveWebPush) {
-      setTimeout(dispatchOsFallback, 1200);
+      setTimeout(dispatchOsFallback, 3500);
     } else {
       dispatchOsFallback();
     }
@@ -934,7 +953,7 @@ export async function triggerTestNotificationShadeFallback(params: {
     isWebPushSupported();
 
   if (shouldYieldForSw) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 1250));
+    await new Promise<void>((resolve) => setTimeout(resolve, 3500));
   }
 
   if (isNotificationChannelClaimed(dedupeKey, 'os_notification')) {

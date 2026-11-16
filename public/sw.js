@@ -212,6 +212,26 @@ self.addEventListener('install', (event) => {
   event.waitUntil(precacheAppShell().catch(() => {}));
 });
 
+async function cleanupLegacySummaryShadeNotifications() {
+  try {
+    if (!self.registration || typeof self.registration.getNotifications !== 'function') return;
+    const all = await self.registration.getNotifications().catch(() => []);
+    for (const n of all) {
+      if (!n) continue;
+      const d = n.data || {};
+      if (
+        n.tag === POS_SUMMARY_TAG ||
+        n.tag === ADMIN_SUMMARY_TAG ||
+        d.isGroupSummary === true
+      ) {
+        try {
+          n.close();
+        } catch {}
+      }
+    }
+  } catch {}
+}
+
 self.addEventListener('activate', (event) => {
   if (SW_CACHING_PAUSED || !IS_PRODUCTION_SW) {
     // Caching paused / development: purge all Cache Storage buckets immediately and take control
@@ -219,6 +239,7 @@ self.addEventListener('activate', (event) => {
       caches
         .keys()
         .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        .then(() => cleanupLegacySummaryShadeNotifications())
         .then(() => self.clients.claim())
         .catch(() => self.clients.claim())
     );
@@ -241,6 +262,7 @@ self.addEventListener('activate', (event) => {
         )
       )
       .then(() => trimImmutableCache())
+      .then(() => cleanupLegacySummaryShadeNotifications())
       .then(() => self.clients.claim())
   );
 });
@@ -411,6 +433,40 @@ self.addEventListener('fetch', (event) => {
 const PUSH_DEDUPE_CHANNEL_NAME = 'pos_push_dedupe_channel';
 const SW_PUSH_DEDUPE_TTL_MS = 15000;
 const swRecentPushTags = new Map();
+const swWindowClaimedKeys = new Map();
+
+function recordSwWindowClaim(data) {
+  if (!data || typeof data !== 'object') return;
+  if (data.type === 'CLAIM_CHANNEL' && typeof data.compositeKey === 'string') {
+    const exp = typeof data.expiresAt === 'number' && data.expiresAt > Date.now()
+      ? data.expiresAt
+      : Date.now() + SW_PUSH_DEDUPE_TTL_MS;
+    swWindowClaimedKeys.set(data.compositeKey, exp);
+  }
+}
+
+function isWindowClaimedInSw(tag, eventId) {
+  const now = Date.now();
+  if (swWindowClaimedKeys.size > 100) {
+    for (const [k, exp] of swWindowClaimedKeys.entries()) {
+      if (exp <= now) swWindowClaimedKeys.delete(k);
+    }
+  }
+  const tagKey = tag ? `os_notification:id:${tag}` : '';
+  const eventKey = eventId ? `os_notification:id:${eventId}` : '';
+  const tagExp = tagKey ? swWindowClaimedKeys.get(tagKey) : 0;
+  const eventExp = eventKey ? swWindowClaimedKeys.get(eventKey) : 0;
+  return Boolean((tagExp && tagExp > now) || (eventExp && eventExp > now));
+}
+
+try {
+  if (typeof BroadcastChannel !== 'undefined') {
+    const swDedupeListenerChannel = new BroadcastChannel(PUSH_DEDUPE_CHANNEL_NAME);
+    if (typeof swDedupeListenerChannel.addEventListener === 'function') {
+      swDedupeListenerChannel.addEventListener('message', (evt) => recordSwWindowClaim(evt && evt.data));
+    }
+  }
+} catch {}
 
 function isAdminShadeTarget(options) {
   const data = (options && options.data) || {};
@@ -575,163 +631,192 @@ function extractItemsFromExistingSwNotification(existing, defaultUrl) {
   ];
 }
 
+let swShadeNotificationQueue = Promise.resolve();
+
 async function showGroupedShadeNotification(title, options = {}) {
-  if (!self.registration || typeof self.registration.showNotification !== 'function') {
-    return;
-  }
+  const run = async () => {
+    if (!self.registration || typeof self.registration.showNotification !== 'function') {
+      return;
+    }
 
-  const isAdminTarget = isAdminShadeTarget(options);
-  const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
-  const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
-  const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-  const incomingTag =
-    String(options.tag || (options.data && (options.data.tag || options.data.eventId)) || '').trim() ||
-    `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
-  const cleanTitle = String(title || 'SarbaazSoft POS Alert').slice(0, 120);
-  const cleanBody = String(options.body || 'New store notification.').slice(0, 320);
-  const timestamp = resolveShadeTimestamp(options.timestamp || (options.data && options.data.timestamp));
-  const targetUrl = sanitizePushTargetUrl(
-    (options.data && (options.data.url || options.data.deepLinkUrl)) || '',
-    isAdminTarget
-  );
+    const isAdminTarget = isAdminShadeTarget(options);
+    const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
+    const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
+    const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+    const incomingTag =
+      String(options.tag || (options.data && (options.data.tag || options.data.eventId)) || '').trim() ||
+      `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
+    const incomingEventId = String((options.data && options.data.eventId) || incomingTag);
+    const cleanTitle = String(title || 'SarbaazSoft POS Alert').slice(0, 120);
+    const cleanBody = String(options.body || 'New store notification.').slice(0, 320);
+    const timestamp = resolveShadeTimestamp(options.timestamp || (options.data && options.data.timestamp));
+    const targetUrl = sanitizePushTargetUrl(
+      (options.data && (options.data.url || options.data.deepLinkUrl)) || '',
+      isAdminTarget
+    );
 
-  const isFirstSwDeliveryForTag = claimSwPushTag(incomingTag);
+    const claimedFirstTime = claimSwPushTag(incomingTag);
+    const claimedByWindow = isWindowClaimedInSw(incomingTag, incomingEventId);
+    const isFirstSwDeliveryForTag = claimedFirstTime && !claimedByWindow;
 
-  const dedupeBroadcastPayload = {
-    type: 'SW_NOTIFICATION_SHOWN',
-    tag: incomingTag,
-    eventId: (options.data && options.data.eventId) || incomingTag,
-    dedupeKey: `id:${(options.data && options.data.eventId) || incomingTag}`,
-    title: cleanTitle,
-    body: cleanBody,
-    timestamp,
+    const dedupeBroadcastPayload = {
+      type: 'SW_NOTIFICATION_SHOWN',
+      tag: incomingTag,
+      eventId: incomingEventId,
+      dedupeKey: `id:${incomingEventId}`,
+      title: cleanTitle,
+      body: cleanBody,
+      timestamp,
+    };
+
+    let alreadyHadTagInShade = false;
+    let existingMatchingCard = null;
+    const existingGroupNotifications = [];
+
+    if (typeof self.registration.getNotifications === 'function') {
+      const existingAll = await self.registration.getNotifications().catch(() => []);
+      for (const existing of existingAll) {
+        if (!existing) continue;
+        const existingData = existing.data || {};
+        const existingIsAdmin =
+          existingData.isAdmin === true ||
+          existingData.isAdmin === 'true' ||
+          String(existingData.url || '').startsWith('/admin') ||
+          String(existing.icon || '').includes('/admin/') ||
+          existing.tag === ADMIN_SUMMARY_TAG;
+
+        if (existingIsAdmin !== isAdminTarget) {
+          continue;
+        }
+
+        // Close any legacy synthetic merged summary notification so Android's native
+        // expandable notification group renders individual child cards cleanly
+        if (
+          existing.tag === summaryTag ||
+          existing.tag === POS_SUMMARY_TAG ||
+          existing.tag === ADMIN_SUMMARY_TAG ||
+          existingData.isGroupSummary === true
+        ) {
+          try {
+            existing.close();
+          } catch {}
+          continue;
+        }
+
+        if (existing.tag === incomingTag) {
+          alreadyHadTagInShade = true;
+          existingMatchingCard = existing;
+        } else {
+          existingGroupNotifications.push(existing);
+        }
+      }
+
+      // If this exact alert is already visible in the shade with unchanged text (e.g. shown via Window or duplicate token),
+      // avoid re-calling showNotification() so Android never flickers or flags spam.
+      if (alreadyHadTagInShade && options.renotify !== true && existingMatchingCard) {
+        const prevTitle = String(
+          existingMatchingCard.title || (existingMatchingCard.data && existingMatchingCard.data.notificationTitle) || ''
+        );
+        const prevBody = String(
+          existingMatchingCard.body || (existingMatchingCard.data && existingMatchingCard.data.notificationBody) || ''
+        );
+        if ((prevTitle === cleanTitle && prevBody === cleanBody) || claimedByWindow) {
+          broadcastPushDedupeEvent(dedupeBroadcastPayload);
+          return;
+        }
+      }
+
+      // Keep shade bounded to the newest MAX_ACTIVE_SHADE_NOTIFICATIONS per group
+      if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
+        const sortedOldestFirst = existingGroupNotifications.slice().sort(
+          (a, b) =>
+            resolveShadeTimestamp((a && a.timestamp) || (a && a.data && a.data.timestamp)) -
+            resolveShadeTimestamp((b && b.timestamp) || (b && b.data && b.data.timestamp))
+        );
+        const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
+        for (let i = 0; i < excessCount; i++) {
+          try {
+            sortedOldestFirst[i].close();
+          } catch {}
+        }
+      }
+    }
+
+    const icon = options.icon || defaultIcon;
+    const badge =
+      options.badge && !String(options.badge).includes('pwa-192x192')
+        ? options.badge
+        : NOTIFICATION_BADGE_ICON;
+    const shouldBeSilent = !isFirstSwDeliveryForTag || alreadyHadTagInShade || Boolean(options.silent === true);
+    const allowRequireInteraction = Boolean(options.requireInteraction === true);
+    const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
+
+    const defaultActions = isAdminTarget
+      ? [
+          { action: 'open_pos', title: 'Open Admin' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : hasReceiptLink
+      ? [
+          { action: 'open_receipt', title: 'Open Receipt' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ]
+      : [
+          { action: 'open_pos', title: 'Open POS' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ];
+
+    const allowRenotify = isFirstSwDeliveryForTag && !alreadyHadTagInShade
+      ? Boolean(options.renotify === true)
+      : false;
+
+    const notificationOptions = Object.assign({}, options, {
+      body: cleanBody,
+      icon,
+      badge,
+      tag: incomingTag,
+      timestamp,
+      renotify: allowRenotify,
+      requireInteraction: allowRequireInteraction,
+      silent: shouldBeSilent,
+      actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
+      data: Object.assign({}, options.data || {}, {
+        url: targetUrl,
+        isAdmin: isAdminTarget ? 'true' : 'false',
+        groupKey,
+        isGroupSummary: false,
+        notificationTitle: cleanTitle,
+        notificationBody: cleanBody,
+        timestamp,
+        eventId: incomingEventId,
+        tag: incomingTag,
+      }),
+    });
+    if (shouldBeSilent) {
+      delete notificationOptions.vibrate;
+    } else {
+      notificationOptions.vibrate = options.vibrate || [200, 100, 200];
+    }
+
+    try {
+      await self.registration.showNotification(cleanTitle, notificationOptions);
+      broadcastPushDedupeEvent(dedupeBroadcastPayload);
+    } catch (showErr) {
+      const errName = String((showErr && showErr.name) || '').toLowerCase();
+      if (errName === 'notallowederror' || errName === 'securityerror') {
+        broadcastPushDedupeEvent({
+          type: 'SW_NOTIFICATION_DELIVERY_BLOCKED',
+          reason: 'delivery-rejected',
+          timestamp: Date.now(),
+        });
+      }
+      throw showErr;
+    }
   };
 
-  let alreadyHadTagInShade = false;
-  const existingGroupNotifications = [];
-
-  if (typeof self.registration.getNotifications === 'function') {
-    const existingAll = await self.registration.getNotifications().catch(() => []);
-    for (const existing of existingAll) {
-      if (!existing) continue;
-      const existingData = existing.data || {};
-      const existingIsAdmin =
-        existingData.isAdmin === true ||
-        existingData.isAdmin === 'true' ||
-        String(existingData.url || '').startsWith('/admin') ||
-        String(existing.icon || '').includes('/admin/') ||
-        existing.tag === ADMIN_SUMMARY_TAG;
-
-      if (existingIsAdmin !== isAdminTarget) {
-        continue;
-      }
-
-      // Close any legacy synthetic merged summary notification so Android's native
-      // expandable notification group renders individual child cards cleanly
-      if (
-        existing.tag === summaryTag ||
-        existing.tag === POS_SUMMARY_TAG ||
-        existing.tag === ADMIN_SUMMARY_TAG ||
-        existingData.isGroupSummary === true
-      ) {
-        try {
-          existing.close();
-        } catch {}
-        continue;
-      }
-
-      if (existing.tag === incomingTag) {
-        alreadyHadTagInShade = true;
-      } else {
-        existingGroupNotifications.push(existing);
-      }
-    }
-
-    // Keep shade bounded to the newest MAX_ACTIVE_SHADE_NOTIFICATIONS per group
-    if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
-      const sortedOldestFirst = existingGroupNotifications.slice().sort(
-        (a, b) =>
-          resolveShadeTimestamp((a && a.timestamp) || (a && a.data && a.data.timestamp)) -
-          resolveShadeTimestamp((b && b.timestamp) || (b && b.data && b.data.timestamp))
-      );
-      const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
-      for (let i = 0; i < excessCount; i++) {
-        try {
-          sortedOldestFirst[i].close();
-        } catch {}
-      }
-    }
-  }
-
-  const icon = options.icon || defaultIcon;
-  const badge =
-    options.badge && !String(options.badge).includes('pwa-192x192')
-      ? options.badge
-      : NOTIFICATION_BADGE_ICON;
-  const shouldBeSilent = !isFirstSwDeliveryForTag || Boolean(options.silent === true);
-  const allowRequireInteraction = Boolean(options.requireInteraction === true);
-  const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
-
-  const defaultActions = isAdminTarget
-    ? [
-        { action: 'open_pos', title: 'Open Admin' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ]
-    : hasReceiptLink
-    ? [
-        { action: 'open_receipt', title: 'Open Receipt' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ]
-    : [
-        { action: 'open_pos', title: 'Open POS' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ];
-
-  const allowRenotify = isFirstSwDeliveryForTag && !alreadyHadTagInShade
-    ? Boolean(options.renotify === true)
-    : false;
-
-  const notificationOptions = Object.assign({}, options, {
-    body: cleanBody,
-    icon,
-    badge,
-    tag: incomingTag,
-    timestamp,
-    renotify: allowRenotify,
-    requireInteraction: allowRequireInteraction,
-    silent: shouldBeSilent,
-    actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
-    data: Object.assign({}, options.data || {}, {
-      url: targetUrl,
-      isAdmin: isAdminTarget ? 'true' : 'false',
-      groupKey,
-      isGroupSummary: false,
-      notificationTitle: cleanTitle,
-      notificationBody: cleanBody,
-      timestamp,
-      tag: incomingTag,
-    }),
-  });
-  if (shouldBeSilent) {
-    delete notificationOptions.vibrate;
-  } else {
-    notificationOptions.vibrate = options.vibrate || [200, 100, 200];
-  }
-
-  try {
-    await self.registration.showNotification(cleanTitle, notificationOptions);
-    broadcastPushDedupeEvent(dedupeBroadcastPayload);
-  } catch (showErr) {
-    const errName = String((showErr && showErr.name) || '').toLowerCase();
-    if (errName === 'notallowederror' || errName === 'securityerror') {
-      broadcastPushDedupeEvent({
-        type: 'SW_NOTIFICATION_DELIVERY_BLOCKED',
-        reason: 'delivery-rejected',
-        timestamp: Date.now(),
-      });
-    }
-    throw showErr;
-  }
+  const nextTask = swShadeNotificationQueue.then(run, run);
+  swShadeNotificationQueue = nextTask.catch(() => {});
+  return nextTask;
 }
 
 // -------------------------------------------------------------------------
@@ -1272,6 +1357,11 @@ self.addEventListener('periodicsync', (event) => {
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data || typeof data !== 'object') return;
+
+  if (data.type === 'CLAIM_CHANNEL') {
+    recordSwWindowClaim(data);
+    return;
+  }
 
   if (data.type === 'SKIP_WAITING') {
     self.skipWaiting();
