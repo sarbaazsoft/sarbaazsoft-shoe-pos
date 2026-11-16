@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ShoppingCart, Boxes, Users, AlertTriangle, Calendar, Truck, RefreshCw, RotateCcw, BarChart3, Building2, Store, Sparkles, X, CheckCircle2, AlertCircle, TrendingUp, DollarSign, Zap, Package, Clock } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { api, getActiveTenantId } from '../../services/api.ts';
-import { queryClient, queryKeys } from '../../services/queryClient.ts';
-import { useDashboardReportQuery, useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
+import { api } from '../../services/api.ts';
+import { useDashboardReportQuery, useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { formatCurrency } from '../../utils/priceFormat.ts';
 import { isFreeTrial, calculateDaysLeft, normalizeSubscriptionPlan, getAvailableTemplateChips, getRenewalMessageTemplate, resolveDefaultRenewalTemplateType, type RenewalTemplateType } from '../../utils/subscription.ts';
@@ -12,7 +11,6 @@ import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
-import type { GroupedNotificationsResponse } from '../../types.ts';
 
 interface CustomCategoryArticlesTooltipProps {
   active?: boolean;
@@ -243,7 +241,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 }) => {
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
-  const activeTenantScopeId = getActiveTenantId();
   const tenantId = currentUser?.tenantId || currentUser?.tenant_id || companySettings?.id || '1';
   const userId = currentUser?.id || currentUser?.email || 'owner';
   const visitKey = `pos_store_owner_visited_${tenantId}_${userId}`;
@@ -265,9 +262,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   }, [groupedNotifsQuery.data]);
 
   const handleDismissNotice = async (noticeId: number | string) => {
-    const key = queryKeys.notifications.grouped(10, activeTenantScopeId);
     try {
-      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+      groupedNotifsQuery.setData((prev) =>
         prev
           ? {
               ...prev,
@@ -527,8 +523,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           api.notifications.dismiss(wn.id, 'NOTICE').catch(() => {});
         }
       }
-      const key = queryKeys.notifications.grouped(10, activeTenantScopeId);
-      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+      groupedNotifsQuery.setData((prev) =>
         prev
           ? {
               ...prev,

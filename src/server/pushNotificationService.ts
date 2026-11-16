@@ -3,7 +3,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 import type { Response } from 'express';
 import { pgClient } from '../db/index.ts';
 import { ensureFcmTokensSchema } from '../db/schemaInit.ts';
-import { getCachedAppSetting, getAppSetting, loadAppSettingsCache, registerSettingsUpdateListener } from './services/appSettingsService.ts';
+import { getAppSetting, registerSettingsUpdateListener } from './services/appSettingsService.ts';
 import { dispatchPosEmailAlert } from './services/emailAlertService.ts';
 import { getApplicationBaseUrl } from './services/welcomeService.ts';
 import { normalizeVapidPublicKey } from '../utils/vapid.ts';
@@ -19,12 +19,17 @@ let lastCredentialSignature = '';
 
 /**
  * Initializes or retrieves the Firebase Admin App instance.
- * Reads FCM_PROJECT_ID, FCM_CLIENT_EMAIL, and FCM_PRIVATE_KEY from app_settings or process.env.
+ * Reads FCM_PROJECT_ID, FCM_CLIENT_EMAIL, and FCM_PRIVATE_KEY live from app_settings or process.env.
  */
-export function getFirebaseAdmin(): App | null {
-  const projectId = (getCachedAppSetting('FCM_PROJECT_ID', '') || process.env.FCM_PROJECT_ID || '').trim();
-  const clientEmail = (getCachedAppSetting('FCM_CLIENT_EMAIL', '') || process.env.FCM_CLIENT_EMAIL || '').trim();
-  let privateKey = (getCachedAppSetting('FCM_PRIVATE_KEY', '') || process.env.FCM_PRIVATE_KEY || '').trim();
+export async function getFirebaseAdmin(): Promise<App | null> {
+  const [rawProjectId, rawClientEmail, rawPrivateKey] = await Promise.all([
+    getAppSetting('FCM_PROJECT_ID', ''),
+    getAppSetting('FCM_CLIENT_EMAIL', ''),
+    getAppSetting('FCM_PRIVATE_KEY', ''),
+  ]);
+  const projectId = (rawProjectId || process.env.FCM_PROJECT_ID || '').trim();
+  const clientEmail = (rawClientEmail || process.env.FCM_CLIENT_EMAIL || '').trim();
+  let privateKey = (rawPrivateKey || process.env.FCM_PRIVATE_KEY || '').trim();
 
   if (privateKey) {
     // Format PEM newlines properly whether stored as literal \n or escaped \\n
@@ -45,7 +50,7 @@ export function getFirebaseAdmin(): App | null {
     if (existingApps.length > 0) {
       for (const app of existingApps) {
         if (app) {
-          deleteApp(app).catch(() => {});
+          await deleteApp(app).catch(() => {});
         }
       }
     }
@@ -67,20 +72,15 @@ export function getFirebaseAdmin(): App | null {
   }
 }
 
-// Initial configuration attempt
-getFirebaseAdmin();
-
 // Re-configure whenever FCM credentials are saved dynamically via the settings API
 registerSettingsUpdateListener((key) => {
   if (['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'].includes(key)) {
-    getFirebaseAdmin();
+    void getFirebaseAdmin().catch(() => {});
   }
 });
 
-// Asynchronously hydrate once PostgreSQL app_settings cache is loaded
-getAppSetting('FCM_PROJECT_ID').then(() => {
-  getFirebaseAdmin();
-}).catch(() => {});
+// Asynchronously hydrate once PostgreSQL app_settings table is reachable
+void getFirebaseAdmin().catch(() => {});
 
 // ============================================================================
 // ACTIVE SSE BROWSER CLIENTS (REAL-TIME DASHBOARD SYNC)
@@ -202,8 +202,7 @@ export async function getFcmStats(): Promise<{
 }> {
   try {
     await ensureFcmTokensSchema();
-    await loadAppSettingsCache();
-    const app = getFirebaseAdmin();
+    const app = await getFirebaseAdmin();
     const projectId = (await getAppSetting('FCM_PROJECT_ID', '')) || process.env.FCM_PROJECT_ID || '';
 
     const countRes = await pgClient.query<{ count: string; user_role: string }>(`
@@ -301,11 +300,10 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
   const isAdminTarget = linkUrl.startsWith('/admin') || payload.data?.isAdmin === 'true';
   const icon = payload.icon || (isAdminTarget ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON);
   const badge = payload.badge || NOTIFICATION_BADGE_ICON;
-  const tag = payload.tag || `pos-${Date.now()}`;
+  const tag = payload.tag || `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const cleanWebTitle = String(payload.title || 'SarbaazSoft Shoe POS Alert').trim().slice(0, 120);
   const cleanWebBody = String(payload.body || 'New store notification received.').trim().slice(0, 320);
 
-  const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
   const rawTimestamp = payload.data?.timestamp;
   const numericTimestamp = rawTimestamp ? Number(rawTimestamp) || Date.parse(rawTimestamp) || Date.now() : Date.now();
   const httpsLinkUrl = resolveHttpsWebpushLink(linkUrl);
@@ -317,7 +315,6 @@ export function buildFcmNotificationConfig(payload: FcmPushPayload) {
     icon,
     badge,
     tag,
-    groupKey,
     isAdmin: isAdminTarget ? 'true' : 'false',
     timestamp: String(numericTimestamp),
   };
@@ -366,8 +363,7 @@ export async function sendFcmPushToTokens(
   tokens: string[],
   payload: FcmPushPayload
 ): Promise<FcmDispatchResult> {
-  await loadAppSettingsCache();
-  const app = getFirebaseAdmin();
+  const app = await getFirebaseAdmin();
   if (!app) {
     return {
       success: false,
@@ -509,7 +505,14 @@ export async function notifyPosAction(
 ): Promise<void> {
   const cleanTenantId = Number(tenantId) || 1;
   const allowedRoles = payload.targetRoles || ['ADMIN', 'CASHIER'];
-  const eventTag = `pos-${payload.type.toLowerCase()}-${payload.invoiceNumber || Date.now()}`;
+  const eventRef =
+    payload.returnNumber ||
+    payload.invoiceNumber ||
+    payload.returnId ||
+    payload.saleId ||
+    payload.orderId ||
+    Date.now();
+  const eventTag = `pos-${payload.type.toLowerCase()}-${eventRef}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const enrichedPayload: PosActionNotification & { eventId: string; tag: string } = {
     ...payload,
     eventId: eventTag,
@@ -658,19 +661,19 @@ export async function notifyPlatformAnnouncement(
     const isSale = typeUpper === 'SALE' || titleLower.includes('sale') || titleLower.includes('invoice');
     const isSecurity = typeUpper === 'SECURITY' || typeUpper === 'SYSTEM' || titleLower.includes('security') || titleLower.includes('backup') || titleLower.includes('critical');
 
-    if (isNewTrial && getCachedAppSetting('SUPERADMIN_PUSH_ON_NEW_TRIAL', 'true').toLowerCase() === 'false') {
+    if (isNewTrial && (await getAppSetting('SUPERADMIN_PUSH_ON_NEW_TRIAL', 'true')).toLowerCase() === 'false') {
       return; // Suppressed by SuperAdmin push event settings
     }
-    if (isRenewal && getCachedAppSetting('SUPERADMIN_PUSH_ON_RENEWAL', 'true').toLowerCase() === 'false') {
+    if (isRenewal && (await getAppSetting('SUPERADMIN_PUSH_ON_RENEWAL', 'true')).toLowerCase() === 'false') {
       return; // Suppressed by SuperAdmin push event settings
     }
-    if (isExpired && getCachedAppSetting('SUPERADMIN_PUSH_ON_EXPIRED_STORE', 'true').toLowerCase() === 'false') {
+    if (isExpired && (await getAppSetting('SUPERADMIN_PUSH_ON_EXPIRED_STORE', 'true')).toLowerCase() === 'false') {
       return; // Suppressed by SuperAdmin push event settings
     }
-    if (isSale && getCachedAppSetting('SUPERADMIN_PUSH_ON_SALES', 'false').toLowerCase() === 'false') {
+    if (isSale && (await getAppSetting('SUPERADMIN_PUSH_ON_SALES', 'false')).toLowerCase() === 'false') {
       return; // Suppressed by SuperAdmin push event settings
     }
-    if (isSecurity && !isRenewal && !isNewTrial && getCachedAppSetting('SUPERADMIN_PUSH_ON_SECURITY_ALERT', 'true').toLowerCase() === 'false') {
+    if (isSecurity && !isRenewal && !isNewTrial && (await getAppSetting('SUPERADMIN_PUSH_ON_SECURITY_ALERT', 'true')).toLowerCase() === 'false') {
       return; // Suppressed by SuperAdmin push event settings
     }
   }
@@ -761,7 +764,7 @@ export interface TestFcmPushResult {
 
 export interface TestFcmPushDeps {
   eventId?: string;
-  getFirebaseAdminFn?: () => App | null;
+  getFirebaseAdminFn?: () => App | null | Promise<App | null>;
   sendFcmPushToTokensFn?: typeof sendFcmPushToTokens;
   fetchTokensFn?: (tenantId: number, isSuperAdminTest: boolean) => Promise<string[]>;
 }
@@ -804,8 +807,7 @@ export async function testFcmPush(
     }
   );
 
-  await loadAppSettingsCache().catch(() => {});
-  const app = deps?.getFirebaseAdminFn ? deps.getFirebaseAdminFn() : getFirebaseAdmin();
+  const app = deps?.getFirebaseAdminFn ? await deps.getFirebaseAdminFn() : await getFirebaseAdmin();
   if (!app) {
     return {
       success: true,

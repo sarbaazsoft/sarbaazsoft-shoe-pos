@@ -1,15 +1,4 @@
-export const MAX_UNGROUPED_SHADE_NOTIFICATIONS = 1;
-export const POS_SUMMARY_TAG = 'pos-grouped-summary';
-export const ADMIN_SUMMARY_TAG = 'admin-grouped-summary';
 export const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
-
-export interface ShadeNotificationItem {
-  title: string;
-  body: string;
-  url: string;
-  tag: string;
-  timestamp: number;
-}
 
 export interface ShadeNotificationOptions extends NotificationOptions {
   vibrate?: number[];
@@ -43,64 +32,14 @@ function resolveShadeTimestamp(rawTimestamp: unknown): number {
   return Date.now();
 }
 
-function formatShadeItemTime(timestamp: number): string {
-  try {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  } catch {
-    return '';
-  }
-}
-
-function normalizeInlineText(value: unknown, maxLen: number): string {
-  const clean = String(value ?? '').replace(/\s+/g, ' ').trim();
-  if (!clean) return '';
-  if (clean.length <= maxLen) return clean;
-  return `${clean.slice(0, Math.max(0, maxLen - 1)).trimEnd()}…`;
-}
-
-function stripLeadingTitleFromBody(title: string, body: string): string {
-  const cleanTitle = normalizeInlineText(title, 120);
-  const cleanBody = String(body ?? '').replace(/\s+/g, ' ').trim();
-  if (!cleanBody) return '';
-  if (cleanTitle && cleanBody.toLowerCase().startsWith(cleanTitle.toLowerCase())) {
-    const rest = cleanBody.slice(cleanTitle.length).replace(/^[\s:•\-—]+/, '').trim();
-    return rest;
-  }
-  return cleanBody;
-}
-
-export function formatShadeGroupSummaryBody(items: ShadeNotificationItem[]): string {
-  const MAX_VISIBLE_LINES = 6;
-  const sorted = [...items].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  const hasOverflow = sorted.length > MAX_VISIBLE_LINES;
-  const visible = hasOverflow ? sorted.slice(0, MAX_VISIBLE_LINES - 1) : sorted;
-
-  const lines = visible.map((item) => {
-    const itemTitle = normalizeInlineText(item.title || 'POS Notification', 48);
-    const timeStr = formatShadeItemTime(item.timestamp || Date.now());
-    const strippedBody = stripLeadingTitleFromBody(item.title, item.body);
-    const shortDetail = normalizeInlineText(strippedBody, 76);
-    const headerPart = timeStr ? `• ${itemTitle} • ${timeStr}` : `• ${itemTitle}`;
-    return shortDetail ? `${headerPart} — ${shortDetail}` : headerPart;
-  });
-
-  if (hasOverflow) {
-    const remaining = sorted.length - visible.length;
-    lines.push(`• +${remaining} more ${remaining === 1 ? 'alert' : 'alerts'} — Tap to view all`);
-  }
-
-  return lines.join('\n');
-}
-
-export const MAX_ACTIVE_SHADE_NOTIFICATIONS = 8;
-
 let shadeRegistrationQueue: Promise<void> = Promise.resolve();
 
-export async function showGroupedWithRegistration(
+/**
+ * Displays a single standalone notification through an active ServiceWorkerRegistration.
+ * Every notification is treated as an independent message with its own unique tag —
+ * zero grouping, zero summary cards, and zero cross-message merging regardless of type.
+ */
+export async function showSingleNotificationWithRegistration(
   registration: Pick<ServiceWorkerRegistration, 'showNotification'> & {
     getNotifications?: (filter?: GetNotificationOptions) => Promise<Notification[]>;
   },
@@ -113,72 +52,26 @@ export async function showGroupedWithRegistration(
     }
 
     const isAdminTarget = isAdminNotificationTarget(options);
-    const groupKey = isAdminTarget ? 'admin_alerts' : 'pos_alerts';
-    const summaryTag = isAdminTarget ? ADMIN_SUMMARY_TAG : POS_SUMMARY_TAG;
     const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
     const defaultFallbackUrl = isAdminTarget ? '/admin' : '/?tab=reports';
-    const incomingTag = String(options.tag || '').trim() || `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}`;
+    const explicitTag = String(
+      options.tag || options.data?.tag || options.data?.eventId || ''
+    ).trim();
+    const incomingTag =
+      explicitTag ||
+      `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const cleanTitle = String(title || 'POS Notification');
     const cleanBody = String(options.body || '');
     const timestamp = resolveShadeTimestamp(options.timestamp ?? options.data?.timestamp);
     const targetUrl = String(options.data?.url || options.data?.deepLinkUrl || defaultFallbackUrl);
 
-    let alreadyDisplayedForTag = false;
-    const existingGroupNotifications: Notification[] = [];
-
     if (typeof registration.getNotifications === 'function') {
       const existingAll = await registration.getNotifications().catch(() => [] as Notification[]);
-      for (const existing of existingAll) {
-        if (!existing) continue;
-        const existingData = (existing.data || {}) as Record<string, any>;
-        const existingIsAdmin =
-          existingData.isAdmin === true ||
-          existingData.isAdmin === 'true' ||
-          String(existingData.url || '').startsWith('/admin') ||
-          String(existing.icon || '').includes('/admin/') ||
-          existing.tag === ADMIN_SUMMARY_TAG;
-
-        if (existingIsAdmin !== isAdminTarget) {
-          continue;
-        }
-
-        if (
-          existing.tag === summaryTag ||
-          existing.tag === POS_SUMMARY_TAG ||
-          existing.tag === ADMIN_SUMMARY_TAG ||
-          existingData.isGroupSummary === true
-        ) {
-          try {
-            existing.close();
-          } catch {}
-          continue;
-        }
-
-        if (existing.tag === incomingTag) {
-          if (options.renotify !== true) {
-            alreadyDisplayedForTag = true;
-          }
-        } else {
-          existingGroupNotifications.push(existing);
-        }
-      }
-
+      const alreadyDisplayedForTag = existingAll.some(
+        (existing) => existing && existing.tag === incomingTag && options.renotify !== true
+      );
       if (alreadyDisplayedForTag) {
         return;
-      }
-
-      if (existingGroupNotifications.length >= MAX_ACTIVE_SHADE_NOTIFICATIONS) {
-        const sortedOldestFirst = existingGroupNotifications.slice().sort(
-          (a, b) =>
-            resolveShadeTimestamp((a as any).timestamp ?? (a.data as any)?.timestamp) -
-            resolveShadeTimestamp((b as any).timestamp ?? (b.data as any)?.timestamp)
-        );
-        const excessCount = existingGroupNotifications.length - (MAX_ACTIVE_SHADE_NOTIFICATIONS - 1);
-        for (let i = 0; i < excessCount; i++) {
-          try {
-            sortedOldestFirst[i]?.close();
-          } catch {}
-        }
       }
     }
 
@@ -219,8 +112,6 @@ export async function showGroupedWithRegistration(
         ...(options.data || {}),
         url: targetUrl,
         isAdmin: isAdminTarget ? 'true' : 'false',
-        groupKey,
-        isGroupSummary: false,
         notificationTitle: cleanTitle,
         notificationBody: cleanBody,
         timestamp,
@@ -237,7 +128,7 @@ export async function showGroupedWithRegistration(
   return nextTask;
 }
 
-export async function showGroupedShadeNotification(
+export async function showSingleShadeNotification(
   title: string,
   options: ShadeNotificationOptions = {},
   onFallbackClick?: () => void
@@ -261,7 +152,7 @@ export async function showGroupedShadeNotification(
         ]);
       }
       if (reg && reg.active && typeof reg.showNotification === 'function') {
-        await showGroupedWithRegistration(reg, title, options);
+        await showSingleNotificationWithRegistration(reg, title, options);
         if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
           window.dispatchEvent(new CustomEvent('pos:notification-delivery-restored'));
         }

@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { pgClient } from './index.ts';
-import { ensureAppSettingsSchema, loadAppSettingsCache } from '../server/services/appSettingsService.ts';
+import { ensureAppSettingsSchema } from '../server/services/appSettingsService.ts';
 
 let saasControlPlaneInitialized = false;
 let saasControlPlanePromise: Promise<void> | null = null;
@@ -1875,7 +1875,6 @@ export async function ensureSaasControlPlane(): Promise<void> {
     await syncExpiredTenantSubscriptions();
 
     await ensureAppSettingsSchema();
-    await loadAppSettingsCache();
 
     await pgClient
       .query(

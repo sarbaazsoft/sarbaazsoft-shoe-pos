@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Truck, Plus, Search, DollarSign, X, Trash2, CheckCircle2, Building2, Barcode, Phone, ArrowRight, ArrowLeft, Table, Check, Package, Mail, RefreshCw, Eye, AlertCircle, AlertTriangle, FileText, CreditCard } from 'lucide-react';
 import { api, getActiveTenantId } from '../../services/api.ts';
 import { playAudioFeedback } from '../../utils/audio.ts';
@@ -19,11 +18,10 @@ import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 import {
   useCategoriesQuery,
+  useLiveFetch,
   useProductsQuery,
   useSuppliersQuery,
-} from '../../hooks/useAppQueries.ts';
-import { queryClient, queryKeys } from '../../services/queryClient.ts';
-import { getQueryStaleTime } from '../../utils/cachePolicy.ts';
+} from '../../hooks/useLiveData.ts';
 
 interface PurchaseManagementProps {
   currentUser: any;
@@ -212,21 +210,25 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   const tenantId = getActiveTenantId();
   const purchaseSearchParam = committedSearch.trim() || undefined;
 
-  const purchasesQuery = useQuery({
-    queryKey: queryKeys.purchases.list(purchaseSearchParam, tenantId),
-    queryFn: ({ signal }) => api.purchases.list({ search: purchaseSearchParam }, { signal }),
-    enabled: isActive,
-    staleTime: getQueryStaleTime('standard'),
-    placeholderData: keepPreviousData,
-  });
+  const purchasesQuery = useLiveFetch(
+    (signal) => api.purchases.list({ search: purchaseSearchParam }, { signal }),
+    `purchases:list:${purchaseSearchParam || ''}`,
+    {
+      enabled: isActive,
+      syncTopics: ['purchases', 'suppliers', 'inventory', 'products'],
+      scopeKey: String(tenantId ?? 'public'),
+    }
+  );
 
-  const purchaseReturnsQuery = useQuery({
-    queryKey: queryKeys.purchaseReturns.list(purchaseSearchParam, tenantId),
-    queryFn: ({ signal }) => api.purchaseReturns.list({ search: purchaseSearchParam }, { signal }),
-    enabled: isActive,
-    staleTime: getQueryStaleTime('standard'),
-    placeholderData: keepPreviousData,
-  });
+  const purchaseReturnsQuery = useLiveFetch(
+    (signal) => api.purchaseReturns.list({ search: purchaseSearchParam }, { signal }),
+    `purchaseReturns:list:${purchaseSearchParam || ''}`,
+    {
+      enabled: isActive,
+      syncTopics: ['purchases', 'suppliers', 'inventory', 'products'],
+      scopeKey: String(tenantId ?? 'public'),
+    }
+  );
 
   const productsQuery = useProductsQuery(undefined, { enabled: isActive });
   const suppliersQuery = useSuppliersQuery(undefined, { enabled: isActive });
@@ -1524,13 +1526,10 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         setErrorMessage(null);
                       }}
                       onSupplierCreated={(newSupplier) => {
-                        queryClient.setQueryData(
-                          queryKeys.suppliers.list(undefined, tenantId),
-                          (prev: any) => ({
-                            ...(prev || {}),
-                            suppliers: [newSupplier, ...((prev?.suppliers as any[]) || [])],
-                          })
-                        );
+                        suppliersQuery.setData((prev: any) => ({
+                          ...(prev || {}),
+                          suppliers: [newSupplier, ...((prev?.suppliers as any[]) || [])],
+                        }));
                         emitDataSync(['suppliers', 'purchases'], { source: 'purchase-management' });
                         setSelectedSupplierId(newSupplier.id);
                         setSupplierName(newSupplier.name);

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Edit2, Trash2, AlertTriangle, Barcode, SlidersHorizontal, ShoppingBag, Boxes, Layers, DollarSign, Box, RefreshCw, Upload, CheckCircle2, Check, X, Loader2, LayoutGrid, List } from 'lucide-react';
-import { api, getActiveTenantId } from '../../services/api.ts';
-import { queryClient, queryKeys } from '../../services/queryClient.ts';
-import { useCategoriesQuery, useProductsQuery } from '../../hooks/useAppQueries.ts';
+import { api } from '../../services/api.ts';
+import { useCategoriesQuery, useProductsQuery } from '../../hooks/useLiveData.ts';
 import { ProductFormModal } from './ProductFormModal.tsx';
 import { CsvImportModal } from './CsvImportModal.tsx';
 import { BarcodeStickerModal } from './BarcodeStickerModal.tsx';
@@ -174,18 +173,16 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         reason: 'Inline table update by Store Admin',
       });
 
-      // Optimistically update product in TanStack Query cache
-      queryClient.setQueryData(
-        queryKeys.products.list(productQueryParams, getActiveTenantId()),
-        (prev: any) =>
-          prev && Array.isArray(prev.products)
-            ? {
-                ...prev,
-                products: prev.products.map((prod: any) =>
-                  prod.id === p.id ? { ...prod, totalStock: parsed } : prod
-                ),
-              }
-            : prev
+      // Optimistically update local product state
+      productsQuery.setData((prev: any) =>
+        prev && Array.isArray(prev.products)
+          ? {
+              ...prev,
+              products: prev.products.map((prod: any) =>
+                prod.id === p.id ? { ...prod, totalStock: parsed } : prod
+              ),
+            }
+          : prev
       );
 
       // Trigger visual success pulse

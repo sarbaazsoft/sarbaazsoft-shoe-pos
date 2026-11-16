@@ -41,12 +41,10 @@ import notificationRoutes from './src/server/routes/notificationRoutes.ts';
 import chatRoutes from './src/server/routes/chatRoutes.ts';
 import tenantSaasRoutes from './src/server/routes/tenantSaasRoutes.ts';
 import { transformKeysToCamelCase } from './src/utils/caseTransformer.ts';
-import { loadAppSettingsCache } from './src/server/services/appSettingsService.ts';
 import { recordApplicationBaseUrl } from './src/server/services/welcomeService.ts';
 import { buildPwaManifest, resolvePwaBranding, type PwaBrandingInput } from './src/utils/pwaBranding.ts';
 import { patchDesktopSetupExe, resolveDesktopTargetUrl } from './src/server/utils/windowsExePatcher.ts';
 import {
-  IS_HTTP_CACHING_PAUSED,
   resolveApiCacheHeaders,
   resolveServiceWorkerFilePath,
   resolveStaticCacheHeaders,
@@ -55,11 +53,9 @@ import {
 const rootDir = path.resolve('.');
 
 export const app = express();
-if (IS_HTTP_CACHING_PAUSED) {
-  app.set('etag', false);
-}
+app.set('etag', false);
 app.use((req, res, next) => {
-  if (!IS_HTTP_CACHING_PAUSED || req.path === '/api/notifications/stream') {
+  if (req.path === '/api/notifications/stream') {
     return next();
   }
   delete req.headers['if-none-match'];
@@ -587,9 +583,9 @@ async function startServer() {
     const distPath = path.join(rootDir, 'dist');
     app.use(
       express.static(distPath, {
-        etag: !IS_HTTP_CACHING_PAUSED,
-        lastModified: !IS_HTTP_CACHING_PAUSED,
-        cacheControl: !IS_HTTP_CACHING_PAUSED,
+        etag: false,
+        lastModified: false,
+        cacheControl: false,
         setHeaders: (res, filePath) => {
           const headers = resolveStaticCacheHeaders(filePath, true);
           for (const [key, value] of Object.entries(headers)) {
@@ -630,7 +626,6 @@ async function startServer() {
     await pgClient.waitReady;
     await dropLegacyDocumentPrefixColumns();
     await migrateLegacyWholesaleProductPrices();
-    await loadAppSettingsCache();
     const installStatus = await checkInstallationStatus();
     if (installStatus.hasSuperAdmin || (installStatus.hasUsers && installStatus.hasAdmin)) {
       await ensureSaasControlPlane();

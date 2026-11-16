@@ -7,7 +7,7 @@ import { CustomerFormModal } from './CustomerFormModal.tsx';
 import { CustomerDetailsModal } from './CustomerDetailsModal.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
-import { useCustomersQuery } from '../../hooks/useAppQueries.ts';
+import { useCustomersQuery } from '../../hooks/useLiveData.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
 

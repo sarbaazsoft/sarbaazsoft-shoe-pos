@@ -21,7 +21,7 @@ import {
 } from '../utils/notificationDedupe.ts';
 import {
   NOTIFICATION_BADGE_ICON,
-  showGroupedShadeNotification,
+  showSingleShadeNotification,
 } from '../utils/notificationShade.ts';
 
 export function isIOSDevice(): boolean {
@@ -767,12 +767,12 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         const tag =
           normalizedPayload.tag ||
           normalizedPayload.eventId ||
-          `pos-${normalizedPayload.type?.toLowerCase()}-${normalizedPayload.invoiceNumber || Date.now()}`;
+          `pos-${normalizedPayload.type?.toLowerCase() || 'alert'}-${normalizedPayload.returnNumber || normalizedPayload.invoiceNumber || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const parsedTimestamp = normalizedPayload.timestamp
           ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
           : Date.now();
         const hasReceiptLink = deepLinkUrl.includes('invoice') || deepLinkUrl.includes('return');
-        void showGroupedShadeNotification(
+        void showSingleShadeNotification(
           normalizedPayload.title || 'POS Alert',
           {
             body: normalizedPayload.message || 'Transaction confirmed.',
@@ -967,7 +967,7 @@ export async function triggerTestNotificationShadeFallback(params: {
   const icon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
   const targetUrl = params.url || (isAdminTarget ? '/admin' : '/pos');
 
-  return showGroupedShadeNotification(
+  return showSingleShadeNotification(
     params.title,
     {
       body: params.body,

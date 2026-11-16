@@ -371,9 +371,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           const freshSettingsRes = await api.settings.get();
           if (freshSettingsRes?.settings && isMounted) {
             setLiveSettings(freshSettingsRes.settings);
-            try {
-              localStorage.setItem('cached_company_settings', JSON.stringify(freshSettingsRes.settings));
-            } catch {}
           }
         } catch (_) {}
 

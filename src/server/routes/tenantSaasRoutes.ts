@@ -9,7 +9,7 @@ import { notifyPlatformAnnouncement } from '../pushNotificationService.ts';
 import { sendWelcomeMsg } from '../services/welcomeService.ts';
 import { sendTrialActivationEmail } from '../utils/email.ts';
 import { resolveTenantContext, isTenantOnlineInMiddleware, getTenantMiddlewareLastSeen, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
-import { getCachedAppSetting } from '../services/appSettingsService.ts';
+import { getAppSetting } from '../services/appSettingsService.ts';
 import { buildPwaManifest } from '../../utils/pwaBranding.ts';
 
 const router = Router();
@@ -251,7 +251,7 @@ router.post('/saas/store-request', async (req: Request, res: Response) => {
     }
 
     const requireEmailVerification =
-      getCachedAppSetting('REQUIRE_EMAIL_VERIFICATION_FOR_FREE_TRIAL', 'true') === 'true';
+      (await getAppSetting('REQUIRE_EMAIL_VERIFICATION_FOR_FREE_TRIAL', 'true')) === 'true';
     const ownerStatus = requireEmailVerification ? 'PENDING' : 'APPROVED';
 
     const trialDurationDays = 30;

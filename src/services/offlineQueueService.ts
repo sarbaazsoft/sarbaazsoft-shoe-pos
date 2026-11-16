@@ -1,11 +1,9 @@
 // Offline Sales Queue Manager: PWA Background Sync Service, Service Worker bridge, queue status listener, and local fallback
 
 import { api, getAuthToken } from './api.ts';
-import { queryClient, queryKeys } from './queryClient.ts';
 import { QueuedSale, queueOfflineSale, getOfflineSales, getPendingOfflineSalesCount, updateOfflineSaleStatus, deleteOfflineSale, cacheCatalogOffline, resolveActiveTenantId } from '../utils/offlineDb.ts';
 import { buildCheckoutRequestPayload, processOfflineSalesQueue } from './offline/syncEngine.ts';
 import { emitDataSync } from '../utils/dataSyncBus.ts';
-import { getQueryStaleTime } from '../utils/cachePolicy.ts';
 
 export const SW_SYNC_TAG = 'pos-offline-transactions-sync';
 
@@ -408,33 +406,26 @@ class OfflineQueueService {
   }
 
   /**
-   * Helper to refresh offline catalog cache (coalesces concurrent/redundant calls via shared queryClient)
+   * Helper to refresh offline POS billing catalog in IndexedDB (coalesces concurrent in-flight runs)
    */
-  public async primeCatalogCache(force: boolean = false): Promise<any[]> {
+  public async primeCatalogCache(_force: boolean = false): Promise<any[]> {
     const token = getAuthToken();
     if (!token) return [];
     if (this.primePromise) return this.primePromise;
     const tenantId = resolveActiveTenantId();
-    if (!force && Date.now() - this.lastPrimedAt < 10000 && this.lastPrimedProducts.length > 0) {
-      return this.lastPrimedProducts;
-    }
 
     this.primePromise = (async () => {
       try {
-        const res = await queryClient.fetchQuery({
-          queryKey: queryKeys.products.catalog(500, tenantId),
-          queryFn: ({ signal }) => api.products.list({ limit: 500 }, { signal }),
-          staleTime: force ? 0 : getQueryStaleTime('realtime'),
-        });
+        const res = await api.products.list({ limit: 500 });
         if (res && Array.isArray(res.products)) {
           await cacheCatalogOffline(res.products, tenantId);
           this.lastPrimedAt = Date.now();
           this.lastPrimedProducts = res.products;
-          console.log(`[OfflineSync] Cached ${res.products.length} products for offline POS use.`);
+          console.log(`[OfflineSync] Synced ${res.products.length} products for offline POS billing.`);
           return res.products;
         }
       } catch {
-        // Ignore transient network blips during background cache priming
+        // Ignore transient network blips during background offline catalog sync
       } finally {
         this.primePromise = null;
       }

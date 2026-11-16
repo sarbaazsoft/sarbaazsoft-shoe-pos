@@ -7,10 +7,9 @@ import { ThemeDropdown } from './ThemeDropdown.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { ClickableMessage } from './ClickableMessage.tsx';
 import { api, getActiveTenantId, isAbortError } from '../../services/api.ts';
-import { queryClient, queryKeys } from '../../services/queryClient.ts';
-import { useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
+import { useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
-import { GroupedNotificationsResponse, PlatformNotification, PlatformNotificationType } from '../../types.ts';
+import { PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { getAllCachedProductsOffline } from '../../utils/offlineDb.ts';
 import {
@@ -339,7 +338,7 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, []);
 
-  // Real-time system notifications & announcements shared via TanStack Query
+  // Real-time system notifications & announcements fetched directly without cache
   const activeTenantId = getActiveTenantId();
   const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
     enabled: Boolean(currentUser),
@@ -367,7 +366,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Platform Announcements dismissal state
   const [isDismissingAnnouncement, setIsDismissingAnnouncement] = useState<number | null>(null);
-  const [notifDropdownTab, setNotifDropdownTab] = useState<'announcements' | 'notifications'>('announcements');
 
   // Web Push API & Live POS Push Notification State
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
@@ -806,14 +804,11 @@ export const Header: React.FC<HeaderProps> = ({
   const fetchLiveNotifications = useCallback(async () => {
     if (!currentUser) return;
     try {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.notifications.allRoot(activeTenantId),
-        refetchType: 'active',
-      });
+      await groupedNotifsQuery.refetch();
     } catch {
       // Ignore transient polling errors during server restarts
     }
-  }, [currentUser, activeTenantId]);
+  }, [currentUser, groupedNotifsQuery.refetch]);
 
   const markAsRead = (id: string) => {
     setReadNotifIds((prev) => {
@@ -839,9 +834,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleDismissActivity = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const key = queryKeys.notifications.grouped(10, activeTenantId);
     try {
-      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+      groupedNotifsQuery.setData((prev) =>
         prev
           ? {
               ...prev,
@@ -858,10 +852,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleDismissAnnouncement = async (id: number, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const key = queryKeys.notifications.grouped(10, activeTenantId);
     try {
       setIsDismissingAnnouncement(id);
-      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+      groupedNotifsQuery.setData((prev) =>
         prev
           ? {
               ...prev,
@@ -879,9 +872,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleDismissAllAnnouncements = async () => {
-    const key = queryKeys.notifications.grouped(10, activeTenantId);
     try {
-      queryClient.setQueryData<GroupedNotificationsResponse>(key, (prev) =>
+      groupedNotifsQuery.setData((prev) =>
         prev
           ? {
               ...prev,
@@ -962,14 +954,7 @@ export const Header: React.FC<HeaderProps> = ({
       }
       return true;
     });
-
-    const seenTitles = new Set<string>();
-    return filtered.filter((a) => {
-      const normalizedTitle = (a.title || '').trim().toLowerCase();
-      if (seenTitles.has(normalizedTitle)) return false;
-      seenTitles.add(normalizedTitle);
-      return true;
-    });
+    return filtered;
   }, [platformAnnouncements, isSuperAdminUser, isCashierUser, isAdminUser]);
 
   const unreadPosCount = notifications.filter((n) => !readNotifIds.includes(n.id)).length;
@@ -977,45 +962,24 @@ export const Header: React.FC<HeaderProps> = ({
   const unreadCount = unreadPosCount + unreadAnnouncementsCount;
   const activeUrgentNotice = visibleAnnouncements.find((a) => !a.isRead && a.type === 'URGENT');
 
-  // Dynamic active tab determination: whichever tab contains the latest incoming message or timestamp
-  const latestAnnouncementTimestamp = useMemo(() => {
-    if (visibleAnnouncements.length === 0) return 0;
-    const first = visibleAnnouncements[0];
-    return new Date(first.createdAt || 0).getTime();
-  }, [visibleAnnouncements]);
-
-  const latestOperationalTimestamp = useMemo(() => {
-    if (notifications.length === 0) return 0;
-    const first = notifications[0];
-    return new Date(first.createdAt || first.timestamp || (first as any).time || 0).getTime();
-  }, [notifications]);
-
-  // Track if user has explicitly selected a tab during the current open session
-  const userManuallySelectedNotifTabRef = useRef<boolean>(false);
-
-  // Automatically update default active tab dynamically to whichever tab contains the latest incoming message
-  useEffect(() => {
-    if (!userManuallySelectedNotifTabRef.current) {
-      if (latestOperationalTimestamp > 0 && latestOperationalTimestamp > latestAnnouncementTimestamp) {
-        setNotifDropdownTab('notifications');
-      } else if (latestAnnouncementTimestamp > 0) {
-        setNotifDropdownTab('announcements');
-      }
-    }
-  }, [latestAnnouncementTimestamp, latestOperationalTimestamp]);
-
-  // When dropdown opens, if user hasn't manually clicked, dynamically default to the tab with newest message
-  useEffect(() => {
-    if (!showNotifications) {
-      userManuallySelectedNotifTabRef.current = false;
-    } else if (!userManuallySelectedNotifTabRef.current) {
-      if (latestOperationalTimestamp > 0 && latestOperationalTimestamp > latestAnnouncementTimestamp) {
-        setNotifDropdownTab('notifications');
-      } else {
-        setNotifDropdownTab('announcements');
-      }
-    }
-  }, [showNotifications, latestAnnouncementTimestamp, latestOperationalTimestamp]);
+  const individualFeedItems = useMemo(() => {
+    const noticeEntries = visibleAnnouncements.map((a) => ({
+      kind: 'NOTICE' as const,
+      key: `notice-${a.id}`,
+      createdAtMs: new Date(a.createdAt || 0).getTime() || 0,
+      notice: a,
+    }));
+    const activityEntries = notifications.map((n) => ({
+      kind: 'ACTIVITY' as const,
+      key: `activity-${n.id}`,
+      createdAtMs:
+        new Date(n.timestamp || (n as any).createdAt || (n as any).created_at || (n as any).sale_date || 0).getTime() || 0,
+      activity: n,
+    }));
+    return [...noticeEntries, ...activityEntries]
+      .sort((a, b) => b.createdAtMs - a.createdAtMs)
+      .slice(0, 10);
+  }, [visibleAnnouncements, notifications]);
 
   const handleActivityClick = (item: any) => {
     const raw = item.raw || item;
@@ -1832,74 +1796,24 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 </div>
 
-                {/* Tabbed Dropdown Selector with Live Badge Counts */}
-                <div className="flex items-center gap-1 p-1 mb-2 bg-slate-100 dark:bg-purple-950/60 rounded-xl border border-slate-200/80 dark:border-purple-800/40">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      userManuallySelectedNotifTabRef.current = true;
-                      setNotifDropdownTab('announcements');
-                    }}
-                    className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                      notifDropdownTab === 'announcements'
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-white'
-                    }`}
-                  >
-                    <span>Announcements</span>
-                    {unreadAnnouncementsCount > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
-                        notifDropdownTab === 'announcements'
-                          ? 'bg-purple-800 text-white'
-                          : 'bg-purple-200 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
-                      }`}>
-                        {unreadAnnouncementsCount}
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      userManuallySelectedNotifTabRef.current = true;
-                      setNotifDropdownTab('notifications');
-                    }}
-                    className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                      notifDropdownTab === 'notifications'
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-white'
-                    }`}
-                  >
-                    <span>Notifications</span>
-                    {unreadPosCount > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
-                        notifDropdownTab === 'notifications'
-                          ? 'bg-purple-800 text-white'
-                          : 'bg-purple-200 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
-                      }`}>
-                        {unreadPosCount}
-                      </span>
-                    )}
-                  </button>
-                </div>
-
-                {/* Tab Content Container - Strictly Capped at Max 5 Visible Items */}
-                <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
-                  {notifDropdownTab === 'announcements' ? (
-                    visibleAnnouncements.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 dark:text-purple-300/60">
-                        <Info className="w-5 h-5 mx-auto mb-1.5 opacity-40 stroke-[1.8] text-purple-500 dark:text-purple-300" />
-                        <p className="text-xs font-semibold dark:text-purple-200">No active announcements</p>
-                        <p className="text-[10px] mt-0.5 dark:text-purple-300/60">Platform announcements and system alerts are all caught up</p>
-                      </div>
-                    ) : (
-                      visibleAnnouncements.slice(0, 5).map((a) => {
+                {/* Flat Chronological Notification Feed — Every notification displayed individually without grouping */}
+                <div className="max-h-[320px] overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
+                  {individualFeedItems.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 dark:text-purple-300/60">
+                      <Bell className="w-5 h-5 mx-auto mb-1.5 opacity-40 stroke-[1.8] text-purple-500 dark:text-purple-300" />
+                      <p className="text-xs font-semibold dark:text-purple-200">No active notifications</p>
+                      <p className="text-[10px] mt-0.5 dark:text-purple-300/60">Sales, returns, exchanges, and system notices are all caught up</p>
+                    </div>
+                  ) : (
+                    individualFeedItems.map((entry) => {
+                      if (entry.kind === 'NOTICE') {
+                        const a = entry.notice;
                         const isUnread = !a.isRead;
                         const details = getNoticeTypeDetails(a.type);
 
                         return (
                           <div
-                            key={`notice-${a.id}`}
+                            key={entry.key}
                             className={`p-2.5 rounded-xl border transition ${
                               isUnread
                                 ? details.cardBorderClass
@@ -1977,65 +1891,55 @@ export const Header: React.FC<HeaderProps> = ({
                             </div>
                           </div>
                         );
-                      })
-                    )
-                  ) : (
-                    // POS Operational Activity Tab
-                    notifications.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 dark:text-purple-300/60">
-                        <ShoppingBag className="w-5 h-5 mx-auto mb-1.5 opacity-40 stroke-[1.8] text-purple-500 dark:text-purple-300" />
-                        <p className="text-xs font-semibold dark:text-purple-200">No operational alerts</p>
-                        <p className="text-[10px] mt-0.5 dark:text-purple-300/60">No counter checkout or return events within the last 48 hours</p>
-                      </div>
-                    ) : (
-                      notifications.slice(0, 5).map((n) => {
-                        const details = getActivityTypeDetails(n.type, n.title);
+                      }
 
-                        return (
-                          <div
-                            key={n.id}
-                            onClick={() => handleActivityClick({ raw: n, rawId: n.rawId || n.id, title: n.title, message: n.message, actionTab: n.actionTab })}
-                            className="p-2.5 rounded-xl border border-purple-200/90 dark:border-purple-800/60 bg-purple-50/70 dark:bg-purple-950/30 hover:bg-purple-100/60 dark:hover:bg-purple-900/40 transition cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${details.badgeClass}`}>
-                                {details.icon}
-                                <span>{details.label}</span>
-                              </span>
+                      const n = entry.activity;
+                      const details = getActivityTypeDetails(n.type, n.title);
 
-                              <span className="text-[9px] text-slate-400 dark:text-purple-300/70">
-                                {formatAnnouncementTime(n.timestamp || (n as any).createdAt || (n as any).created_at || (n as any).sale_date)}
-                              </span>
-                            </div>
+                      return (
+                        <div
+                          key={entry.key}
+                          onClick={() => handleActivityClick({ raw: n, rawId: n.rawId || n.id, title: n.title, message: n.message, actionTab: n.actionTab })}
+                          className="p-2.5 rounded-xl border border-purple-200/90 dark:border-purple-800/60 bg-purple-50/70 dark:bg-purple-950/30 hover:bg-purple-100/60 dark:hover:bg-purple-900/40 transition cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${details.badgeClass}`}>
+                              {details.icon}
+                              <span>{details.label}</span>
+                            </span>
 
-                            <div className="font-bold text-xs text-slate-900 dark:text-purple-100 leading-snug">
-                              {n.title}
-                            </div>
-
-                            <div className="text-[11px] text-slate-600 dark:text-purple-200/90 mt-1 whitespace-pre-line leading-relaxed">
-                              {n.message}
-                            </div>
-
-                            <div className="mt-2 pt-1.5 border-t border-slate-200/60 dark:border-purple-800/40 flex items-center justify-between text-[10px]">
-                              <span className="font-semibold text-purple-600 dark:text-purple-300 flex items-center gap-1">
-                                <span>{details.actionText}</span>
-                                <span>&rarr;</span>
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={(e) => handleDismissActivity(n.id, e)}
-                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-100 dark:hover:bg-purple-800/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/60 flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-2xs"
-                                title="Dismiss notification"
-                              >
-                                <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                                <span>Dismiss</span>
-                              </button>
-                            </div>
+                            <span className="text-[9px] text-slate-400 dark:text-purple-300/70">
+                              {formatAnnouncementTime(n.timestamp || (n as any).createdAt || (n as any).created_at || (n as any).sale_date)}
+                            </span>
                           </div>
-                        );
-                      })
-                    )
+
+                          <div className="font-bold text-xs text-slate-900 dark:text-purple-100 leading-snug">
+                            {n.title}
+                          </div>
+
+                          <div className="text-[11px] text-slate-600 dark:text-purple-200/90 mt-1 whitespace-pre-line leading-relaxed">
+                            {n.message}
+                          </div>
+
+                          <div className="mt-2 pt-1.5 border-t border-slate-200/60 dark:border-purple-800/40 flex items-center justify-between text-[10px]">
+                            <span className="font-semibold text-purple-600 dark:text-purple-300 flex items-center gap-1">
+                              <span>{details.actionText}</span>
+                              <span>&rarr;</span>
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={(e) => handleDismissActivity(n.id, e)}
+                              className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-100 dark:hover:bg-purple-800/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/60 flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-2xs"
+                              title="Dismiss notification"
+                            >
+                              <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>Dismiss</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
 

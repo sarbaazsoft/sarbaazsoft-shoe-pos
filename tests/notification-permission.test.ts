@@ -27,7 +27,7 @@ import {
   recordSwNotificationShown,
   resetNotificationDedupeCache,
 } from '../src/utils/notificationDedupe.ts';
-import { showGroupedShadeNotification } from '../src/utils/notificationShade.ts';
+import { showSingleShadeNotification } from '../src/utils/notificationShade.ts';
 
 function createMemoryStorage() {
   const map = new Map<string, string>();
@@ -416,7 +416,7 @@ test('Android TWA POST_NOTIFICATIONS dismissal keeps default prompt suppressed a
   }
 });
 
-test('showGroupedShadeNotification detects Android OS rejection even when browser permission is granted', async () => {
+test('showSingleShadeNotification detects Android OS rejection even when browser permission is granted', async () => {
   const err = new Error('Notifications disabled at OS level');
   err.name = 'NotAllowedError';
   const env = setupMockBrowserEnv({
@@ -429,7 +429,7 @@ test('showGroupedShadeNotification detects Android OS rejection even when browse
   });
 
   try {
-    const shown = await showGroupedShadeNotification('POS Alert', { body: 'Sale completed' });
+    const shown = await showSingleShadeNotification('POS Alert', { body: 'Sale completed' });
     assert.equal(shown, false);
     const blockedEvt = env.dispatchedEvents.find((e) => e.type === 'pos:notification-delivery-blocked');
     assert.ok(blockedEvt, 'Should emit pos:notification-delivery-blocked when showNotification rejects with NotAllowedError');
@@ -561,7 +561,7 @@ test('Focused Chrome/APK windows show shade notification from SSE & Test Alert w
   });
 
   try {
-    const shownFallback = await showGroupedShadeNotification('Fallback Alert', {
+    const shownFallback = await showSingleShadeNotification('Fallback Alert', {
       body: 'No SW active',
       actions: [{ action: 'open_pos', title: 'Open POS' }],
       vibrate: [200, 100],

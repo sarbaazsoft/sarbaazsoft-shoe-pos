@@ -10,7 +10,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
-import { useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
+import { useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
 import type { PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { connectRealtimeNotificationStream } from '../../services/pushNotificationClient.ts';

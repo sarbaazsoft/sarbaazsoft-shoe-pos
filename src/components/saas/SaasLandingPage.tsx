@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, Headphones, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
 import { api } from '../../services/api';
-import { useSaasDirectoryQuery } from '../../hooks/useAppQueries';
-import { getQueryStaleTime } from '../../utils/cachePolicy';
+import { useSaasDirectoryQuery } from '../../hooks/useLiveData';
 import type { TenantInfo } from '../../types';
 import { FreeTrialOnboardingModal } from './FreeTrialOnboardingModal';
 import { useTheme } from '../../context/ThemeContext';
@@ -457,7 +456,6 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
 
   const saasDirectoryQuery = useSaasDirectoryQuery(undefined, {
     refetchInterval: 30_000,
-    staleTime: getQueryStaleTime('standard'),
   });
 
   useEffect(() => {

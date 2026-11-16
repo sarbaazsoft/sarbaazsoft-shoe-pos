@@ -8,15 +8,11 @@ import {
   getNotificationDedupeKey,
   isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
-import { showGroupedShadeNotification } from '../utils/notificationShade.ts';
+import { showSingleShadeNotification } from '../utils/notificationShade.ts';
 import { doVapidKeysMatch, normalizeVapidPublicKey } from '../utils/vapid.ts';
-
-const CONFIG_CACHE_TTL_MS = 60_000;
 
 let cachedFirebaseApp: FirebaseApp | null = null;
 let cachedMessaging: Messaging | null = null;
-let cachedConfig: any = null;
-let cachedConfigFetchedAt = 0;
 let inFlightConfigPromise: Promise<any> | null = null;
 let onMessageUnsubscribe: (() => void) | null = null;
 let inFlightPermissionRequest: Promise<{
@@ -39,18 +35,8 @@ let inFlightTokenSync: Promise<{
 let lastSyncedSignature = '';
 let swSubscriptionListenerAttached = false;
 
-export function invalidateFcmConfigCache(): void {
-  cachedConfig = null;
-  cachedConfigFetchedAt = 0;
-  inFlightConfigPromise = null;
-  lastSyncedSignature = '';
-}
-
-export async function fetchFcmConfig(forceRefresh = false) {
-  if (!forceRefresh && cachedConfig && Date.now() - cachedConfigFetchedAt < CONFIG_CACHE_TTL_MS) {
-    return cachedConfig;
-  }
-  if (!forceRefresh && inFlightConfigPromise) {
+export async function fetchFcmConfig() {
+  if (inFlightConfigPromise) {
     return inFlightConfigPromise;
   }
 
@@ -58,8 +44,6 @@ export async function fetchFcmConfig(forceRefresh = false) {
     try {
       const config = await api.notifications.getFcmConfig();
       if (config && config.projectId && config.apiKey) {
-        cachedConfig = config;
-        cachedConfigFetchedAt = Date.now();
         return config;
       }
     } catch (err) {
@@ -261,7 +245,10 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
         const rawBadge = payload.data?.badge || (payload.notification as Record<string, any> | undefined)?.badge;
         const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
         const dedupeKey = getNotificationDedupeKey(payload);
-        const tag = payload.data?.tag || payload.data?.eventId || `fcm-fg-${Date.now()}`;
+        const tag =
+          payload.data?.tag ||
+          payload.data?.eventId ||
+          `fcm-fg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
         // Play alert audio chime only if SSE / SW did not already play it for this event
         if (claimNotificationChannel(dedupeKey, 'audio')) {
@@ -284,7 +271,7 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
           const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
-          void showGroupedShadeNotification(
+          void showSingleShadeNotification(
             title,
             {
               body,

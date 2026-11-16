@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import * as notificationShade from '../src/utils/notificationShade.ts';
 import {
-  ADMIN_SUMMARY_TAG,
-  MAX_ACTIVE_SHADE_NOTIFICATIONS,
-  POS_SUMMARY_TAG,
-  showGroupedWithRegistration,
-} from '../src/utils/notificationShade.ts';
+  buildFcmNotificationConfig,
+  notifyPosAction,
+  registerSseClient,
+} from '../src/server/pushNotificationService.ts';
 
 function createSwShadeHarness() {
   const swCode = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
@@ -120,11 +120,38 @@ function createSwShadeHarness() {
   };
 }
 
-test('public/sw.js keeps each alert as an individual expandable card for Android native grouping with per-message headers and footers', async () => {
+test('Notification grouping has been completely removed from shade utilities, service worker, and FCM payloads', () => {
+  const shadeSource = fs.readFileSync(path.join(process.cwd(), 'src', 'utils', 'notificationShade.ts'), 'utf8');
+  const swSource = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  const fcmSource = fs.readFileSync(path.join(process.cwd(), 'src', 'server', 'pushNotificationService.ts'), 'utf8');
+
+  assert.equal('POS_SUMMARY_TAG' in notificationShade, false);
+  assert.equal('ADMIN_SUMMARY_TAG' in notificationShade, false);
+  assert.equal('formatShadeGroupSummaryBody' in notificationShade, false);
+  assert.equal('showGroupedWithRegistration' in notificationShade, false);
+  assert.equal('showGroupedShadeNotification' in notificationShade, false);
+
+  for (const src of [shadeSource, swSource, fcmSource]) {
+    assert.equal(src.includes('POS_SUMMARY_TAG'), false);
+    assert.equal(src.includes('ADMIN_SUMMARY_TAG'), false);
+    assert.equal(src.includes('isGroupSummary'), false);
+    assert.equal(src.includes('groupKey'), false);
+    assert.equal(src.includes('formatShadeGroupSummaryBody'), false);
+    assert.equal(src.includes('showGroupedShadeNotification'), false);
+  }
+
+  const fcmCfg = buildFcmNotificationConfig({
+    title: 'New Sale #INV-10',
+    body: 'Sale recorded',
+    deepLinkUrl: '/?tab=reports',
+  });
+  assert.equal('groupKey' in fcmCfg.stringData, false);
+});
+
+test('public/sw.js treats Sale, Return, Exchange, and System Announcement as independent single notifications with no grouping', async () => {
   const harness = createSwShadeHarness();
   const baseTs = 1760000000000;
 
-  // 1st notification keeps its own unique tag, title, body, timestamp, and actions
   await harness.dispatchPush({
     title: 'Sale Confirmed #INV-101',
     body: 'Invoice #INV-101 for Rs. 1000 completed.',
@@ -135,127 +162,74 @@ test('public/sw.js keeps each alert as an individual expandable card for Android
     },
   });
 
-  // 2nd notification stays an independent child notification (never merged into a bullet-text blob)
-  await harness.dispatchPush({
-    title: 'Sale Confirmed #INV-102',
-    body: 'Invoice #INV-102 for Rs. 2000 completed.',
-    timestamp: baseTs + 2000,
-    data: {
-      tag: 'pos-sale-INV-102',
-      url: '/?tab=reports&invoice=INV-102',
-    },
-  });
-
-  // 3rd notification adds a 3rd individual expandable child card
   await harness.dispatchPush({
     title: 'Customer Return #RET-201',
     body: 'Refund #RET-201 processed for Rs. 500.',
-    timestamp: baseTs + 3000,
+    timestamp: baseTs + 2000,
     data: {
       tag: 'pos-return-RET-201',
       url: '/?tab=returns&return=RET-201',
     },
   });
 
-  assert.equal(harness.activeNotifications.size, 3);
-  assert.equal(harness.activeNotifications.has(POS_SUMMARY_TAG), false);
-
-  const first = harness.activeNotifications.get('pos-sale-INV-101');
-  const second = harness.activeNotifications.get('pos-sale-INV-102');
-  const third = harness.activeNotifications.get('pos-return-RET-201');
-  assert.equal(first.title, 'Sale Confirmed #INV-101');
-  assert.equal(second.title, 'Sale Confirmed #INV-102');
-  assert.equal(third.title, 'Customer Return #RET-201');
-  assert.equal(first.data.isGroupSummary, false);
-  assert.equal(second.data.isGroupSummary, false);
-  assert.equal(third.data.isGroupSummary, false);
-  assert.deepEqual(
-    Array.from(first.actions, (a: any) => a.action),
-    ['open_receipt', 'dismiss']
-  );
-
-  // Re-delivering matching tag updates that notification in place without duplicating cards
   await harness.dispatchPush({
-    title: 'Sale Confirmed #INV-102',
-    body: 'Invoice #INV-102 updated total Rs. 2100.',
-    timestamp: baseTs + 3500,
+    title: 'Shoe Exchange #INV-102',
+    body: 'Exchange #INV-102 net difference Rs. 300.',
+    timestamp: baseTs + 3000,
     data: {
-      tag: 'pos-sale-INV-102',
+      tag: 'pos-exchange-INV-102',
       url: '/?tab=reports&invoice=INV-102',
     },
   });
 
-  assert.equal(harness.activeNotifications.size, 3);
-  const updatedSecond = harness.activeNotifications.get('pos-sale-INV-102');
-  assert.ok(updatedSecond.body.includes('Rs. 2100'));
-
-  // Clicking an individual child card opens its specific deep link and closes only that card
-  await harness.dispatchClick(updatedSecond, '');
-  assert.equal(harness.openWindows[0], '/?tab=reports&invoice=INV-102');
-  assert.equal(harness.activeNotifications.size, 2);
-});
-
-test('public/sw.js cleans legacy merged summary cards, enforces per-group cap cleanly, and isolates Admin vs POS alerts', async () => {
-  const harness = createSwShadeHarness();
-  const baseTs = 1760000000000;
-
-  // Seed a legacy synthetic merged summary notification in the shade
-  harness.activeNotifications.set(POS_SUMMARY_TAG, {
-    title: '2 POS Notifications',
-    tag: POS_SUMMARY_TAG,
-    timestamp: baseTs,
-    data: { isGroupSummary: true, isAdmin: 'false' },
-    close: () => {
-      harness.activeNotifications.delete(POS_SUMMARY_TAG);
+  await harness.dispatchPush({
+    title: 'System Announcement',
+    body: 'Scheduled maintenance tonight at 11 PM.',
+    timestamp: baseTs + 4000,
+    data: {
+      tag: 'platform-notice-99',
+      url: '/notifications',
     },
   });
 
-  // New POS notification removes the stale merged summary and keeps its clean individual card
-  await harness.dispatchPush({
-    title: 'POS Sale #1',
-    body: 'Completed',
-    timestamp: baseTs + 100,
-    data: { tag: 'pos-1', url: '/?tab=reports' },
-  });
-  assert.equal(harness.activeNotifications.has(POS_SUMMARY_TAG), false);
-  assert.equal(harness.activeNotifications.has('pos-1'), true);
-
-  // Admin alerts remain isolated with admin icon & actions
-  await harness.dispatchPush({
-    title: 'New Free Trial #1',
-    body: 'Store 1 registered',
-    timestamp: baseTs + 200,
-    data: { tag: 'admin-1', url: '/admin', isAdmin: 'true' },
-  });
-  assert.equal(harness.activeNotifications.size, 2);
-  const adminCard = harness.activeNotifications.get('admin-1');
-  assert.equal(adminCard.icon, '/admin/pwa-192x192.png');
-  assert.deepEqual(
-    Array.from(adminCard.actions, (a: any) => a.action),
-    ['open_pos', 'dismiss']
-  );
-
-  // Posting more than MAX_ACTIVE_SHADE_NOTIFICATIONS POS alerts bounds oldest alerts without merging text
-  for (let i = 2; i <= MAX_ACTIVE_SHADE_NOTIFICATIONS + 2; i++) {
+  // Dispatch 10+ total notifications without closing or merging older ones
+  for (let i = 1; i <= 8; i++) {
     await harness.dispatchPush({
-      title: `POS Sale #${i}`,
-      body: `Invoice #${i} completed`,
-      timestamp: baseTs + i * 1000,
-      data: { tag: `pos-${i}`, url: `/?tab=reports&invoice=${i}` },
+      title: `POS Sale #INV-${200 + i}`,
+      body: `Invoice #INV-${200 + i} completed.`,
+      timestamp: baseTs + 4000 + i * 1000,
+      data: {
+        tag: `pos-sale-INV-${200 + i}`,
+        url: `/?tab=reports&invoice=INV-${200 + i}`,
+      },
     });
   }
 
-  const activePosCount = Array.from(harness.activeNotifications.values()).filter(
-    (n) => n.data?.isAdmin !== 'true'
-  ).length;
-  assert.equal(activePosCount, MAX_ACTIVE_SHADE_NOTIFICATIONS);
-  assert.equal(harness.activeNotifications.has('pos-1'), false);
-  assert.equal(harness.activeNotifications.has(`pos-${MAX_ACTIVE_SHADE_NOTIFICATIONS + 2}`), true);
-  assert.equal(harness.activeNotifications.has(ADMIN_SUMMARY_TAG), false);
-  assert.equal(harness.activeNotifications.has('admin-1'), true);
+  assert.equal(harness.activeNotifications.size, 12);
+
+  const sale = harness.activeNotifications.get('pos-sale-INV-101');
+  const ret = harness.activeNotifications.get('pos-return-RET-201');
+  const exch = harness.activeNotifications.get('pos-exchange-INV-102');
+  const notice = harness.activeNotifications.get('platform-notice-99');
+
+  assert.equal(sale.title, 'Sale Confirmed #INV-101');
+  assert.equal(ret.title, 'Customer Return #RET-201');
+  assert.equal(exch.title, 'Shoe Exchange #INV-102');
+  assert.equal(notice.title, 'System Announcement');
+  assert.equal('groupKey' in sale.data, false);
+  assert.equal('isGroupSummary' in sale.data, false);
+  assert.deepEqual(
+    Array.from(sale.actions, (a: any) => a.action),
+    ['open_receipt', 'dismiss']
+  );
+
+  // Clicking one individual notification opens its own deep link and closes only itself
+  await harness.dispatchClick(exch, '');
+  assert.equal(harness.openWindows[0], '/?tab=reports&invoice=INV-102');
+  assert.equal(harness.activeNotifications.size, 11);
 });
 
-test('showGroupedWithRegistration keeps individual foreground child cards and skips duplicate active tags', async () => {
+test('showSingleNotificationWithRegistration displays each notification individually and skips identical duplicate tag', async () => {
   const active = new Map<string, any>();
   let showCalls = 0;
   const mockRegistration = {
@@ -277,7 +251,7 @@ test('showGroupedWithRegistration keeps individual foreground child cards and sk
     },
   };
 
-  await showGroupedWithRegistration(mockRegistration, 'POS Alert #1', {
+  await notificationShade.showSingleNotificationWithRegistration(mockRegistration, 'POS Alert #1', {
     body: 'First alert body',
     icon: '/pwa-192x192.png',
     badge: '/icons/badge-favicon.png',
@@ -286,7 +260,7 @@ test('showGroupedWithRegistration keeps individual foreground child cards and sk
     data: { url: '/pos', isAdmin: 'false' },
   });
 
-  await showGroupedWithRegistration(mockRegistration, 'POS Alert #2', {
+  await notificationShade.showSingleNotificationWithRegistration(mockRegistration, 'POS Alert #2', {
     body: 'Second alert body',
     icon: '/pwa-192x192.png',
     badge: '/icons/badge-favicon.png',
@@ -298,15 +272,16 @@ test('showGroupedWithRegistration keeps individual foreground child cards and sk
   assert.equal(active.size, 2);
   assert.equal(active.has('fg-pos-1'), true);
   assert.equal(active.has('fg-pos-2'), true);
-  assert.equal(active.has(POS_SUMMARY_TAG), false);
+  assert.equal('groupKey' in active.get('fg-pos-1').data, false);
+  assert.equal('isGroupSummary' in active.get('fg-pos-1').data, false);
   assert.deepEqual(
     Array.from(active.get('fg-pos-2').actions, (a: any) => a.action),
     ['open_receipt', 'dismiss']
   );
 
-  // Re-dispatching an active tag with renotify=false must skip duplicate showNotification call
+  // Re-dispatching an active tag with renotify=false skips duplicate showNotification call
   const callsBeforeDup = showCalls;
-  await showGroupedWithRegistration(mockRegistration, 'POS Alert #1', {
+  await notificationShade.showSingleNotificationWithRegistration(mockRegistration, 'POS Alert #1', {
     body: 'First alert body',
     tag: 'fg-pos-1',
     timestamp: 1760000001000,
@@ -315,7 +290,47 @@ test('showGroupedWithRegistration keeps individual foreground child cards and sk
   assert.equal(showCalls, callsBeforeDup);
 });
 
-test('public/sw.js cleans legacy summaries on activate and skips duplicate unchanged already-shown alerts', async () => {
+test('notifyPosAction assigns distinct unique eventTags even for multiple returns on the same invoice', async () => {
+  const sseChunks: string[] = [];
+  const unregister = registerSseClient(42, 7, 'ADMIN', {
+    write: (chunk: string) => {
+      sseChunks.push(chunk);
+      return true;
+    },
+  } as any);
+
+  try {
+    await notifyPosAction(42, {
+      type: 'RETURN',
+      title: 'Return #RET-1',
+      message: 'First return on INV-50',
+      invoiceNumber: 'INV-50',
+      returnNumber: 'RET-1',
+      deepLinkUrl: '/?tab=returns',
+      timestamp: new Date().toISOString(),
+    });
+
+    await notifyPosAction(42, {
+      type: 'RETURN',
+      title: 'Return #RET-2',
+      message: 'Second return on INV-50',
+      invoiceNumber: 'INV-50',
+      returnNumber: 'RET-2',
+      deepLinkUrl: '/?tab=returns',
+      timestamp: new Date().toISOString(),
+    });
+
+    assert.equal(sseChunks.length, 2);
+    const firstData = JSON.parse(sseChunks[0].replace(/^event: pos_action\ndata: /, '').trim());
+    const secondData = JSON.parse(sseChunks[1].replace(/^event: pos_action\ndata: /, '').trim());
+    assert.notEqual(firstData.tag, secondData.tag);
+    assert.notEqual(firstData.eventId, secondData.eventId);
+  } finally {
+    unregister();
+  }
+});
+
+test('public/sw.js skips duplicate unchanged already-shown alerts cleanly', async () => {
   const harness = createSwShadeHarness();
   const baseTs = 1760000000000;
 
@@ -334,7 +349,6 @@ test('public/sw.js cleans legacy summaries on activate and skips duplicate uncha
   const firstCard = harness.activeNotifications.get('test-push-single-1');
   assert.ok(firstCard);
 
-  // Re-delivering identical title/body/tag (e.g., from a duplicate token or delayed push) leaves single card untouched
   await harness.dispatchPush({
     title: 'POS Test Alert',
     body: 'Device notifications are operational.',
@@ -349,4 +363,3 @@ test('public/sw.js cleans legacy summaries on activate and skips duplicate uncha
   assert.equal(harness.activeNotifications.size, 1);
   assert.equal(harness.activeNotifications.get('test-push-single-1'), firstCard);
 });
-

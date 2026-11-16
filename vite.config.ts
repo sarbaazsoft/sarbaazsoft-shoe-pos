@@ -5,50 +5,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {defineConfig, type Plugin} from 'vite';
 
-const BINARY_INSTALLER_EXTENSIONS = new Set([
-  '.apk',
-  '.aab',
-  '.exe',
-  '.msix',
-  '.msixbundle',
-  '.appx',
-  '.appxbundle',
-  '.cer',
-]);
-
-function collectBuiltPrecacheAssets(outDir: string): string[] {
-  const results: string[] = [];
-
-  const walk = (dir: string) => {
-    if (!fs.existsSync(dir)) return;
-    const entries = fs.readdirSync(dir, {withFileTypes: true});
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      const relFromDist = path.relative(outDir, fullPath).split(path.sep).join('/');
-
-      if (entry.isDirectory()) {
-        if (relFromDist === 'assets/windows' || relFromDist === 'assets/android') {
-          continue;
-        }
-        walk(fullPath);
-        continue;
-      }
-
-      const ext = path.extname(entry.name).toLowerCase();
-      if (ext === '.map' || BINARY_INSTALLER_EXTENSIONS.has(ext)) {
-        continue;
-      }
-
-      if (relFromDist.startsWith('assets/js/') || relFromDist.startsWith('assets/css/') || relFromDist.startsWith('assets/fonts/') || relFromDist.startsWith('assets/media/')) {
-        results.push(`/${relFromDist}`);
-      }
-    }
-  };
-
-  walk(path.join(outDir, 'assets'));
-  return results.sort();
-}
-
 function serviceWorkerBuildPlugin(rootDir: string): Plugin {
   return {
     name: 'sarbaazsoft-sw-version-injector',
@@ -60,7 +16,6 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
       const swPath = path.join(outDir, 'sw.js');
       const indexHtmlPath = path.join(outDir, 'index.html');
 
-      const precacheBuildAssets = collectBuiltPrecacheAssets(outDir);
       const swExists = fs.existsSync(swPath);
       let swSource = swExists ? fs.readFileSync(swPath, 'utf8') : '';
 
@@ -85,33 +40,13 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
       if (swSource) {
         hash.update(swSource);
       }
-      for (const assetUrl of precacheBuildAssets) {
-        hash.update(assetUrl);
-      }
       const buildVersion = `${pkgVersion}-${hash.digest('hex').slice(0, 10)}`;
 
       if (swExists) {
-        const pauseSwCachingOnBuild = true;
-        swSource = swSource
-          .replace(
-            /const SW_ENV = ['"][^'"]*['"];/,
-            pauseSwCachingOnBuild ? `const SW_ENV = 'development';` : `const SW_ENV = 'production';`
-          )
-          .replace(
-            /const SW_CACHING_PAUSED = (?:true|false);/,
-            `const SW_CACHING_PAUSED = ${pauseSwCachingOnBuild ? 'true' : 'false'};`
-          )
-          .replace(
-            /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
-            `const SW_BUILD_VERSION = '${buildVersion}';`
-          )
-          .replace(
-            /const PRECACHE_BUILD_ASSETS = \[[\s\S]*?\];/,
-            pauseSwCachingOnBuild
-              ? `const PRECACHE_BUILD_ASSETS = [];`
-              : `const PRECACHE_BUILD_ASSETS = ${JSON.stringify(precacheBuildAssets, null, 2)};`
-          );
-
+        swSource = swSource.replace(
+          /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
+          `const SW_BUILD_VERSION = '${buildVersion}';`
+        );
         fs.writeFileSync(swPath, swSource, 'utf8');
       }
 
@@ -131,7 +66,6 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
         JSON.stringify(
           {
             version: buildVersion,
-            env: 'production',
             builtAt: new Date().toISOString(),
           },
           null,
@@ -179,9 +113,6 @@ export default defineConfig(() => {
             const normalized = id.split(path.sep).join('/');
             if (/\/node_modules\/(react|react-dom|scheduler)\//.test(normalized)) {
               return 'vendor-react';
-            }
-            if (/\/node_modules\/@tanstack\//.test(normalized)) {
-              return 'vendor-query';
             }
             if (/\/node_modules\/(recharts|d3-[^/]+|victory-vendor)\//.test(normalized)) {
               return 'vendor-charts';

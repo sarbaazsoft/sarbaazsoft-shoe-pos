@@ -17,7 +17,6 @@ import {
 import { api } from '../../services/api.ts';
 import {
   requestFcmDeviceToken,
-  invalidateFcmConfigCache,
 } from '../../services/firebaseConfig.ts';
 import {
   getDetailedPushPermissionStatus,
@@ -164,8 +163,6 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         FCM_MEASUREMENT_ID: fcmSettings.FCM_MEASUREMENT_ID.trim(),
         FCM_VAPID_KEY: fcmSettings.FCM_VAPID_KEY.trim(),
       });
-
-      invalidateFcmConfigCache();
 
       setSaveMessage({
         type: 'success',

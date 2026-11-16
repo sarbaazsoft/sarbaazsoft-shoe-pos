@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BookOpen, Filter, ArrowUpRight, ArrowDownLeft, RotateCcw, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
-import { useInventoryLedgerQuery, useProductsQuery } from '../../hooks/useAppQueries.ts';
+import { useInventoryLedgerQuery, useProductsQuery } from '../../hooks/useLiveData.ts';
 import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
 
 export const StockLedgerView: React.FC = () => {

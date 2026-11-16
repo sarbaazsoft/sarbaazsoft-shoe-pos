@@ -179,8 +179,6 @@ export function clearAllSessionState(): void {
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
-      localStorage.removeItem('cached_company_settings');
-      localStorage.removeItem('cached_store_name');
       localStorage.removeItem('pos_read_notifications');
       localStorage.removeItem('pos_superadmin_read_notifs');
       localStorage.removeItem('sammi_chat_history');
@@ -188,13 +186,11 @@ export function clearAllSessionState(): void {
       localStorage.removeItem('pos_last_synced_at');
       localStorage.removeItem('pos_cashier_last_activity_at');
 
-      // Clear any tenant-scoped or user-scoped cache keys without removing device preferences like pos_theme, remembered accounts, or permanent welcome dismissals
+      // Clear any tenant-scoped or user-scoped keys without removing device preferences like pos_theme, remembered accounts, or permanent welcome dismissals
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
         if (key && (
           key.startsWith('pos_dashboard_visited_') ||
-          key.startsWith('cached_company_settings') ||
-          key.startsWith('cached_store_name') ||
           key.startsWith('pos_read_notifs_')
         )) {
           localStorage.removeItem(key);
@@ -852,19 +848,7 @@ export const api = {
           );
         }
         if (params?.lowStock || params?.lowStockOnly) {
-          let globalThreshold = 5;
-          try {
-            const rawSettings =
-              (typeof localStorage !== 'undefined' &&
-                (localStorage.getItem('cached_company_settings') ||
-                  (activeTenantId ? localStorage.getItem(`cached_company_settings_${activeTenantId}`) : null))) ||
-              null;
-            if (rawSettings) {
-              const parsedSettings = JSON.parse(rawSettings);
-              const tVal = Number(parsedSettings?.lowStockThreshold ?? parsedSettings?.low_stock_threshold ?? 5);
-              if (Number.isFinite(tVal) && tVal > 0) globalThreshold = tVal;
-            }
-          } catch {}
+          const globalThreshold = 5;
           cached = cached.filter(
             (p: any) => (Number(p.totalStock ?? p.total_stock ?? 0) || 0) <= globalThreshold
           );

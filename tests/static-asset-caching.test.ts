@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import {
-  IS_HTTP_CACHING_PAUSED,
   isBinaryInstallerAsset,
   isContentHashedAsset,
   isServiceWorkerScript,
@@ -14,26 +13,26 @@ import {
   resolveStaticCacheHeaders,
 } from '../src/server/utils/staticCacheHeaders.ts';
 
-test('staticCacheHeaders pauses HTTP caching for APIs and static assets while preserving content headers', () => {
-  assert.equal(IS_HTTP_CACHING_PAUSED, true);
-
+test('staticCacheHeaders unconditionally enforces no-store across APIs and static assets while preserving content headers', () => {
   // 1. Service Workers must never be HTTP-cached
   for (const swPath of ['/sw.js', '/firebase-messaging-sw.js', '/sw-background-sync.js']) {
     assert.equal(isServiceWorkerScript(swPath), true);
     assert.equal(isContentHashedAsset(swPath), false);
-    const headers = resolveStaticCacheHeaders(swPath);
-    assert.equal(headers['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    assert.equal(headers['Surrogate-Control'], 'no-store');
-    assert.equal(headers['Service-Worker-Allowed'], '/');
-    assert.equal(headers['X-Content-Type-Options'], 'nosniff');
+    for (const isProd of [false, true]) {
+      const headers = resolveStaticCacheHeaders(swPath, isProd);
+      assert.equal(headers['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      assert.equal(headers['Surrogate-Control'], 'no-store');
+      assert.equal(headers['Service-Worker-Allowed'], '/');
+      assert.equal(headers['X-Content-Type-Options'], 'nosniff');
+    }
   }
 
-  // 2. HTML entry points, manifests, hashed assets, mutable assets, and installers all enforce no-store when paused
-  const htmlHeaders = resolveStaticCacheHeaders('/dist/index.html');
+  // 2. HTML entry points, manifests, hashed assets, mutable assets, and installers all enforce no-store
+  const htmlHeaders = resolveStaticCacheHeaders('/dist/index.html', true);
   assert.equal(htmlHeaders['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
   assert.equal(htmlHeaders['Pragma'], 'no-cache');
 
-  const manifestHeaders = resolveStaticCacheHeaders('/manifest.webmanifest');
+  const manifestHeaders = resolveStaticCacheHeaders('/manifest.webmanifest', true);
   assert.equal(manifestHeaders['Content-Type'], 'application/manifest+json; charset=utf-8');
   assert.equal(manifestHeaders['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
@@ -99,17 +98,12 @@ test('resolveServiceWorkerFilePath prefers dist/ in production and public/ in de
 
 function createMockSwHarness(options?: {
   mode?: 'development' | 'production';
-  respectPausedFlag?: boolean;
-  hasActiveRegistration?: boolean;
   initialCaches?: Record<string, Record<string, { status: number; body: string; contentType: string }>>;
   fetchImpl?: (input: any, init?: any) => Promise<any>;
 }) {
   let swCode = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
   if ((options?.mode || 'production') === 'production') {
     swCode = swCode.replace(/const SW_ENV = ['"][^'"]*['"];/, "const SW_ENV = 'production';");
-    if (options?.respectPausedFlag === false) {
-      swCode = swCode.replace(/const SW_CACHING_PAUSED = true;/, 'const SW_CACHING_PAUSED = false;');
-    }
   }
   const listeners = new Map<string, (event: any) => void>();
   let skipWaitingCalls = 0;
@@ -140,25 +134,10 @@ function createMockSwHarness(options?: {
     return new URL(raw, 'https://pos.example.com').href;
   };
 
-  const makeCacheWrapper = (cacheName: string) => {
-    if (!store.has(cacheName)) store.set(cacheName, new Map());
-    const map = store.get(cacheName)!;
-    return {
-      match: async (reqOrUrl: any) => map.get(normalizeKey(reqOrUrl)) || undefined,
-      put: async (reqOrUrl: any, res: any) => {
-        map.set(normalizeKey(reqOrUrl), res);
-      },
-      add: async (url: string) => {
-        const res = await sandbox.fetch(url);
-        if (res && res.ok) map.set(normalizeKey(url), res);
-      },
-      keys: async () => Array.from(map.keys()).map((url) => ({ url })),
-      delete: async (reqOrUrl: any) => map.delete(normalizeKey(reqOrUrl)),
-    };
-  };
-
   const cachesMock = {
-    open: async (name: string) => makeCacheWrapper(name),
+    open: async () => {
+      throw new Error('caches.open should never be called when SW caching is removed');
+    },
     keys: async () => Array.from(store.keys()),
     delete: async (name: string) => store.delete(name),
     match: async (reqOrUrl: any) => {
@@ -227,7 +206,7 @@ function createMockSwHarness(options?: {
       matchAll: async () => [],
     },
     registration: {
-      active: options?.hasActiveRegistration ? {} : null,
+      active: {},
       showNotification: async () => {},
     },
     addEventListener: (name: string, fn: (event: any) => void) => {
@@ -246,137 +225,74 @@ function createMockSwHarness(options?: {
   };
 }
 
-test('public/sw.js pauses all Cache Storage usage by default and purges leftover caches on install & activate', async () => {
-  const seenFetchInits: Array<{ url: string; cache?: string }> = [];
-  // Even if SW_ENV is toggled to production, SW_CACHING_PAUSED = true keeps all caching disabled
-  const pausedHarness = createMockSwHarness({
-    mode: 'production',
-    respectPausedFlag: true,
-    hasActiveRegistration: true,
-    initialCaches: {
-      'sarbaazsoft-pos-precache-1.2.4-abc': {
-        'https://pos.example.com/': { status: 200, body: 'old-prod', contentType: 'text/html' },
+test('public/sw.js contains zero Cache Storage caching, purges any leftover caches, and fetches no-store', async () => {
+  const swSource = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  assert.equal(/caches\.open\s*\(/.test(swSource), false);
+  assert.equal(/caches\.put\s*\(/.test(swSource), false);
+  assert.equal(/caches\.match\s*\(/.test(swSource), false);
+  assert.equal(/\bSW_CACHING_PAUSED\b/.test(swSource), false);
+
+  for (const mode of ['production', 'development'] as const) {
+    const seenFetchInits: Array<{ url: string; cache?: string }> = [];
+    const harness = createMockSwHarness({
+      mode,
+      initialCaches: {
+        'legacy-precache': {
+          'https://pos.example.com/': { status: 200, body: 'old-html', contentType: 'text/html' },
+        },
+        'legacy-immutable': {
+          'https://pos.example.com/assets/js/index-12345678.js': {
+            status: 200,
+            body: 'old-js',
+            contentType: 'application/javascript',
+          },
+        },
       },
-      'sarbaazsoft-pos-immutable-v1': {
-        'https://pos.example.com/assets/js/index-12345678.js': {
+      fetchImpl: async (input: any, init?: any) => {
+        const url = typeof input === 'string' ? input : input.url;
+        seenFetchInits.push({ url, cache: init?.cache });
+        return {
+          ok: true,
           status: 200,
-          body: 'old-prod-js',
-          contentType: 'application/javascript',
-        },
+          type: 'basic',
+          headers: { get: () => 'application/javascript' },
+          body: 'fresh-network-asset',
+          clone() {
+            return this;
+          },
+        };
       },
-      'legacy-external-cache': {
-        'https://pos.example.com/pwa-192x192.png': {
-          status: 200,
-          body: 'old-png',
-          contentType: 'image/png',
-        },
+    });
+
+    let installWait = Promise.resolve();
+    harness.listeners.get('install')!({ waitUntil: (p: Promise<any>) => (installWait = p) });
+    await installWait;
+    assert.equal(harness.getSkipWaitingCalls(), 1);
+    assert.equal(harness.store.size, 0);
+
+    let actWait = Promise.resolve();
+    harness.listeners.get('activate')!({ waitUntil: (p: Promise<any>) => (actWait = p) });
+    await actWait;
+    assert.equal(harness.getClientsClaimCalls(), 1);
+    assert.equal(harness.store.size, 0);
+
+    let responded: Promise<any> | null = null;
+    harness.listeners.get('fetch')!({
+      request: { method: 'GET', url: 'https://pos.example.com/assets/js/index-12345678.js', destination: 'script' },
+      respondWith: (p: Promise<any>) => (responded = p),
+    });
+    const res = await responded!;
+    assert.equal(res.body, 'fresh-network-asset');
+    assert.equal(seenFetchInits[0]?.cache, 'no-store');
+    assert.equal(harness.store.size, 0);
+
+    let apiIntercepted = false;
+    harness.listeners.get('fetch')!({
+      request: { method: 'GET', url: 'https://pos.example.com/api/products' },
+      respondWith: () => {
+        apiIntercepted = true;
       },
-    },
-    fetchImpl: async (input: any, init?: any) => {
-      const url = typeof input === 'string' ? input : input.url;
-      seenFetchInits.push({ url, cache: init?.cache });
-      return {
-        ok: true,
-        status: 200,
-        type: 'basic',
-        headers: { get: () => 'application/javascript' },
-        body: 'fresh-network-asset',
-        clone() {
-          return this;
-        },
-      };
-    },
-  });
-
-  // 1. Install immediately calls skipWaiting and purges old Cache Storage
-  let installWait = Promise.resolve();
-  pausedHarness.listeners.get('install')!({ waitUntil: (p: Promise<any>) => (installWait = p) });
-  await installWait;
-  assert.equal(pausedHarness.getSkipWaitingCalls(), 1);
-  assert.equal(pausedHarness.store.size, 0, 'Install must purge all caches while caching is paused');
-
-  // 2. Activate purges all caches & claims clients
-  let actWait = Promise.resolve();
-  pausedHarness.listeners.get('activate')!({ waitUntil: (p: Promise<any>) => (actWait = p) });
-  await actWait;
-  assert.equal(pausedHarness.getClientsClaimCalls(), 1);
-  assert.equal(pausedHarness.store.size, 0);
-
-  // 3. Asset fetch bypasses Cache Storage and fetches directly with cache: no-store
-  let responded: Promise<any> | null = null;
-  pausedHarness.listeners.get('fetch')!({
-    request: { method: 'GET', url: 'https://pos.example.com/assets/js/index-12345678.js', destination: 'script' },
-    respondWith: (p: Promise<any>) => (responded = p),
-  });
-  const res = await responded!;
-  assert.equal(res.body, 'fresh-network-asset');
-  assert.equal(seenFetchInits[0]?.cache, 'no-store');
-  assert.equal(pausedHarness.store.size, 0, 'Must never write assets to Cache Storage while paused');
-
-  // 4. API requests pass straight through untouched (respondWith not called)
-  let apiIntercepted = false;
-  pausedHarness.listeners.get('fetch')!({
-    request: { method: 'GET', url: 'https://pos.example.com/api/products' },
-    respondWith: () => {
-      apiIntercepted = true;
-    },
-  });
-  assert.equal(apiIntercepted, false);
-});
-
-test('public/sw.js defaults to development mode: purges caches and uses no-store network-only fetch', async () => {
-  const seenFetchInits: Array<{ url: string; cache?: string }> = [];
-  const devHarness = createMockSwHarness({
-    mode: 'development',
-    hasActiveRegistration: true,
-    initialCaches: {
-      'sarbaazsoft-pos-precache-1.2.4-abc': {
-        'https://pos.example.com/': { status: 200, body: 'old-prod', contentType: 'text/html' },
-      },
-      'sarbaazsoft-pos-immutable-v1': {
-        'https://pos.example.com/assets/js/index-12345678.js': {
-          status: 200,
-          body: 'old-prod-js',
-          contentType: 'application/javascript',
-        },
-      },
-    },
-    fetchImpl: async (input: any, init?: any) => {
-      const url = typeof input === 'string' ? input : input.url;
-      seenFetchInits.push({ url, cache: init?.cache });
-      return {
-        ok: true,
-        status: 200,
-        type: 'basic',
-        headers: { get: () => 'application/javascript' },
-        body: 'fresh-dev-module',
-        clone() {
-          return this;
-        },
-      };
-    },
-  });
-
-  // 1. Development install immediately calls skipWaiting even if active worker exists
-  let instWait = Promise.resolve();
-  devHarness.listeners.get('install')!({ waitUntil: (p: Promise<any>) => (instWait = p) });
-  await instWait;
-  assert.equal(devHarness.getSkipWaitingCalls(), 1);
-
-  // 2. Development activate purges ALL caches so prod artifacts never linger in dev
-  let actWait = Promise.resolve();
-  devHarness.listeners.get('activate')!({ waitUntil: (p: Promise<any>) => (actWait = p) });
-  await actWait;
-  assert.equal(devHarness.store.size, 0, 'Dev SW activate must purge all caches');
-
-  // 3. Development fetch always goes straight to network with cache: no-store and writes nothing to Cache Storage
-  let responded: Promise<any> | null = null;
-  devHarness.listeners.get('fetch')!({
-    request: { method: 'GET', url: 'https://pos.example.com/src/App.tsx', destination: 'script' },
-    respondWith: (p: Promise<any>) => (responded = p),
-  });
-  const devRes = await responded!;
-  assert.equal(devRes.body, 'fresh-dev-module');
-  assert.equal(seenFetchInits[0]?.cache, 'no-store');
-  assert.equal(devHarness.store.size, 0, 'Dev SW must never write dev modules to Cache Storage');
+    });
+    assert.equal(apiIntercepted, false);
+  }
 });

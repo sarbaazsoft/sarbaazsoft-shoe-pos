@@ -9,7 +9,7 @@ import {
   testFcmPush,
   normalizeVapidPublicKey,
 } from '../pushNotificationService.ts';
-import { getAppSetting, loadAppSettingsCache } from '../services/appSettingsService.ts';
+import { getAppSetting } from '../services/appSettingsService.ts';
 import { extractTokenFromRequest } from '../auth.ts';
 import { pgClient } from '../../db/index.ts';
 import { ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
@@ -179,30 +179,21 @@ router.get('/grouped', async (req: Request, res: Response) => {
       [cleanTenantId, userId, role, limit]
     ).catch(() => ({ rows: [] }));
 
-    const seenTitles = new Set<string>();
-    const notices: any[] = [];
-    for (const r of noticesRes.rows) {
-      const normalizedTitle = (r.title || '').trim().toLowerCase();
-      if (seenTitles.has(normalizedTitle)) {
-        continue;
-      }
-      seenTitles.add(normalizedTitle);
-      notices.push({
-        id: r.id,
-        tenantId: r.tenant_id,
-        targetRole: r.target_role,
-        title: r.title,
-        message: r.message,
-        type: r.type,
-        actionUrl: r.action_url,
-        actionLabel: r.action_label,
-        createdBy: r.created_by,
-        createdByName: r.created_by_name,
-        expiresAt: r.expires_at,
-        createdAt: r.created_at,
-        isRead: Boolean(r.is_read),
-      });
-    }
+    const notices: any[] = noticesRes.rows.map((r) => ({
+      id: r.id,
+      tenantId: r.tenant_id,
+      targetRole: r.target_role,
+      title: r.title,
+      message: r.message,
+      type: r.type,
+      actionUrl: r.action_url,
+      actionLabel: r.action_label,
+      createdBy: r.created_by,
+      createdByName: r.created_by_name,
+      expiresAt: r.expires_at,
+      createdAt: r.created_at,
+      isRead: Boolean(r.is_read),
+    }));
 
     // 2. Fetch active POS Operational Notifications (Sales & Returns)
     // Strictly enforces a 48-hour sliding window (created_at >= NOW() - INTERVAL '48 HOURS')
@@ -418,32 +409,23 @@ router.get('/all', async (req: Request, res: Response) => {
         [cleanTenantId, userId, role]
       ).catch(() => ({ rows: [] }));
 
-      const seenAllTitles = new Set<string>();
-      noticeItems = [];
-      for (const r of noticesQuery.rows) {
-        const normalizedTitle = (r.title || '').trim().toLowerCase();
-        if (seenAllTitles.has(normalizedTitle)) {
-          continue;
-        }
-        seenAllTitles.add(normalizedTitle);
-        noticeItems.push({
-          id: `notice-${r.id}`,
-          rawId: r.id,
-          kind: 'NOTICE',
-          itemType: 'NOTICE',
-          type: r.type,
-          title: r.title,
-          message: r.message,
-          actionUrl: r.action_url,
-          actionLabel: r.action_label,
-          deepLinkUrl: r.action_url,
-          tenantId: r.tenant_id,
-          targetRole: r.target_role,
-          createdAt: r.created_at,
-          expiresAt: r.expires_at,
-          isRead: Boolean(r.is_read),
-        });
-      }
+      noticeItems = noticesQuery.rows.map((r) => ({
+        id: `notice-${r.id}`,
+        rawId: r.id,
+        kind: 'NOTICE',
+        itemType: 'NOTICE',
+        type: r.type,
+        title: r.title,
+        message: r.message,
+        actionUrl: r.action_url,
+        actionLabel: r.action_label,
+        deepLinkUrl: r.action_url,
+        tenantId: r.tenant_id,
+        targetRole: r.target_role,
+        createdAt: r.created_at,
+        expiresAt: r.expires_at,
+        isRead: Boolean(r.is_read),
+      }));
     }
 
     // 2. Fetch historical POS Operational Activity (Sales & Returns)
@@ -811,7 +793,6 @@ router.post('/platform/dismiss-all', async (req: Request, res: Response) => {
 // GET /api/notifications/fcm-config - Return public client Firebase config
 router.get('/fcm-config', async (_req: Request, res: Response) => {
   try {
-    await loadAppSettingsCache();
     const projectId = (await getAppSetting('FCM_PROJECT_ID', '')) || process.env.FCM_PROJECT_ID || '';
     const apiKey = (await getAppSetting('FCM_API_KEY', '')) || process.env.FCM_API_KEY || '';
     const messagingSenderId = (await getAppSetting('FCM_MESSAGING_SENDER_ID', '')) || process.env.FCM_MESSAGING_SENDER_ID || '';

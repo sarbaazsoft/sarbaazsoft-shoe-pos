@@ -227,10 +227,6 @@ export interface AppSettingItem {
   updatedAt?: string;
 }
 
-// In-memory cache for fast, non-blocking synchronous lookups
-const settingsCache = new Map<string, string>();
-let cacheLoaded = false;
-let cachePromise: Promise<void> | null = null;
 let schemaInitPromise: Promise<void> | null = null;
 
 // Optional listener when settings are updated
@@ -318,7 +314,6 @@ export async function ensureAppSettingsSchema(): Promise<void> {
         UPDATE public.app_settings SET value = 'G-YNR6ETB365' WHERE key = 'FCM_MEASUREMENT_ID' AND (value IS NULL OR value = '');
       `).catch(() => {});
 
-
       // Seed default SuperAdmin push event toggles if not already present
       await pgClient.query(`
         INSERT INTO public.app_settings (key, value, category, description, is_secret, updated_at)
@@ -339,88 +334,63 @@ export async function ensureAppSettingsSchema(): Promise<void> {
 }
 
 /**
- * Loads or refreshes the in-memory cache of app settings from PostgreSQL.
- */
-export async function loadAppSettingsCache(): Promise<void> {
-  if (cachePromise) return cachePromise;
-
-  cachePromise = (async () => {
-    try {
-      await ensureAppSettingsSchema();
-      const res = await pgClient.query<{ key: string; value: string }>(
-        'SELECT key, value FROM public.app_settings'
-      );
-      for (const row of res.rows) {
-        settingsCache.set(row.key, row.value ?? '');
-      }
-      cacheLoaded = true;
-    } catch (err: any) {
-      console.warn('Notice loading app_settings cache:', err?.message || err);
-    } finally {
-      cachePromise = null;
-    }
-  })();
-
-  return cachePromise;
-}
-
-/**
  * Dynamic asynchronous getter for an app setting with fallback value.
- * PostgreSQL app_settings table is the primary and authoritative source of truth.
- * Email settings (RESEND_API_KEY, RESEND_FROM, etc.) are strictly read from app_settings, never from .env.
+ * Always reads directly from PostgreSQL app_settings table without any in-memory caching.
+ * Email settings (RESEND_API_KEY, etc.) are strictly read from app_settings, never from .env.
  */
 export async function getAppSetting(key: string, fallback?: string): Promise<string> {
-  if (key === 'RESEND_API_KEY') {
-    // Retrieve RESEND_API_KEY dynamically from the app_settings database table.
-    try {
+  const def = APP_SETTINGS_DEFAULTS.find((d) => d.key === key);
+
+  try {
+    if (key === 'RESEND_FROM' || key === 'RESEND_FROM_EMAIL') {
+      const res = await pgClient.query<{ key: string; value: string }>(
+        `SELECT key, value FROM public.app_settings WHERE key IN ('RESEND_FROM', 'RESEND_FROM_EMAIL')`
+      );
+      const map = new Map(res.rows.map((r) => [r.key, (r.value || '').trim()]));
+      const directVal = map.get(key);
+      if (directVal) {
+        return directVal;
+      }
+      if (key === 'RESEND_FROM' && map.get('RESEND_FROM_EMAIL')) {
+        return `SarbaazSoft Shoe POS Security <${map.get('RESEND_FROM_EMAIL')}>`;
+      }
+      if (key === 'RESEND_FROM_EMAIL' && map.get('RESEND_FROM')) {
+        const fromVal = map.get('RESEND_FROM') || '';
+        const match = fromVal.match(/<([^>]+)>/);
+        const emailVal = match ? match[1].trim() : fromVal;
+        if (emailVal && emailVal.includes('@')) {
+          return emailVal;
+        }
+      }
+    } else {
       const res = await pgClient.query<{ value: string }>(
-        `SELECT value FROM public.app_settings WHERE UPPER(key) = 'RESEND_API_KEY' LIMIT 1`
+        `SELECT value FROM public.app_settings WHERE UPPER(key) = UPPER($1) LIMIT 1`,
+        [key]
       );
       if (res.rows.length > 0) {
         const val = (res.rows[0].value || '').trim();
-        settingsCache.set('RESEND_API_KEY', val);
-        return val;
+        if (key === 'RESEND_API_KEY') {
+          return val || fallback || '';
+        }
+        if (val !== '') {
+          return val;
+        }
       }
-    } catch (err) {
-      console.warn('Notice querying RESEND_API_KEY dynamically from app_settings table:', err);
     }
-    return settingsCache.get('RESEND_API_KEY') || fallback || '';
+  } catch (err) {
+    console.warn(`Notice querying ${key} directly from app_settings:`, err);
   }
 
-  if (!cacheLoaded) {
-    await loadAppSettingsCache();
-  }
-  const def = APP_SETTINGS_DEFAULTS.find((d) => d.key === key);
-
-  if (settingsCache.has(key)) {
-    const cached = settingsCache.get(key)!;
-    if (cached !== '') {
-      return cached;
-    }
-  }
-
-  // Cross-key fallback for sender address and email
-  if (key === 'RESEND_FROM' && settingsCache.has('RESEND_FROM_EMAIL')) {
-    const emailVal = settingsCache.get('RESEND_FROM_EMAIL')?.trim();
-    if (emailVal) {
-      return `SarbaazSoft Shoe POS Security <${emailVal}>`;
-    }
-  } else if (key === 'RESEND_FROM_EMAIL' && settingsCache.has('RESEND_FROM')) {
-    const fromVal = settingsCache.get('RESEND_FROM')?.trim() || '';
-    const match = fromVal.match(/<([^>]+)>/);
-    const emailVal = match ? match[1].trim() : fromVal;
-    if (emailVal && emailVal.includes('@')) {
-      return emailVal;
-    }
+  if (key === 'RESEND_API_KEY') {
+    return fallback || '';
   }
 
   // Environment variable fallback if not set in database (NEVER used for RESEND_API_KEY)
-  if (key !== 'RESEND_API_KEY') {
-    const envVal = process.env[key]?.trim();
-    if (envVal !== undefined && envVal !== '') {
-      return envVal;
-    }
+  const envVal = process.env[key]?.trim();
+  if (envVal !== undefined && envVal !== '') {
+    return envVal;
   }
+
   if (key === 'RESEND_FROM_EMAIL') {
     const altEnv = process.env.RESEND_FROM?.trim();
     if (altEnv) {
@@ -438,64 +408,7 @@ export async function getAppSetting(key: string, fallback?: string): Promise<str
 }
 
 /**
- * Synchronous getter for hot paths (e.g. middleware, request headers).
- * If cache is loaded, returns the cached value from PostgreSQL app_settings.
- */
-export function getCachedAppSetting(key: string, fallback?: string): string {
-  if (key === 'RESEND_API_KEY') {
-    // Strictly read from database-synced cache, never from process.env
-    return settingsCache.get('RESEND_API_KEY') || fallback || '';
-  }
-
-  const def = APP_SETTINGS_DEFAULTS.find((d) => d.key === key);
-
-  if (settingsCache.has(key)) {
-    const val = settingsCache.get(key)!;
-    if (val !== '') return val;
-  }
-  if (!cacheLoaded) {
-    loadAppSettingsCache().catch(() => {});
-  }
-
-  // Cross-key fallback for sender address and email
-  if (key === 'RESEND_FROM' && settingsCache.has('RESEND_FROM_EMAIL')) {
-    const emailVal = settingsCache.get('RESEND_FROM_EMAIL')?.trim();
-    if (emailVal) {
-      return `SarbaazSoft Shoe POS Security <${emailVal}>`;
-    }
-  } else if (key === 'RESEND_FROM_EMAIL' && settingsCache.has('RESEND_FROM')) {
-    const fromVal = settingsCache.get('RESEND_FROM')?.trim() || '';
-    const match = fromVal.match(/<([^>]+)>/);
-    const emailVal = match ? match[1].trim() : fromVal;
-    if (emailVal && emailVal.includes('@')) {
-      return emailVal;
-    }
-  }
-
-  if (key !== 'RESEND_API_KEY') {
-    const envVal = process.env[key]?.trim();
-    if (envVal !== undefined && envVal !== '') {
-      return envVal;
-    }
-  }
-  if (key === 'RESEND_FROM_EMAIL') {
-    const altEnv = process.env.RESEND_FROM?.trim();
-    if (altEnv) {
-      const match = altEnv.match(/<([^>]+)>/);
-      return match ? match[1].trim() : altEnv;
-    }
-  } else if (key === 'RESEND_FROM') {
-    const altEnv = process.env.RESEND_FROM_EMAIL?.trim();
-    if (altEnv) {
-      return `SarbaazSoft Shoe POS Security <${altEnv}>`;
-    }
-  }
-
-  return fallback ?? def?.defaultValue ?? '';
-}
-
-/**
- * Returns all app settings grouped by category and keyed by key name.
+ * Returns all app settings grouped by category and keyed by key name directly from PostgreSQL.
  * Service-layer enforcement: Validates that callers specifying a user role hold Platform Owner (SUPERADMIN).
  */
 export async function getAllAppSettings(
@@ -534,7 +447,7 @@ export async function getAllAppSettings(
     const isEmail = d.category === 'email' || d.key.startsWith('RESEND_') || d.key.startsWith('EMAIL_');
     return {
       key: d.key,
-      value: settingsCache.get(d.key) ?? (!isEmail ? process.env[d.key]?.trim() : undefined) ?? d.defaultValue,
+      value: (!isEmail ? process.env[d.key]?.trim() : undefined) ?? d.defaultValue,
       category: d.category,
       description: d.description,
       isSecret: d.isSecret,
@@ -555,7 +468,7 @@ export async function getAllAppSettings(
   for (const def of APP_SETTINGS_DEFAULTS) {
     if (byKey[def.key] === undefined) {
       const isEmail = def.category === 'email' || def.key.startsWith('RESEND_') || def.key.startsWith('EMAIL_') || def.key.startsWith('GMAIL_') || def.key === 'ACTIVE_EMAIL_PROVIDER';
-      const val = settingsCache.get(def.key) ?? (!isEmail ? process.env[def.key]?.trim() : undefined) ?? def.defaultValue;
+      const val = (!isEmail ? process.env[def.key]?.trim() : undefined) ?? def.defaultValue;
       byKey[def.key] = val;
       const item: AppSettingItem = {
         key: def.key,
@@ -576,7 +489,7 @@ export async function getAllAppSettings(
 }
 
 /**
- * Updates one or multiple app settings dynamically in PostgreSQL and syncs the cache.
+ * Updates one or multiple app settings directly in PostgreSQL.
  * Service-layer enforcement: Validates that callers specifying a user role hold Platform Owner (SUPERADMIN).
  */
 export async function updateAppSettings(
@@ -652,9 +565,7 @@ export async function updateAppSettings(
       [key, value, category, description, isSecret]
     );
 
-    settingsCache.set(key, value);
-
-    // Notify listeners (e.g. push notification service when VAPID keys change)
+    // Notify listeners (e.g. push notification service when credentials change)
     for (const listener of updateListeners) {
       try {
         listener(key, value);

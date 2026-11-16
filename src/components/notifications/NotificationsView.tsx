@@ -28,8 +28,7 @@ import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { NotificationAlertProvidersSettings } from '../settings/NotificationAlertProvidersSettings.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
-import { useAllNotificationsQuery, useGroupedNotificationsQuery } from '../../hooks/useAppQueries.ts';
-import { queryClient, queryKeys } from '../../services/queryClient.ts';
+import { useAllNotificationsQuery } from '../../hooks/useLiveData.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 
 interface NotificationsViewProps {
@@ -257,9 +256,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
   const searchInitRef = useRef(true);
-  const hasAutoSelectedTabRef = useRef(false);
   const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
-  const userSelectedTabRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -271,10 +268,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [showProviderSettings, setShowProviderSettings] = useState(false);
   const searchTimeoutRef = useRef<any>(null);
-
-  const groupedQuery = useGroupedNotificationsQuery(10, {
-    enabled: isActive,
-  });
 
   const queryParams = useMemo(
     () => ({
@@ -315,26 +308,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     await allNotificationsQuery.refetch();
   };
 
-  // Dynamically set default active tab to whichever tab contains the latest incoming message or timestamp
-  useEffect(() => {
-    if (hasAutoSelectedTabRef.current || userSelectedTabRef.current || !groupedQuery.data) {
-      return;
-    }
-    hasAutoSelectedTabRef.current = true;
-    const grouped = groupedQuery.data;
-    const latestNoticeTime = grouped.notices?.[0]?.createdAt
-      ? new Date(grouped.notices[0].createdAt).getTime()
-      : 0;
-    const latestOperationalTime = grouped.notifications?.[0]?.createdAt
-      ? new Date(grouped.notifications[0].createdAt).getTime()
-      : 0;
-
-    if (latestOperationalTime > 0 && latestOperationalTime > latestNoticeTime) {
-      setActiveTab('operational');
-    } else if (latestNoticeTime > 0) {
-      setActiveTab('announcements');
-    }
-  }, [groupedQuery.data]);
+  // Always default to 'all' so every notification (sales, returns, exchanges, system notices) displays chronologically as individual messages.
 
   useEffect(() => {
     if (searchInitRef.current) {
@@ -355,12 +329,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   }, [searchQuery]);
 
   const handleDismiss = async (item: HistoricalNotificationItem) => {
-    const tenantId = getActiveTenantId();
-    const cacheKey = queryKeys.notifications.all(queryParams, tenantId);
     try {
       setDismissingId(item.id);
-      // Instant optimistic UI update in query cache
-      queryClient.setQueryData<AllNotificationsResponse>(cacheKey, (prev) => {
+      // Instant optimistic local state update
+      allNotificationsQuery.setData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -393,12 +365,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   };
 
   const handleMarkAllRead = async () => {
-    const tenantId = getActiveTenantId();
-    const cacheKey = queryKeys.notifications.all(queryParams, tenantId);
     try {
       setIsMarkingAll(true);
-      // Optimistic update in query cache
-      queryClient.setQueryData<AllNotificationsResponse>(cacheKey, (prev) => {
+      // Optimistic local state update
+      allNotificationsQuery.setData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -720,7 +690,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                 key={tab.key}
                 type="button"
                 onClick={() => {
-                  userSelectedTabRef.current = true;
                   setActiveTab(tab.key);
                   setPage(1);
                 }}

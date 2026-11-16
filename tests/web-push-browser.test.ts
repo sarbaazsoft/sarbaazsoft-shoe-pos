@@ -16,7 +16,7 @@ import {
   recordSwNotificationShown,
   resetNotificationDedupeCache,
 } from '../src/utils/notificationDedupe.ts';
-import { showGroupedWithRegistration } from '../src/utils/notificationShade.ts';
+import { showSingleNotificationWithRegistration } from '../src/utils/notificationShade.ts';
 import {
   decodeBase64UrlToBytes,
   doVapidKeysMatch,
@@ -243,7 +243,7 @@ test('public/sw.js registers push/notificationclick before Firebase compat and s
   assert.equal(firebaseInternalClickCalled, false);
 });
 
-test('SW_NOTIFICATION_SHOWN + showGroupedWithRegistration prevent SSE/foreground duplicate notifications', async () => {
+test('SW_NOTIFICATION_SHOWN + showSingleNotificationWithRegistration prevent SSE/foreground duplicate notifications', async () => {
   resetNotificationDedupeCache();
 
   recordSwNotificationShown({
@@ -260,13 +260,13 @@ test('SW_NOTIFICATION_SHOWN + showGroupedWithRegistration prevent SSE/foreground
   // Also test registration-level active tag dedupe
   let showCount = 0;
   const mockReg = {
-    getNotifications: async () => [{ tag: 'pos-sale-555', data: { isGroupSummary: false } } as any],
+    getNotifications: async () => [{ tag: 'pos-sale-555', data: {} } as any],
     showNotification: async () => {
       showCount++;
     },
   };
 
-  await showGroupedWithRegistration(mockReg, 'Sale #555', {
+  await showSingleNotificationWithRegistration(mockReg, 'Sale #555', {
     body: 'Completed',
     tag: 'pos-sale-555',
   });

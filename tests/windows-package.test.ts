@@ -98,18 +98,25 @@ test('windows packages & service worker assets exist and sw.js compiles cleanly'
   }
 
   const swSource = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
-  const match = swSource.match(/const PRECACHE_ASSETS = \[([\s\S]*?)\];/);
-  assert.ok(match, 'PRECACHE_ASSETS array should exist in public/sw.js');
+  assert.equal(/PRECACHE_ASSETS/.test(swSource), false, 'PRECACHE_ASSETS caching should be removed from public/sw.js');
 
-  const entries = Array.from(match[1].matchAll(/'([^']+)'/g)).map((m) => m[1]);
-  assert.ok(entries.length > 0);
-  for (const assetPath of entries) {
-    if (assetPath === '/') continue;
+  const corePublicAssets = [
+    '/index.html',
+    '/manifest.webmanifest',
+    '/manifest.json',
+    '/.well-known/assetlinks.json',
+    '/pwa-192x192.png',
+    '/pwa-512x512.png',
+    '/admin/manifest.webmanifest',
+    '/admin/pwa-192x192.png',
+    '/admin/pwa-512x512.png',
+  ];
+  for (const assetPath of corePublicAssets) {
     if (assetPath === '/index.html') {
       assert.equal(fs.existsSync(path.join(process.cwd(), 'index.html')), true, 'Missing root index.html');
       continue;
     }
     const diskPath = path.join(process.cwd(), 'public', assetPath.replace(/^\//, ''));
-    assert.equal(fs.existsSync(diskPath), true, `Precache asset missing on disk: ${assetPath}`);
+    assert.equal(fs.existsSync(diskPath), true, `Public PWA asset missing on disk: ${assetPath}`);
   }
 });

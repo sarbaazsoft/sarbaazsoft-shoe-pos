@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   apiFetch,
@@ -7,22 +9,10 @@ import {
   isAbortError,
   setActiveTenantId,
   setAuthSession,
+  subscribeApiMutation,
 } from '../src/services/api.ts';
-import {
-  queryClient,
-  queryKeys,
-  registerQueryCacheLifecycle,
-  resolveInvalidationKeysForTopics,
-  resolveMutationInvalidationPlan,
-} from '../src/services/queryClient.ts';
-import {
-  IS_CACHING_PAUSED,
-  getQueryStaleTime,
-  isProductionCachingEnabled,
-  resolveCacheEnvironment,
-  resolveQueryClientDefaultOptions,
-} from '../src/utils/cachePolicy.ts';
-import { clearDataSyncListeners, emitDataSync } from '../src/utils/dataSyncBus.ts';
+import { resolveMutationSyncPlan } from '../src/hooks/useLiveData.ts';
+import { clearDataSyncListeners } from '../src/utils/dataSyncBus.ts';
 
 function createMockStorage(): Storage {
   const store = new Map<string, string>();
@@ -75,78 +65,42 @@ function withMockBrowserEnv(fn: () => Promise<void> | void): Promise<void> {
     });
 }
 
-test('queryKeys: enforces strict tenant scoping and deterministic param normalization', () => {
-  const k1 = queryKeys.products.list({ search: 'nike', category: 'Sneakers', brand: undefined }, 101);
-  const k2 = queryKeys.products.list({ category: 'Sneakers', search: 'nike', brand: '' }, 101);
-  const kOtherTenant = queryKeys.products.list({ search: 'nike', category: 'Sneakers' }, 202);
-  const kPublic = queryKeys.products.list({ search: 'nike' }, null);
+test('zero TanStack Query or API/app caching systems remain in codebase', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+  assert.equal(pkg.dependencies?.['@tanstack/react-query'], undefined);
+  assert.equal(pkg.devDependencies?.['@tanstack/react-query'], undefined);
 
-  assert.deepEqual(k1, k2);
-  assert.equal(k1[1], '101');
-  assert.equal(kOtherTenant[1], '202');
-  assert.equal(kPublic[1], 'public');
-  assert.notDeepEqual(k1, kOtherTenant);
+  assert.equal(fs.existsSync(path.join(process.cwd(), 'src/services/queryClient.ts')), false);
+  assert.equal(fs.existsSync(path.join(process.cwd(), 'src/utils/cachePolicy.ts')), false);
+  assert.equal(fs.existsSync(path.join(process.cwd(), 'src/hooks/useAppQueries.ts')), false);
+
+  const appSettingsSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/server/services/appSettingsService.ts'),
+    'utf8'
+  );
+  assert.equal(/\bsettingsCache\b/.test(appSettingsSrc), false);
+  assert.equal(/\bloadAppSettingsCache\b/.test(appSettingsSrc), false);
+  assert.equal(/\bgetCachedAppSetting\b/.test(appSettingsSrc), false);
 });
 
-test('resolveInvalidationKeysForTopics: deduplicates and maps sync topics to tenant prefixes', () => {
-  const keys = resolveInvalidationKeysForTopics(['sales', 'inventory', 'sales'], 7);
-  const serialized = keys.map((k) => JSON.stringify(k));
+test('resolveMutationSyncPlan maps endpoints to live-refresh topics accurately', () => {
+  const customerPlan = resolveMutationSyncPlan('/customers');
+  assert.ok(customerPlan.topics.includes('customers'));
+  assert.equal(customerPlan.refreshSuperAdmin, false);
 
-  // Should contain no duplicates
-  assert.equal(new Set(serialized).size, serialized.length);
+  const superPlan = resolveMutationSyncPlan('/superadmin/tenants/9/status');
+  assert.equal(superPlan.refreshSuperAdmin, true);
+  assert.equal(superPlan.refreshSaas, true);
+  assert.deepEqual(superPlan.topics, []);
 
-  // Should include tenant-scoped sales, reports, customers, inventory, products, notifications
-  assert.ok(serialized.includes(JSON.stringify(['tenant', '7', 'sales'])));
-  assert.ok(serialized.includes(JSON.stringify(['tenant', '7', 'reports'])));
-  assert.ok(serialized.includes(JSON.stringify(['tenant', '7', 'customers'])));
-  assert.ok(serialized.includes(JSON.stringify(['tenant', '7', 'inventory'])));
-  assert.ok(serialized.includes(JSON.stringify(['tenant', '7', 'products'])));
-  assert.ok(serialized.includes(JSON.stringify(['tenant', '7', 'notifications'])));
-});
+  const settingsPlan = resolveMutationSyncPlan('/settings');
+  assert.ok(settingsPlan.topics.includes('settings'));
+  assert.equal(settingsPlan.refreshSaas, true);
 
-test('registerQueryCacheLifecycle: evicts tenant queries on tenant switch, resets all on session clear, and invalidates on dataSyncBus', async () => {
-  await withMockBrowserEnv(async () => {
-    clearDataSyncListeners();
-    queryClient.clear();
-    const unregister = registerQueryCacheLifecycle();
-
-    try {
-      const superAdminToken = makeFakeJwt({
-        id: 1,
-        role: 'SUPERADMIN',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-      });
-      setAuthSession(superAdminToken, { id: 1, role: 'SUPERADMIN' });
-      setActiveTenantId(11);
-
-      // Seed tenant-scoped queries and a global saas directory query
-      queryClient.setQueryData(queryKeys.products.list(undefined, 11), { products: [{ id: 1 }] });
-      queryClient.setQueryData(queryKeys.customers.list(undefined, 11), { customers: [{ id: 2 }] });
-      queryClient.setQueryData(queryKeys.saas.resolve(''), { tenants: [{ id: 11 }] });
-
-      // Emit dataSyncBus event for sales -> should invalidate tenant 11 sales/products/customers caches
-      emitDataSync(['sales'], { source: 'test' });
-      await Promise.resolve();
-      const prodState = queryClient.getQueryState(queryKeys.products.list(undefined, 11));
-      assert.equal(prodState?.isInvalidated, true);
-
-      // Switching active tenant to 22 must evict tenant caches while preserving saas directory cache
-      setActiveTenantId(22);
-      assert.equal(queryClient.getQueryData(queryKeys.products.list(undefined, 11)), undefined);
-      assert.equal(queryClient.getQueryData(queryKeys.customers.list(undefined, 11)), undefined);
-      assert.deepEqual(queryClient.getQueryData(queryKeys.saas.resolve('')), { tenants: [{ id: 11 }] });
-
-      // Repopulate tenant 22 data, then clearAllSessionState -> resets entire query cache
-      queryClient.setQueryData(queryKeys.products.list(undefined, 22), { products: [{ id: 9 }] });
-      clearAllSessionState();
-      assert.equal(queryClient.getQueryData(queryKeys.products.list(undefined, 22)), undefined);
-      assert.equal(queryClient.getQueryData(queryKeys.saas.resolve('')), undefined);
-    } finally {
-      unregister();
-      queryClient.clear();
-      clearDataSyncListeners();
-    }
-  });
+  const salePlan = resolveMutationSyncPlan('/pos/checkout');
+  assert.ok(salePlan.topics.includes('sales'));
+  assert.ok(salePlan.topics.includes('inventory'));
+  assert.ok(salePlan.topics.includes('notifications'));
 });
 
 test('apiFetch: aborts immediately on pre-aborted AbortSignal without invoking fetch', async () => {
@@ -171,12 +125,14 @@ test('apiFetch: aborts immediately on pre-aborted AbortSignal without invoking f
   });
 });
 
-test('apiFetch: retries idempotent GET on 502 but makes only 1 attempt for non-idempotent POST on 502', async () => {
+test('apiFetch: enforces cache no-store on requests and retries only idempotent GET on 502', async () => {
   await withMockBrowserEnv(async () => {
     let getCalls = 0;
     let postCalls = 0;
+    const seenCacheModes: Array<RequestCache | undefined> = [];
 
     globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seenCacheModes.push(init?.cache);
       const method = (init?.method || 'GET').toUpperCase();
       if (method === 'GET') {
         getCalls += 1;
@@ -200,6 +156,7 @@ test('apiFetch: retries idempotent GET on 502 but makes only 1 attempt for non-i
     const getResult = await apiFetch<{ items: number[] }>('/products');
     assert.deepEqual(getResult.items, [1, 2]);
     assert.equal(getCalls, 2);
+    assert.ok(seenCacheModes.every((m) => m === 'no-store'));
 
     // Non-idempotent POST must NOT retry on 502 (prevents duplicate sales/ledger writes)
     await assert.rejects(() => apiFetch('/pos/checkout', { method: 'POST', body: { total: 500 } }));
@@ -239,33 +196,13 @@ test('apiFetch: triggers single GET RPC bridge fallback for mutations only on no
   });
 });
 
-test('cachePolicy: pauses API query caching across both dev and prod until re-enabled', () => {
-  assert.equal(IS_CACHING_PAUSED, true);
-  assert.equal(resolveCacheEnvironment(false), 'development');
-  assert.equal(resolveCacheEnvironment(true), 'development');
-  assert.equal(isProductionCachingEnabled(false), false);
-  assert.equal(isProductionCachingEnabled(true), false);
-
-  for (const tier of ['realtime', 'standard', 'default', 'settings', 'reference'] as const) {
-    assert.equal(getQueryStaleTime(tier, false), 0);
-    assert.equal(getQueryStaleTime(tier, true), 0);
-  }
-
-  for (const flag of [false, true]) {
-    const defaults = resolveQueryClientDefaultOptions(flag);
-    assert.equal(defaults.staleTime, 0);
-    assert.equal(defaults.gcTime, 0);
-    assert.equal(defaults.refetchOnWindowFocus, true);
-    assert.equal(defaults.refetchOnMount, true);
-    assert.equal(defaults.refetchOnReconnect, true);
-  }
-});
-
-test('apiFetch + registerQueryCacheLifecycle: automatically invalidates cross-route caches after mutations', async () => {
+test('apiFetch: notifies mutation listeners on mutating endpoints and skips /chat', async () => {
   await withMockBrowserEnv(async () => {
     clearDataSyncListeners();
-    queryClient.clear();
-    const unregister = registerQueryCacheLifecycle();
+    const mutations: Array<{ endpoint: string; method: string }> = [];
+    const unsubscribe = subscribeApiMutation((endpoint, method) => {
+      mutations.push({ endpoint, method });
+    });
 
     try {
       const adminToken = makeFakeJwt({
@@ -275,10 +212,7 @@ test('apiFetch + registerQueryCacheLifecycle: automatically invalidates cross-ro
         exp: Math.floor(Date.now() / 1000) + 3600,
       });
       setAuthSession(adminToken, { id: 5, tenantId: 9, role: 'ADMIN' });
-
-      queryClient.setQueryData(queryKeys.customers.list(undefined, 9), { customers: [{ id: 1 }] });
-      queryClient.setQueryData(queryKeys.reports.dashboard(9), { todaySales: 100 });
-      queryClient.setQueryData(queryKeys.products.list(undefined, 9), { products: [{ id: 10 }] });
+      setActiveTenantId(9);
 
       globalThis.fetch = (async () =>
         new Response(JSON.stringify({ success: true, customer: { id: 2, name: 'Ali' } }), {
@@ -287,38 +221,15 @@ test('apiFetch + registerQueryCacheLifecycle: automatically invalidates cross-ro
         })) as typeof fetch;
 
       await apiFetch('/customers', { method: 'POST', body: { name: 'Ali' } });
-      await Promise.resolve();
-
-      assert.equal(
-        queryClient.getQueryState(queryKeys.customers.list(undefined, 9))?.isInvalidated,
-        true
-      );
-      assert.equal(
-        queryClient.getQueryState(queryKeys.reports.dashboard(9))?.isInvalidated,
-        true
-      );
-      // Unrelated products query stays valid when only customers mutated
-      assert.equal(
-        queryClient.getQueryState(queryKeys.products.list(undefined, 9))?.isInvalidated,
-        false
-      );
-
-      // Verify non-mutating diagnostic POST (/chat) does NOT invalidate unrelated tenant caches
-      queryClient.removeQueries({ queryKey: queryKeys.customers.list(undefined, 9) });
-      queryClient.setQueryData(queryKeys.customers.list(undefined, 9), { customers: [{ id: 1 }] });
       await apiFetch('/chat', { method: 'POST', body: { message: 'hello' } });
-      await Promise.resolve();
-      assert.equal(
-        queryClient.getQueryState(queryKeys.customers.list(undefined, 9))?.isInvalidated,
-        false
-      );
 
-      const superPlan = resolveMutationInvalidationPlan('/superadmin/tenants/9/status');
-      assert.equal(superPlan.invalidateSuperAdmin, true);
-      assert.equal(superPlan.invalidateSaas, true);
+      assert.equal(mutations.length, 1);
+      assert.equal(mutations[0].endpoint, '/customers');
+      assert.equal(mutations[0].method, 'POST');
+
+      clearAllSessionState();
     } finally {
-      unregister();
-      queryClient.clear();
+      unsubscribe();
       clearDataSyncListeners();
     }
   });

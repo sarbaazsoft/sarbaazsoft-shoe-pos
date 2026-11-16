@@ -10,7 +10,6 @@ import { isHalfCartonAllowed } from '../../utils/footwear.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
 import type { ActiveExchange } from '../../types.ts';
 import { offlineQueueService } from '../../services/offlineQueueService.ts';
-import { queryClient, queryKeys } from '../../services/queryClient.ts';
 import { cacheCatalogOffline, lookupCachedProductOffline, searchCachedProductsOffline, resolveActiveTenantId } from '../../utils/offlineDb.ts';
 import { useOfflineSync } from '../../utils/useOfflineSync.ts';
 import { OfflineSyncModal } from './OfflineSyncModal.tsx';
@@ -25,7 +24,6 @@ import { PosNotificationBanner } from './PosNotificationBanner.tsx';
 import { QuickReceiveChips } from './QuickReceiveChips.tsx';
 import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
-import { getQueryStaleTime } from '../../utils/cachePolicy.ts';
 import { setHoldSwUpdate } from '../../utils/swUpdate.ts';
 
 export interface CartItem {
@@ -436,11 +434,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
   const loadCustomers = async () => {
     try {
-      const res = await queryClient.fetchQuery({
-        queryKey: queryKeys.customers.list(undefined, activeTenantId),
-        queryFn: ({ signal }) => api.customers.list(undefined, { signal }),
-        staleTime: getQueryStaleTime('default'),
-      });
+      const res = await api.customers.list(undefined);
       setCustomers(res.customers || []);
     } catch (err) {
       console.error('Failed to load customers:', err);

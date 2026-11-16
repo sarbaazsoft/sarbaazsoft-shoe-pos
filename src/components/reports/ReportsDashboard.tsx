@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'motion/react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, Award, Printer, Receipt, RotateCw, RefreshCw, Search, X, Download, LayoutDashboard, BarChart3, CheckCircle2 } from 'lucide-react';
 import { api, getActiveTenantId } from '../../services/api.ts';
 import { InvoicePrintModal } from '../pos/InvoicePrintModal.tsx';
@@ -11,9 +10,7 @@ import { RetailShoeMetrics, useDataPerIntersectionObserver } from '../common/Ret
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
-import { useDashboardReportQuery } from '../../hooks/useAppQueries.ts';
-import { queryKeys } from '../../services/queryClient.ts';
-import { getQueryStaleTime } from '../../utils/cachePolicy.ts';
+import { useDashboardReportQuery, useLiveFetch } from '../../hooks/useLiveData.ts';
 
 interface ReportsDashboardProps {
   currentUser: any;
@@ -57,21 +54,25 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     enabled: isActive,
   });
 
-  const topSellingQuery = useQuery({
-    queryKey: queryKeys.reports.topSelling(tenantId),
-    queryFn: ({ signal }) => api.reports.getTopSelling({ signal }),
-    enabled: isActive,
-    staleTime: getQueryStaleTime('default'),
-    placeholderData: keepPreviousData,
-  });
+  const topSellingQuery = useLiveFetch(
+    (signal) => api.reports.getTopSelling({ signal }),
+    'reports:topSelling',
+    {
+      enabled: isActive,
+      syncTopics: ['sales', 'returns', 'products', 'inventory'],
+      scopeKey: String(tenantId ?? 'public'),
+    }
+  );
 
-  const salesHistoryQuery = useQuery({
-    queryKey: queryKeys.sales.list({ limit: 50 }, tenantId),
-    queryFn: ({ signal }) => api.pos.listSales({ limit: 50 }, { signal }),
-    enabled: isActive,
-    staleTime: getQueryStaleTime('standard'),
-    placeholderData: keepPreviousData,
-  });
+  const salesHistoryQuery = useLiveFetch(
+    (signal) => api.pos.listSales({ limit: 50 }, { signal }),
+    'sales:list:50',
+    {
+      enabled: isActive,
+      syncTopics: ['sales', 'returns', 'customers'],
+      scopeKey: String(tenantId ?? 'public'),
+    }
+  );
 
   const plDateParams = useMemo(() => {
     let startDate: string | undefined;
@@ -97,13 +98,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     return { startDate, endDate };
   }, [dateRange, customStartDate, customEndDate]);
 
-  const plQuery = useQuery({
-    queryKey: queryKeys.reports.profitLoss(plDateParams, tenantId),
-    queryFn: ({ signal }) => api.reports.getProfitLoss(plDateParams, { signal }),
-    enabled: isActive && activeTab === 'profit_loss',
-    staleTime: getQueryStaleTime('standard'),
-    placeholderData: keepPreviousData,
-  });
+  const plQuery = useLiveFetch(
+    (signal) => api.reports.getProfitLoss(plDateParams, { signal }),
+    `reports:pl:${plDateParams.startDate || ''}:${plDateParams.endDate || ''}`,
+    {
+      enabled: isActive && activeTab === 'profit_loss',
+      syncTopics: ['sales', 'returns', 'purchases'],
+      scopeKey: String(tenantId ?? 'public'),
+    }
+  );
 
   const dashboardData = dashboardQuery.data ?? null;
   const topSelling: any[] = topSellingQuery.data?.topSelling || [];

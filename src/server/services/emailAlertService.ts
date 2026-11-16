@@ -1,5 +1,5 @@
 import { pgClient } from '../../db/index.ts';
-import { getCachedAppSetting } from './appSettingsService.ts';
+import { getAppSetting } from './appSettingsService.ts';
 import { sendEmail } from '../utils/email.ts';
 import type { PosActionNotification } from '../pushNotificationService.ts';
 
@@ -22,7 +22,7 @@ export async function dispatchPosEmailAlert(
   const cleanTenantId = Number(tenantId) || 1;
 
   // 1. Check global master switch
-  const masterEnabled = getCachedAppSetting('EMAIL_POS_ALERTS_ENABLED', 'true').toLowerCase() !== 'false';
+  const masterEnabled = (await getAppSetting('EMAIL_POS_ALERTS_ENABLED', 'true')).toLowerCase() !== 'false';
   if (!masterEnabled) return false;
 
   try {
@@ -59,9 +59,9 @@ export async function dispatchPosEmailAlert(
     }
 
     // Optional SuperAdmin CC
-    const notifySuperAdmin = getCachedAppSetting('EMAIL_SUPERADMIN_ON_SALES', 'false').toLowerCase() === 'true';
+    const notifySuperAdmin = (await getAppSetting('EMAIL_SUPERADMIN_ON_SALES', 'false')).toLowerCase() === 'true';
     if (notifySuperAdmin) {
-      const superAdminEmail = (getCachedAppSetting('GMAIL_USER', '') || '').trim().toLowerCase();
+      const superAdminEmail = ((await getAppSetting('GMAIL_USER', '')) || '').trim().toLowerCase();
       if (superAdminEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(superAdminEmail)) {
         recipients.add(superAdminEmail);
       }

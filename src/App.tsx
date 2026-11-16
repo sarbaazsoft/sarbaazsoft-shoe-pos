@@ -9,8 +9,6 @@ import { LoadingWindow } from './components/common/LoadingWindow.tsx';
 import { SaasLandingPage } from './components/saas/SaasLandingPage.tsx';
 import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
 import { emitDataSync } from './utils/dataSyncBus.ts';
-import { getQueryStaleTime } from './utils/cachePolicy.ts';
-import { evictTenantQueries, queryClient, queryKeys, resetAllQueryCache } from './services/queryClient.ts';
 
 const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
 const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: memo(m.ProductManagement) })));
@@ -344,32 +342,9 @@ export default function App() {
     return session?.user || null;
   });
 
-  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(() => {
-    try {
-      const session = getValidatedStoredSession();
-      if (!session) return null;
-      const storedUser = session.user;
-      const stored = localStorage.getItem('cached_company_settings');
-      if (!stored) return null;
-      const parsed = JSON.parse(stored);
-      if (storedUser?.tenantId && parsed?.tenantId && Number(parsed.tenantId) !== Number(storedUser.tenantId)) {
-        return null;
-      }
-      return parsed;
-    } catch {
-      return null;
-    }
-  });
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
 
-  const [cachedStoreName, setCachedStoreName] = useState<string>(() => {
-    try {
-      const token = localStorage.getItem('pos_auth_token') || localStorage.getItem('shoe_pos_jwt_token');
-      if (!token || token === 'null' || token === 'undefined') return '';
-      return localStorage.getItem('cached_store_name') || '';
-    } catch {
-      return '';
-    }
-  });
+  const [cachedStoreName, setCachedStoreName] = useState<string>('');
 
   const [currentTab, setCurrentTab] = useState<string>(() => {
     try {
@@ -485,12 +460,7 @@ export default function App() {
   // Resolve the shared tenant directory and selected store status.
   const refreshTenantDirectory = useCallback(async (targetMode?: SaasRouteMode) => {
     try {
-      const searchScope = typeof window !== 'undefined' ? window.location.search : '';
-      const res = await queryClient.fetchQuery({
-        queryKey: queryKeys.saas.resolve(searchScope),
-        queryFn: ({ signal }) => api.saas.resolve(undefined, { signal }),
-        staleTime: getQueryStaleTime('default'),
-      });
+      const res = await api.saas.resolve(undefined);
 
       if (Array.isArray(res?.availableTenants)) {
         setAvailableTenants(res.availableTenants);
@@ -560,29 +530,17 @@ export default function App() {
   const syncTenantContext = useCallback(async (targetTenantId: number) => {
     try {
       await refreshTenantDirectory('TENANT_ACTIVE');
-      const settingsRes = await queryClient
-        .fetchQuery({
-          queryKey: queryKeys.settings.store(targetTenantId),
-          queryFn: ({ signal }) => api.settings.get({ signal }),
-          staleTime: getQueryStaleTime('settings'),
-        })
-        .catch(() => null);
+      const settingsRes = await api.settings.get().catch(() => null);
       if (settingsRes?.settings) {
         const incomingTenantId = Number(settingsRes.settings.tenantId || settingsRes.settings.tenant_id);
         if (!targetTenantId || !incomingTenantId || incomingTenantId === Number(targetTenantId)) {
           setCompanySettings(settingsRes.settings);
-          try {
-            localStorage.setItem('cached_company_settings', JSON.stringify(settingsRes.settings));
-          } catch {}
           const resolvedName =
             settingsRes.settings.name ||
             settingsRes.settings.company_name ||
             settingsRes.settings.companyName;
           if (resolvedName) {
             setCachedStoreName(resolvedName);
-            try {
-              localStorage.setItem('cached_store_name', resolvedName);
-            } catch {}
           }
         }
       }
@@ -649,13 +607,7 @@ export default function App() {
       const [userRes, settingsRes] = await Promise.all([
         api.auth.me().catch(() => null),
         shouldFetchSettings
-          ? queryClient
-              .fetchQuery({
-                queryKey: queryKeys.settings.store(tenantIdForInit),
-                queryFn: ({ signal }) => api.settings.get({ signal }),
-                staleTime: getQueryStaleTime('settings'),
-              })
-              .catch(() => null)
+          ? api.settings.get().catch(() => null)
           : Promise.resolve(null),
       ]);
 
@@ -663,18 +615,12 @@ export default function App() {
         const incomingTenantId = Number(settingsRes.settings.tenantId || settingsRes.settings.tenant_id);
         if (!tenantIdForInit || !incomingTenantId || incomingTenantId === Number(tenantIdForInit)) {
           setCompanySettings(settingsRes.settings);
-          try {
-            localStorage.setItem('cached_company_settings', JSON.stringify(settingsRes.settings));
-          } catch {}
           const resolvedName =
             settingsRes.settings.name ||
             settingsRes.settings.company_name ||
             settingsRes.settings.companyName;
           if (resolvedName) {
             setCachedStoreName(resolvedName);
-            try {
-              localStorage.setItem('cached_store_name', resolvedName);
-            } catch {}
           }
         }
       }
@@ -1123,7 +1069,6 @@ export default function App() {
         }
         return;
       }
-      evictTenantQueries();
       setSaasMode('SUPERADMIN');
       setActiveTenant(null);
       setActiveTenantId(null);
@@ -1168,24 +1113,14 @@ export default function App() {
       setStoreLoginTarget(null);
       setTenantIdParam('');
 
-      // Reset stale store settings immediately when switching stores
-      if (!isSameTenant) {
-        evictTenantQueries();
-      }
       if (companySettings && Number(companySettings.tenantId || companySettings.tenant_id) !== targetId) {
         setCompanySettings(null);
-        try {
-          localStorage.removeItem('cached_company_settings');
-        } catch {}
       }
 
       if (selected) {
         setActiveTenant(selected);
         if (selected.name) {
           setCachedStoreName(selected.name);
-          try {
-            localStorage.setItem('cached_store_name', selected.name);
-          } catch {}
         }
       } else {
         const fallbackName = currentUser?.tenantName || currentUser?.storeName || `Store #${targetId}`;
@@ -1315,18 +1250,9 @@ export default function App() {
     setIsLoginModalOpen(false);
     const userTenantId = Number(user?.tenantId);
 
-    // If switching stores or signing into a fresh account, purge previous tenant queries & settings immediately
-    const prevTenantId = Number(companySettings?.tenantId || companySettings?.tenant_id || getActiveTenantId() || 0);
-    if (!prevTenantId || prevTenantId !== userTenantId) {
-      evictTenantQueries();
-    }
     if (companySettings && Number(companySettings.tenantId || companySettings.tenant_id) !== userTenantId) {
       setCompanySettings(null);
       setCachedStoreName('');
-      try {
-        localStorage.removeItem('cached_company_settings');
-        localStorage.removeItem('cached_store_name');
-      } catch {}
     }
 
     const role = String(user?.role || '').toUpperCase();
@@ -1377,9 +1303,6 @@ export default function App() {
       setActiveTenant(newTenant);
       setActiveTenantId(userTenantId);
       setCachedStoreName(storeName);
-      try {
-        localStorage.setItem('cached_store_name', storeName);
-      } catch {}
 
       if (user?.onboardingCompleted === false && role === 'ADMIN') {
         handleNavigateDomain({ mode: 'ONBOARDING', tenantId: userTenantId, authenticated: true });
@@ -1415,7 +1338,6 @@ export default function App() {
 
     revokeSessionOnServer();
     clearAllSessionState();
-    resetAllQueryCache();
     setIsProfileModalOpen(false);
     setMobileMenuOpen(false);
     setActiveTenantId(null);
@@ -1487,26 +1409,14 @@ export default function App() {
 
   const handleSettingsUpdated = useCallback(async (updatedSettings?: any) => {
     try {
-      const targetTid = Number(updatedSettings?.tenantId || updatedSettings?.tenant_id || getActiveTenantId() || 0) || null;
       if (updatedSettings) {
         setCompanySettings(updatedSettings);
-        queryClient.setQueryData(queryKeys.settings.store(targetTid), { settings: updatedSettings });
-        try {
-          localStorage.setItem('cached_company_settings', JSON.stringify(updatedSettings));
-        } catch {}
       }
-      const settingsRes = await queryClient
-        .fetchQuery({
-          queryKey: queryKeys.settings.store(targetTid),
-          queryFn: ({ signal }) => api.settings.get({ signal }),
-          staleTime: 0,
-        })
-        .catch(() => null);
+      const settingsRes = await api.settings.get().catch(() => null);
       if (settingsRes?.settings) {
         setCompanySettings(settingsRes.settings);
       }
       emitDataSync(['settings'], { source: 'settings-updated' });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.saas.all() });
       await refreshTenantDirectory();
     } catch (err) {
       console.error(err);
@@ -2098,9 +2008,6 @@ export default function App() {
                 }
                 if (savedSettings) {
                   setCompanySettings(savedSettings);
-                  try {
-                    localStorage.setItem('cached_company_settings', JSON.stringify(savedSettings));
-                  } catch {}
                 }
                 setActiveTenant((prev) => (prev ? { ...prev, onboardingCompleted: true } : prev));
                 setCurrentTab('dashboard');

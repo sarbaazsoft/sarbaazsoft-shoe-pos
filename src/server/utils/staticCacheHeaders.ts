@@ -1,15 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const IS_HTTP_CACHING_PAUSED = true;
-
 const SERVICE_WORKER_RE = /(?:^|[\\/])(?:sw|sw-background-sync|firebase-messaging-sw|workbox-[^\\/]+)\.js$/i;
 const BINARY_INSTALLER_RE = /\.(?:apk|aab|exe|msix|msixbundle|appx|appxbundle|cer)$/i;
 const HASHED_ASSET_DIR_RE = /(?:^|[\\/])assets[\\/](?:js|css|fonts|media)[\\/]/i;
 const CONTENT_HASHED_FILENAME_RE =
   /[-_.][a-zA-Z0-9_-]{8,}\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|webp|avif|gif|svg|ico)$/i;
-const MUTABLE_STATIC_ASSET_RE =
-  /\.(?:png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|otf|eot|css|js|mjs)$/i;
 
 const NO_STORE_HEADERS: Record<string, string> = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -36,7 +32,7 @@ export function isContentHashedAsset(filePath: string): boolean {
 
 export function resolveApiCacheHeaders(
   reqPath: string,
-  isProduction: boolean
+  _isProduction: boolean = true
 ): Record<string, string> {
   const cleanPath = reqPath.split('?')[0].toLowerCase();
 
@@ -46,19 +42,12 @@ export function resolveApiCacheHeaders(
     };
   }
 
-  if (IS_HTTP_CACHING_PAUSED || !isProduction) {
-    return { ...NO_STORE_HEADERS };
-  }
-
-  return {
-    'Cache-Control': 'private, no-cache, must-revalidate',
-    Vary: 'X-Tenant-Id, X-Auth-Token, Authorization',
-  };
+  return { ...NO_STORE_HEADERS };
 }
 
 export function resolveStaticCacheHeaders(
   filePath: string,
-  isProduction: boolean = true
+  _isProduction: boolean = true
 ): Record<string, string> {
   const normalized = filePath.split('?')[0];
   const lower = normalized.toLowerCase();
@@ -68,9 +57,7 @@ export function resolveStaticCacheHeaders(
       'Content-Type': 'application/javascript; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
       'Service-Worker-Allowed': '/',
-      ...(IS_HTTP_CACHING_PAUSED
-        ? NO_STORE_HEADERS
-        : { 'Cache-Control': 'no-cache, no-store, must-revalidate' }),
+      ...NO_STORE_HEADERS,
     };
   }
 
@@ -88,31 +75,19 @@ export function resolveStaticCacheHeaders(
   if (lower.endsWith('.webmanifest') || lower.endsWith('manifest.json')) {
     return {
       'Content-Type': 'application/manifest+json; charset=utf-8',
-      ...(IS_HTTP_CACHING_PAUSED
-        ? NO_STORE_HEADERS
-        : {
-            'Cache-Control': isProduction
-              ? 'no-cache, must-revalidate'
-              : 'no-cache, no-store, must-revalidate',
-          }),
+      ...NO_STORE_HEADERS,
     };
   }
 
   if (lower.endsWith('assetlinks.json')) {
     return {
       'Content-Type': 'application/json; charset=utf-8',
-      ...(IS_HTTP_CACHING_PAUSED
-        ? NO_STORE_HEADERS
-        : {
-            'Cache-Control': isProduction ? 'public, max-age=3600' : 'no-cache, must-revalidate',
-          }),
+      ...NO_STORE_HEADERS,
     };
   }
 
   if (isBinaryInstallerAsset(normalized)) {
-    const headers: Record<string, string> = IS_HTTP_CACHING_PAUSED
-      ? { ...NO_STORE_HEADERS }
-      : { 'Cache-Control': 'no-cache, must-revalidate' };
+    const headers: Record<string, string> = { ...NO_STORE_HEADERS };
     if (lower.endsWith('.apk')) {
       headers['Content-Type'] = 'application/vnd.android.package-archive';
       headers['Content-Disposition'] = 'attachment; filename="SarbaazSoft-POS.apk"';
@@ -131,26 +106,7 @@ export function resolveStaticCacheHeaders(
     return headers;
   }
 
-  // Caching paused or development: ensure zero browser/proxy caching for all assets
-  if (IS_HTTP_CACHING_PAUSED || !isProduction) {
-    return { ...NO_STORE_HEADERS };
-  }
-
-  if (isContentHashedAsset(normalized)) {
-    return {
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    };
-  }
-
-  if (MUTABLE_STATIC_ASSET_RE.test(normalized)) {
-    return {
-      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
-    };
-  }
-
-  return {
-    'Cache-Control': 'public, max-age=300, must-revalidate',
-  };
+  return { ...NO_STORE_HEADERS };
 }
 
 export function resolveServiceWorkerFilePath(

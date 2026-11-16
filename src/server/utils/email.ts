@@ -2,7 +2,7 @@
 import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import { pgClient } from '../../db/index.ts';
-import { getCachedAppSetting } from '../services/appSettingsService.ts';
+import { getAppSetting } from '../services/appSettingsService.ts';
 
 export type EmailProvider = 'resend' | 'gmail';
 
@@ -133,8 +133,8 @@ export async function getActiveEmailProvider(): Promise<'resend' | 'gmail'> {
     console.warn('[email.ts] Notice querying active email provider from database:', err);
   }
 
-  const cached = (getCachedAppSetting('ACTIVE_EMAIL_PROVIDER') || process.env.ACTIVE_EMAIL_PROVIDER || 'resend').trim().toLowerCase();
-  return cached === 'gmail' ? 'gmail' : 'resend';
+  const liveProvider = ((await getAppSetting('ACTIVE_EMAIL_PROVIDER')) || process.env.ACTIVE_EMAIL_PROVIDER || 'resend').trim().toLowerCase();
+  return liveProvider === 'gmail' ? 'gmail' : 'resend';
 }
 
 /**
@@ -158,9 +158,9 @@ export async function getDynamicGmailCredentials(): Promise<{ user: string; pass
     console.warn('[email.ts] Notice querying Gmail credentials from database:', err);
   }
 
-  if (!user) user = (getCachedAppSetting('GMAIL_USER') || process.env.GMAIL_USER || 'sarbaazsoft@gmail.com').trim();
-  if (!pass) pass = (getCachedAppSetting('GMAIL_APP_PASSWORD') || process.env.GMAIL_APP_PASSWORD || '').trim();
-  if (!fromName) fromName = (getCachedAppSetting('GMAIL_FROM_NAME') || process.env.GMAIL_FROM_NAME || 'superadmin').trim();
+  if (!user) user = ((await getAppSetting('GMAIL_USER')) || process.env.GMAIL_USER || 'sarbaazsoft@gmail.com').trim();
+  if (!pass) pass = ((await getAppSetting('GMAIL_APP_PASSWORD')) || process.env.GMAIL_APP_PASSWORD || '').trim();
+  if (!fromName) fromName = ((await getAppSetting('GMAIL_FROM_NAME')) || process.env.GMAIL_FROM_NAME || 'superadmin').trim();
 
   return { user, pass, fromName };
 }
@@ -181,8 +181,8 @@ export async function getDynamicResendApiKey(): Promise<string> {
     console.error('[email.ts] Error dynamically querying app_settings table for resend_api_key:', dbErr);
   }
 
-  // Fallback to database-synced cache only (never process.env / .env)
-  return (getCachedAppSetting('RESEND_API_KEY') || '').trim();
+  // Never fall back to process.env / .env for RESEND_API_KEY
+  return ((await getAppSetting('RESEND_API_KEY')) || '').trim();
 }
 
 async function sendViaWebhookFallback(
@@ -244,10 +244,10 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
     }
   } catch (dbErr) {
     console.error('[email.ts] Error querying app_settings table for email configuration:', dbErr);
-    resendFrom = (getCachedAppSetting('RESEND_FROM') || '').trim();
-    resendFromEmail = (getCachedAppSetting('RESEND_FROM_EMAIL') || '').trim();
-    emailWebhookUrl = (getCachedAppSetting('EMAIL_WEBHOOK_URL') || '').trim();
-    resendWebhookUrl = (getCachedAppSetting('RESEND_WEBHOOK_URL') || '').trim();
+    resendFrom = ((await getAppSetting('RESEND_FROM')) || '').trim();
+    resendFromEmail = ((await getAppSetting('RESEND_FROM_EMAIL')) || '').trim();
+    emailWebhookUrl = ((await getAppSetting('EMAIL_WEBHOOK_URL')) || '').trim();
+    resendWebhookUrl = ((await getAppSetting('RESEND_WEBHOOK_URL')) || '').trim();
   }
 
   // Cross-fallback between RESEND_FROM and RESEND_FROM_EMAIL
@@ -996,8 +996,8 @@ export async function testEmailConfiguration(testRecipient?: string): Promise<Te
     }
   } catch (dbErr) {
     console.error('[testEmailConfiguration] Error querying app_settings table for sender email:', dbErr);
-    resendFrom = (getCachedAppSetting('RESEND_FROM') || '').trim();
-    resendFromEmail = (getCachedAppSetting('RESEND_FROM_EMAIL') || '').trim();
+    resendFrom = ((await getAppSetting('RESEND_FROM')) || '').trim();
+    resendFromEmail = ((await getAppSetting('RESEND_FROM_EMAIL')) || '').trim();
   }
 
   // Cross-fallback between RESEND_FROM and RESEND_FROM_EMAIL

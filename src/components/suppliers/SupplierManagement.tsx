@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { Building2, Plus, Search, Phone, Mail, Truck, Edit2, Trash2, X, FileText, DollarSign, AlertCircle, AlertTriangle, CreditCard, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api.ts';
-import { useSuppliersQuery } from '../../hooks/useAppQueries.ts';
+import { useSuppliersQuery } from '../../hooks/useLiveData.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { SupplierReturnModal } from '../purchases/SupplierReturnModal.tsx';
 import { PurchaseReturnDetailsModal } from '../purchases/PurchaseReturnDetailsModal.tsx';
