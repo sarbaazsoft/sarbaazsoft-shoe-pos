@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, Settings, ChevronDown, Menu, Sun, Moon, Monitor, UserCog, LogOut, AlertTriangle, AlertCircle, CheckCircle2, ShoppingBag, ArrowLeftRight, Truck, RefreshCw, CheckCheck, Check, Boxes, X, ShieldCheck, User, ShoppingCart, Copy, Coins, Loader2, ImageIcon, Edit3, PackagePlus, Printer, BellRing, ExternalLink, Globe, Store, Info, Flame } from 'lucide-react';
+import { Bell, Settings, ChevronDown, Menu, Sun, Moon, Monitor, UserCog, LogOut, AlertTriangle, AlertCircle, CheckCircle2, ShoppingBag, ArrowLeftRight, Truck, RefreshCw, CheckCheck, Check, Boxes, X, ShieldCheck, User, ShoppingCart, Copy, Coins, Loader2, ImageIcon, Edit3, PackagePlus, Printer, BellRing, ExternalLink, Globe, Store, Info, Flame, Search } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
 import { ShoeIcon } from './ShoeIcon.tsx';
 import { ThemeDropdown } from './ThemeDropdown.tsx';
@@ -116,6 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const [priceSearchResults, setPriceSearchResults] = useState<any[]>([]);
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
@@ -123,6 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const currency = companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.';
 
@@ -146,6 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
   const handleAddToCart = (e: React.MouseEvent, prod: any) => {
     e.stopPropagation();
     setIsSearching(false);
+    setIsMobileSearchExpanded(false);
     sessionStorage.setItem('pending_pos_product', JSON.stringify(prod));
     window.dispatchEvent(new CustomEvent('pos:add-to-cart', { detail: { product: prod } }));
     onTabChange?.('pos');
@@ -154,6 +157,7 @@ export const Header: React.FC<HeaderProps> = ({
   const handleEditProduct = (e: React.MouseEvent, prod: any) => {
     e.stopPropagation();
     setIsSearching(false);
+    setIsMobileSearchExpanded(false);
     sessionStorage.setItem('pending_edit_product', JSON.stringify(prod));
     window.dispatchEvent(new CustomEvent('product:edit', { detail: { product: prod } }));
     onTabChange?.('inventory');
@@ -162,6 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
   const handleAddPurchase = (e: React.MouseEvent, prod: any) => {
     e.stopPropagation();
     setIsSearching(false);
+    setIsMobileSearchExpanded(false);
     sessionStorage.setItem('pending_purchase_product', JSON.stringify(prod));
     window.dispatchEvent(new CustomEvent('purchase:new-entry', { detail: { product: prod } }));
     onTabChange?.('purchases');
@@ -170,10 +175,26 @@ export const Header: React.FC<HeaderProps> = ({
   const handlePrintBarcode = (e: React.MouseEvent, prod: any) => {
     e.stopPropagation();
     setIsSearching(false);
+    setIsMobileSearchExpanded(false);
     sessionStorage.setItem('pending_barcode_product', JSON.stringify(prod));
     window.dispatchEvent(new CustomEvent('inventory:print-barcode', { detail: { product: prod } }));
     onTabChange?.('inventory');
   };
+
+  // Autofocus quick search input when mobile search expands
+  useEffect(() => {
+    if (!isMobileSearchExpanded) return;
+    const rafId = requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+    const timerId = window.setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 50);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
+  }, [isMobileSearchExpanded]);
 
   // Close dropdowns on outside click or touch
   useEffect(() => {
@@ -186,6 +207,7 @@ export const Header: React.FC<HeaderProps> = ({
       }
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setIsSearching(false);
+        setIsMobileSearchExpanded(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -956,29 +978,66 @@ export const Header: React.FC<HeaderProps> = ({
         onClose={() => setNotificationModalData(null)}
       />
 
-      <header className="px-4 border border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 sticky top-0 z-30 select-none text-slate-800 dark:text-slate-100 flex items-center justify-between gap-2.5 sm:gap-4 min-h-[3.6rem] py-1.5 no-print">
-      {/* LEFT: Mobile Menu Toggle Button & Global Search Bar (No dynamic route title displayed when logged in as SuperAdmin or store user) */}
-      <div className="flex items-center gap-2 sm:gap-2.5 pl-0.5 sm:pl-1 min-w-0">
+      <header className="px-3 sm:px-4 border border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 sticky top-0 z-30 select-none text-slate-800 dark:text-slate-100 flex items-center justify-between gap-2 sm:gap-4 min-h-[3.6rem] py-1.5 no-print">
+      {/* LEFT: Mobile Menu Toggle Button & Collapsible Global Search Bar */}
+      <div className={`flex items-center gap-2 sm:gap-2.5 pl-0.5 sm:pl-1 min-w-0 ${isMobileSearchExpanded ? 'flex-1 w-full sm:flex-initial sm:w-auto' : ''}`}>
         {/* Mobile Menu Toggle Button (< lg) */}
         <button
           type="button"
           onClick={onToggleMobileMenu}
-          className="lg:hidden h-8.5 w-8.5 flex items-center justify-center p-1.5 rounded-lg border-0 bg-transparent text-slate-700 dark:text-slate-200 cursor-pointer shrink-0 shadow-none focus:outline-none"
+          className={`lg:hidden h-10 w-10 items-center justify-center p-1.5 rounded-lg border-0 bg-transparent text-slate-700 dark:text-slate-200 cursor-pointer shrink-0 shadow-none focus:outline-none ${isMobileSearchExpanded ? 'hidden sm:flex lg:hidden' : 'flex'}`}
           aria-label="Toggle navigation menu"
         >
           <Menu className="w-5 h-5 stroke-[2.2]" />
         </button>
 
         {/* Store PWA Icon */}
-        <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 flex items-center justify-center overflow-hidden shadow-2xs">
+        <div className={`w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 items-center justify-center overflow-hidden shadow-2xs ${isMobileSearchExpanded ? 'hidden sm:flex' : 'flex'}`}>
           <ShoeIcon src={companySettings?.logo || '/pwa-192x192.png'} alt="Store Icon" className="w-full h-full object-cover rounded-xl" />
         </div>
 
-        {/* Quick Price Retrieval Search Bar */}
-        <div ref={searchRef} className="relative w-44 sm:w-56 md:w-68 lg:w-80 min-w-0">
-          <div className="relative flex items-center">
+        {/* Quick Price Retrieval Search Bar (position: relative expandable layout on mobile) */}
+        <div
+          ref={searchRef}
+          className={`relative flex items-center min-w-0 transition-[width,max-width,flex-grow] duration-300 ease-out motion-reduce:transition-none ${
+            isMobileSearchExpanded ? 'flex-1 w-full max-w-full sm:flex-initial sm:w-56 md:w-68 lg:w-80' : 'w-auto sm:w-56 md:w-68 lg:w-80'
+          }`}
+        >
+          {/* Compact Search Icon Trigger (< sm when collapsed) */}
+          <button
+            type="button"
+            id="header-mobile-search-trigger"
+            onClick={() => {
+              setShowNotifications(false);
+              setShowUserDropdown(false);
+              setShowThemeDropdown(false);
+              setIsMobileSearchExpanded(true);
+            }}
+            className={`sm:hidden flex items-center justify-center rounded-lg border border-slate-200/90 dark:border-indigo-500/25 bg-slate-50/90 dark:bg-slate-900/60 text-indigo-600 dark:text-indigo-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-[width,max-width,opacity,visibility] duration-250 ease-out motion-reduce:transition-none cursor-pointer shrink-0 ${
+              isMobileSearchExpanded
+                ? 'w-0 max-w-0 h-10 opacity-0 invisible p-0 border-0 overflow-hidden pointer-events-none'
+                : 'w-10 max-w-10 h-10 opacity-100 visible'
+            }`}
+            title="Quick price check (Article, Barcode)"
+            aria-label="Open quick price search"
+            aria-expanded={isMobileSearchExpanded}
+            aria-controls="header-quick-search-input"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+
+          {/* Expandable Search Input (position: relative within parent layout) */}
+          <div
+            className={`relative flex items-center min-w-0 transition-[width,max-width,opacity,visibility] duration-300 ease-out motion-reduce:transition-none ${
+              isMobileSearchExpanded
+                ? 'w-full max-w-full flex-1 opacity-100 visible pointer-events-auto'
+                : 'w-0 max-w-0 opacity-0 invisible overflow-hidden pointer-events-none'
+            } sm:w-full sm:max-w-full sm:flex-1 sm:opacity-100 sm:visible sm:pointer-events-auto sm:overflow-visible`}
+          >
             <Coins className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 absolute left-2.5 pointer-events-none" />
             <input
+              ref={searchInputRef}
+              id="header-quick-search-input"
               type="text"
               value={searchQuery}
               onChange={(e) => {
@@ -992,6 +1051,13 @@ export const Header: React.FC<HeaderProps> = ({
                 setShowThemeDropdown(false);
               }}
               onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setIsSearching(false);
+                  setIsMobileSearchExpanded(false);
+                  searchInputRef.current?.blur();
+                  return;
+                }
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -999,21 +1065,42 @@ export const Header: React.FC<HeaderProps> = ({
                 }
               }}
               placeholder="Quick price check (Article, Barcode)..."
-              className="h-8 sm:h-8.5 uppercase w-full bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/90 dark:border-indigo-500/20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 pl-8 pr-7 py-1 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
+              className="h-10 sm:h-8.5 uppercase w-full bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/90 dark:border-indigo-500/20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 pl-8 pr-18 sm:pr-7 py-1 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
             />
-            {searchQuery && (
+            <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setPriceSearchResults([]);
+                    setIsSearching(false);
+                    searchInputRef.current?.focus();
+                  }}
+                  className="h-7 px-1.5 sm:h-6 sm:w-6 sm:px-0 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
+                  title="Clear search"
+                  aria-label="Clear search query"
+                >
+                  <span className="text-[10px] font-bold sm:hidden">CLR</span>
+                  <X className="w-3.5 h-3.5 hidden sm:block" />
+                </button>
+              )}
               <button
                 type="button"
+                id="header-mobile-search-close"
                 onClick={() => {
                   setSearchQuery('');
+                  setPriceSearchResults([]);
                   setIsSearching(false);
+                  setIsMobileSearchExpanded(false);
                 }}
-                className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                title="Clear search"
+                className="sm:hidden h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800/80 cursor-pointer"
+                title="Close search"
+                aria-label="Close search"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
-            )}
+            </div>
           </div>
 
           {/* Quick Price Retrieval Suggestions Dropdown (Single Product Price Display) */}
@@ -1025,7 +1112,7 @@ export const Header: React.FC<HeaderProps> = ({
                 exit={{ opacity: 0, scale: 0.97, y: -6 }}
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 style={{ transformOrigin: 'top left' }}
-                className="fixed left-2 right-2 top-[3.8rem] sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-96 md:w-[440px] max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] bg-white dark:bg-[#0D1322] border border-slate-200 dark:border-indigo-500/30 rounded-2xl shadow-2xl p-3 z-50 max-h-[calc(100dvh-4.6rem)] sm:max-h-[30rem] overflow-y-auto space-y-2 backdrop-blur-md"
+                className="absolute left-0 right-0 top-full mt-2 sm:right-auto sm:w-96 md:w-[440px] max-w-full sm:max-w-[calc(100vw-2rem)] bg-white dark:bg-[#0D1322] border border-slate-200 dark:border-indigo-500/30 rounded-2xl shadow-2xl p-3 z-50 max-h-[calc(100dvh-4.6rem)] sm:max-h-[30rem] overflow-y-auto space-y-2 backdrop-blur-md"
               >
                 {copiedNotification && (
                   <div className="px-2.5 py-1 text-center text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
@@ -1372,7 +1459,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* RIGHT: Notifications, Theme Dropdown, and User Profile */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto pl-1">
+      <div className={`${isMobileSearchExpanded ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 sm:gap-2 shrink-0 ml-auto pl-1`}>
 
         {/* Real-time Notifications Menu (Rendered for Admins & SuperAdmins; Cashiers use persistent POS Terminal Banner) */}
         {!isCashierUser && (

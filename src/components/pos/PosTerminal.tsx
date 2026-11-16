@@ -75,13 +75,21 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   // Continuous Scanning Mode: Retains scanned barcode in input field without clearing between scans
   const [continuousScan, setContinuousScan] = useState(true);
   const [barcodeInput, setBarcodeInput] = useState('');
+  const [isMobileScannerExpanded, setIsMobileScannerExpanded] = useState(false);
+  const isMobileScannerExpandedRef = useRef(isMobileScannerExpanded);
+  isMobileScannerExpandedRef.current = isMobileScannerExpanded;
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingScannerBufferRef = useRef('');
+  const pendingScannerEnterRef = useRef(false);
 
   // Focus scanner input and optionally select existing text for seamless continuous hardware/manual scanning
   const focusScannerInput = (selectText = continuousScan) => {
     if (!isActiveRef.current) return;
     const applyFocus = () => {
       if (!isActiveRef.current) return;
+      if (typeof window !== 'undefined' && window.innerWidth < 640 && !isMobileScannerExpandedRef.current) {
+        return;
+      }
       const el = barcodeInputRef.current;
       if (!el) return;
       el.focus();
@@ -527,11 +535,15 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
       if (e.key === 'F2' || (e.ctrlKey && e.key === 'k')) {
         e.preventDefault();
+        isMobileScannerExpandedRef.current = true;
+        setIsMobileScannerExpanded(true);
         focusScannerInput();
         return;
       } else if (e.key === 'F3') {
         e.preventDefault();
         setInputMode((prev) => (prev === 'SCANNER' ? 'MANUAL' : 'SCANNER'));
+        isMobileScannerExpandedRef.current = true;
+        setIsMobileScannerExpanded(true);
         focusScannerInput();
         return;
       }
@@ -547,17 +559,33 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
         return;
       }
 
-      // If focus was lost outside inputs and user scans/types, immediately focus barcode input
+      // If focus was lost outside inputs and user scans/types, immediately expand (if collapsed on mobile) and focus barcode input
       if (activeEl !== barcodeInputRef.current && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        barcodeInputRef.current?.focus();
-      } else if (activeEl !== barcodeInputRef.current && e.key === 'Enter' && barcodeInput.trim()) {
-        // Physical scanner sent Enter while focus was slightly displaced
-        e.preventDefault();
-        const raw = barcodeInput.trim();
-        if (!continuousScan) {
-          setBarcodeInput('');
+        const isCollapsedOnMobile =
+          typeof window !== 'undefined' && window.innerWidth < 640 && !isMobileScannerExpandedRef.current;
+        if (isCollapsedOnMobile) {
+          e.preventDefault();
+          pendingScannerBufferRef.current += e.key;
+          isMobileScannerExpandedRef.current = true;
+          setIsMobileScannerExpanded(true);
+        } else {
+          barcodeInputRef.current?.focus();
         }
-        triggerFindAndAddProduct(raw);
+      } else if (activeEl !== barcodeInputRef.current && e.key === 'Enter') {
+        if (pendingScannerBufferRef.current.length > 0) {
+          e.preventDefault();
+          pendingScannerEnterRef.current = true;
+          return;
+        }
+        if (barcodeInput.trim()) {
+          // Physical scanner sent Enter while focus was slightly displaced
+          e.preventDefault();
+          const raw = barcodeInput.trim();
+          if (!continuousScan) {
+            setBarcodeInput('');
+          }
+          triggerFindAndAddProduct(raw);
+        }
       }
     };
 
@@ -621,6 +649,41 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       window.removeEventListener('pos:add-to-cart', onPosAddToCartEvent);
     };
   }, [isActive, cart, isSubmitting, showAdminOverrideModal, completedSale, isCustomerModalOpen, barcodeInput, inputMode, continuousScan, activeExchange]);
+
+  // Autofocus & flush buffered physical scanner input when mobile scanner expands
+  useEffect(() => {
+    if (!isMobileScannerExpanded) return;
+
+    const buffered = pendingScannerBufferRef.current;
+    const hasPendingEnter = pendingScannerEnterRef.current;
+    if (buffered) {
+      pendingScannerBufferRef.current = '';
+      pendingScannerEnterRef.current = false;
+      const nextValue = continuousScan ? buffered : `${barcodeInput}${buffered}`;
+      if (hasPendingEnter) {
+        if (!continuousScan) {
+          setBarcodeInput('');
+        } else {
+          setBarcodeInput(nextValue);
+        }
+        void triggerFindAndAddProduct(nextValue.trim());
+      } else {
+        void handleSearchChange(nextValue);
+      }
+    }
+
+    const rafId = requestAnimationFrame(() => {
+      focusScannerInput(continuousScan && !buffered);
+    });
+    const timerId = window.setTimeout(() => {
+      focusScannerInput(continuousScan && !buffered);
+    }, 50);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
+  }, [isMobileScannerExpanded]);
 
   // Core 'Find Product' Event: Triggered immediately when barcode or article is scanned or entered
   const triggerFindAndAddProduct = async (rawCode: string) => {
@@ -715,6 +778,11 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     if (e.key === 'Escape') {
       setBarcodeInput('');
       setSearchResults([]);
+      if (typeof window !== 'undefined' && window.innerWidth < 640) {
+        isMobileScannerExpandedRef.current = false;
+        setIsMobileScannerExpanded(false);
+        barcodeInputRef.current?.blur();
+      }
       return;
     }
 
@@ -1510,10 +1578,129 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
           className="flex-1 flex flex-col app-card overflow-hidden transition-colors"
         >
           {/* Scanner & Quick Search Top Bar */}
-          <div className="p-4 border-b border-slate-200/90 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white transition-colors">
-            {/* Mode Switcher and Hardware Scanner Status Header */}
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative p-3 sm:p-4 border-b border-slate-200/90 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white transition-colors">
+            {/* Mode Switcher, Hardware Scanner Controls & Collapsible Mobile Scanner Input */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* Collapsible Scanner Trigger Icon (< sm) + Expandable Form (position: relative, sm:basis-full on desktop row 2) */}
+              <div
+                className={`relative flex items-center min-w-0 order-1 sm:order-3 transition-[width,max-width,flex-grow] duration-300 ease-out motion-reduce:transition-none ${
+                  isMobileScannerExpanded ? 'w-full flex-1' : 'w-11 shrink-0'
+                } sm:w-full sm:basis-full sm:mt-1`}
+              >
+                {/* Compact Barcode Scanner / Search Icon Trigger (< sm when collapsed) */}
+                <button
+                  type="button"
+                  id="pos-mobile-scanner-trigger"
+                  onClick={() => {
+                    isMobileScannerExpandedRef.current = true;
+                    setIsMobileScannerExpanded(true);
+                    focusScannerInput(continuousScan);
+                  }}
+                  className={`sm:hidden flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 shadow-md shadow-purple-600/25 active:scale-95 transition-[width,max-width,opacity,visibility] duration-250 ease-out motion-reduce:transition-none cursor-pointer shrink-0 ${
+                    isMobileScannerExpanded
+                      ? 'w-0 max-w-0 h-11 opacity-0 invisible p-0 border-0 overflow-hidden pointer-events-none'
+                      : 'w-11 max-w-11 h-11 opacity-100 visible'
+                  }`}
+                  title={inputMode === 'MANUAL' ? 'Open product search input' : 'Open barcode scanner input'}
+                  aria-label={inputMode === 'MANUAL' ? 'Open product search input' : 'Open barcode scanner input'}
+                  aria-expanded={isMobileScannerExpanded}
+                  aria-controls="pos-barcode-scanner-input"
+                >
+                  {inputMode === 'MANUAL' ? <Search className="w-5 h-5" /> : <ScanLine className="w-5 h-5" />}
+                </button>
+
+                <form
+                  onSubmit={handleBarcodeSubmit}
+                  className={`relative flex items-center gap-1.5 sm:gap-2 min-w-0 transition-[width,max-width,opacity,visibility] duration-300 ease-out motion-reduce:transition-none ${
+                    isMobileScannerExpanded
+                      ? 'w-full max-w-full flex-1 opacity-100 visible pointer-events-auto'
+                      : 'w-0 max-w-0 opacity-0 invisible overflow-hidden pointer-events-none'
+                  } sm:w-full sm:max-w-full sm:flex-1 sm:opacity-100 sm:visible sm:pointer-events-auto sm:overflow-visible`}
+                >
+                  <div className="relative flex-1 min-w-0">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
+                      {inputMode === 'SCANNER' ? <ScanLine className="w-4 h-4" /> : <Search className="w-4 h-4" />}
+                    </div>
+                    <input
+                      ref={barcodeInputRef}
+                      id="pos-barcode-scanner-input"
+                      type="text"
+                      value={barcodeInput}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onKeyDown={handleInputKeyDown}
+                      onFocus={(e) => {
+                        if (continuousScan) {
+                          e.target.select();
+                        }
+                      }}
+                      placeholder="Scan Barcode or Type Article..."
+                      className="w-full h-11 sm:h-auto pl-[2.125rem] pr-9 sm:pr-40 sm:py-3 bg-white dark:bg-[#0A0E1A] border-2 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-all focus:border-purple-600 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-950/40 font-mono"
+                      autoComplete="off"
+                      autoFocus
+                    />
+
+                    <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                      {barcodeInput && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setBarcodeInput('');
+                            setSearchResults([]);
+                            focusScannerInput(false);
+                          }}
+                          className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs cursor-pointer"
+                          title="Clear input (Esc)"
+                          aria-label="Clear barcode input"
+                        >
+                          ✕
+                        </button>
+                      )}
+                      <span className="hidden sm:flex text-[10px] font-bold px-2.5 py-1 rounded-md items-center gap-1 border text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800/60 uppercase select-none">
+                        {inputMode === 'SCANNER' ? (
+                          <>
+                            <Zap className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            <span>{continuousScan ? 'Continuous' : 'Enter Mode'}</span>
+                          </>
+                        ) : (
+                          <span>Catalog Search</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    id="pos-scanner-submit-btn"
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{ color: '#ffffff' }}
+                    className="btn-pure-white h-11 px-3.5 sm:h-auto sm:px-6 sm:py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white font-bold text-sm rounded-xl border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(147,51,234,0.35)] transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer active:scale-95"
+                    aria-label="Scan barcode or search article"
+                  >
+                    <Barcode className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
+                    <span className="hidden sm:inline !text-white font-bold text-white" style={{ color: '#ffffff' }}>Scan Barcode / Search Article</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="pos-mobile-scanner-close"
+                    onClick={() => {
+                      setSearchResults([]);
+                      isMobileScannerExpandedRef.current = false;
+                      setIsMobileScannerExpanded(false);
+                      barcodeInputRef.current?.blur();
+                    }}
+                    className="sm:hidden h-11 w-11 flex items-center justify-center rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer active:scale-95 transition"
+                    title="Close barcode scanner input"
+                    aria-label="Close barcode scanner input"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+
+              {/* Mode Switcher & Mute Button */}
+              <div className={`items-center gap-1.5 sm:gap-2 flex-wrap order-2 sm:order-1 ${isMobileScannerExpanded ? 'hidden sm:flex' : 'flex'}`}>
                 <div className="inline-flex items-center p-1 bg-slate-200/70 dark:bg-slate-950/80 rounded-xl border border-slate-300/70 dark:border-slate-800 transition-colors">
                   <button
                     type="button"
@@ -1521,17 +1708,22 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     onClick={() => {
                       setInputMode('SCANNER');
                       setSearchResults([]);
+                      if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                        isMobileScannerExpandedRef.current = true;
+                        setIsMobileScannerExpanded(true);
+                      }
                       focusScannerInput();
                     }}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 min-h-[36px] sm:min-h-0 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       inputMode === 'SCANNER'
                         ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border border-purple-400/40 shadow-sm shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:border-purple-400/50 dark:shadow-[0_0_14px_rgba(147,51,234,0.35)]'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-300/40 dark:hover:bg-slate-800/60'
                     }`}
                   >
                     <ScanLine className="w-3.5 h-3.5" />
-                    <span>Barcode Scanner</span>
-                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                    <span className="hidden sm:inline">Barcode Scanner</span>
+                    <span className="sm:hidden">Scan</span>
+                    <span className={`hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded ${
                       inputMode === 'SCANNER' ? 'bg-white/20 text-white' : 'bg-black/10 dark:bg-white/10 text-slate-700 dark:text-slate-300'
                     }`}>Enter Mode</span>
                   </button>
@@ -1541,6 +1733,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     id="pos-mode-manual-btn"
                     onClick={async () => {
                       setInputMode('MANUAL');
+                      if (typeof window !== 'undefined' && window.innerWidth < 640) {
+                        isMobileScannerExpandedRef.current = true;
+                        setIsMobileScannerExpanded(true);
+                      }
                       focusScannerInput();
                       const cachedList = await searchCachedProductsOffline(
                         barcodeInput.trim(),
@@ -1549,14 +1745,15 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                       ).catch(() => []);
                       setSearchResults(cachedList);
                     }}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 min-h-[36px] sm:min-h-0 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       inputMode === 'MANUAL'
                         ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border border-purple-400/40 shadow-sm shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:border-purple-400/50 dark:shadow-[0_0_14px_rgba(147,51,234,0.35)]'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-300/40 dark:hover:bg-slate-800/60'
                     }`}
                   >
                     <Search className="w-3.5 h-3.5" />
-                    <span>Manual Search</span>
+                    <span className="hidden sm:inline">Manual Search</span>
+                    <span className="sm:hidden">Search</span>
                   </button>
                 </div>
 
@@ -1565,7 +1762,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   type="button"
                   id="pos-mute-sound-btn"
                   onClick={handleToggleMute}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[36px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                     isMuted
                       ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300/80 dark:border-rose-800/80 shadow-2xs hover:bg-rose-100 dark:hover:bg-rose-900/50'
                       : 'bg-white dark:bg-slate-950/80 text-slate-700 dark:text-slate-300 border-slate-300/70 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 shadow-2xs'
@@ -1577,24 +1774,24 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   {isMuted ? (
                     <>
                       <VolumeX className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
-                      <span>Muted</span>
+                      <span className="hidden sm:inline">Muted</span>
                     </>
                   ) : (
                     <>
                       <Volume2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400 shrink-0" />
-                      <span>Mute Sound</span>
+                      <span className="hidden sm:inline">Mute Sound</span>
                     </>
                   )}
                 </button>
               </div>
 
               {/* Direct Shoe Exchange / Return & Continuous Scan / Hardware Status */}
-              <div className="flex items-center gap-2">
+              <div className={`flex-wrap items-center gap-1.5 sm:gap-2 order-3 sm:order-2 ${isMobileScannerExpanded ? 'hidden sm:flex' : 'flex'}`}>
                 <button
                   type="button"
                   id="pos-direct-exchange-btn"
                   onClick={() => setIsExchangeModalOpen(true)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[36px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                     activeExchange
                       ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
                       : 'bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border-amber-300/80 dark:border-amber-500/30 shadow-2xs'
@@ -1603,7 +1800,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 >
                   <Repeat className={`w-3.5 h-3.5 ${activeExchange ? 'text-slate-950 animate-spin' : 'text-amber-700 dark:text-amber-400'}`} style={{ animationDuration: '6s' }} />
                   <span>{isWholesaleStore ? 'Shoe Return' : 'Shoe Exchange'}</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/10 dark:bg-white/10 text-slate-900 dark:text-amber-200">F4</span>
+                  <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/10 dark:bg-white/10 text-slate-900 dark:text-amber-200">F4</span>
                   {activeExchange && (
                     <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
                   )}
@@ -1614,7 +1811,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   type="button"
                   id="pos-offline-queue-btn"
                   onClick={() => setIsOfflineModalOpen(true)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold transition border cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0 rounded-xl text-[11px] font-bold transition border cursor-pointer ${
                     !isOnline
                       ? 'bg-amber-100 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-300 animate-pulse'
                       : pendingCount > 0
@@ -1635,7 +1832,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   type="button"
                   id="pos-continuous-scan-toggle"
                   onClick={() => setContinuousScan((prev) => !prev)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition border ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0 rounded-full text-[11px] font-semibold transition border ${
                     continuousScan
                       ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
                       : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
@@ -1662,70 +1859,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               </div>
             </div>
 
-            <form onSubmit={handleBarcodeSubmit} className="relative flex items-center gap-2">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                  {inputMode === 'SCANNER' ? <ScanLine className="w-4 h-4" /> : <Search className="w-4 h-4" />}
-                </div>
-                <input
-                  ref={barcodeInputRef}
-                  id="pos-barcode-scanner-input"
-                  type="text"
-                  value={barcodeInput}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onKeyDown={handleInputKeyDown}
-                  onFocus={(e) => {
-                    if (continuousScan) {
-                      e.target.select();
-                    }
-                  }}
-                  placeholder="Scan Barcode or Type Article..."
-                  className="w-full pl-[2.125rem] pr-40 py-3 bg-white dark:bg-[#0A0E1A] border-2 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-all focus:border-purple-600 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-950/40 font-mono"
-                  autoComplete="off"
-                  autoFocus
-                />
-
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                  {barcodeInput && (
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setBarcodeInput('');
-                        setSearchResults([]);
-                        focusScannerInput(false);
-                      }}
-                      className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs cursor-pointer"
-                      title="Clear input (Esc)"
-                    >
-                      ✕
-                    </button>
-                  )}
-                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-1 border text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800/60 uppercase select-none">
-                    {inputMode === 'SCANNER' ? (
-                      <>
-                        <Zap className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                        <span>{continuousScan ? 'Continuous' : 'Enter Mode'}</span>
-                      </>
-                    ) : (
-                      <span>Catalog Search</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                id="pos-scanner-submit-btn"
-                onMouseDown={(e) => e.preventDefault()}
-                style={{ color: '#ffffff' }}
-                className="btn-pure-white px-6 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white font-bold text-sm rounded-xl border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(147,51,234,0.35)] transition-all flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
-              >
-                <Barcode className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
-                <span className="!text-white font-bold text-white" style={{ color: '#ffffff' }}>Scan Barcode / Search Article</span>
-              </button>
-            </form>
-
             {/* Live Search Dropdown */}
             <AnimatePresence>
               {searchResults.length > 0 && (
@@ -1736,7 +1869,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                   style={{ transformOrigin: 'top center' }}
                   onMouseDown={(e) => e.preventDefault()}
-                  className="absolute left-6 right-6 z-40 mt-1 max-h-64 overflow-y-auto bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-[#1A263D] rounded-xl shadow-xl divide-y divide-slate-100 dark:divide-slate-800"
+                  className="absolute left-3 right-3 sm:left-6 sm:right-6 z-40 mt-2 max-h-64 overflow-y-auto bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-[#1A263D] rounded-xl shadow-xl divide-y divide-slate-100 dark:divide-slate-800"
                 >
                 {searchResults.slice(0, visibleSearchCount).map((prod) => (
                   <div
