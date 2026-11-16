@@ -6,10 +6,9 @@ import jwt from 'jsonwebtoken';
 import { Type, type FunctionDeclaration } from '@google/genai';
 import { getGeminiClient } from '../gemini.ts';
 import { pgClient } from '../../db/index.ts';
-import { extractTokenFromRequest } from '../auth.ts';
+import { extractTokenFromRequest, getJwtSecret } from '../auth.ts';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'shoe-pos-super-secure-jwt-secret-key-2026';
 
 export interface ChatMessage {
   role: 'user' | 'model';
@@ -172,7 +171,7 @@ function resolveRequestTenantId(req: Request): number {
   const token = extractTokenFromRequest(req);
   if (token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, getJwtSecret()) as any;
       if (Number(decoded?.tenantId) > 0) {
         return Number(decoded.tenantId);
       }
@@ -598,7 +597,7 @@ TONE & LANGUAGE RULES:
 - Keep instructions 100% structured, concise, and accurate to the exact buttons, shortcuts, CSV columns, and live database state that exist in this POS.`;
 
     try {
-      const ai = getGeminiClient();
+      const ai = await getGeminiClient();
 
       const contentsPayload: any[] = messages.map((m: any) => ({
         role: m.role === 'user' ? 'user' : 'model',
@@ -781,9 +780,9 @@ TONE & LANGUAGE RULES:
         });
       }
     } catch (sdkErr: any) {
-      console.log('[Chat] Gemini SDK initialization notice: Check GEMINI_API_KEY');
+      console.log('[Chat] Gemini SDK initialization notice: Check GEMINI_API_KEY in app_settings');
       return res.status(503).json({
-        error: 'Gemini AI service unavailable. Check GEMINI_API_KEY in server secrets.',
+        error: 'Gemini AI service unavailable. Check GEMINI_API_KEY in platform app settings.',
       });
     }
 

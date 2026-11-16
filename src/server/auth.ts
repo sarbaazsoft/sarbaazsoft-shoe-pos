@@ -5,7 +5,12 @@ import { pgClient } from '../db/index.ts';
 import { ensureSaasControlPlane, resetSaasControlPlaneState } from '../db/schemaInit.ts';
 import { recordTenantMiddlewarePresence, removeTenantMiddlewarePresence } from './middleware/tenantMiddleware.ts';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'shoe-pos-super-secure-jwt-secret-key-2026';
+const DEV_JWT_SECRET_FALLBACK = 'shoe-pos-super-secure-jwt-secret-key-2026';
+
+export function getJwtSecret(): string {
+  const configured = process.env.JWT_SECRET?.trim();
+  return configured || DEV_JWT_SECRET_FALLBACK;
+}
 
 export interface AuthUser {
   id: number;
@@ -57,7 +62,7 @@ export function generateToken(user: {
       role,
       status: user.status,
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
 }
@@ -173,7 +178,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
 
   let decoded: any;
   try {
-    decoded = jwt.verify(token, JWT_SECRET);
+    decoded = jwt.verify(token, getJwtSecret());
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session. Please login again.' });
   }

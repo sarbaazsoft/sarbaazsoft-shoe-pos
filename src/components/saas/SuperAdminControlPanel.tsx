@@ -595,12 +595,20 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     }
   };
 
+  const notifSubmitEventIdRef = useRef<string | null>(null);
+
   const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sendingNotif) return;
     if (!notifTitle.trim() || !notifMessage.trim()) {
       setNotifError('Please provide both notification title and message.');
       return;
     }
+    if (!notifSubmitEventIdRef.current) {
+      notifSubmitEventIdRef.current = `sa-notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+    const submissionEventId = notifSubmitEventIdRef.current;
+
     setSendingNotif(true);
     setNotifError(null);
     try {
@@ -625,8 +633,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         actionUrl: notifActionUrl.trim() || undefined,
         actionLabel: notifActionLabel.trim() || undefined,
         expiresAt,
+        eventId: submissionEventId,
       });
 
+      notifSubmitEventIdRef.current = null;
       setSuccessMessage(res.message || 'Custom notification dispatched successfully!');
       setNotificationModalOpen(false);
       setNotifTitle('');
@@ -5112,6 +5122,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        notifSubmitEventIdRef.current = null;
                         setNotifError(null);
                         setNotificationModalOpen(true);
                       }}

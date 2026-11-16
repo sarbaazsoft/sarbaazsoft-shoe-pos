@@ -530,6 +530,7 @@ const DATABASE_TABLE_DDL: string[] = [
     is_min_price_overridden BOOLEAN NOT NULL DEFAULT false,
     overridden_by INTEGER REFERENCES users(id),
     notes TEXT,
+    client_tx_id TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS sale_items (
@@ -650,6 +651,7 @@ const DATABASE_TABLE_DDL: string[] = [
     action_label TEXT DEFAULT '',
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     expires_at TIMESTAMP NULL,
+    event_id TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS platform_notification_reads (
@@ -675,6 +677,7 @@ const DATABASE_INDEX_DDL: string[] = [
   `ALTER TABLE IF EXISTS products DROP COLUMN IF EXISTS sku`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON platform_notifications(created_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id) WHERE event_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON platform_notification_reads(notification_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON platform_notification_reads(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS app_settings_category_idx ON app_settings(category)`,
@@ -717,6 +720,7 @@ const DATABASE_INDEX_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS sales_tenant_idx ON sales(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS sales_tenant_date_idx ON sales(tenant_id, sale_date)`,
   `CREATE INDEX IF NOT EXISTS sales_invoice_idx ON sales(invoice_number)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS sales_tenant_client_tx_id_unique_idx ON sales(COALESCE(tenant_id, 1), client_tx_id) WHERE client_tx_id IS NOT NULL AND BTRIM(client_tx_id) <> ''`,
   `CREATE INDEX IF NOT EXISTS sale_items_tenant_sale_idx ON sale_items(tenant_id, sale_id)`,
   `CREATE INDEX IF NOT EXISTS returns_tenant_idx ON returns(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS returns_tenant_sale_idx ON returns(tenant_id, original_sale_id)`,
@@ -729,14 +733,16 @@ const DATABASE_INDEX_DDL: string[] = [
 let customerLedgerSchemaPromise: Promise<void> | null = null;
 let salesTransactionIdSchemaPromise: Promise<void> | null = null;
 
-/** Adds the payment reference field to existing databases before POS checkout inserts sales. */
+/** Adds payment reference & idempotency fields to existing databases before POS checkout inserts sales. */
 export function ensureSalesTransactionIdSchema(): Promise<void> {
   if (!salesTransactionIdSchemaPromise) {
     salesTransactionIdSchemaPromise = (async () => {
       await pgClient.waitReady;
-      await pgClient.exec(
-        "ALTER TABLE IF EXISTS public.sales ADD COLUMN IF NOT EXISTS transaction_id TEXT DEFAULT ''"
-      );
+      await pgClient.exec(`
+        ALTER TABLE IF EXISTS public.sales ADD COLUMN IF NOT EXISTS transaction_id TEXT DEFAULT '';
+        ALTER TABLE IF EXISTS public.sales ADD COLUMN IF NOT EXISTS client_tx_id TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS sales_tenant_client_tx_id_unique_idx ON public.sales (COALESCE(tenant_id, 1), client_tx_id) WHERE client_tx_id IS NOT NULL AND BTRIM(client_tx_id) <> '';
+      `);
     })().catch((error) => {
       salesTransactionIdSchemaPromise = null;
       throw error;
@@ -762,9 +768,11 @@ export function ensurePlatformNotificationsSchema(): Promise<void> {
           action_label TEXT DEFAULT '',
           created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
           expires_at TIMESTAMP NULL,
+          event_id TEXT,
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
         ALTER TABLE public.platform_notifications ADD COLUMN IF NOT EXISTS target_role TEXT NOT NULL DEFAULT 'ALL';
+        ALTER TABLE public.platform_notifications ADD COLUMN IF NOT EXISTS event_id TEXT;
         CREATE TABLE IF NOT EXISTS public.platform_notification_reads (
           id SERIAL PRIMARY KEY,
           notification_id INTEGER NOT NULL REFERENCES public.platform_notifications(id) ON DELETE CASCADE,
@@ -776,6 +784,7 @@ export function ensurePlatformNotificationsSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON public.platform_notifications(tenant_id);
         CREATE INDEX IF NOT EXISTS platform_notifications_target_role_idx ON public.platform_notifications(target_role);
         CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON public.platform_notifications(created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON public.platform_notifications(event_id) WHERE event_id IS NOT NULL;
         CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON public.platform_notification_reads(notification_id);
         CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON public.platform_notification_reads(tenant_id);
 

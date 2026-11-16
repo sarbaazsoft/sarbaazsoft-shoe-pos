@@ -101,9 +101,19 @@ self.addEventListener('fetch', (event) => {
 // 3. Notification Helpers & Anti-Spam Deduplication
 // -------------------------------------------------------------------------
 const PUSH_DEDUPE_CHANNEL_NAME = 'pos_push_dedupe_channel';
-const SW_PUSH_DEDUPE_TTL_MS = 15000;
+const SW_PUSH_DEDUPE_TTL_MS = 120000;
 const swRecentPushTags = new Map();
 const swWindowClaimedKeys = new Map();
+
+function hashPushKey(input) {
+  const str = String(input || '');
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
 
 function recordSwWindowClaim(data) {
   if (!data || typeof data !== 'object') return;
@@ -230,14 +240,15 @@ async function showSingleShadeNotification(title, options = {}) {
     const isAdminTarget = isAdminShadeTarget(options);
     const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
     const explicitTag = String(
-      options.tag || (options.data && (options.data.tag || options.data.eventId)) || ''
+      options.tag || (options.data && (options.data.tag || options.data.eventId || options.data.event_id)) || ''
     ).trim();
-    const incomingTag =
-      explicitTag ||
-      `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const incomingEventId = String((options.data && options.data.eventId) || incomingTag);
     const cleanTitle = String(title || 'SarbaazSoft POS Alert').slice(0, 120);
     const cleanBody = String(options.body || 'New store notification.').slice(0, 320);
+    const deterministicFallbackTag = `${isAdminTarget ? 'admin' : 'pos'}-${hashPushKey(
+      `${cleanTitle}|${cleanBody}|${(options.data && (options.data.url || options.data.deepLinkUrl)) || ''}`
+    )}`;
+    const incomingTag = explicitTag || deterministicFallbackTag;
+    const incomingEventId = String((options.data && (options.data.eventId || options.data.event_id)) || incomingTag);
     const timestamp = resolveShadeTimestamp(options.timestamp || (options.data && options.data.timestamp));
     const targetUrl = sanitizePushTargetUrl(
       (options.data && (options.data.url || options.data.deepLinkUrl)) || '',
@@ -391,14 +402,23 @@ self.addEventListener('push', (event) => {
   const notification = (data && data.notification) || data || {};
   const payloadData = (data && data.data) || {};
   const title = notification.title || payloadData.title || data.title || 'SarbaazSoft Shoe POS Alert';
+  const rawBody =
+    notification.body ||
+    payloadData.body ||
+    data.body ||
+    data.message ||
+    'New Point of Sale notification received.';
+  const rawTargetUrl = payloadData.url || payloadData.deepLinkUrl || data.url || '/?tab=reports';
   const tag =
     payloadData.tag ||
     payloadData.eventId ||
+    payloadData.event_id ||
     notification.tag ||
     data.tag ||
     data.eventId ||
-    `pos-alert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const rawTargetUrl = payloadData.url || payloadData.deepLinkUrl || data.url || '/?tab=reports';
+    data.event_id ||
+    data.messageId ||
+    `pos-alert-${hashPushKey(`${title}|${rawBody}|${rawTargetUrl}`)}`;
   const isAdminTarget =
     String(rawTargetUrl).startsWith('/admin') ||
     payloadData.isAdmin === true ||
@@ -457,24 +477,40 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    showSingleShadeNotification(title, options).catch((err) => {
+    showSingleShadeNotification(title, options).catch(async (err) => {
       const errName = String((err && err.name) || '').toLowerCase();
       if (errName === 'notallowederror' || errName === 'securityerror') {
         return;
       }
+      const fallbackTag =
+        tag || `pos-fallback-${hashPushKey(`${title}|${(options && options.body) || ''}|${targetUrl}`)}`;
+      const fallbackEventId =
+        (options.data && (options.data.eventId || options.data.event_id)) || fallbackTag;
+      if (isWindowClaimedInSw(fallbackTag, fallbackEventId)) {
+        return;
+      }
+      if (self.registration && typeof self.registration.getNotifications === 'function') {
+        const active = await self.registration.getNotifications().catch(() => []);
+        if (active.some((n) => n && n.tag === fallbackTag)) {
+          return;
+        }
+      }
+      const isFirstFallback = claimSwPushTag(fallbackTag);
       return self.registration
         .showNotification(title || 'SarbaazSoft Shoe POS Alert', {
           body: (options && options.body) || 'New store activity received.',
           icon: defaultIcon,
           badge: NOTIFICATION_BADGE_ICON,
-          tag: tag || `pos-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          tag: fallbackTag,
+          renotify: false,
+          silent: !isFirstFallback,
         })
         .then(() => {
           broadcastPushDedupeEvent({
             type: 'SW_NOTIFICATION_SHOWN',
-            tag,
-            eventId: (options.data && options.data.eventId) || tag,
-            dedupeKey: `id:${(options.data && options.data.eventId) || tag}`,
+            tag: fallbackTag,
+            eventId: fallbackEventId,
+            dedupeKey: `id:${fallbackEventId}`,
             title,
             body: (options && options.body) || '',
             timestamp,
@@ -608,7 +644,13 @@ async function initFirebaseInWorker() {
           rawBadge && !String(rawBadge).includes('pwa-192x192')
             ? rawBadge
             : NOTIFICATION_BADGE_ICON;
-        const tag = payload.data?.tag || payload.data?.eventId || `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const tag =
+          payload.data?.tag ||
+          payload.data?.eventId ||
+          payload.data?.event_id ||
+          payload.notification?.tag ||
+          payload.messageId ||
+          `pos-fcm-${hashPushKey(`${title}|${body}|${url}`)}`;
         const timestamp = resolveShadeTimestamp(payload.data?.timestamp);
 
         const notificationOptions = {

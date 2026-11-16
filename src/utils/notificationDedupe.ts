@@ -1,5 +1,7 @@
-const DEFAULT_TTL_MS = 15_000;
+const DEFAULT_TTL_MS = 120_000;
 export const PUSH_DEDUPE_CHANNEL_NAME = 'pos_push_dedupe_channel';
+const STORAGE_CHANNEL_CLAIMS_KEY = 'pos_notif_channel_claims_v1';
+const MAX_STORED_CLAIMS = 150;
 
 const recentChannelClaims = new Map<string, number>();
 let sharedDedupeBroadcastChannel: BroadcastChannel | null = null;
@@ -12,6 +14,35 @@ function pruneExpiredClaims(now: number) {
       recentChannelClaims.delete(entryKey);
     }
   }
+}
+
+function readStoredClaims(now: number): Record<string, number> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_CHANNEL_CLAIMS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const active: Record<string, number> = {};
+    for (const [key, exp] of Object.entries(parsed)) {
+      if (typeof exp === 'number' && exp > now) {
+        active[key] = exp;
+      }
+    }
+    return active;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredClaims(claims: Record<string, number>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const entries = Object.entries(claims)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_STORED_CLAIMS);
+    localStorage.setItem(STORAGE_CHANNEL_CLAIMS_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {}
 }
 
 export type NotificationDeliveryChannel =
@@ -32,9 +63,12 @@ export function getNotificationDedupeKey(payload: any): string {
 
   const explicitId =
     payload.eventId ||
+    payload.event_id ||
     payload.tag ||
     payload.data?.eventId ||
+    payload.data?.event_id ||
     payload.data?.tag ||
+    payload.notification?.tag ||
     payload.messageId;
   if (explicitId) {
     return `id:${String(explicitId)}`;
@@ -62,7 +96,16 @@ export function isNotificationChannelClaimed(
   pruneExpiredClaims(now);
   const compositeKey = `${channel}:${dedupeKey}`;
   const existingExpiry = recentChannelClaims.get(compositeKey);
-  return Boolean(existingExpiry && existingExpiry > now);
+  if (existingExpiry && existingExpiry > now) {
+    return true;
+  }
+  const stored = readStoredClaims(now);
+  const storedExpiry = stored[compositeKey];
+  if (storedExpiry && storedExpiry > now) {
+    recentChannelClaims.set(compositeKey, storedExpiry);
+    return true;
+  }
+  return false;
 }
 
 export function markNotificationChannelClaimed(
@@ -73,7 +116,13 @@ export function markNotificationChannelClaimed(
   const now = Date.now();
   pruneExpiredClaims(now);
   const compositeKey = `${channel}:${dedupeKey}`;
-  recentChannelClaims.set(compositeKey, Math.max(recentChannelClaims.get(compositeKey) || 0, now + ttlMs));
+  const expiresAt = Math.max(recentChannelClaims.get(compositeKey) || 0, now + ttlMs);
+  recentChannelClaims.set(compositeKey, expiresAt);
+  const stored = readStoredClaims(now);
+  if (!stored[compositeKey] || expiresAt > stored[compositeKey]) {
+    stored[compositeKey] = expiresAt;
+    writeStoredClaims(stored);
+  }
 }
 
 export function recordSwNotificationShown(msg: {
@@ -176,8 +225,17 @@ export function claimNotificationChannel(
     return false;
   }
 
+  const stored = readStoredClaims(now);
+  const storedExpiry = stored[compositeKey];
+  if (storedExpiry && storedExpiry > now) {
+    recentChannelClaims.set(compositeKey, storedExpiry);
+    return false;
+  }
+
   const expiresAt = now + ttlMs;
   recentChannelClaims.set(compositeKey, expiresAt);
+  stored[compositeKey] = expiresAt;
+  writeStoredClaims(stored);
 
   if (channel === 'os_notification' || channel === 'audio') {
     broadcastChannelClaim(compositeKey, expiresAt);
@@ -188,4 +246,9 @@ export function claimNotificationChannel(
 
 export function resetNotificationDedupeCache(): void {
   recentChannelClaims.clear();
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(STORAGE_CHANNEL_CLAIMS_KEY);
+    } catch {}
+  }
 }

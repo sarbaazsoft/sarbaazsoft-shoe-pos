@@ -1,15 +1,17 @@
 import { GoogleGenAI } from '@google/genai';
+import { getAppSetting } from './services/appSettingsService.ts';
 
 let aiClient: GoogleGenAI | null = null;
+let cachedApiKey = '';
 
-export function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+export async function getGeminiClient(): Promise<GoogleGenAI> {
+  const apiKey = (await getAppSetting('GEMINI_API_KEY', '')).trim();
   if (!apiKey) {
     throw new Error(
-      'GEMINI_API_KEY is not configured on the server. Please provide a valid Gemini API key in Settings > Secrets.'
+      'GEMINI_API_KEY is not configured in app_settings.'
     );
   }
-  if (!aiClient) {
+  if (!aiClient || cachedApiKey !== apiKey) {
     aiClient = new GoogleGenAI({
       apiKey,
       httpOptions: {
@@ -18,7 +20,7 @@ export function getGeminiClient(): GoogleGenAI {
         },
       },
     });
+    cachedApiKey = apiKey;
   }
   return aiClient;
 }
-

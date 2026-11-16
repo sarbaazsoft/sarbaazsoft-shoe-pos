@@ -44,8 +44,9 @@ export interface ParsedSenderAddress {
   replyTo: string;
 }
 
-export function parseSenderAddress(rawCandidate?: string | null): ParsedSenderAddress {
+export function parseSenderAddress(rawCandidate?: string | null, replyToFallback?: string | null): ParsedSenderAddress {
   const raw = (rawCandidate || '').trim();
+  const cleanReplyToFallback = (replyToFallback || '').trim() || 'noreply@sarbaazsoft.com';
   let displayName = 'SarbaazSoft Shoe POS Security';
   let email = '';
 
@@ -82,7 +83,7 @@ export function parseSenderAddress(rawCandidate?: string | null): ParsedSenderAd
     ? `${displayName} <onboarding@resend.dev>`
     : `${displayName} <${email}>`;
 
-  const replyTo = email && email !== 'onboarding@resend.dev' ? email : (process.env.RESEND_REPLY_TO || 'noreply@sarbaazsoft.com');
+  const replyTo = email && email !== 'onboarding@resend.dev' ? email : cleanReplyToFallback;
 
   return {
     displayName,
@@ -133,7 +134,7 @@ export async function getActiveEmailProvider(): Promise<'resend' | 'gmail'> {
     console.warn('[email.ts] Notice querying active email provider from database:', err);
   }
 
-  const liveProvider = ((await getAppSetting('ACTIVE_EMAIL_PROVIDER')) || process.env.ACTIVE_EMAIL_PROVIDER || 'resend').trim().toLowerCase();
+  const liveProvider = ((await getAppSetting('ACTIVE_EMAIL_PROVIDER')) || 'resend').trim().toLowerCase();
   return liveProvider === 'gmail' ? 'gmail' : 'resend';
 }
 
@@ -158,9 +159,9 @@ export async function getDynamicGmailCredentials(): Promise<{ user: string; pass
     console.warn('[email.ts] Notice querying Gmail credentials from database:', err);
   }
 
-  if (!user) user = ((await getAppSetting('GMAIL_USER')) || process.env.GMAIL_USER || 'sarbaazsoft@gmail.com').trim();
-  if (!pass) pass = ((await getAppSetting('GMAIL_APP_PASSWORD')) || process.env.GMAIL_APP_PASSWORD || '').trim();
-  if (!fromName) fromName = ((await getAppSetting('GMAIL_FROM_NAME')) || process.env.GMAIL_FROM_NAME || 'superadmin').trim();
+  if (!user) user = (await getAppSetting('GMAIL_USER')).trim();
+  if (!pass) pass = (await getAppSetting('GMAIL_APP_PASSWORD')).trim();
+  if (!fromName) fromName = (await getAppSetting('GMAIL_FROM_NAME')).trim();
 
   return { user, pass, fromName };
 }
@@ -228,17 +229,19 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
   const activeProvider = await getActiveEmailProvider();
   let resendFrom = '';
   let resendFromEmail = '';
+  let resendReplyTo = '';
   let emailWebhookUrl = '';
   let resendWebhookUrl = '';
 
   try {
     const res = await pgClient.query<{ key: string; value: string }>(
       `SELECT key, value FROM public.app_settings 
-       WHERE key IN ('RESEND_FROM', 'RESEND_FROM_EMAIL', 'EMAIL_WEBHOOK_URL', 'RESEND_WEBHOOK_URL')`
+       WHERE key IN ('RESEND_FROM', 'RESEND_FROM_EMAIL', 'RESEND_REPLY_TO', 'EMAIL_WEBHOOK_URL', 'RESEND_WEBHOOK_URL')`
     );
     for (const row of res.rows) {
       if (row.key === 'RESEND_FROM' && row.value?.trim()) resendFrom = row.value.trim();
       else if (row.key === 'RESEND_FROM_EMAIL' && row.value?.trim()) resendFromEmail = row.value.trim();
+      else if (row.key === 'RESEND_REPLY_TO' && row.value?.trim()) resendReplyTo = row.value.trim();
       else if (row.key === 'EMAIL_WEBHOOK_URL') emailWebhookUrl = (row.value || '').trim();
       else if (row.key === 'RESEND_WEBHOOK_URL') resendWebhookUrl = (row.value || '').trim();
     }
@@ -246,16 +249,17 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
     console.error('[email.ts] Error querying app_settings table for email configuration:', dbErr);
     resendFrom = ((await getAppSetting('RESEND_FROM')) || '').trim();
     resendFromEmail = ((await getAppSetting('RESEND_FROM_EMAIL')) || '').trim();
+    resendReplyTo = ((await getAppSetting('RESEND_REPLY_TO')) || '').trim();
     emailWebhookUrl = ((await getAppSetting('EMAIL_WEBHOOK_URL')) || '').trim();
     resendWebhookUrl = ((await getAppSetting('RESEND_WEBHOOK_URL')) || '').trim();
   }
 
-  // Cross-fallback between RESEND_FROM and RESEND_FROM_EMAIL
+  // Cross-fallback between RESEND_FROM and RESEND_FROM_EMAIL from database settings
   if (!resendFrom && resendFromEmail) {
     resendFrom = `SarbaazSoft Shoe POS Security <${resendFromEmail}>`;
   }
-  if (!resendFrom) {
-    resendFrom = (process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL || '').trim();
+  if (!resendReplyTo) {
+    resendReplyTo = ((await getAppSetting('RESEND_REPLY_TO')) || '').trim();
   }
 
   const rawFromCandidate = (
@@ -264,7 +268,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
     DEFAULT_FROM_ADDRESS
   ).trim();
 
-  const parsedSender = parseSenderAddress(rawFromCandidate);
+  const parsedSender = parseSenderAddress(rawFromCandidate, resendReplyTo);
   let fromAddress = parsedSender.resendFrom;
   const replyToAddress = opts.replyTo || parsedSender.replyTo;
   const recipients = Array.isArray(opts.to) ? opts.to : [opts.to];
@@ -303,28 +307,21 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
     }
 
     try {
-      // Determine sender display name and email with environment variable fallbacks and hardcoded default
+      // Determine sender display name and email exclusively from app_settings
       // Priority:
-      // 1. Configured GMAIL_FROM_NAME from SuperAdmin settings (e.g. 'superadmin' or customized)
+      // 1. Configured GMAIL_FROM_NAME from SuperAdmin app_settings
       // 2. Caller-specified opts.from display name (if explicitly passed and not default generic fallback)
-      // 3. Environment fallbacks: process.env.GMAIL_FROM_NAME || 'superadmin', process.env.GMAIL_USER || 'sarbaazsoft@gmail.com'
-      // 4. Hardcoded fallback: 'superadmin <sarbaazsoft@gmail.com>'
-      const fallbackFromName = (process.env.GMAIL_FROM_NAME || 'superadmin').trim();
-      const fallbackFromEmail = (process.env.GMAIL_USER || 'sarbaazsoft@gmail.com').trim();
-      const hardcodedFrom = 'superadmin <sarbaazsoft@gmail.com>';
-
+      // 3. Database default display name
       const senderDisplayName = (rawFromName || '').trim() ||
         (parsedSender.displayName && parsedSender.displayName !== 'SarbaazSoft Shoe POS Security' ? parsedSender.displayName : '') ||
-        fallbackFromName ||
         'superadmin';
-      const senderEmail = (cleanUser || fallbackFromEmail || 'sarbaazsoft@gmail.com').trim();
+      const senderEmail = cleanUser;
 
       const senderFrom = (senderDisplayName && senderEmail)
         ? (senderDisplayName.includes(' ') ? `"${senderDisplayName}" <${senderEmail}>` : `${senderDisplayName} <${senderEmail}>`)
-        : hardcodedFrom;
+        : 'superadmin <sarbaazsoft@gmail.com>';
 
-      // Construct the active sender address (dynamic settings > env vars > hardcoded fallback)
-      const mailFrom = senderFrom || 'superadmin <sarbaazsoft@gmail.com>';
+      const mailFrom = senderFrom;
 
       // Update the transporter configuration with the dynamic sender address
       const transporter = nodemailer.createTransport(
@@ -982,34 +979,41 @@ export async function testEmailConfiguration(testRecipient?: string): Promise<Te
   const activeProvider = await getActiveEmailProvider();
   let resendFrom = '';
   let resendFromEmail = '';
+  let resendReplyTo = '';
 
   try {
     const res = await pgClient.query<{ key: string; value: string }>(
-      "SELECT key, value FROM public.app_settings WHERE key IN ('RESEND_FROM', 'RESEND_FROM_EMAIL')"
+      "SELECT key, value FROM public.app_settings WHERE key IN ('RESEND_FROM', 'RESEND_FROM_EMAIL', 'RESEND_REPLY_TO')"
     );
     for (const row of res.rows) {
       if (row.key === 'RESEND_FROM' && row.value?.trim()) {
         resendFrom = row.value.trim();
       } else if (row.key === 'RESEND_FROM_EMAIL' && row.value?.trim()) {
         resendFromEmail = row.value.trim();
+      } else if (row.key === 'RESEND_REPLY_TO' && row.value?.trim()) {
+        resendReplyTo = row.value.trim();
       }
     }
   } catch (dbErr) {
     console.error('[testEmailConfiguration] Error querying app_settings table for sender email:', dbErr);
     resendFrom = ((await getAppSetting('RESEND_FROM')) || '').trim();
     resendFromEmail = ((await getAppSetting('RESEND_FROM_EMAIL')) || '').trim();
+    resendReplyTo = ((await getAppSetting('RESEND_REPLY_TO')) || '').trim();
   }
 
-  // Cross-fallback between RESEND_FROM and RESEND_FROM_EMAIL
+  // Cross-fallback between RESEND_FROM and RESEND_FROM_EMAIL from database settings
   if (!resendFrom && resendFromEmail) {
     resendFrom = `SarbaazSoft Shoe POS Security <${resendFromEmail}>`;
   }
   if (!resendFrom) {
-    resendFrom = (process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS).trim();
+    resendFrom = DEFAULT_FROM_ADDRESS;
+  }
+  if (!resendReplyTo) {
+    resendReplyTo = ((await getAppSetting('RESEND_REPLY_TO')) || '').trim();
   }
 
   const rawFromCandidate = (resendFrom || DEFAULT_FROM_ADDRESS).trim();
-  const parsedSender = parseSenderAddress(rawFromCandidate);
+  const parsedSender = parseSenderAddress(rawFromCandidate, resendReplyTo);
   const targetRecipient = (testRecipient || '').trim().toLowerCase();
 
   const providerLabel = activeProvider === 'gmail' ? 'Gmail SMTP' : 'Resend';

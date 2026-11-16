@@ -42,6 +42,7 @@ import chatRoutes from './src/server/routes/chatRoutes.ts';
 import tenantSaasRoutes from './src/server/routes/tenantSaasRoutes.ts';
 import { transformKeysToCamelCase } from './src/utils/caseTransformer.ts';
 import { recordApplicationBaseUrl } from './src/server/services/welcomeService.ts';
+import { getAppSetting } from './src/server/services/appSettingsService.ts';
 import { buildPwaManifest, resolvePwaBranding, type PwaBrandingInput } from './src/utils/pwaBranding.ts';
 import { patchDesktopSetupExe, resolveDesktopTargetUrl } from './src/server/utils/windowsExePatcher.ts';
 import {
@@ -262,7 +263,7 @@ app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
 });
 
 // Dynamic Desktop Setup Installer (.EXE) Download Endpoint
-app.get(['/api/download/desktop-setup', '/assets/SarbaazSoft-POS-Desktop-Setup.exe'], (req, res) => {
+app.get(['/api/download/desktop-setup', '/assets/SarbaazSoft-POS-Desktop-Setup.exe'], async (req, res) => {
   const candidates = [
     path.join(rootDir, 'public', 'assets', 'SarbaazSoft-POS-Desktop-Setup.exe'),
     path.join(rootDir, 'dist', 'assets', 'SarbaazSoft-POS-Desktop-Setup.exe'),
@@ -275,8 +276,9 @@ app.get(['/api/download/desktop-setup', '/assets/SarbaazSoft-POS-Desktop-Setup.e
   const branding = resolvePwaBranding(extractRequestPwaBrandingInput(req));
   const cleanFileBase = branding.shortName.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'SarbaazSoft-POS';
   const downloadFileName = `${cleanFileBase}-Desktop-Setup.exe`;
+  const publicAppUrl = await getAppSetting('PUBLIC_APP_URL', '');
   const targetUrl = resolveDesktopTargetUrl({
-    envUrl: process.env.PUBLIC_APP_URL,
+    envUrl: publicAppUrl,
     hostHeader: (req.get('x-forwarded-host') || req.get('host') || '').trim(),
   });
   const originalBuf = fs.readFileSync(exePath);
@@ -325,7 +327,7 @@ app.get('/assets/windows/:filename', (req, res, next) => {
 });
 
 // Signed Android APK (.APK) Download Endpoint
-app.get(['/api/download/apk', '/assets/SarbaazSoft-POS.apk'], (req, res) => {
+app.get(['/api/download/apk', '/assets/SarbaazSoft-POS.apk'], async (req, res) => {
   const requestedBase = 'SarbaazSoft-POS.apk';
   const candidates = [
     path.join(rootDir, 'public', 'assets', requestedBase),
@@ -339,18 +341,19 @@ app.get(['/api/download/apk', '/assets/SarbaazSoft-POS.apk'], (req, res) => {
   const branding = resolvePwaBranding(extractRequestPwaBrandingInput(req));
   const cleanFileBase = branding.shortName.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'SarbaazSoft-POS';
   const downloadFileName = `${cleanFileBase}.apk`;
+  const twaPackageName = (await getAppSetting('TWA_PACKAGE_NAME', 'com.sarbaazsoft.shoepos')).trim() || 'com.sarbaazsoft.shoepos';
 
   const stat = fs.statSync(apkPath);
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
   res.setHeader('Content-Disposition', `attachment; filename="${downloadFileName}"`);
   res.setHeader('Content-Length', stat.size);
   res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-  res.setHeader('X-APK-Package', process.env.TWA_PACKAGE_NAME || 'com.sarbaazsoft.shoepos');
+  res.setHeader('X-APK-Package', twaPackageName);
   return res.sendFile(apkPath);
 });
 
 // Official Digital Asset Links endpoint for Android TWA verification
-app.get('/.well-known/assetlinks.json', (_req, res) => {
+app.get('/.well-known/assetlinks.json', async (_req, res) => {
   const candidates = [
     path.join(rootDir, 'public', '.well-known', 'assetlinks.json'),
     path.join(rootDir, 'dist', '.well-known', 'assetlinks.json'),
@@ -386,8 +389,8 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
     ];
   }
 
-  const extraPackage = (process.env.TWA_PACKAGE_NAME || '').trim();
-  const extraShaList = (process.env.ASSETLINKS_SHA256 || '')
+  const extraPackage = (await getAppSetting('TWA_PACKAGE_NAME', '')).trim();
+  const extraShaList = (await getAppSetting('ASSETLINKS_SHA256', ''))
     .split(',')
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);

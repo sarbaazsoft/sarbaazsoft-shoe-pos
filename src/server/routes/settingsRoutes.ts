@@ -4,15 +4,13 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pgClient } from '../../db/index.ts';
 import { ensureSaasControlPlane, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions } from '../../db/schemaInit.ts';
-import { requireAuth, requireAdmin, requireSuperAdmin } from '../auth.ts';
+import { requireAuth, requireAdmin, requireSuperAdmin, getJwtSecret } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { getAllAppSettings, updateAppSettings } from '../services/appSettingsService.ts';
 import { notifyPlatformAnnouncement } from '../pushNotificationService.ts';
 import { sendStaffWelcomeNotification } from '../services/welcomeService.ts';
 import { testEmailConfiguration } from '../utils/email.ts';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'shoe-pos-super-secure-jwt-secret-key-2026';
 
 const router = Router();
 
@@ -40,7 +38,7 @@ async function resolvePublicOrAuthTenantId(req: Request): Promise<number> {
 
   if (rawToken) {
     try {
-      const decoded: any = jwt.verify(rawToken, JWT_SECRET);
+      const decoded: any = jwt.verify(rawToken, getJwtSecret());
       if (decoded?.tenantId && Number(decoded.tenantId) > 0) {
         tokenTenantId = Number(decoded.tenantId);
       }
@@ -309,14 +307,21 @@ router.post('/renew-subscription', requireAuth, requireAdmin, async (req: Authen
     const businessAddress = String(cs.address || '').trim();
 
     // Alert SuperAdmin via platform notification about the renewal request (strictly scoped to SUPERADMIN role)
+    const explicitRenewalEventId = String(req.body?.eventId || req.body?.idempotencyKey || '').trim();
+    const renewalEventId =
+      explicitRenewalEventId ||
+      `renewal-request-${tenantRow.id}-${requestedPlan}-${new Date().toISOString().slice(0, 13)}`;
+
     await pgClient
       .query(
-        `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, created_at)
-         VALUES (NULL, 'SUPERADMIN', $1, $2, 'SYSTEM', '/superadmin', 'Review Store', NOW())
+        `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, event_id, created_at)
+         VALUES (NULL, 'SUPERADMIN', $1, $2, 'SYSTEM', '/superadmin', 'Review Store', $3, NOW())
+         ON CONFLICT (event_id) DO NOTHING
          RETURNING id, created_at`,
         [
           `Renewal Request: ${storeName}`,
           `Store owner requested subscription renewal (${planLabel}) for '${storeName}'. Contact: ${ownerEmail} / ${ownerPhone}. Notes: ${fullNotes}`,
+          renewalEventId,
         ]
       )
       .then(async (notifRes) => {
@@ -324,6 +329,7 @@ router.post('/renew-subscription', requireAuth, requireAdmin, async (req: Authen
         if (notifRow?.id) {
           await notifyPlatformAnnouncement({
             id: notifRow.id,
+            eventId: renewalEventId,
             tenantId: null,
             targetRole: 'SUPERADMIN',
             title: `Renewal Request: ${storeName}`,

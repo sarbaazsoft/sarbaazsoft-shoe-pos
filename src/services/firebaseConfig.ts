@@ -33,7 +33,42 @@ let inFlightTokenSync: Promise<{
   mode?: 'fcm' | 'realtime';
 }> | null = null;
 let lastSyncedSignature = '';
+const FCM_LAST_SYNC_SIG_KEY = 'pos_fcm_last_sync_sig';
+const FCM_LAST_SYNC_AT_KEY = 'pos_fcm_last_sync_at';
+const FCM_SYNC_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 let swSubscriptionListenerAttached = false;
+
+function hasFreshFcmSyncSignature(signature: string): boolean {
+  if (lastSyncedSignature === signature) return true;
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    const storedSig = localStorage.getItem(FCM_LAST_SYNC_SIG_KEY);
+    const storedAt = Number(localStorage.getItem(FCM_LAST_SYNC_AT_KEY) || 0);
+    if (storedSig === signature && storedAt > 0 && Date.now() - storedAt < FCM_SYNC_CACHE_TTL_MS) {
+      lastSyncedSignature = signature;
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+function persistFcmSyncSignature(signature: string): void {
+  lastSyncedSignature = signature;
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(FCM_LAST_SYNC_SIG_KEY, signature);
+    localStorage.setItem(FCM_LAST_SYNC_AT_KEY, String(Date.now()));
+  } catch {}
+}
+
+function clearPersistedFcmSyncSignature(): void {
+  lastSyncedSignature = '';
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(FCM_LAST_SYNC_SIG_KEY);
+    localStorage.removeItem(FCM_LAST_SYNC_AT_KEY);
+  } catch {}
+}
 
 export async function fetchFcmConfig() {
   if (inFlightConfigPromise) {
@@ -64,7 +99,7 @@ function attachPushSubscriptionChangeListener(): void {
   const handleMessage = (data: any) => {
     if (!data || typeof data !== 'object') return;
     if (data.type === 'SW_PUSH_SUBSCRIPTION_CHANGED') {
-      lastSyncedSignature = '';
+      clearPersistedFcmSyncSignature();
       void syncFcmTokenSilently();
       return;
     }
@@ -248,7 +283,10 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
         const tag =
           payload.data?.tag ||
           payload.data?.eventId ||
-          `fcm-fg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          payload.data?.event_id ||
+          (payload.notification as Record<string, any> | undefined)?.tag ||
+          payload.messageId ||
+          dedupeKey;
 
         // Play alert audio chime only if SSE / SW did not already play it for this event
         if (claimNotificationChannel(dedupeKey, 'audio')) {
@@ -620,7 +658,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         const syncSignature = `${tenantId}:${userId}:${userRole}:${token}`;
         const previousToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
 
-        if (lastSyncedSignature !== syncSignature || (previousToken && previousToken !== token)) {
+        if (!hasFreshFcmSyncSignature(syncSignature) || (previousToken && previousToken !== token)) {
           const deviceId = getOrCreatePushDeviceId();
           const baseDeviceName = `${navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop/Laptop'} (${navigator.platform || 'Web'})`;
           const deviceName = deviceId ? `${baseDeviceName} [id:${deviceId}]` : baseDeviceName;
@@ -636,7 +674,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
           });
 
           localStorage.setItem(FCM_TOKEN_KEY, token);
-          lastSyncedSignature = syncSignature;
+          persistFcmSyncSignature(syncSignature);
         }
       }
 
@@ -930,7 +968,7 @@ export async function requestFcmDeviceToken(overrideRole?: string): Promise<{
  * Unsubscribes and deletes the stored FCM token from the database.
  */
 export async function unregisterFcmDeviceToken(): Promise<boolean> {
-  lastSyncedSignature = '';
+  clearPersistedFcmSyncSignature();
   const token = localStorage.getItem('pos_fcm_token');
   if (token) {
     try {

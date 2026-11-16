@@ -79,7 +79,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
       cleanupWatcher();
       window.removeEventListener('pos:push-soft-prompt-updated', handleSoftPromptUpdated);
     };
-  }, [currentUser]);
+  }, [Boolean(currentUser), currentUser?.id, userRole]);
 
   const showBlockedModal = (snap: PushPermissionSnapshot) => {
     const isAndroidBlocked = snap.effectiveStatus === 'android-system-disabled' || snap.androidSystemDisabled;
@@ -231,8 +231,8 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
   };
 
   const handleDismiss = () => {
-    // Snooze soft prompt for 3 days
-    dismissSoftPushPrompt(3);
+    // Snooze soft prompt for 30 days so users aren't repeatedly prompted
+    dismissSoftPushPrompt(30);
     setIsVisible(false);
   };
 

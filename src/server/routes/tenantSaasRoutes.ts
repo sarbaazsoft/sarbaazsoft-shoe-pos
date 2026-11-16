@@ -460,14 +460,17 @@ export async function recordTrialActivation(data: {
     );
 
     // Alert SuperAdmin via platform notification about the new free trial registration (strictly scoped to SUPERADMIN role)
+    const trialEventId = `trial-activation-${data.tenantId || cleanEmail}`;
     await pgClient
       .query(
-        `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, created_at)
-         VALUES (NULL, 'SUPERADMIN', $1, $2, 'INFO', '/superadmin', 'View Store', NOW())
+        `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, event_id, created_at)
+         VALUES (NULL, 'SUPERADMIN', $1, $2, 'INFO', '/superadmin', 'View Store', $3, NOW())
+         ON CONFLICT (event_id) DO NOTHING
          RETURNING id, created_at`,
         [
           `New Free Trial: ${String(data.storeName || 'New Store').trim()}`,
           `New 30-day Free Tier store registered by ${String(data.userName || 'Store Owner').trim()} (${cleanEmail}${data.phone ? ' • ' + data.phone : ''}).`,
+          trialEventId,
         ]
       )
       .then(async (notifRes) => {
@@ -475,6 +478,7 @@ export async function recordTrialActivation(data: {
         if (notifRow?.id) {
           await notifyPlatformAnnouncement({
             id: notifRow.id,
+            eventId: trialEventId,
             tenantId: null,
             targetRole: 'SUPERADMIN',
             title: `New Free Trial: ${String(data.storeName || 'New Store').trim()}`,
@@ -2729,6 +2733,8 @@ router.post('/superadmin/notifications', requireAuth, requireSuperAdmin, async (
     }
 
     const currentUserId = req.user?.id || null;
+    const rawEventId = String(req.body?.eventId || req.body?.idempotencyKey || '').trim();
+    const eventId = rawEventId || `announcement-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const insertRes = await pgClient.query<{
       id: number;
@@ -2741,37 +2747,58 @@ router.post('/superadmin/notifications', requireAuth, requireSuperAdmin, async (
       action_label: string;
       created_by: number | null;
       expires_at: string | null;
+      event_id: string | null;
       created_at: string;
     }>(
       `INSERT INTO platform_notifications (
-        tenant_id, target_role, title, message, type, action_url, action_label, created_by, expires_at, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        tenant_id, target_role, title, message, type, action_url, action_label, created_by, expires_at, event_id, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      ON CONFLICT (event_id) DO NOTHING
       RETURNING *`,
-      [targetTenantId, targetRole, title, message, type, actionUrl, actionLabel, currentUserId, expiresAt]
+      [targetTenantId, targetRole, title, message, type, actionUrl, actionLabel, currentUserId, expiresAt, eventId]
     );
 
-    const row = insertRes.rows[0];
+    let row = insertRes.rows[0];
+    let isNewlyCreated = true;
 
-    // Dispatch real-time SSE event & Web Push to subscribers with role isolation
-    await notifyPlatformAnnouncement({
-      id: row.id,
-      tenantId: row.tenant_id,
-      targetRole: row.target_role as any,
-      title: row.title,
-      message: row.message,
-      type: row.type,
-      actionUrl: row.action_url,
-      actionLabel: row.action_label,
-      timestamp: row.created_at,
-    }).catch((err) => console.warn('Failed to dispatch announcement notification:', err));
+    if (!row) {
+      isNewlyCreated = false;
+      const existingRes = await pgClient.query<typeof row>(
+        'SELECT * FROM platform_notifications WHERE event_id = $1 LIMIT 1',
+        [eventId]
+      );
+      row = existingRes.rows[0];
+    }
 
-    return res.status(201).json({
+    if (!row) {
+      return res.status(500).json({ error: 'Failed to create or retrieve notification.' });
+    }
+
+    if (isNewlyCreated) {
+      // Dispatch real-time SSE event & Web Push to subscribers with role isolation only once
+      await notifyPlatformAnnouncement({
+        id: row.id,
+        eventId: row.event_id || `platform-${row.id}`,
+        tenantId: row.tenant_id,
+        targetRole: row.target_role as any,
+        title: row.title,
+        message: row.message,
+        type: row.type,
+        actionUrl: row.action_url,
+        actionLabel: row.action_label,
+        timestamp: row.created_at,
+      }).catch((err) => console.warn('Failed to dispatch announcement notification:', err));
+    }
+
+    return res.status(isNewlyCreated ? 201 : 200).json({
       success: true,
+      deduplicated: !isNewlyCreated,
       message: targetTenantId
         ? `Custom notification sent to ${targetStoreName} (${targetRole}) successfully!`
         : `Custom notification broadcast to all stores (${targetRole}) successfully!`,
       notification: {
         id: row.id,
+        eventId: row.event_id || `platform-${row.id}`,
         tenantId: row.tenant_id,
         targetRole: row.target_role,
         storeName: targetStoreName,

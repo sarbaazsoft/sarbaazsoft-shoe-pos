@@ -103,39 +103,27 @@ export async function sendWelcomeMsg(
     (welcomeMsg || '').trim() ||
     `Welcome to SarbaazSoft Shoe POS, ${storeName}!\n\nThank you for choosing SarbaazSoft to power your footwear business. We are thrilled to partner with ${storeName} and help you streamline your inventory, accelerate counter checkouts, and scale your wholesale operations seamlessly.`;
 
-  // 3. Ensure platform notification exists for this tenant
+  // 3. Ensure platform notification exists for this tenant atomically using stable event_id
   let notificationId: number | undefined;
   try {
-    const existing = await pgClient.query(
-      `SELECT id FROM platform_notifications
-       WHERE tenant_id = $1
-         AND (title ILIKE 'Welcome to SarbaazSoft%' OR message ILIKE '%Thank you for choosing SarbaazSoft%')
-       ORDER BY id ASC LIMIT 1`,
-      [tenantId]
-    );
-
     const title = `Welcome to SarbaazSoft Shoe POS — ${storeName}`;
     const actionLabel = 'Open POS Terminal';
     const actionUrl = `/pos?tenantId=${tenantId}`;
+    const welcomeEventId = `welcome-tenant-${tenantId}`;
 
-    if (existing.rows.length > 0) {
-      notificationId = Number(existing.rows[0].id);
-      await pgClient.query(
-        `UPDATE platform_notifications
-         SET title = $1, message = $2, action_url = $3, action_label = $4
-         WHERE id = $5`,
-        [title, finalWelcomeMsg, actionUrl, actionLabel, notificationId]
-      );
-    } else {
-      const insertRes = await pgClient.query(
-        `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, created_at)
-         VALUES ($1, 'ADMIN', $2, $3, 'SUCCESS', $4, $5, NOW())
-         RETURNING id`,
-        [tenantId, title, finalWelcomeMsg, actionUrl, actionLabel]
-      );
-      if (insertRes.rows.length > 0) {
-        notificationId = Number(insertRes.rows[0].id);
-      }
+    const upsertRes = await pgClient.query(
+      `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, event_id, created_at)
+       VALUES ($1, 'ADMIN', $2, $3, 'SUCCESS', $4, $5, $6, NOW())
+       ON CONFLICT (event_id) DO UPDATE SET
+         title = EXCLUDED.title,
+         message = EXCLUDED.message,
+         action_url = EXCLUDED.action_url,
+         action_label = EXCLUDED.action_label
+       RETURNING id`,
+      [tenantId, title, finalWelcomeMsg, actionUrl, actionLabel, welcomeEventId]
+    );
+    if (upsertRes.rows.length > 0) {
+      notificationId = Number(upsertRes.rows[0].id);
     }
   } catch (notifErr) {
     console.warn(`[welcomeService] Could not store platform notification for tenant ${tenantId}:`, notifErr);
@@ -219,13 +207,15 @@ export async function sendStaffWelcomeNotification(
     console.warn(`[welcomeService] Could not fetch tenant ${opts.tenantId}:`, err);
   }
 
-  // Record a platform notification for this staff member
+  // Record a platform notification for this staff member atomically via event_id
   let notificationId: number | undefined;
   try {
     const roleLabel = opts.role === 'CASHIER' ? 'Cashier' : 'Store Administrator';
+    const staffEventId = `welcome-staff-${opts.tenantId}-${opts.email.trim().toLowerCase()}`;
     const insertRes = await pgClient.query(
-      `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, created_at)
-       VALUES ($1, $2, $3, $4, 'INFO', $5, 'Open POS Terminal', NOW())
+      `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, event_id, created_at)
+       VALUES ($1, $2, $3, $4, 'INFO', $5, 'Open POS Terminal', $6, NOW())
+       ON CONFLICT (event_id) DO NOTHING
        RETURNING id`,
       [
         opts.tenantId,
@@ -233,10 +223,19 @@ export async function sendStaffWelcomeNotification(
         `Welcome to ${storeName}`,
         `Your staff account (${roleLabel}) is active. Sign in with ${opts.email} to start your shift.`,
         terminalUrl,
+        staffEventId,
       ]
     );
     if (insertRes.rows.length > 0) {
       notificationId = Number(insertRes.rows[0].id);
+    } else {
+      const existingRes = await pgClient.query(
+        `SELECT id FROM platform_notifications WHERE event_id = $1 LIMIT 1`,
+        [staffEventId]
+      );
+      if (existingRes.rows.length > 0) {
+        notificationId = Number(existingRes.rows[0].id);
+      }
     }
   } catch (notifErr) {
     console.warn(`[welcomeService] Could not create platform notification for staff ${opts.email}:`, notifErr);

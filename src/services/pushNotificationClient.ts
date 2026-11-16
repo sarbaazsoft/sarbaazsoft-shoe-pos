@@ -313,7 +313,19 @@ export function clearSystemNotificationDeliveryBlocked(): void {
   } catch {}
 }
 
-export async function getDetailedPushPermissionStatus(): Promise<PushPermissionSnapshot> {
+let inFlightPermissionSnapshot: Promise<PushPermissionSnapshot> | null = null;
+
+export function getDetailedPushPermissionStatus(): Promise<PushPermissionSnapshot> {
+  if (inFlightPermissionSnapshot) {
+    return inFlightPermissionSnapshot;
+  }
+  inFlightPermissionSnapshot = computeDetailedPushPermissionStatus().finally(() => {
+    inFlightPermissionSnapshot = null;
+  });
+  return inFlightPermissionSnapshot;
+}
+
+async function computeDetailedPushPermissionStatus(): Promise<PushPermissionSnapshot> {
   const isAndroid = isAndroidDeviceClient();
   const isStandalone = isStandalonePWA();
   const isAndroidTwa = isAndroidTwaClient();
@@ -493,6 +505,8 @@ export function isSoftPromptDismissed(): boolean {
 
 export function shouldShowSoftPushPrompt(): boolean {
   if (typeof window === 'undefined' || !isWebPushSupported()) return false;
+  // iOS Safari browser tabs cannot grant Web Push until added to Home Screen
+  if (isIOSDevice() && !isStandalonePWA()) return false;
   // Never prompt if permission was already granted or denied
   if (Notification.permission !== 'default') return false;
   // Never re-prompt if user snoozed, dismissed/prompted once, denied, opted out, or Android system notifications are disabled
@@ -515,7 +529,7 @@ export async function shouldShowSoftPushPromptAsync(): Promise<boolean> {
   return snapshot.effectiveStatus === 'default';
 }
 
-export function dismissSoftPushPrompt(days = 3): void {
+export function dismissSoftPushPrompt(days = 30): void {
   if (typeof window === 'undefined') return;
   try {
     const until = Date.now() + Math.max(days, 1) * 86400000;
@@ -545,6 +559,7 @@ export function watchNotificationPermissionChanges(
 
   let disposed = false;
   let permStatusObj: PermissionStatus | null = null;
+  let focusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const emitSnapshot = () => {
     void getDetailedPushPermissionStatus().then((snap) => {
@@ -556,7 +571,11 @@ export function watchNotificationPermissionChanges(
 
   const handleVisibilityOrFocus = () => {
     if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-      emitSnapshot();
+      if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
+      focusDebounceTimer = setTimeout(() => {
+        focusDebounceTimer = null;
+        if (!disposed) emitSnapshot();
+      }, 120);
     }
   };
 
@@ -601,6 +620,7 @@ export function watchNotificationPermissionChanges(
 
   return () => {
     disposed = true;
+    if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
     window.removeEventListener('pos:push-status-changed', emitSnapshot);
     window.removeEventListener('focus', handleVisibilityOrFocus);
     document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
@@ -767,7 +787,8 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         const tag =
           normalizedPayload.tag ||
           normalizedPayload.eventId ||
-          `pos-${normalizedPayload.type?.toLowerCase() || 'alert'}-${normalizedPayload.returnNumber || normalizedPayload.invoiceNumber || Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          normalizedPayload.event_id ||
+          dedupeKey;
         const parsedTimestamp = normalizedPayload.timestamp
           ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
           : Date.now();

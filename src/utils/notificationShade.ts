@@ -34,6 +34,15 @@ function resolveShadeTimestamp(rawTimestamp: unknown): number {
 
 let shadeRegistrationQueue: Promise<void> = Promise.resolve();
 
+function hashShadeKey(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 /**
  * Displays a single standalone notification through an active ServiceWorkerRegistration.
  * Every notification is treated as an independent message with its own unique tag —
@@ -55,15 +64,15 @@ export async function showSingleNotificationWithRegistration(
     const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
     const defaultFallbackUrl = isAdminTarget ? '/admin' : '/?tab=reports';
     const explicitTag = String(
-      options.tag || options.data?.tag || options.data?.eventId || ''
+      options.tag || options.data?.tag || options.data?.eventId || options.data?.event_id || ''
     ).trim();
-    const incomingTag =
-      explicitTag ||
-      `${isAdminTarget ? 'admin' : 'pos'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const cleanTitle = String(title || 'POS Notification');
     const cleanBody = String(options.body || '');
     const timestamp = resolveShadeTimestamp(options.timestamp ?? options.data?.timestamp);
     const targetUrl = String(options.data?.url || options.data?.deepLinkUrl || defaultFallbackUrl);
+    const incomingTag =
+      explicitTag ||
+      `${isAdminTarget ? 'admin' : 'pos'}-${hashShadeKey(`${cleanTitle}|${cleanBody}|${targetUrl}`)}`;
 
     if (typeof registration.getNotifications === 'function') {
       const existingAll = await registration.getNotifications().catch(() => [] as Notification[]);

@@ -469,6 +469,9 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
 
     if (upper.startsWith('INSERT INTO') || upper.includes('INSERT INTO PUBLIC.APP_SETTINGS') || upper.includes('INSERT INTO PUBLIC.APP_SETTING') || upper.includes('INSERT INTO APP_SETTING')) {
       const key = String(params[0] || '').trim();
+      if (!key) {
+        return { rows: [], rowCount: 0 };
+      }
       const value = String(params[1] !== undefined && params[1] !== null ? params[1] : '');
       const category = String(params[2] || 'system');
       const description = String(params[3] || '');
@@ -650,7 +653,6 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     if (!mockStore.platform_notifications) mockStore.platform_notifications = [];
 
     if (upper.startsWith('INSERT INTO') || upper.includes('INSERT INTO PUBLIC.PLATFORM_NOTIFICATIONS') || upper.includes('INSERT INTO PLATFORM_NOTIFICATIONS')) {
-      const hasExplicitTargetRole = upper.includes('TARGET_ROLE');
       let targetTenantId: number | null = null;
       let targetRole = 'ALL';
       let title = '';
@@ -658,23 +660,45 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       let type = 'INFO';
       let actionUrl = '';
       let actionLabel = '';
+      let createdBy: number | null = null;
+      let expiresAt: string | null = null;
+      let eventId: string | null = null;
 
-      if (upper.includes("VALUES ($1, 'ADMIN'")) {
-        targetTenantId = params[0] !== undefined && params[0] !== null ? Number(params[0]) : null;
-        targetRole = 'ADMIN';
-        title = String(params[1] || '');
-        message = String(params[2] || '');
-        type = 'SUCCESS';
-        actionUrl = String(params[3] || '');
-        actionLabel = 'Open POS Terminal';
-      } else if (hasExplicitTargetRole && params.length >= 7) {
-        targetTenantId = params[0] !== undefined && params[0] !== null ? Number(params[0]) : null;
-        targetRole = String(params[1] || 'ALL').toUpperCase();
-        title = String(params[2] || '');
-        message = String(params[3] || '');
-        type = String(params[4] || 'INFO');
-        actionUrl = String(params[5] || '');
-        actionLabel = String(params[6] || '');
+      // Parse SQL column list and VALUES expressions dynamically so optional event_id works cleanly
+      const colMatch = sql.match(/INSERT\s+INTO\s+(?:public\.)?platform_notifications\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+      if (colMatch) {
+        const cols = colMatch[1].split(',').map((c) => c.trim().toLowerCase());
+        const vals = colMatch[2].split(',').map((v) => v.trim());
+        const getColVal = (colName: string): any => {
+          const idx = cols.indexOf(colName);
+          if (idx === -1 || idx >= vals.length) return undefined;
+          const expr = vals[idx];
+          const paramMatch = expr.match(/^\$(\d+)$/);
+          if (paramMatch) {
+            return params[Number(paramMatch[1]) - 1];
+          }
+          if (/^null$/i.test(expr)) return null;
+          const strMatch = expr.match(/^'([^']*)'$/);
+          if (strMatch) return strMatch[1];
+          return undefined;
+        };
+
+        const rawTid = getColVal('tenant_id');
+        targetTenantId = rawTid !== undefined && rawTid !== null ? Number(rawTid) : null;
+        targetRole = String(getColVal('target_role') || 'ALL').toUpperCase();
+        title = String(getColVal('title') || '');
+        message = String(getColVal('message') || '');
+        type = String(getColVal('type') || 'INFO');
+        actionUrl = String(getColVal('action_url') || '');
+        actionLabel = String(getColVal('action_label') || '');
+        const rawCreatedBy = getColVal('created_by');
+        createdBy = rawCreatedBy !== undefined && rawCreatedBy !== null ? Number(rawCreatedBy) : null;
+        const rawExp = getColVal('expires_at');
+        expiresAt = rawExp ? String(rawExp) : null;
+        const rawEventId = getColVal('event_id');
+        eventId = rawEventId !== undefined && rawEventId !== null && String(rawEventId).trim() !== ''
+          ? String(rawEventId).trim()
+          : null;
       } else {
         targetTenantId = params[0] !== undefined && params[0] !== null ? Number(params[0]) : null;
         title = String(params[1] || '');
@@ -695,6 +719,28 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         targetTenantId = null;
       }
 
+      // Enforce atomic DB uniqueness on event_id when present
+      if (eventId) {
+        const existingByEventId = mockStore.platform_notifications.find(
+          (pn: any) => pn.event_id && String(pn.event_id) === eventId
+        );
+        if (existingByEventId) {
+          if (upper.includes('ON CONFLICT') && upper.includes('DO UPDATE')) {
+            if (title) existingByEventId.title = title;
+            if (message) existingByEventId.message = message;
+            if (actionUrl) existingByEventId.action_url = actionUrl;
+            if (actionLabel) existingByEventId.action_label = actionLabel;
+            return { rows: [existingByEventId as unknown as T], rowCount: 1 };
+          }
+          if (upper.includes('ON CONFLICT') && upper.includes('DO NOTHING')) {
+            return { rows: [], rowCount: 0 };
+          }
+          const dupErr: any = new Error('duplicate key value violates unique constraint "platform_notifications_event_id_unique_idx"');
+          dupErr.code = '23505';
+          throw dupErr;
+        }
+      }
+
       const isWelcomeNotif =
         titleLower.includes('welcome to sarbaazsoft') ||
         message.toLowerCase().includes('thank you for choosing sarbaazsoft');
@@ -712,6 +758,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
           if (actionUrl) existingWelcome.action_url = actionUrl;
           if (actionLabel) existingWelcome.action_label = actionLabel;
           if (title) existingWelcome.title = title;
+          if (eventId && !existingWelcome.event_id) existingWelcome.event_id = eventId;
           // Purge any stale duplicates and return the singular welcome notice
           mockStore.platform_notifications = mockStore.platform_notifications.filter(
             (pn: any) =>
@@ -733,8 +780,9 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         type,
         action_url: actionUrl,
         action_label: actionLabel,
-        created_by: null,
-        expires_at: null,
+        created_by: createdBy,
+        expires_at: expiresAt,
+        event_id: eventId,
         created_at: new Date().toISOString(),
       };
       mockStore.platform_notifications.unshift(entry);
@@ -742,6 +790,14 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     }
 
     if (upper.startsWith('SELECT')) {
+      if (upper.includes('WHERE EVENT_ID = $1')) {
+        const needle = String(params[0] || '').trim();
+        const found = (mockStore.platform_notifications || []).filter(
+          (pn: any) => pn.event_id && String(pn.event_id) === needle
+        );
+        return { rows: found as unknown as T[], rowCount: found.length };
+      }
+
       const tenantId = params.length > 0 && params[0] !== null && params[0] !== undefined ? Number(params[0]) : 1;
       const userId = params.length > 1 && params[1] !== null && params[1] !== undefined ? Number(params[1]) : 0;
       const role = params.length > 2 && params[2] !== null && params[2] !== undefined ? String(params[2]).toUpperCase() : 'ADMIN';
@@ -2039,7 +2095,17 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     }
 
     let sList = [...mockStore.sales];
-    if (upper.includes('NOTES LIKE $2')) {
+    if (upper.includes('CLIENT_TX_ID = $2')) {
+      const tid = Number(params[0] || 1);
+      const txId = String(params[1] || '').trim();
+      const needle = params[2] ? String(params[2]).replace(/%/g, '').toLowerCase() : '';
+      sList = sList.filter(
+        (s) =>
+          Number(s.tenant_id || 1) === tid &&
+          ((s.client_tx_id && String(s.client_tx_id) === txId) ||
+            (needle && String(s.notes || '').toLowerCase().includes(needle)))
+      );
+    } else if (upper.includes('NOTES LIKE $2')) {
       const tid = Number(params[0] || 1);
       const needle = String(params[1] || '').replace(/%/g, '').toLowerCase();
       sList = sList.filter(
@@ -2090,9 +2156,23 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
   }
 
   if (upper.startsWith('INSERT INTO SALES')) {
+    const cleanTenantId = Number(params[0] || 1);
+    const clientTxId = params[23] !== undefined && params[23] !== null && String(params[23]).trim() !== ''
+      ? String(params[23]).trim()
+      : null;
+    if (clientTxId) {
+      const dupSale = mockStore.sales.find(
+        (s) => Number(s.tenant_id || 1) === cleanTenantId && s.client_tx_id && String(s.client_tx_id) === clientTxId
+      );
+      if (dupSale) {
+        const dupErr: any = new Error('duplicate key value violates unique constraint "sales_tenant_client_tx_id_unique_idx"');
+        dupErr.code = '23505';
+        throw dupErr;
+      }
+    }
     const newSale = {
       id: nextMockId('sales'),
-      tenant_id: Number(params[0] || 1),
+      tenant_id: cleanTenantId,
       invoice_number: String(params[1] || 'INV-000001'),
       sale_type: String(params[2] || 'RETAIL'),
       customer_id: params[3] ? Number(params[3]) : null,
@@ -2115,6 +2195,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       notes: String(params[20] || ''),
       sale_date: params[21] ? String(params[21]) : new Date().toISOString().slice(0, 10),
       transaction_id: params[22] ? String(params[22]) : '',
+      client_tx_id: clientTxId,
       created_at: new Date().toISOString(),
     };
     mockStore.sales.unshift(newSale);

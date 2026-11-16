@@ -53,6 +53,18 @@ async function generateReturnNumber(tenantId: number): Promise<string> {
   return `RET-${padded}`;
 }
 
+const inFlightClientTxCheckouts = new Map<string, Promise<any>>();
+
+function createCheckoutDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: any) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 // POST /api/pos/checkout - Atomic Sale & Direct Shoe Exchange Processing (Strictly Scoped to req.user.tenantId)
 router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const tenantId = extractStrictTenantId(req);
@@ -69,10 +81,29 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     saleDate = null,
   } = req.body;
 
-  if (clientTxId && typeof clientTxId === 'string') {
+  const cleanClientTxId = typeof clientTxId === 'string' && clientTxId.trim() ? clientTxId.trim() : null;
+  const txLockKey = cleanClientTxId ? `${tenantId}:${cleanClientTxId}` : null;
+
+  if (txLockKey && inFlightClientTxCheckouts.has(txLockKey)) {
+    try {
+      const existingResult = await inFlightClientTxCheckouts.get(txLockKey);
+      if (existingResult) {
+        return res.status(200).json({
+          message: 'Sale previously synchronized.',
+          invoiceNumber: existingResult.invoiceNumber,
+          alreadySynced: true,
+          sale: existingResult.sale,
+        });
+      }
+    } catch {
+      // Fall through to DB check or fresh execution if prior attempt rolled back
+    }
+  }
+
+  if (cleanClientTxId) {
     const existingSync = await pgClient.query<any>(
-      "SELECT id, invoice_number, total_amount FROM sales WHERE COALESCE(tenant_id, 1) = $1 AND notes LIKE $2 LIMIT 1",
-      [tenantId, `%[Offline Tx: ${clientTxId.trim()}]%`]
+      "SELECT id, invoice_number, total_amount FROM sales WHERE COALESCE(tenant_id, 1) = $1 AND (client_tx_id = $2 OR notes LIKE $3) LIMIT 1",
+      [tenantId, cleanClientTxId, `%[Offline Tx: ${cleanClientTxId}]%`]
     );
     if (existingSync.rows.length > 0) {
       const saleRow = existingSync.rows[0];
@@ -205,6 +236,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   } catch (err: any) {
     return res.status(500).json({ error: 'Could not prepare the database for checkout: ' + err.message });
   }
+
+  let txLockDeferred: ReturnType<typeof createCheckoutDeferred<any>> | null = null;
 
   await pgClient.query('BEGIN');
 
@@ -594,43 +627,75 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       throw new Error('Retail checkout requires full payment. Partial payments and Khata credit are not allowed.');
     }
 
-    const saleRes = await pgClient.query<{ id: number }>(
-      `INSERT INTO sales (
-        tenant_id, invoice_number, sale_type, customer_id, sale_date, subtotal, discount, 
-        total_amount, total_cartons, transport_name, bilty_number, booking_destination,
-        previous_balance, paid_amount, remaining_balance,
-        payment_method, cash_received, change_given, 
-        created_by, is_min_price_overridden, overridden_by, notes, transaction_id
-      ) VALUES ($1, $2, $3, $4, COALESCE($22, NOW()::date::text), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $23)
-      RETURNING id`,
-      [
-        tenantId,
-        invoiceNumber,
-        saleType,
-        targetCustomerId,
-        calculatedSubtotal,
-        calculatedTotalDiscount,
-        totalAmountDue,
-        totalCartons,
-        transportName,
-        biltyNumber,
-        bookingDestination,
-        customerPreviousBalance,
-        effectivePaidAmount,
-        remainingBalance,
-        paymentMethod,
-        effectivePaidAmount,
-        changeGivenDue,
-        user.id,
-        verifiedOverrideAdminId !== null,
-        verifiedOverrideAdminId,
-        finalNotes,
-        effectiveSaleDate,
-        transactionId,
-      ]
-    );
+    if (txLockKey && !inFlightClientTxCheckouts.has(txLockKey)) {
+      txLockDeferred = createCheckoutDeferred<any>();
+      txLockDeferred.promise.catch(() => {});
+      inFlightClientTxCheckouts.set(txLockKey, txLockDeferred.promise);
+    }
 
-    const saleId = saleRes.rows[0].id;
+    let saleId: number;
+    try {
+      const saleRes = await pgClient.query<{ id: number }>(
+        `INSERT INTO sales (
+          tenant_id, invoice_number, sale_type, customer_id, sale_date, subtotal, discount, 
+          total_amount, total_cartons, transport_name, bilty_number, booking_destination,
+          previous_balance, paid_amount, remaining_balance,
+          payment_method, cash_received, change_given, 
+          created_by, is_min_price_overridden, overridden_by, notes, transaction_id, client_tx_id
+        ) VALUES ($1, $2, $3, $4, COALESCE($22, NOW()::date::text), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $23, $24)
+        RETURNING id`,
+        [
+          tenantId,
+          invoiceNumber,
+          saleType,
+          targetCustomerId,
+          calculatedSubtotal,
+          calculatedTotalDiscount,
+          totalAmountDue,
+          totalCartons,
+          transportName,
+          biltyNumber,
+          bookingDestination,
+          customerPreviousBalance,
+          effectivePaidAmount,
+          remainingBalance,
+          paymentMethod,
+          effectivePaidAmount,
+          changeGivenDue,
+          user.id,
+          verifiedOverrideAdminId !== null,
+          verifiedOverrideAdminId,
+          finalNotes,
+          effectiveSaleDate,
+          transactionId,
+          cleanClientTxId,
+        ]
+      );
+      saleId = saleRes.rows[0].id;
+    } catch (insertErr: any) {
+      if (txLockKey) {
+        inFlightClientTxCheckouts.delete(txLockKey);
+        txLockDeferred?.reject(insertErr);
+        txLockDeferred = null;
+      }
+      if (cleanClientTxId && (insertErr?.code === '23505' || String(insertErr?.message || '').includes('sales_tenant_client_tx_id'))) {
+        await pgClient.query('ROLLBACK');
+        const existingSync = await pgClient.query<any>(
+          "SELECT id, invoice_number, total_amount FROM sales WHERE COALESCE(tenant_id, 1) = $1 AND (client_tx_id = $2 OR notes LIKE $3) LIMIT 1",
+          [tenantId, cleanClientTxId, `%[Offline Tx: ${cleanClientTxId}]%`]
+        );
+        if (existingSync.rows.length > 0) {
+          const saleRow = existingSync.rows[0];
+          return res.status(200).json({
+            message: 'Sale previously synchronized.',
+            invoiceNumber: saleRow.invoice_number,
+            alreadySynced: true,
+            sale: saleRow,
+          });
+        }
+      }
+      throw insertErr;
+    }
 
     for (let idx = 0; idx < validatedItems.length; idx++) {
       const v = validatedItems[idx];
@@ -717,6 +782,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         const oldItemsStr = validatedReturnItems.map((r) => `${r.quantity}x ${r.productName}`).join(', ');
         const newItemsStr = validatedItems.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
         notifyPosAction(tenantId, {
+          eventId: `pos-exchange-${tenantId}-sale-${saleId}`,
           type: 'EXCHANGE',
           title: isWholesaleStore ? `Wholesale Shoe Return #${invoiceNumber}` : `Shoe Exchange #${invoiceNumber}`,
           message: isWholesaleStore
@@ -747,6 +813,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         const extraCount = validatedItems.length > 3 ? ` +${validatedItems.length - 3} more` : '';
         const itemsSummary = `${itemNamesStr}${extraCount}`;
         notifyPosAction(tenantId, {
+          eventId: `pos-sale-${tenantId}-sale-${saleId}`,
           type: 'SALE',
           title: `New Sale #${invoiceNumber}`,
           message: `Order #${invoiceNumber} for Rs. ${Math.round(totalAmountDue)} (${paymentMethod}). Items: ${itemsSummary}. Customer: ${customerDisplayName}. Processed by ${cashierDisplayName}.`,
@@ -769,13 +836,13 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       console.warn('Notification trigger error:', notifErr);
     }
 
-    res.status(201).json({
+    const responsePayload = {
       message: validatedReturnItems.length > 0
         ? (isWholesaleStore ? `Shoe Return processed. Return #${generatedReturnNumber} generated.` : `Direct Shoe Exchange completed. Return ${generatedReturnNumber} generated.`)
         : 'Sale completed successfully.',
       invoiceNumber,
       returnNumber: generatedReturnNumber,
-      clientTxId: clientTxId || null,
+      clientTxId: cleanClientTxId || null,
       netDifference,
       exchangeCredit: totalExchangeCredit,
       sale: {
@@ -788,8 +855,21 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         original_invoice_number: origSale?.invoice_number || exchange?.originalInvoiceNumber,
       },
       companySettings: csRes.rows[0] || null,
-    });
+    };
+
+    if (txLockKey) {
+      txLockDeferred?.resolve(responsePayload);
+      txLockDeferred = null;
+      inFlightClientTxCheckouts.delete(txLockKey);
+    }
+
+    res.status(201).json(responsePayload);
   } catch (txErr: any) {
+    if (txLockKey) {
+      txLockDeferred?.reject(txErr);
+      txLockDeferred = null;
+      inFlightClientTxCheckouts.delete(txLockKey);
+    }
     await pgClient.query('ROLLBACK');
     console.error('POS Checkout Transaction Failed:', txErr);
     res.status(400).json({ error: txErr.message || 'Transaction failed. Stock has been preserved.' });

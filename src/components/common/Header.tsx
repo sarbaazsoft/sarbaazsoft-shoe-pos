@@ -27,6 +27,10 @@ import {
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal.tsx';
+import {
+  claimNotificationChannel,
+  getNotificationDedupeKey,
+} from '../../utils/notificationDedupe.ts';
 
 interface HeaderProps {
   currentTab: string;
@@ -506,9 +510,14 @@ export const Header: React.FC<HeaderProps> = ({
       triggerBellPulse();
       fetchLiveNotifications();
 
-      const incomingEventId = String(payload.eventId || payload.tag || '');
+      const incomingEventId = String(payload.eventId || payload.event_id || payload.tag || '');
       if (incomingEventId && suppressedLocalTestIdsRef.current.has(incomingEventId)) {
         suppressedLocalTestIdsRef.current.delete(incomingEventId);
+        return;
+      }
+
+      const toastDedupeKey = getNotificationDedupeKey(payload);
+      if (!claimNotificationChannel(toastDedupeKey, 'toast')) {
         return;
       }
 

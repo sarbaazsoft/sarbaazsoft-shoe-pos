@@ -688,8 +688,9 @@ export const api = {
       actionUrl?: string;
       actionLabel?: string;
       expiresAt?: string | null;
+      eventId?: string;
     }) =>
-      apiFetch<{ success: boolean; message: string; notification: PlatformNotification }>(
+      apiFetch<{ success: boolean; message: string; notification: PlatformNotification; deduplicated?: boolean }>(
         '/superadmin/notifications',
         { method: 'POST', body: data }
       ),
@@ -1156,7 +1157,7 @@ export const api = {
         details?: any;
       }>('/settings/test-email', { method: 'POST', body: { recipientEmail } }),
     getSubscription: () => apiFetch('/settings/subscription'),
-    requestSubscriptionRenewal: (data: { plan: '6_MONTHS' | 'YEARLY' | string; notes?: string }) =>
+    requestSubscriptionRenewal: (data: { plan: '6_MONTHS' | 'YEARLY' | string; notes?: string; eventId?: string }) =>
       apiFetch('/settings/renew-subscription', { method: 'POST', body: data }),
     update: (data: any) => apiFetch('/settings', { method: 'PUT', body: data }),
     getUsers: () => apiFetch('/settings/users'),

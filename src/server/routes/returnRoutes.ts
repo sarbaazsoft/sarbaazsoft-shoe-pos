@@ -309,6 +309,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       const itemsSummary = `${returnItemNames}${moreReturnCount}`;
 
       notifyPosAction(tenantId, {
+        eventId: `pos-return-${tenantId}-ret-${returnId}`,
         type: 'RETURN',
         title: `Return Logged #${returnNumber}`,
         message: `Return #${returnNumber} (Refund: Rs. ${Math.round(totalRefundAmount)}) for Inv #${sale.invoice_number}. Items: ${itemsSummary}. Reason: ${reason.trim()}. Processed by ${cashierDisplayName}.`,

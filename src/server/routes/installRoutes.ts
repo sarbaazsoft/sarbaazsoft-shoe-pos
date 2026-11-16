@@ -4,8 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pgClient, dbInfo, isStandardPostgres } from '../../db/index.ts';
 import { dropAllTables, ensureDatabaseSchema, REQUIRED_DATABASE_TABLES, resetSaasControlPlaneState } from '../../db/schemaInit.ts';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'shoe-pos-super-secure-jwt-secret-key-2026';
+import { getJwtSecret } from '../auth.ts';
 
 const router = Router();
 
@@ -186,7 +185,7 @@ async function checkInstallerAuth(req: Request): Promise<{
   const rawToken = customToken || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : '');
   if (rawToken) {
     try {
-      const decoded = jwt.verify(rawToken, JWT_SECRET) as any;
+      const decoded = jwt.verify(rawToken, getJwtSecret()) as any;
       const role = String(decoded?.role || '').toUpperCase();
       if (role === 'SUPERADMIN') {
         return { authorized: true, forbidden: false, adminName: decoded.name || decoded.email || 'Platform Owner' };
@@ -362,7 +361,7 @@ router.post('/install-platform', async (req: Request, res: Response) => {
             tenantId: 0,
             name: superAdminUser.name,
           },
-          JWT_SECRET,
+          getJwtSecret(),
           { expiresIn: '30d' }
         )
       : null;
@@ -405,7 +404,7 @@ router.post('/reset', async (req: Request, res: Response) => {
     const rawToken = customToken || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : '');
     if (rawToken) {
       try {
-        const decoded = jwt.verify(rawToken, JWT_SECRET) as any;
+        const decoded = jwt.verify(rawToken, getJwtSecret()) as any;
         const role = String(decoded?.role || '').toUpperCase();
         if (role && role !== 'SUPERADMIN') {
           return res.status(403).json({

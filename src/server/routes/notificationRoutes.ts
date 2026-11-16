@@ -10,12 +10,11 @@ import {
   normalizeVapidPublicKey,
 } from '../pushNotificationService.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
-import { extractTokenFromRequest } from '../auth.ts';
+import { extractTokenFromRequest, getJwtSecret } from '../auth.ts';
 import { pgClient } from '../../db/index.ts';
 import { ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'shoe-pos-super-secure-jwt-secret-key-2026';
 
 function resolveRequestIdentity(req: Request): { tenantId: number; userId: number; role: string } {
   // 1. Check req.user attached by authMiddleware
@@ -33,7 +32,7 @@ function resolveRequestIdentity(req: Request): { tenantId: number; userId: numbe
   const token = extractTokenFromRequest(req);
   if (token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, getJwtSecret()) as any;
       const tid = Number(decoded?.tenantId || 0);
       return {
         tenantId: Number.isInteger(tid) && tid > 0 ? tid : 1,
@@ -47,7 +46,7 @@ function resolveRequestIdentity(req: Request): { tenantId: number; userId: numbe
   const queryToken = typeof req.query.__token === 'string' ? req.query.__token : '';
   if (queryToken) {
     try {
-      const decoded = jwt.verify(queryToken, JWT_SECRET) as any;
+      const decoded = jwt.verify(queryToken, getJwtSecret()) as any;
       const tid = Number(decoded?.tenantId || 0);
       return {
         tenantId: Number.isInteger(tid) && tid > 0 ? tid : 1,
@@ -793,12 +792,12 @@ router.post('/platform/dismiss-all', async (req: Request, res: Response) => {
 // GET /api/notifications/fcm-config - Return public client Firebase config
 router.get('/fcm-config', async (_req: Request, res: Response) => {
   try {
-    const projectId = (await getAppSetting('FCM_PROJECT_ID', '')) || process.env.FCM_PROJECT_ID || '';
-    const apiKey = (await getAppSetting('FCM_API_KEY', '')) || process.env.FCM_API_KEY || '';
-    const messagingSenderId = (await getAppSetting('FCM_MESSAGING_SENDER_ID', '')) || process.env.FCM_MESSAGING_SENDER_ID || '';
-    const appId = (await getAppSetting('FCM_APP_ID', '')) || process.env.FCM_APP_ID || '';
-    const measurementId = (await getAppSetting('FCM_MEASUREMENT_ID', '')) || process.env.FCM_MEASUREMENT_ID || '';
-    const rawVapidKey = (await getAppSetting('FCM_VAPID_KEY', '')) || process.env.FCM_VAPID_KEY || '';
+    const projectId = (await getAppSetting('FCM_PROJECT_ID', '')).trim();
+    const apiKey = (await getAppSetting('FCM_API_KEY', '')).trim();
+    const messagingSenderId = (await getAppSetting('FCM_MESSAGING_SENDER_ID', '')).trim();
+    const appId = (await getAppSetting('FCM_APP_ID', '')).trim();
+    const measurementId = (await getAppSetting('FCM_MEASUREMENT_ID', '')).trim();
+    const rawVapidKey = (await getAppSetting('FCM_VAPID_KEY', '')).trim();
     const vapidKey = normalizeVapidPublicKey(rawVapidKey);
 
     const isConfigured = Boolean(projectId && apiKey);

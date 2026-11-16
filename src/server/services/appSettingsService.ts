@@ -78,6 +78,13 @@ export const APP_SETTINGS_DEFAULTS: AppSettingDefinition[] = [
     isSecret: false,
   },
   {
+    key: 'RESEND_REPLY_TO',
+    defaultValue: 'noreply@sarbaazsoft.com',
+    category: 'email',
+    description: 'Reply-To email address for Resend transactional emails',
+    isSecret: false,
+  },
+  {
     key: 'EMAIL_WEBHOOK_URL',
     defaultValue: '',
     category: 'email',
@@ -216,6 +223,34 @@ export const APP_SETTINGS_DEFAULTS: AppSettingDefinition[] = [
     description: 'Disable Vite Hot Module Reloading in sandbox environments',
     isSecret: false,
   },
+  {
+    key: 'GEMINI_API_KEY',
+    defaultValue: '',
+    category: 'system',
+    description: 'Google Gemini API Key for Sammi AI assistant',
+    isSecret: true,
+  },
+  {
+    key: 'PUBLIC_APP_URL',
+    defaultValue: '',
+    category: 'system',
+    description: 'Public HTTPS application URL embedded in desktop installers',
+    isSecret: false,
+  },
+  {
+    key: 'TWA_PACKAGE_NAME',
+    defaultValue: 'com.sarbaazsoft.shoepos',
+    category: 'system',
+    description: 'Android Trusted Web Activity package identifier',
+    isSecret: false,
+  },
+  {
+    key: 'ASSETLINKS_SHA256',
+    defaultValue: '',
+    category: 'system',
+    description: 'Comma-separated SHA-256 certificate fingerprints for Android Digital Asset Links',
+    isSecret: false,
+  },
 ];
 
 export interface AppSettingItem {
@@ -241,7 +276,7 @@ export function registerSettingsUpdateListener(listener: SettingsUpdateListener)
 }
 
 /**
- * Initializes the app_settings table and seeds default values (preferring any initial .env values during migration).
+ * Initializes the app_settings table and seeds default values exclusively in the database.
  */
 export async function ensureAppSettingsSchema(): Promise<void> {
   if (schemaInitPromise) return schemaInitPromise;
@@ -278,18 +313,13 @@ export async function ensureAppSettingsSchema(): Promise<void> {
         WHERE key IN ('TELEGRAM_BOT_TOKEN', 'TELEGRAM_SUPERADMIN_CHAT_ID', 'TELEGRAM_ALERTS_ENABLED', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT', 'SW_KILL_SWITCH')
       `).catch(() => {});
 
-      // Seed all default settings if not already present
+      // Seed all default settings if not already present (strictly from APP_SETTINGS_DEFAULTS, never from process.env)
       for (const def of APP_SETTINGS_DEFAULTS) {
-        // RESEND_API_KEY and email settings must NEVER be loaded or seeded from process.env or .env
-        const isEmailCat = def.category === 'email' || def.key === 'RESEND_API_KEY';
-        const envVal = !isEmailCat ? process.env[def.key]?.trim() : undefined;
-        const initialVal = envVal !== undefined && envVal !== '' ? envVal : def.defaultValue;
-
         await pgClient.query(
           `INSERT INTO public.app_settings (key, value, category, description, is_secret, updated_at)
            VALUES ($1, $2, $3, $4, $5, NOW())
            ON CONFLICT (key) DO NOTHING`,
-          [def.key, initialVal, def.category, def.description, def.isSecret]
+          [def.key, def.defaultValue, def.category, def.description, def.isSecret]
         );
       }
 
@@ -313,18 +343,6 @@ export async function ensureAppSettingsSchema(): Promise<void> {
         UPDATE public.app_settings SET value = '1:900875095665:web:2050a569fe0b7eded995d0' WHERE key = 'FCM_APP_ID' AND (value IS NULL OR value = '');
         UPDATE public.app_settings SET value = 'G-YNR6ETB365' WHERE key = 'FCM_MEASUREMENT_ID' AND (value IS NULL OR value = '');
       `).catch(() => {});
-
-      // Seed default SuperAdmin push event toggles if not already present
-      await pgClient.query(`
-        INSERT INTO public.app_settings (key, value, category, description, is_secret, updated_at)
-        VALUES 
-          ('SUPERADMIN_PUSH_ON_NEW_TRIAL', 'true', 'notifications', 'Trigger native push notifications for new 30-day Free Trial store registrations', false, NOW()),
-          ('SUPERADMIN_PUSH_ON_RENEWAL', 'true', 'notifications', 'Trigger native push notifications for subscription renewals and tier upgrade requests', false, NOW()),
-          ('SUPERADMIN_PUSH_ON_EXPIRED_STORE', 'true', 'notifications', 'Trigger native push notifications when a store subscription expires', false, NOW()),
-          ('SUPERADMIN_PUSH_ON_SECURITY_ALERT', 'true', 'notifications', 'Trigger native push notifications for platform security events, backups, and critical system logs', false, NOW()),
-          ('SUPERADMIN_PUSH_ON_SALES', 'false', 'notifications', 'Trigger native push notifications to SuperAdmin for high-value store sales or platform auditing', false, NOW())
-        ON CONFLICT (key) DO NOTHING;
-      `).catch(() => {});
     } catch (err: any) {
       console.warn('Notice while ensuring app_settings schema:', err?.message || err);
     }
@@ -335,8 +353,8 @@ export async function ensureAppSettingsSchema(): Promise<void> {
 
 /**
  * Dynamic asynchronous getter for an app setting with fallback value.
- * Always reads directly from PostgreSQL app_settings table without any in-memory caching.
- * Email settings (RESEND_API_KEY, etc.) are strictly read from app_settings, never from .env.
+ * Always reads directly from PostgreSQL app_settings table without any in-memory caching
+ * and without falling back to process.env or .env files.
  */
 export async function getAppSetting(key: string, fallback?: string): Promise<string> {
   const def = APP_SETTINGS_DEFAULTS.find((d) => d.key === key);
@@ -385,25 +403,6 @@ export async function getAppSetting(key: string, fallback?: string): Promise<str
     return fallback || '';
   }
 
-  // Environment variable fallback if not set in database (NEVER used for RESEND_API_KEY)
-  const envVal = process.env[key]?.trim();
-  if (envVal !== undefined && envVal !== '') {
-    return envVal;
-  }
-
-  if (key === 'RESEND_FROM_EMAIL') {
-    const altEnv = process.env.RESEND_FROM?.trim();
-    if (altEnv) {
-      const match = altEnv.match(/<([^>]+)>/);
-      return match ? match[1].trim() : altEnv;
-    }
-  } else if (key === 'RESEND_FROM') {
-    const altEnv = process.env.RESEND_FROM_EMAIL?.trim();
-    if (altEnv) {
-      return `SarbaazSoft Shoe POS Security <${altEnv}>`;
-    }
-  }
-
   return fallback ?? def?.defaultValue ?? '';
 }
 
@@ -443,17 +442,25 @@ export async function getAllAppSettings(
     system: [],
   };
 
-  const rows = res.rows.length > 0 ? res.rows : APP_SETTINGS_DEFAULTS.map((d) => {
-    const isEmail = d.category === 'email' || d.key.startsWith('RESEND_') || d.key.startsWith('EMAIL_');
-    return {
-      key: d.key,
-      value: (!isEmail ? process.env[d.key]?.trim() : undefined) ?? d.defaultValue,
-      category: d.category,
-      description: d.description,
-      isSecret: d.isSecret,
-      updatedAt: new Date().toISOString(),
-    };
-  });
+  const rows: AppSettingItem[] = (
+    res.rows.length > 0
+      ? res.rows.map((r: any) => ({
+          key: r.key,
+          value: r.value ?? '',
+          category: (r.category || 'system') as AppSettingCategory,
+          description: r.description ?? '',
+          isSecret: r.isSecret ?? Boolean(r.is_secret),
+          updatedAt: r.updatedAt ?? r.updated_at,
+        }))
+      : APP_SETTINGS_DEFAULTS.map((d) => ({
+          key: d.key,
+          value: d.defaultValue,
+          category: d.category,
+          description: d.description,
+          isSecret: d.isSecret,
+          updatedAt: new Date().toISOString(),
+        }))
+  );
 
   for (const item of rows) {
     byKey[item.key] = item.value ?? '';
@@ -467,8 +474,7 @@ export async function getAllAppSettings(
   // Ensure all known defaults appear in the response even if unseeded
   for (const def of APP_SETTINGS_DEFAULTS) {
     if (byKey[def.key] === undefined) {
-      const isEmail = def.category === 'email' || def.key.startsWith('RESEND_') || def.key.startsWith('EMAIL_') || def.key.startsWith('GMAIL_') || def.key === 'ACTIVE_EMAIL_PROVIDER';
-      const val = (!isEmail ? process.env[def.key]?.trim() : undefined) ?? def.defaultValue;
+      const val = def.defaultValue;
       byKey[def.key] = val;
       const item: AppSettingItem = {
         key: def.key,
