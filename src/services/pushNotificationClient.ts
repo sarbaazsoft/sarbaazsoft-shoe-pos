@@ -489,11 +489,15 @@ export async function resyncPushSubscriptionIfEnabled(overrideRole?: string): Pr
   return syncFcmTokenSilently(overrideRole);
 }
 
-const SOFT_PROMPT_STORAGE_KEY = 'pos_push_soft_prompt_dismissed_until';
+export const SOFT_PROMPT_STORAGE_KEY = 'pos_push_soft_prompt_dismissed_until';
+export const SOFT_PROMPT_DISMISSED_KEY = 'pos_push_soft_prompt_dismissed';
 
 export function isSoftPromptDismissed(): boolean {
   if (typeof window === 'undefined') return true;
   try {
+    if (localStorage.getItem(SOFT_PROMPT_DISMISSED_KEY) === 'true') {
+      return true;
+    }
     const raw = localStorage.getItem(SOFT_PROMPT_STORAGE_KEY);
     if (!raw) return false;
     const until = Number(raw);
@@ -533,6 +537,7 @@ export function dismissSoftPushPrompt(days = 30): void {
   if (typeof window === 'undefined') return;
   try {
     const until = Date.now() + Math.max(days, 1) * 86400000;
+    localStorage.setItem(SOFT_PROMPT_DISMISSED_KEY, 'true');
     localStorage.setItem(SOFT_PROMPT_STORAGE_KEY, String(until));
     window.dispatchEvent(new CustomEvent('pos:push-soft-prompt-updated'));
   } catch {}
@@ -541,9 +546,16 @@ export function dismissSoftPushPrompt(days = 30): void {
 export function resetSoftPushPromptDismissal(): void {
   if (typeof window === 'undefined') return;
   try {
+    localStorage.removeItem(SOFT_PROMPT_DISMISSED_KEY);
     localStorage.removeItem(SOFT_PROMPT_STORAGE_KEY);
     window.dispatchEvent(new CustomEvent('pos:push-soft-prompt-updated'));
   } catch {}
+}
+
+export function openPushSoftPrePrompt(): void {
+  if (typeof window === 'undefined') return;
+  resetSoftPushPromptDismissal();
+  window.dispatchEvent(new CustomEvent('pos:open-push-soft-prompt'));
 }
 
 /**

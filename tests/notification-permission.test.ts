@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -13,9 +15,14 @@ import {
   requestFcmPermissionAndToken,
 } from '../src/services/firebaseConfig.ts';
 import {
+  SOFT_PROMPT_DISMISSED_KEY,
+  SOFT_PROMPT_STORAGE_KEY,
   connectRealtimeNotificationStream,
+  dismissSoftPushPrompt,
   getDetailedPushPermissionStatus,
+  initNativeNotificationPrompt,
   isDeviceSubscribedToPush,
+  resetSoftPushPromptDismissal,
   resolveEffectivePermissionSnapshot,
   resyncPushSubscriptionIfEnabled,
   shouldShowSoftPushPrompt,
@@ -659,4 +666,52 @@ test('requestFcmPermissionAndToken strictly allows only 1 permission prompt acro
     env.restore();
   }
 });
+
+test('initNativeNotificationPrompt and appinstalled never call Notification.requestPermission() automatically; Maybe Later persists in localStorage', () => {
+  const env = setupMockBrowserEnv({
+    permission: 'default',
+    permissionsApiState: 'prompt',
+  });
+
+  try {
+    // Session initialization in default state must NOT call Notification.requestPermission()
+    const cleanup = initNativeNotificationPrompt('ADMIN');
+    assert.equal(env.getRequestPermissionCalls(), 0, 'Startup must never call Notification.requestPermission()');
+    cleanup();
+
+    // Soft prompt is eligible initially, then Maybe Later persists preference in localStorage
+    assert.equal(shouldShowSoftPushPrompt(), true);
+    dismissSoftPushPrompt(30);
+    assert.equal(env.storage.getItem(SOFT_PROMPT_DISMISSED_KEY), 'true');
+    assert.ok(Number(env.storage.getItem(SOFT_PROMPT_STORAGE_KEY)) > Date.now());
+    assert.equal(shouldShowSoftPushPrompt(), false);
+
+    // Resetting dismissal makes soft pre-prompt eligible again on explicit user request
+    resetSoftPushPromptDismissal();
+    assert.equal(env.storage.getItem(SOFT_PROMPT_DISMISSED_KEY), null);
+    assert.equal(shouldShowSoftPushPrompt(), true);
+  } finally {
+    env.restore();
+  }
+
+  // Verify index.html and UI components contain zero cold prompts and proper Enable Notifications / Maybe Later + denied tooltip
+  const indexHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
+  assert.equal(indexHtml.includes('requestPermission'), false, 'index.html must never auto-request notification permission');
+
+  const softPromptSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/notifications/PushNotificationSoftPrompt.tsx'),
+    'utf8'
+  );
+  assert.ok(softPromptSrc.includes('Enable Notifications'));
+  assert.ok(softPromptSrc.includes('Maybe Later'));
+  assert.ok(softPromptSrc.includes('role="tooltip"'));
+
+  const settingsSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/settings/SettingsView.tsx'),
+    'utf8'
+  );
+  assert.ok(settingsSrc.includes('role="tooltip"'));
+  assert.ok(settingsSrc.includes('Maybe Later'));
+});
+
 

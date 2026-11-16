@@ -23,6 +23,8 @@ import {
   unsubscribeDeviceFromWebPush,
   resyncPushSubscriptionIfEnabled,
   triggerTestNotificationShadeFallback,
+  dismissSoftPushPrompt,
+  isSoftPromptDismissed,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
 
@@ -4164,25 +4166,74 @@ setFormErrors(errors);
                   <span>Check Status</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => void handleToggleDeviceNotifications()}
-                  disabled={isTogglingNotifs || isNotifBlocked}
-                  className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-xs ${
-                    isNotifSubscribed
-                      ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700'
-                      : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white shadow-md shadow-purple-600/20'
-                  }`}
-                >
-                  {isTogglingNotifs ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Bell className="w-3.5 h-3.5" />
+                <div className="relative group inline-flex">
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleDeviceNotifications()}
+                    disabled={isTogglingNotifs || isNotifBlocked}
+                    title={
+                      isNotifBlocked
+                        ? isNotifAndroidBlocked
+                          ? 'Notifications are blocked in Android Settings → Apps → SarbaazSoft POS → Notifications. Enable them there, then click Check Status.'
+                          : 'Notifications are blocked in browser site settings. Click the lock/site settings icon (🔒) in your address bar → set Notifications to Allow → click Check Status.'
+                        : undefined
+                    }
+                    className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs ${
+                      isNotifSubscribed
+                        ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700'
+                        : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white shadow-md shadow-purple-600/20'
+                    }`}
+                  >
+                    {isTogglingNotifs ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Bell className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isNotifSubscribed ? 'Disable Notifications' : 'Enable Notifications'}</span>
+                  </button>
+
+                  {isNotifBlocked && (
+                    <div
+                      role="tooltip"
+                      className="pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity absolute right-0 top-full mt-2 w-72 z-40 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[11px] leading-relaxed p-3 shadow-xl border border-slate-700"
+                    >
+                      {isNotifAndroidBlocked
+                        ? 'Permissions are disabled in Android Settings. Open Apps → SarbaazSoft POS → Notifications → Allow, then click Check Status.'
+                        : 'Permissions are blocked in your browser. Click the site settings icon (🔒) next to the URL, set Notifications to Allow, and click Check Status.'}
+                    </div>
                   )}
-                  <span>{isNotifSubscribed ? 'Disable Notifications' : 'Enable Notifications'}</span>
-                </button>
+                </div>
               </div>
             </div>
+
+            {!isNotifSubscribed && !isNotifBlocked && (
+              <div className="p-4 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1 text-xs">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <BellRing className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Why enable device alerts?</span>
+                  </div>
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Receive real-time order confirmations, invoice receipts, low-stock alerts, and system status updates without staying on the dashboard.
+                  </p>
+                </div>
+                {!isSoftPromptDismissed() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dismissSoftPushPrompt(30);
+                      setNotifToggleMessage({
+                        type: 'info',
+                        text: 'Reminder snoozed. You can click Enable Notifications here whenever you are ready.',
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold shrink-0 transition cursor-pointer"
+                  >
+                    Maybe Later
+                  </button>
+                )}
+              </div>
+            )}
 
             {isNotifBlocked && (
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2.5">

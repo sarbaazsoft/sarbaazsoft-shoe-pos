@@ -1511,11 +1511,18 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Notification Permission Banner (Shown ONLY when permission is not granted) */}
                 {!isPermissionGranted && (
                   <div
-                    className={`p-2.5 mb-2 rounded-xl border ${
+                    className={`relative group p-2.5 mb-2 rounded-xl border ${
                       isPermissionDenied
                         ? 'bg-rose-50/90 dark:bg-rose-950/35 border-rose-200 dark:border-rose-800/60'
                         : 'bg-amber-50/90 dark:bg-amber-950/35 border-amber-200 dark:border-amber-800/60'
                     }`}
+                    title={
+                      isPermissionDenied
+                        ? isAndroidSystemDisabled
+                          ? 'Open Android Settings → Apps → SarbaazSoft POS → Notifications → Allow'
+                          : 'Click the lock/site settings icon (🔒) next to the URL, set Notifications to Allow, then reload or check status.'
+                        : undefined
+                    }
                   >
                     <div className="flex items-start gap-2">
                       <AlertCircle
@@ -1584,6 +1591,17 @@ export const Header: React.FC<HeaderProps> = ({
                         )}
                       </div>
                     </div>
+
+                    {isPermissionDenied && (
+                      <div
+                        role="tooltip"
+                        className="pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity mt-1.5 rounded-lg bg-slate-900 dark:bg-slate-800 text-white text-[10px] leading-snug px-2.5 py-1.5 shadow-lg border border-slate-700"
+                      >
+                        {isAndroidSystemDisabled
+                          ? 'How to re-enable: Android Settings → Apps → SarbaazSoft POS → Notifications → Allow.'
+                          : 'How to re-enable: Click the lock/tune icon (🔒) in the browser address bar → Site settings → Notifications → Allow.'}
+                      </div>
+                    )}
                   </div>
                 )}
 
