@@ -75,12 +75,30 @@
     <script>
       window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault();
+        var alreadyInstalled = false;
+        try {
+          alreadyInstalled =
+            Boolean(window.__pwaInstalled) ||
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            (window.matchMedia && window.matchMedia('(display-mode: window-controls-overlay)').matches) ||
+            window.navigator.standalone === true ||
+            (document.referrer && document.referrer.indexOf('android-app://') === 0) ||
+            localStorage.getItem('pos_pwa_installed') === '1';
+        } catch (err) {}
+        if (alreadyInstalled) {
+          window.__deferredPwaPrompt = null;
+          return;
+        }
         window.__deferredPwaPrompt = e;
         window.dispatchEvent(new Event('pwa-prompt-captured'));
       });
 
       window.addEventListener('appinstalled', function () {
+        window.__pwaInstalled = true;
         window.__deferredPwaPrompt = null;
+        try {
+          localStorage.setItem('pos_pwa_installed', '1');
+        } catch (err) {}
       });
 
       if ('serviceWorker' in navigator) {

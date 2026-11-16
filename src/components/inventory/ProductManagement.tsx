@@ -49,7 +49,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCatStr);
   const [lowStockFilter, setLowStockFilter] = useState<boolean>(() => {
     try {
-      return new URLSearchParams(window.location.search).get('lowStockOnly') === 'true';
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get('lowStockOnly') === 'true' || sp.get('filter') === 'low-stock';
     } catch {
       return false;
     }
@@ -271,6 +272,12 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   useEffect(() => {
     if (isActive) {
       consumePendingInventoryIntents();
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get('lowStockOnly') === 'true' || sp.get('filter') === 'low-stock') {
+          setLowStockFilter(true);
+        }
+      } catch {}
     }
   }, [isActive]);
 

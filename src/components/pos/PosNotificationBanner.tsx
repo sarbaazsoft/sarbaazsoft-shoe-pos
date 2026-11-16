@@ -430,11 +430,20 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
 
           {/* RIGHT: Action Link, Pagination controls, and Dismiss Button */}
           <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-slate-200/60 dark:border-purple-800/40">
-            {/* Optional Action Button if provided */}
-            {currentNotice.actionUrl && (
+            {/* Optional Action Button for announcements */}
+            {(currentNotice.actionUrl || currentNotice.rawId) && (
               <button
                 type="button"
                 onClick={() => {
+                  if (currentNotice.rawId && !currentNotice.actionUrl?.startsWith('http')) {
+                    const target = `/announcements/${encodeURIComponent(String(currentNotice.rawId))}`;
+                    window.dispatchEvent(
+                      new CustomEvent('pos:navigate-deep-link', {
+                        detail: { url: target, deepLinkUrl: target, announcementId: currentNotice.rawId },
+                      })
+                    );
+                    return;
+                  }
                   if (currentNotice.actionUrl?.startsWith('/')) {
                     const tabMatch = currentNotice.actionUrl.replace(/^\//, '').split('?')[0];
                     if (onNavigateTab && tabMatch) {
@@ -442,11 +451,13 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
                       return;
                     }
                   }
-                  window.location.href = currentNotice.actionUrl!;
+                  if (currentNotice.actionUrl) {
+                    window.location.href = currentNotice.actionUrl;
+                  }
                 }}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-50 dark:hover:bg-purple-800/80 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-600/60 shadow-xs cursor-pointer transition-colors"
               >
-                <span>{currentNotice.actionLabel || 'View Details'}</span>
+                <span>Read More</span>
                 <ExternalLink className="w-3 h-3" />
               </button>
             )}
@@ -501,31 +512,18 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
               </div>
             )}
 
-            {/* Dismiss Notice Button */}
+            {/* Hide Banner Icon Button */}
             <div className="flex items-center gap-1.5 ml-1">
               <button
                 type="button"
-                id={`pos-banner-dismiss-btn-${currentNotice.id}`}
+                id={`pos-banner-hide-btn-${currentNotice.id}`}
                 onClick={(e) => handleDismiss(currentNotice, e)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-purple-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 border border-transparent hover:border-slate-300 dark:hover:border-purple-500/40 transition-colors cursor-pointer"
-                title="Dismiss this notice"
-                aria-label="Dismiss this notice"
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-purple-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                title="Hide announcement banner"
+                aria-label="Hide announcement banner"
               >
                 <X className="w-3.5 h-3.5 stroke-[2.2]" />
-                <span className="hidden sm:inline">Dismiss</span>
               </button>
-
-              {activeNotices.length > 1 && (
-                <button
-                  type="button"
-                  id="pos-banner-dismiss-all-btn"
-                  onClick={handleDismissAll}
-                  className="text-[10.5px] font-semibold text-slate-500 hover:text-slate-800 dark:text-purple-400 dark:hover:text-purple-200 px-1.5 py-1 hover:underline cursor-pointer"
-                  title="Dismiss all notices"
-                >
-                  Dismiss all
-                </button>
-              )}
             </div>
           </div>
         </div>

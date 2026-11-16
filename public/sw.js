@@ -159,6 +159,159 @@ function isAdminShadeTarget(options) {
   );
 }
 
+function cleanSwIdValue(val) {
+  if (val === undefined || val === null) return '';
+  const str = String(val).trim();
+  if (!str || str === 'undefined' || str === 'null') return '';
+  return str;
+}
+
+function extractSwInvoiceId(data, candidateUrls) {
+  const direct = cleanSwIdValue(data.invoiceId) || cleanSwIdValue(data.invoiceNumber);
+  if (direct) return direct;
+
+  for (const rawUrl of candidateUrls) {
+    if (!rawUrl) continue;
+    const pathMatch = rawUrl.match(/\/invoices\/([^/?#]+)/i);
+    if (pathMatch && pathMatch[1]) {
+      try {
+        return decodeURIComponent(pathMatch[1]);
+      } catch {
+        return pathMatch[1];
+      }
+    }
+    try {
+      const parsed = new URL(rawUrl, 'https://localhost');
+      const qp = parsed.searchParams.get('viewInvoice') || parsed.searchParams.get('invoice');
+      if (qp && qp.trim()) return qp.trim();
+    } catch {}
+  }
+
+  const fallbackId =
+    cleanSwIdValue(data.saleId) ||
+    cleanSwIdValue(data.orderId) ||
+    (String(data.itemType || '').toUpperCase() === 'SALE' ? cleanSwIdValue(data.rawId) : '');
+  if (fallbackId) return fallbackId;
+
+  const titleOrMsg = `${data.notificationTitle || data.title || ''} ${data.notificationBody || data.body || data.message || ''}`;
+  const hashMatch = titleOrMsg.match(/#([A-Z0-9][A-Z0-9-]*)/i);
+  if (hashMatch && hashMatch[1] && !hashMatch[1].toUpperCase().startsWith('RET-')) {
+    return hashMatch[1];
+  }
+  return '';
+}
+
+function extractSwAnnouncementId(data, candidateUrls) {
+  const direct =
+    cleanSwIdValue(data.announcementId) ||
+    cleanSwIdValue(data.notificationId) ||
+    (String(data.kind || '').toUpperCase() === 'NOTICE'
+      ? cleanSwIdValue(data.rawId) || cleanSwIdValue(data.id).replace(/^notice-/i, '')
+      : '');
+  if (direct) return direct;
+
+  for (const rawUrl of candidateUrls) {
+    if (!rawUrl) continue;
+    const pathMatch = rawUrl.match(/\/announcements\/([^/?#]+)/i);
+    if (pathMatch && pathMatch[1]) {
+      try {
+        return decodeURIComponent(pathMatch[1]);
+      } catch {
+        return pathMatch[1];
+      }
+    }
+  }
+
+  const idStr = cleanSwIdValue(data.id);
+  if (/^(?:notice|platform)-(\d+)$/i.test(idStr)) {
+    return idStr.replace(/^(?:notice|platform)-/i, '');
+  }
+  const tagStr = cleanSwIdValue(data.tag);
+  if (/^platform-(?:notice-)?(\d+)$/i.test(tagStr)) {
+    return tagStr.replace(/^platform-(?:notice-)?/i, '');
+  }
+  return '';
+}
+
+function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
+  const type = String(data.type || '').trim().toUpperCase();
+  const itemType = String(data.itemType || '').trim().toUpperCase();
+  const kind = String(data.kind || '').trim().toUpperCase();
+  const tag = String(data.tag || '').trim().toLowerCase();
+  const candidateUrls = [data.actionUrl, data.deepLinkUrl, data.url]
+    .map((u) => (typeof u === 'string' ? u.trim() : ''))
+    .filter(Boolean);
+  const combinedUrl = candidateUrls.join(' ').toLowerCase();
+
+  const isLowStock =
+    type === 'LOW_STOCK' ||
+    type === 'STOCK' ||
+    itemType === 'LOW_STOCK' ||
+    data.lowStockOnly === 'true' ||
+    data.lowStockOnly === true ||
+    combinedUrl.includes('filter=low-stock') ||
+    combinedUrl.includes('lowstockonly=true');
+
+  const isReturn = type === 'RETURN' || itemType === 'RETURN';
+
+  const hasAnnouncementHint =
+    type === 'ANNOUNCEMENT' ||
+    itemType === 'ANNOUNCEMENT' ||
+    itemType === 'NOTICE' ||
+    kind === 'NOTICE' ||
+    combinedUrl.includes('/announcements/') ||
+    tag.startsWith('platform-') ||
+    (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn);
+
+  const isInvoice =
+    !isLowStock &&
+    !isReturn &&
+    (type === 'INVOICE' ||
+      type === 'SALE' ||
+      type === 'EXCHANGE' ||
+      itemType === 'INVOICE' ||
+      itemType === 'SALE' ||
+      itemType === 'EXCHANGE' ||
+      combinedUrl.includes('/invoices/') ||
+      combinedUrl.includes('viewinvoice=') ||
+      combinedUrl.includes('invoice='));
+
+  let primaryAction = null;
+
+  if (isLowStock) {
+    primaryAction = { action: 'view_stock', title: 'View Stock' };
+  } else if (isInvoice) {
+    primaryAction = { action: 'view_invoice', title: 'View Invoice' };
+  } else if (hasAnnouncementHint) {
+    primaryAction = { action: 'read_more', title: 'Read More' };
+  } else {
+    const resolvedRole = String(data.userRole || data.role || fallbackUserRole || '')
+      .trim()
+      .toUpperCase();
+    if (resolvedRole === 'OWNER' || resolvedRole === 'ADMIN') {
+      primaryAction = { action: 'open_dashboard', title: 'Dashboard' };
+    }
+  }
+
+  const openPosAction = { action: 'open_pos', title: 'Open POS' };
+  return primaryAction ? [primaryAction, openPosAction] : [openPosAction];
+}
+
+function sanitizeSwActions(rawActions, data = {}, fallbackUserRole = '') {
+  if (Array.isArray(rawActions) && rawActions.length > 0) {
+    const filtered = rawActions
+      .filter((a) => {
+        const key = String((a && a.action) || '').trim().toLowerCase();
+        return Boolean(key) && key !== 'dismiss' && key !== 'unsubscribe';
+      })
+      .slice(0, 2);
+    if (filtered.length > 0) {
+      return filtered;
+    }
+  }
+  return resolveSwNotificationActions(data, fallbackUserRole);
+}
+
 function resolveShadeTimestamp(rawTimestamp) {
   if (typeof rawTimestamp === 'number' && Number.isFinite(rawTimestamp) && rawTimestamp > 0) {
     return rawTimestamp;
@@ -306,22 +459,20 @@ async function showSingleShadeNotification(title, options = {}) {
         : NOTIFICATION_BADGE_ICON;
     const shouldBeSilent = !isFirstSwDeliveryForTag || alreadyHadTagInShade || Boolean(options.silent === true);
     const allowRequireInteraction = Boolean(options.requireInteraction === true);
-    const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
-
-    const defaultActions = isAdminTarget
-      ? [
-          { action: 'open_pos', title: 'Open Admin' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : hasReceiptLink
-      ? [
-          { action: 'open_receipt', title: 'Open Receipt' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : [
-          { action: 'open_pos', title: 'Open POS' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ];
+    const mergedData = Object.assign({}, options.data || {}, {
+      url: targetUrl,
+      isAdmin: isAdminTarget ? 'true' : 'false',
+      notificationTitle: cleanTitle,
+      notificationBody: cleanBody,
+      timestamp,
+      eventId: incomingEventId,
+      tag: incomingTag,
+    });
+    const resolvedActions = sanitizeSwActions(
+      options.actions,
+      mergedData,
+      cachedAuthContext && cachedAuthContext.userRole
+    );
 
     const allowRenotify = isFirstSwDeliveryForTag && !alreadyHadTagInShade
       ? Boolean(options.renotify === true)
@@ -336,16 +487,8 @@ async function showSingleShadeNotification(title, options = {}) {
       renotify: allowRenotify,
       requireInteraction: allowRequireInteraction,
       silent: shouldBeSilent,
-      actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
-      data: Object.assign({}, options.data || {}, {
-        url: targetUrl,
-        isAdmin: isAdminTarget ? 'true' : 'false',
-        notificationTitle: cleanTitle,
-        notificationBody: cleanBody,
-        timestamp,
-        eventId: incomingEventId,
-        tag: incomingTag,
-      }),
+      actions: resolvedActions,
+      data: mergedData,
     });
     if (shouldBeSilent) {
       delete notificationOptions.vibrate;
@@ -450,6 +593,14 @@ self.addEventListener('push', (event) => {
     notification.timestamp || data.timestamp || payloadData.timestamp
   );
 
+  const mergedPushData = Object.assign({}, payloadData, {
+    url: targetUrl,
+    isAdmin: isAdminTarget ? 'true' : 'false',
+    tag,
+    notificationTitle: title,
+    notificationBody: rawBody,
+  });
+
   const options = {
     body:
       notification.body ||
@@ -461,7 +612,7 @@ self.addEventListener('push', (event) => {
     badge,
     tag,
     timestamp,
-    data: Object.assign({}, payloadData, { url: targetUrl, isAdmin: isAdminTarget ? 'true' : 'false' }),
+    data: mergedPushData,
     vibrate: [200, 100, 200],
     requireInteraction: Boolean(
       notification.requireInteraction === true ||
@@ -473,22 +624,11 @@ self.addEventListener('push', (event) => {
         data.renotify === true ||
         payloadData.renotify === 'true'
     ),
-    actions: Array.isArray(notification.actions) && notification.actions.length > 0
-      ? notification.actions
-      : isAdminTarget
-      ? [
-          { action: 'open_pos', title: 'Open Admin' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : targetUrl.includes('invoice') || targetUrl.includes('return')
-      ? [
-          { action: 'open_receipt', title: 'Open Receipt' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : [
-          { action: 'open_pos', title: 'Open POS' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ],
+    actions: sanitizeSwActions(
+      notification.actions,
+      mergedPushData,
+      cachedAuthContext && cachedAuthContext.userRole
+    ),
   };
 
   event.waitUntil(
@@ -545,7 +685,7 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.close();
   }
 
-  if (event.action === 'dismiss') {
+  if (event.action === 'dismiss' || event.action === 'unsubscribe') {
     return;
   }
 
@@ -554,11 +694,25 @@ self.addEventListener('notificationclick', (event) => {
     notifData.isAdmin === true ||
     notifData.isAdmin === 'true' ||
     String(notifData.url || '').startsWith('/admin');
+  const candidateUrls = [notifData.actionUrl, notifData.deepLinkUrl, notifData.url]
+    .map((u) => (typeof u === 'string' ? u.trim() : ''))
+    .filter(Boolean);
+
   let targetUrl = sanitizePushTargetUrl(notifData.url || '/?tab=reports', isAdminTarget);
-  if (event.action === 'open_notifications') {
-    targetUrl = isAdminTarget ? '/admin' : '/notifications';
+  if (event.action === 'view_invoice') {
+    const invoiceId = extractSwInvoiceId(notifData, candidateUrls);
+    targetUrl = invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : '/reports';
+  } else if (event.action === 'read_more') {
+    const announcementId = extractSwAnnouncementId(notifData, candidateUrls);
+    targetUrl = announcementId ? `/announcements/${encodeURIComponent(announcementId)}` : '/notifications';
+  } else if (event.action === 'view_stock') {
+    targetUrl = '/inventory?filter=low-stock';
+  } else if (event.action === 'open_dashboard') {
+    targetUrl = '/dashboard';
   } else if (event.action === 'open_pos') {
-    targetUrl = isAdminTarget ? '/admin' : '/?tab=pos';
+    targetUrl = '/pos';
+  } else if (event.action === 'open_notifications') {
+    targetUrl = isAdminTarget ? '/admin' : '/notifications';
   } else if (event.action === 'open_receipt') {
     targetUrl = sanitizePushTargetUrl(notifData.url || '/?tab=reports', isAdminTarget);
   }
@@ -599,7 +753,8 @@ self.addEventListener('notificationclick', (event) => {
         try {
           targetClient.postMessage({
             type: 'POS_DEEP_LINK_NOTIFICATION',
-            payload: notifData,
+            action: event.action || '',
+            payload: Object.assign({}, notifData, { url: targetUrl, deepLinkUrl: targetUrl }),
             targetUrl,
           });
         } catch {}
@@ -715,6 +870,17 @@ function initFirebaseInWorker() {
             `pos-fcm-${hashPushKey(`${title}|${body}|${url}`)}`;
           const timestamp = resolveShadeTimestamp(payload.data?.timestamp);
 
+          const fcmMergedData = Object.assign(
+            {
+              url,
+              isAdmin: isAdminTarget ? 'true' : 'false',
+              tag,
+              notificationTitle: title,
+              notificationBody: body,
+            },
+            payload.data || {}
+          );
+
           const notificationOptions = {
             body,
             icon,
@@ -724,15 +890,11 @@ function initFirebaseInWorker() {
             renotify: false,
             requireInteraction: false,
             vibrate: [200, 100, 200],
-            data: {
-              url,
-              isAdmin: isAdminTarget ? 'true' : 'false',
-              ...payload.data,
-            },
-            actions: [
-              { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-              { action: 'dismiss', title: 'Dismiss' },
-            ],
+            data: fcmMergedData,
+            actions: resolveSwNotificationActions(
+              fcmMergedData,
+              cachedAuthContext && cachedAuthContext.userRole
+            ),
           };
 
           return showSingleShadeNotification(title, notificationOptions);
@@ -757,6 +919,7 @@ initFirebaseInWorker().catch(() => {});
 let cachedAuthContext = {
   token: null,
   tenantId: null,
+  userRole: null,
 };
 
 let isSwSyncing = false;
@@ -1027,6 +1190,7 @@ self.addEventListener('message', (event) => {
     cachedAuthContext = {
       token: data.token || cachedAuthContext.token,
       tenantId: data.tenantId !== undefined ? data.tenantId : cachedAuthContext.tenantId,
+      userRole: data.userRole ? String(data.userRole).toUpperCase() : cachedAuthContext.userRole,
     };
     initFirebaseInWorker().catch(() => {});
     return;
@@ -1041,6 +1205,7 @@ self.addEventListener('message', (event) => {
     cachedAuthContext = {
       token: null,
       tenantId: null,
+      userRole: null,
     };
     return;
   }

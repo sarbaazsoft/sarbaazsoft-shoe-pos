@@ -1,3 +1,5 @@
+import { buildPushNotificationActions } from './notificationActions.ts';
+
 export const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
 
 export interface ShadeNotificationOptions extends NotificationOptions {
@@ -89,22 +91,38 @@ export async function showSingleNotificationWithRegistration(
         ? options.badge
         : NOTIFICATION_BADGE_ICON;
     const icon = options.icon || defaultIcon;
-    const hasReceiptLink = targetUrl.includes('invoice') || targetUrl.includes('return');
 
-    const defaultActions = isAdminTarget
-      ? [
-          { action: 'open_pos', title: 'Open Admin' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : hasReceiptLink
-      ? [
-          { action: 'open_receipt', title: 'Open Receipt' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ]
-      : [
-          { action: 'open_pos', title: 'Open POS' },
-          { action: 'dismiss', title: 'Dismiss' },
-        ];
+    const mergedData: Record<string, any> = {
+      ...(options.data || {}),
+      url: targetUrl,
+      isAdmin: isAdminTarget ? 'true' : 'false',
+      notificationTitle: cleanTitle,
+      notificationBody: cleanBody,
+      timestamp,
+      eventId: options.data?.eventId || incomingTag,
+      tag: incomingTag,
+    };
+
+    const explicitActions = Array.isArray(options.actions)
+      ? options.actions
+          .filter((a) => {
+            const key = String(a?.action || '').trim().toLowerCase();
+            return Boolean(key) && key !== 'dismiss' && key !== 'unsubscribe';
+          })
+          .slice(0, 2)
+      : [];
+
+    const resolvedActions =
+      explicitActions.length > 0
+        ? explicitActions
+        : buildPushNotificationActions(
+            {
+              ...mergedData,
+              title: cleanTitle,
+              message: cleanBody,
+            },
+            mergedData.userRole || mergedData.role
+          );
 
     const notificationOptions: ShadeNotificationOptions = {
       ...options,
@@ -116,17 +134,8 @@ export async function showSingleNotificationWithRegistration(
       renotify: typeof options.renotify === 'boolean' ? options.renotify : false,
       requireInteraction: typeof options.requireInteraction === 'boolean' ? options.requireInteraction : false,
       vibrate: options.vibrate || [200, 100, 200],
-      actions: Array.isArray(options.actions) && options.actions.length > 0 ? options.actions : defaultActions,
-      data: {
-        ...(options.data || {}),
-        url: targetUrl,
-        isAdmin: isAdminTarget ? 'true' : 'false',
-        notificationTitle: cleanTitle,
-        notificationBody: cleanBody,
-        timestamp,
-        eventId: options.data?.eventId || incomingTag,
-        tag: incomingTag,
-      },
+      actions: resolvedActions,
+      data: mergedData,
     };
 
     await registration.showNotification(cleanTitle, notificationOptions);

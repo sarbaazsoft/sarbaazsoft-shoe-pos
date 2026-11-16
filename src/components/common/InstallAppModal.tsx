@@ -311,6 +311,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
               </div>
               <button
                 type="button"
+                data-pwa-manual-install="true"
                 onClick={handleInstallPWA}
                 disabled={isInstalled}
                 className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
@@ -459,6 +460,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
 
               <button
                 type="button"
+                data-pwa-manual-install="true"
                 onClick={handleInstallPWA}
                 disabled={isInstalled}
                 className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
@@ -479,6 +481,15 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
                   </>
                 )}
               </button>
+
+              {showManualHelp && !isInstalled && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+                  <div className="font-bold">Install from Chrome / Edge address bar:</div>
+                  <p>
+                    Click the <strong>Install icon</strong> on the right side of the browser address bar, or open the browser menu (<strong>⋮</strong> / <strong>⋯</strong>) → <strong>Apps</strong> / <strong>Cast, save, and share</strong> → <strong>Install {pwaAppName}</strong>.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Windows .EXE Installer */}

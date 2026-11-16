@@ -30,6 +30,11 @@ import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
 import { useAllNotificationsQuery } from '../../hooks/useLiveData.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import {
+  resolveNotificationActions,
+  navigateToNotificationUrl,
+  type NotificationActionDescriptor,
+} from '../../utils/notificationActions.ts';
 
 interface NotificationsViewProps {
   currentUser?: any;
@@ -52,9 +57,8 @@ interface NotificationFeedItemProps {
   item: HistoricalNotificationItem;
   index: number;
   badge: NotificationBadgeMeta;
-  isDismissing: boolean;
-  onActionClick: (item: HistoricalNotificationItem) => void;
-  onDismiss: (item: HistoricalNotificationItem) => void;
+  actions: NotificationActionDescriptor[];
+  onActionButtonClick: (item: HistoricalNotificationItem, action: NotificationActionDescriptor) => void;
   formatTimestamp: (dateStr?: string | null) => string;
   formatFullDate: (dateStr?: string | null) => string;
 }
@@ -70,9 +74,8 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
   item,
   index,
   badge,
-  isDismissing,
-  onActionClick,
-  onDismiss,
+  actions,
+  onActionButtonClick,
   formatTimestamp,
   formatFullDate,
 }) => {
@@ -205,43 +208,26 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Actions */}
-        <div className="flex items-center sm:flex-col gap-2 shrink-0 self-end sm:self-start">
-          {(item.actionUrl || item.invoiceNumber || item.returnNumber) && (
-            <button
-              type="button"
-              onClick={() => onActionClick(item)}
-              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
-            >
-              <span>
-                {item.actionLabel ||
-                  (item.itemType === 'SALE'
-                    ? 'View Receipt'
-                    : item.itemType === 'RETURN'
-                    ? 'Inspect Return'
-                    : 'Open Link')}
-              </span>
-              <ExternalLink className="w-3 h-3" />
-            </button>
-          )}
-
-          {isUnread ? (
-            <button
-              type="button"
-              onClick={() => onDismiss(item)}
-              disabled={isDismissing}
-              className="px-2.5 py-1 rounded-xl bg-white dark:bg-purple-900/40 hover:bg-slate-100 dark:hover:bg-purple-800/40 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700 text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-50"
-              title="Mark as read / dismiss"
-            >
-              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span>{isDismissing ? 'Saving...' : 'Dismiss'}</span>
-            </button>
-          ) : (
-            <span className="text-[10px] font-medium text-slate-400 dark:text-purple-300/60 flex items-center gap-1 px-2 py-1">
-              <CheckCheck className="w-3 h-3 text-emerald-500" />
-              <span>Acknowledged</span>
-            </span>
-          )}
+        {/* Right Column / Footer: Dynamic Primary Action + Persistent Open POS (Max 2, no Dismiss/Unsubscribe) */}
+        <div className="flex items-center sm:flex-col gap-2 shrink-0 self-end sm:self-end">
+          {actions.map((btn) => {
+            const isPrimary = btn.action !== 'open_pos';
+            return (
+              <button
+                key={btn.action}
+                type="button"
+                onClick={() => onActionButtonClick(item, btn)}
+                className={
+                  isPrimary
+                    ? 'px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs whitespace-nowrap'
+                    : 'px-3 py-1.5 rounded-xl bg-white dark:bg-purple-950/50 hover:bg-slate-100 dark:hover:bg-purple-900/50 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/70 text-xs font-semibold transition cursor-pointer flex items-center gap-1 shadow-2xs whitespace-nowrap'
+                }
+              >
+                <span>{btn.label}</span>
+                {isPrimary && <ExternalLink className="w-3 h-3" />}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -256,7 +242,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
   const searchInitRef = useRef(true);
-  const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
+  const currentUserRole = String(currentUser?.role || currentUser?.originalRole || '').toUpperCase();
+  const isSuperAdmin = currentUserRole === 'SUPERADMIN';
   const [activeTab, setActiveTab] = useState<TabCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -264,9 +251,21 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
-  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [showProviderSettings, setShowProviderSettings] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<HistoricalNotificationItem | null>(null);
+  const [pendingAnnouncementId, setPendingAnnouncementId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const m = window.location.pathname.match(/^\/announcements\/([^/?#]+)/i);
+    if (m && m[1]) {
+      try {
+        return decodeURIComponent(m[1]);
+      } catch {
+        return m[1];
+      }
+    }
+    return null;
+  });
   const searchTimeoutRef = useRef<any>(null);
 
   const queryParams = useMemo(
@@ -328,46 +327,92 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     };
   }, [searchQuery]);
 
-  const handleDismiss = async (item: HistoricalNotificationItem) => {
+  const markItemReadSilently = async (item: HistoricalNotificationItem) => {
+    if (item.isRead) return;
     try {
-      setDismissingId(item.id);
-      // Instant optimistic local state update
       allNotificationsQuery.setData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
           items: (prev.items || []).map((i) => (i.id === item.id ? { ...i, isRead: true } : i)),
-          stats:
-            !item.isRead && prev.stats
-              ? {
-                  ...prev.stats,
-                  unreadNotices:
-                    item.kind === 'NOTICE'
-                      ? Math.max(0, prev.stats.unreadNotices - 1)
-                      : prev.stats.unreadNotices,
-                  unreadOperational:
-                    item.kind === 'OPERATIONAL'
-                      ? Math.max(0, prev.stats.unreadOperational - 1)
-                      : prev.stats.unreadOperational,
-                }
-              : prev.stats,
+          stats: prev.stats
+            ? {
+                ...prev.stats,
+                unreadNotices:
+                  item.kind === 'NOTICE'
+                    ? Math.max(0, prev.stats.unreadNotices - 1)
+                    : prev.stats.unreadNotices,
+                unreadOperational:
+                  item.kind === 'OPERATIONAL'
+                    ? Math.max(0, prev.stats.unreadOperational - 1)
+                    : prev.stats.unreadOperational,
+              }
+            : prev.stats,
         };
       });
 
       await api.notifications.dismiss(item.id, item.itemType);
       emitDataSync(['notifications'], { source: 'notifications-view' });
     } catch (err) {
-      console.warn('Failed to dismiss item:', err);
-      await allNotificationsQuery.refetch();
-    } finally {
-      setDismissingId(null);
+      console.warn('Failed to mark notification as read:', err);
     }
   };
+
+  // Listen for /announcements/:id deep-links
+  useEffect(() => {
+    const handleOpenAnnouncement = (event: any) => {
+      const targetId = String(event?.detail?.announcementId || '').trim();
+      if (targetId) {
+        setPendingAnnouncementId(targetId);
+      }
+    };
+    window.addEventListener('pos:open-announcement', handleOpenAnnouncement);
+    return () => window.removeEventListener('pos:open-announcement', handleOpenAnnouncement);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingAnnouncementId) return;
+    const match = items.find(
+      (i) =>
+        i.kind === 'NOTICE' &&
+        (String(i.rawId) === pendingAnnouncementId ||
+          String(i.id) === pendingAnnouncementId ||
+          String(i.id) === `notice-${pendingAnnouncementId}`)
+    );
+    if (match) {
+      setSelectedAnnouncement(match);
+      setPendingAnnouncementId(null);
+      return;
+    }
+    if (!allNotificationsQuery.isPending) {
+      let cancelled = false;
+      api.notifications
+        .all({ tab: 'announcements', limit: 100 })
+        .then((res: AllNotificationsResponse) => {
+          if (cancelled) return;
+          const found = (res?.items || []).find(
+            (i: HistoricalNotificationItem) =>
+              String(i.rawId) === pendingAnnouncementId ||
+              String(i.id) === pendingAnnouncementId ||
+              String(i.id) === `notice-${pendingAnnouncementId}`
+          );
+          if (found) {
+            setSelectedAnnouncement(found);
+          }
+          setPendingAnnouncementId(null);
+        })
+        .catch(() => {
+          if (!cancelled) setPendingAnnouncementId(null);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [pendingAnnouncementId, items, allNotificationsQuery.isPending]);
 
   const handleMarkAllRead = async () => {
     try {
       setIsMarkingAll(true);
-      // Optimistic local state update
       allNotificationsQuery.setData((prev) => {
         if (!prev) return prev;
         return {
@@ -394,64 +439,34 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     }
   };
 
-  const handleActionClick = (item: HistoricalNotificationItem) => {
-    handleDismiss(item);
+  const handleActionButtonClick = (
+    item: HistoricalNotificationItem,
+    btn: NotificationActionDescriptor
+  ) => {
+    void markItemReadSilently(item);
 
-    if (item.actionUrl) {
-      try {
-        if (item.actionUrl.startsWith('/')) {
-          const parsed = new URL(item.actionUrl, window.location.origin);
-          const tabFromQuery = parsed.searchParams.get('tab');
-          const tabFromPath = parsed.pathname.replace(/^\/+/, '').split('/')[0];
-          const targetTab = (tabFromQuery || tabFromPath || '').trim();
-          const lowStockOnly = parsed.searchParams.get('lowStockOnly') === 'true';
-
-          if (targetTab && targetTab !== 'notifications') {
-            onNavigateTab(targetTab);
-            if (targetTab === 'inventory' && (lowStockOnly || item.itemType === 'LOW_STOCK')) {
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-              }, 150);
-            }
-            return;
-          }
-        }
-        window.open(item.actionUrl, '_blank');
-      } catch {
-        window.location.href = item.actionUrl;
+    if (btn.action === 'open_pos') {
+      onNavigateTab('pos');
+      return;
+    }
+    if (btn.action === 'open_dashboard') {
+      onNavigateTab('dashboard');
+      return;
+    }
+    if (btn.action === 'read_more') {
+      setSelectedAnnouncement(item);
+      if (btn.url.startsWith('/announcements/')) {
+        try {
+          window.history.pushState({}, '', btn.url);
+        } catch {}
       }
       return;
     }
 
-    if (item.itemType === 'LOW_STOCK' || item.type === 'STOCK') {
-      onNavigateTab('inventory');
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-      }, 150);
-      return;
-    }
-
-    if (item.itemType === 'RETURN' || item.returnNumber) {
-      onNavigateTab('returns');
-      if (item.invoiceNumber || item.returnNumber) {
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('returns:inspect-invoice', {
-              detail: { invoice: item.invoiceNumber, returnNumber: item.returnNumber },
-            })
-          );
-        }, 150);
-      }
-    } else if (item.itemType === 'SALE' || item.invoiceNumber) {
-      onNavigateTab('reports');
-      if (item.invoiceNumber) {
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: item.invoiceNumber } })
-          );
-        }, 150);
-      }
-    }
+    navigateToNotificationUrl(btn.url, {
+      ...item,
+      invoiceId: item.invoiceNumber || (item.itemType === 'SALE' ? item.rawId : undefined),
+    });
   };
 
   const formatTimestamp = (dateStr?: string | null) => {
@@ -849,15 +864,87 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               item={item}
               index={index}
               badge={getTypeBadge(item)}
-              isDismissing={dismissingId === item.id}
-              onActionClick={handleActionClick}
-              onDismiss={handleDismiss}
+              actions={resolveNotificationActions(item, currentUserRole)}
+              onActionButtonClick={handleActionButtonClick}
               formatTimestamp={formatTimestamp}
               formatFullDate={formatFullDate}
             />
           ))
         )}
       </div>
+
+      {/* ANNOUNCEMENT DETAIL MODAL (/announcements/:id) */}
+      {selectedAnnouncement && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
+            <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600" />
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-purple-900/60 dark:text-purple-200 border border-indigo-200 dark:border-purple-700">
+                    <Globe className="w-3 h-3" />
+                    <span>{selectedAnnouncement.tenantId ? 'Direct Store Alert' : 'Platform Announcement'}</span>
+                  </span>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                    {selectedAnnouncement.title}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAnnouncement(null);
+                    if (window.location.pathname.startsWith('/announcements/')) {
+                      window.history.replaceState({}, '', '/notifications');
+                    }
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer"
+                  aria-label="Close announcement"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
+                <ClickableMessage text={selectedAnnouncement.message} />
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-purple-900/40 gap-2">
+                <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{formatFullDate(selectedAnnouncement.createdAt)}</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  {selectedAnnouncement.actionUrl && /^https?:\/\//i.test(selectedAnnouncement.actionUrl) && (
+                    <a
+                      href={selectedAnnouncement.actionUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
+                    >
+                      <span>{selectedAnnouncement.actionLabel || 'Open Link'}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAnnouncement(null);
+                      onNavigateTab('pos');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-purple-900/50 hover:bg-slate-200 dark:hover:bg-purple-800/60 text-slate-800 dark:text-purple-100 text-xs font-semibold cursor-pointer"
+                  >
+                    Open POS
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PAGINATION FOOTER */}
       {pagination.totalPages > 1 && (

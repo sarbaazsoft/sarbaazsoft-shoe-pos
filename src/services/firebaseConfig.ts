@@ -9,6 +9,7 @@ import {
   isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
 import { showSingleShadeNotification } from '../utils/notificationShade.ts';
+import { buildPushNotificationActions } from '../utils/notificationActions.ts';
 import { doVapidKeysMatch, normalizeVapidPublicKey } from '../utils/vapid.ts';
 
 let cachedFirebaseApp: FirebaseApp | null = null;
@@ -309,6 +310,24 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
           const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
+          let activeUserRole = '';
+          try {
+            const rawUser = localStorage.getItem('pos_current_user');
+            if (rawUser) {
+              activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
+            }
+          } catch {}
+
+          const mergedFcmData = {
+            ...(payload.data || {}),
+            url: deepLinkUrl,
+            isAdmin: isAdminTarget ? 'true' : 'false',
+            eventId: payload.data?.eventId || tag,
+            tag,
+            timestamp: parsedTimestamp,
+            userRole: payload.data?.userRole || activeUserRole,
+          };
+
           void showSingleShadeNotification(
             title,
             {
@@ -319,17 +338,11 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
               timestamp: parsedTimestamp,
               requireInteraction: false,
               renotify: false,
-              actions: [
-                { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-                { action: 'dismiss', title: 'Dismiss' },
-              ],
-              data: {
-                url: deepLinkUrl,
-                isAdmin: isAdminTarget ? 'true' : 'false',
-                eventId: payload.data?.eventId || tag,
-                tag,
-                timestamp: parsedTimestamp,
-              },
+              actions: buildPushNotificationActions(
+                { ...mergedFcmData, title, message: body },
+                activeUserRole
+              ),
+              data: mergedFcmData,
             },
             () => {
               window.focus();

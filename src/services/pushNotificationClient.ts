@@ -23,6 +23,7 @@ import {
   NOTIFICATION_BADGE_ICON,
   showSingleShadeNotification,
 } from '../utils/notificationShade.ts';
+import { buildPushNotificationActions } from '../utils/notificationActions.ts';
 
 export function isIOSDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -810,7 +811,24 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
         const parsedTimestamp = normalizedPayload.timestamp
           ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
           : Date.now();
-        const hasReceiptLink = deepLinkUrl.includes('invoice') || deepLinkUrl.includes('return');
+        let activeUserRole = '';
+        try {
+          const rawUser = localStorage.getItem('pos_current_user');
+          if (rawUser) {
+            activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
+          }
+        } catch {}
+
+        const fallbackData = {
+          ...normalizedPayload,
+          url: deepLinkUrl || '/notifications',
+          isAdmin: isAdminTarget ? 'true' : 'false',
+          eventId: normalizedPayload.eventId || tag,
+          tag,
+          timestamp: parsedTimestamp,
+          userRole: normalizedPayload.userRole || activeUserRole,
+        };
+
         void showSingleShadeNotification(
           normalizedPayload.title || 'POS Alert',
           {
@@ -821,28 +839,8 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
             timestamp: parsedTimestamp,
             requireInteraction: false,
             renotify: false,
-            actions: isAdminTarget
-              ? [
-                  { action: 'open_pos', title: 'Open Admin' },
-                  { action: 'dismiss', title: 'Dismiss' },
-                ]
-              : hasReceiptLink
-              ? [
-                  { action: 'open_receipt', title: 'Open Receipt' },
-                  { action: 'dismiss', title: 'Dismiss' },
-                ]
-              : [
-                  { action: 'open_pos', title: 'Open POS' },
-                  { action: 'dismiss', title: 'Dismiss' },
-                ],
-            data: {
-              ...normalizedPayload,
-              url: deepLinkUrl || '/notifications',
-              isAdmin: isAdminTarget ? 'true' : 'false',
-              eventId: normalizedPayload.eventId || tag,
-              tag,
-              timestamp: parsedTimestamp,
-            },
+            actions: buildPushNotificationActions(fallbackData, activeUserRole),
+            data: fallbackData,
           },
           () => {
             window.focus();
@@ -1005,6 +1003,21 @@ export async function triggerTestNotificationShadeFallback(params: {
   const isAdminTarget = Boolean(params.isAdmin);
   const icon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
   const targetUrl = params.url || (isAdminTarget ? '/admin' : '/pos');
+  let activeUserRole = '';
+  try {
+    const rawUser = localStorage.getItem('pos_current_user');
+    if (rawUser) {
+      activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
+    }
+  } catch {}
+  const testData = {
+    type: 'TEST_PUSH',
+    url: targetUrl,
+    isAdmin: isAdminTarget ? 'true' : 'false',
+    eventId: params.eventId,
+    tag: params.eventId,
+    userRole: activeUserRole,
+  };
 
   return showSingleShadeNotification(
     params.title,
@@ -1016,16 +1029,8 @@ export async function triggerTestNotificationShadeFallback(params: {
       timestamp: Date.now(),
       requireInteraction: false,
       renotify: false,
-      actions: [
-        { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ],
-      data: {
-        url: targetUrl,
-        isAdmin: isAdminTarget ? 'true' : 'false',
-        eventId: params.eventId,
-        tag: params.eventId,
-      },
+      actions: buildPushNotificationActions(testData, activeUserRole),
+      data: testData,
     },
     () => {
       window.focus();

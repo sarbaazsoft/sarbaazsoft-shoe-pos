@@ -641,9 +641,12 @@ export async function notifyPosAction(
           type: enrichedPayload.type,
           eventId: eventTag,
           tag: eventTag,
+          invoiceId: String(enrichedPayload.invoiceNumber || enrichedPayload.saleId || enrichedPayload.orderId || ''),
           invoiceNumber: enrichedPayload.invoiceNumber || '',
+          saleId: String(enrichedPayload.saleId || enrichedPayload.orderId || ''),
           orderId: String(enrichedPayload.orderId || ''),
           totalAmount: String(enrichedPayload.totalAmount || ''),
+          targetRole: String(enrichedPayload.targetRole || 'ALL'),
           timestamp: enrichedPayload.timestamp,
         },
       });
@@ -751,6 +754,8 @@ export async function notifyPlatformAnnouncement(
 
   const eventPayload = {
     id: payload.id,
+    announcementId: payload.id ? String(payload.id) : '',
+    itemType: 'ANNOUNCEMENT',
     eventId: eventTag,
     tag: eventTag,
     type: payload.type || 'INFO',
@@ -806,8 +811,10 @@ export async function notifyPlatformAnnouncement(
       tag: eventTag,
       data: {
         type: payload.type || 'INFO',
+        itemType: 'ANNOUNCEMENT',
         eventId: eventTag,
         tag: eventTag,
+        announcementId: String(payload.id || ''),
         notificationId: String(payload.id || ''),
         isAdmin: isAdminAnnouncement ? 'true' : 'false',
       },
@@ -949,6 +956,7 @@ export async function testFcmPush(
         type: 'TEST_PUSH',
         eventId,
         tag: eventId,
+        userRole: isSuperAdminTest ? 'SUPERADMIN' : 'ADMIN',
         isAdmin: isSuperAdminTest ? 'true' : 'false',
         timestamp: new Date().toISOString(),
       },

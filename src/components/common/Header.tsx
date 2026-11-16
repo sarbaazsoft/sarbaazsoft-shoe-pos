@@ -26,6 +26,11 @@ import {
   claimNotificationChannel,
   getNotificationDedupeKey,
 } from '../../utils/notificationDedupe.ts';
+import {
+  resolveNotificationActions,
+  navigateToNotificationUrl,
+  type NotificationActionDescriptor,
+} from '../../utils/notificationActions.ts';
 
 interface HeaderProps {
   currentTab: string;
@@ -400,6 +405,8 @@ export const Header: React.FC<HeaderProps> = ({
     title: string;
     message: string;
     invoiceNumber?: string;
+    saleId?: string | number;
+    announcementId?: string | number;
     returnNumber?: string;
     totalAmount?: number;
     deepLinkUrl?: string;
@@ -543,6 +550,8 @@ export const Header: React.FC<HeaderProps> = ({
         title: payload.title || 'POS Alert',
         message: payload.message || 'Transaction confirmed.',
         invoiceNumber: payload.invoiceNumber,
+        saleId: payload.saleId || payload.orderId,
+        announcementId: payload.announcementId || (payload.type === 'ANNOUNCEMENT' ? payload.id : undefined),
         returnNumber: payload.returnNumber,
         totalAmount: payload.totalAmount,
         deepLinkUrl: payload.deepLinkUrl,
@@ -593,6 +602,31 @@ export const Header: React.FC<HeaderProps> = ({
   const isPermissionGranted = effectivePushStatus === 'granted';
   const isPermissionDenied = isAndroidSystemDisabled || isBrowserBlocked || pushPermission === 'denied';
   const canRedirectToSettings = isAdminUser || isSuperAdminUser;
+
+  const handleDynamicNotificationAction = (
+    e: React.MouseEvent,
+    btn: NotificationActionDescriptor,
+    meta?: Record<string, any>
+  ) => {
+    e.stopPropagation();
+    setShowNotifications(false);
+    setLivePushToast(null);
+    if (meta?.markActivityId) {
+      markAsRead(String(meta.markActivityId));
+    }
+    if (meta?.markNoticeId) {
+      void api.notifications.dismiss(meta.markNoticeId, 'NOTICE').catch(() => {});
+    }
+    if (btn.action === 'open_pos') {
+      onTabChange?.('pos');
+      return;
+    }
+    if (btn.action === 'open_dashboard') {
+      onTabChange?.('dashboard');
+      return;
+    }
+    navigateToNotificationUrl(btn.url, meta);
+  };
 
   const handleToastClick = () => {
     if (!livePushToast) return;
@@ -1799,33 +1833,43 @@ export const Header: React.FC<HeaderProps> = ({
                               />
                             </div>
 
-                            <div className="mt-2 pt-1.5 border-t border-slate-200/60 dark:border-purple-800/40 flex items-center justify-between gap-2">
-                              {a.actionUrl ? (
-                                <a
-                                  href={a.actionUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-                                >
-                                  <span>{a.actionLabel || 'View Link'}</span>
-                                  <ExternalLink className="w-2.5 h-2.5" />
-                                </a>
-                              ) : (
-                                <span className="text-[9.5px] text-slate-400 dark:text-purple-300/60">
-                                  System Notice
-                                </span>
-                              )}
-
-                              <button
-                                type="button"
-                                onClick={(e) => handleDismissAnnouncement(a.id, e)}
-                                disabled={isDismissingAnnouncement === a.id}
-                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-100 dark:hover:bg-purple-800/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/60 flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-2xs"
-                                title="Dismiss notice"
-                              >
-                                <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                                <span>{isDismissingAnnouncement === a.id ? 'Saving...' : 'Dismiss'}</span>
-                              </button>
+                            <div className="mt-2 pt-1.5 border-t border-slate-200/60 dark:border-purple-800/40 flex items-center justify-end gap-1.5 flex-wrap">
+                              {resolveNotificationActions(
+                                {
+                                  kind: 'NOTICE',
+                                  itemType: 'ANNOUNCEMENT',
+                                  type: a.type,
+                                  rawId: a.id,
+                                  announcementId: a.id,
+                                  actionUrl: a.actionUrl,
+                                  title: a.title,
+                                  message: a.message,
+                                },
+                                currentRole
+                              ).map((btn) => {
+                                const isPrimary = btn.action !== 'open_pos';
+                                return (
+                                  <button
+                                    key={btn.action}
+                                    type="button"
+                                    onClick={(e) =>
+                                      handleDynamicNotificationAction(e, btn, {
+                                        markNoticeId: a.id,
+                                        type: 'ANNOUNCEMENT',
+                                        announcementId: a.id,
+                                      })
+                                    }
+                                    className={
+                                      isPrimary
+                                        ? 'px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-2xs'
+                                        : 'px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-100 dark:hover:bg-purple-800/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/60 cursor-pointer transition active:scale-95 shadow-2xs'
+                                    }
+                                  >
+                                    <span>{btn.label}</span>
+                                    {isPrimary && <ExternalLink className="w-2.5 h-2.5" />}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -1833,6 +1877,23 @@ export const Header: React.FC<HeaderProps> = ({
 
                       const n = entry.activity;
                       const details = getActivityTypeDetails(n.type, n.title);
+                      const activityActions = resolveNotificationActions(
+                        {
+                          kind: 'OPERATIONAL',
+                          itemType: n.itemType,
+                          type: n.type,
+                          rawId: n.rawId,
+                          id: n.id,
+                          invoiceNumber: n.invoiceNumber,
+                          saleId: (n as any).saleId || n.rawId,
+                          returnNumber: n.returnNumber,
+                          deepLinkUrl: n.deepLinkUrl,
+                          actionUrl: (n as any).actionUrl,
+                          title: n.title,
+                          message: n.message,
+                        },
+                        currentRole
+                      );
 
                       return (
                         <div
@@ -1859,21 +1920,33 @@ export const Header: React.FC<HeaderProps> = ({
                             {n.message}
                           </div>
 
-                          <div className="mt-2 pt-1.5 border-t border-slate-200/60 dark:border-purple-800/40 flex items-center justify-between text-[10px]">
-                            <span className="font-semibold text-purple-600 dark:text-purple-300 flex items-center gap-1">
-                              <span>{details.actionText}</span>
-                              <span>&rarr;</span>
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={(e) => handleDismissActivity(n.id, e)}
-                              className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-100 dark:hover:bg-purple-800/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/60 flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-2xs"
-                              title="Dismiss notification"
-                            >
-                              <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Dismiss</span>
-                            </button>
+                          <div className="mt-2 pt-1.5 border-t border-slate-200/60 dark:border-purple-800/40 flex items-center justify-end gap-1.5 text-[10px] flex-wrap">
+                            {activityActions.map((btn) => {
+                              const isPrimary = btn.action !== 'open_pos';
+                              return (
+                                <button
+                                  key={btn.action}
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleDynamicNotificationAction(e, btn, {
+                                      markActivityId: n.id,
+                                      type: n.type,
+                                      itemType: n.itemType,
+                                      invoiceNumber: n.invoiceNumber,
+                                      saleId: (n as any).saleId || n.rawId,
+                                    })
+                                  }
+                                  className={
+                                    isPrimary
+                                      ? 'px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-2xs'
+                                      : 'px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-100 dark:hover:bg-purple-800/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-700/60 cursor-pointer transition active:scale-95 shadow-2xs'
+                                  }
+                                >
+                                  <span>{btn.label}</span>
+                                  {isPrimary && <span aria-hidden="true">&rarr;</span>}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -2256,22 +2329,32 @@ export const Header: React.FC<HeaderProps> = ({
                 <p className="text-[11px] text-slate-600 dark:text-purple-200/85 mt-1 line-clamp-2 leading-snug">
                   {livePushToast.message}
                 </p>
-                <div className="mt-2.5 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleToastClick}
-                    className="py-1 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-[11px] flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95"
-                  >
-                    <span>View Receipt / Details</span>
-                    <span aria-hidden="true">&rarr;</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLivePushToast(null)}
-                    className="py-1 px-2.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white text-[11px] font-medium cursor-pointer transition"
-                  >
-                    Dismiss
-                  </button>
+                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                  {resolveNotificationActions(livePushToast, currentRole).map((btn) => {
+                    const isPrimary = btn.action !== 'open_pos';
+                    return (
+                      <button
+                        key={btn.action}
+                        type="button"
+                        onClick={(e) =>
+                          handleDynamicNotificationAction(e, btn, {
+                            type: livePushToast.type,
+                            invoiceNumber: livePushToast.invoiceNumber,
+                            saleId: livePushToast.saleId,
+                            announcementId: livePushToast.announcementId,
+                          })
+                        }
+                        className={
+                          isPrimary
+                            ? 'py-1 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-[11px] flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95'
+                            : 'py-1 px-2.5 rounded-lg bg-slate-100 dark:bg-purple-900/60 hover:bg-slate-200 dark:hover:bg-purple-800/70 text-slate-700 dark:text-purple-100 font-semibold text-[11px] cursor-pointer transition active:scale-95'
+                        }
+                      >
+                        <span>{btn.label}</span>
+                        {isPrimary && <span aria-hidden="true">&rarr;</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

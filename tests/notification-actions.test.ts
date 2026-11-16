@@ -1,0 +1,354 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import {
+  resolveNotificationActions,
+  buildPushNotificationActions,
+} from '../src/utils/notificationActions.ts';
+import { showSingleNotificationWithRegistration } from '../src/utils/notificationShade.ts';
+
+function createSwActionHarness() {
+  const swCode = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  const listeners = new Map<string, (event: any) => void>();
+  const activeNotifications = new Map<string, any>();
+  const openWindows: string[] = [];
+  const postedMessages: any[] = [];
+  let backgroundHandler: ((payload: any) => Promise<any>) | null = null;
+
+  const sandbox: Record<string, any> = {
+    URL,
+    Promise,
+    Response,
+    fetch: async () => ({
+      ok: true,
+      json: async () => ({
+        apiKey: 'test-key',
+        projectId: 'test-proj',
+        messagingSenderId: '123',
+        appId: '1:123:web:abc',
+      }),
+    }),
+    importScripts: () => {},
+    firebase: {
+      apps: [],
+      initializeApp: () => {},
+      messaging: () => ({
+        onBackgroundMessage: (fn: (payload: any) => Promise<any>) => {
+          backgroundHandler = fn;
+        },
+      }),
+    },
+    caches: {
+      open: async () => ({ add: async () => {}, put: async () => {} }),
+      keys: async () => [],
+      match: async () => null,
+      delete: async () => true,
+    },
+  };
+
+  sandbox.self = {
+    location: { origin: 'https://sarbaazsoft.cloud.run' },
+    skipWaiting: () => {},
+    clients: {
+      claim: async () => {},
+      matchAll: async () => [],
+      openWindow: async (url: string) => {
+        openWindows.push(url);
+        return null;
+      },
+    },
+    registration: {
+      getNotifications: async () => Array.from(activeNotifications.values()),
+      showNotification: async (title: string, options: any = {}) => {
+        const tag = options.tag || `auto-${activeNotifications.size + 1}`;
+        const record = {
+          title,
+          body: options.body || '',
+          icon: options.icon || '',
+          badge: options.badge || '',
+          tag,
+          timestamp: options.timestamp || Date.now(),
+          data: options.data || {},
+          actions: options.actions || [],
+          close: () => {
+            activeNotifications.delete(tag);
+          },
+        };
+        activeNotifications.set(tag, record);
+      },
+    },
+    addEventListener: (name: string, fn: (event: any) => void) => {
+      listeners.set(name, fn);
+    },
+  };
+
+  vm.runInNewContext(swCode, sandbox, { filename: 'public/sw.js' });
+
+  const syncUserRole = (role: string) => {
+    const msgListener = listeners.get('message');
+    assert.ok(msgListener, 'message listener must exist');
+    msgListener({
+      data: {
+        type: 'SYNC_AUTH_CONTEXT',
+        tenantId: 1,
+        userRole: role,
+      },
+      waitUntil: () => {},
+    });
+  };
+
+  const dispatchPush = async (payload: Record<string, any>) => {
+    const pushListener = listeners.get('push');
+    assert.ok(pushListener, 'push listener must exist');
+    let waitPromise: Promise<any> = Promise.resolve();
+    pushListener({
+      data: {
+        json: () => payload,
+      },
+      waitUntil: (p: Promise<any>) => {
+        waitPromise = p;
+      },
+    });
+    await waitPromise;
+  };
+
+  const dispatchClick = async (notification: any, action: string = '') => {
+    const clickListener = listeners.get('notificationclick');
+    assert.ok(clickListener, 'notificationclick listener must exist');
+    let waitPromise: Promise<any> = Promise.resolve();
+    clickListener({
+      notification,
+      action,
+      waitUntil: (p: Promise<any>) => {
+        waitPromise = p;
+      },
+    });
+    await waitPromise;
+  };
+
+  const setOpenWindowClient = () => {
+    const clientUrl = 'https://sarbaazsoft.cloud.run/pos';
+    sandbox.self.clients.matchAll = async () => [
+      {
+        url: clientUrl,
+        focus: async () => {},
+        navigate: async (url: string) => {
+          openWindows.push(`nav:${url}`);
+        },
+        postMessage: (msg: any) => {
+          postedMessages.push(msg);
+        },
+      },
+    ];
+  };
+
+  return {
+    activeNotifications,
+    openWindows,
+    postedMessages,
+    syncUserRole,
+    dispatchPush,
+    dispatchClick,
+    setOpenWindowClient,
+    triggerBackgroundFcm: async (payload: any) => {
+      await Promise.resolve();
+      if (backgroundHandler) {
+        await backgroundHandler(payload);
+      }
+    },
+  };
+}
+
+test('resolveNotificationActions produces dynamic primary + persistent Open POS with max 2 buttons and zero Dismiss/Unsubscribe', () => {
+  // 1. Invoice / Sale
+  const invoiceBtns = resolveNotificationActions(
+    { type: 'INVOICE', invoiceId: 'INV-4201' },
+    'CASHIER'
+  );
+  assert.deepEqual(invoiceBtns, [
+    { action: 'view_invoice', label: 'View Invoice', url: '/invoices/INV-4201' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 2. Announcement / Platform Notice
+  const announcementBtns = resolveNotificationActions(
+    { type: 'ANNOUNCEMENT', announcementId: 88 },
+    'ADMIN'
+  );
+  assert.deepEqual(announcementBtns, [
+    { action: 'read_more', label: 'Read More', url: '/announcements/88' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 3. Low Stock
+  const lowStockBtns = resolveNotificationActions(
+    { type: 'LOW_STOCK', itemType: 'LOW_STOCK' },
+    'ADMIN'
+  );
+  assert.deepEqual(lowStockBtns, [
+    { action: 'view_stock', label: 'View Stock', url: '/inventory?filter=low-stock' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 4a. Fallback for OWNER / ADMIN -> Dashboard + Open POS
+  const adminFallback = resolveNotificationActions({ type: 'RETURN', returnNumber: 'RET-10' }, 'ADMIN');
+  assert.deepEqual(adminFallback, [
+    { action: 'open_dashboard', label: 'Dashboard', url: '/dashboard' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  const ownerFallback = resolveNotificationActions({ type: 'TEST_PUSH' }, 'OWNER');
+  assert.deepEqual(ownerFallback, [
+    { action: 'open_dashboard', label: 'Dashboard', url: '/dashboard' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 4b. Fallback for CASHIER -> Omit Button 1, render only Open POS
+  const cashierFallback = resolveNotificationActions({ type: 'RETURN', returnNumber: 'RET-10' }, 'CASHIER');
+  assert.deepEqual(cashierFallback, [
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // Push action formatter never exceeds 2 and strips dismiss/unsubscribe
+  const pushBtns = buildPushNotificationActions({ type: 'SALE', invoiceNumber: 'INV-9' }, 'CASHIER');
+  assert.equal(pushBtns.length, 2);
+  assert.ok(!pushBtns.some((b) => /dismiss|unsubscribe/i.test(b.action) || /dismiss|unsubscribe/i.test(b.title)));
+});
+
+test('showSingleNotificationWithRegistration strips dismiss/unsubscribe actions and enforces max 2 actions', async () => {
+  const shown: any[] = [];
+  const mockReg = {
+    getNotifications: async () => [],
+    showNotification: async (title: string, options: any) => {
+      shown.push({ title, options });
+    },
+  };
+
+  await showSingleNotificationWithRegistration(mockReg, 'Low Stock Warning', {
+    body: '3 items need restocking',
+    tag: 'low-stock-1',
+    actions: [
+      { action: 'dismiss', title: 'Dismiss' },
+      { action: 'unsubscribe', title: 'Unsubscribe' },
+    ],
+    data: {
+      type: 'LOW_STOCK',
+      itemType: 'LOW_STOCK',
+      url: '/?tab=inventory&lowStockOnly=true',
+    },
+  });
+
+  assert.equal(shown.length, 1);
+  assert.deepEqual(shown[0].options.actions, [
+    { action: 'view_stock', title: 'View Stock' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+});
+
+test('public/sw.js renders dynamic actions (<= 2) across push events and routes notificationclick accurately', async () => {
+  const harness = createSwActionHarness();
+
+  const toPlain = <T>(val: T): T => JSON.parse(JSON.stringify(val));
+
+  // Invoice push
+  await harness.dispatchPush({
+    title: 'Sale #INV-555',
+    body: 'Completed Rs. 2500',
+    data: { type: 'SALE', invoiceId: 'INV-555', tag: 'notif-inv-555' },
+  });
+  const invNotif = harness.activeNotifications.get('notif-inv-555');
+  assert.deepEqual(toPlain(invNotif.actions), [
+    { action: 'view_invoice', title: 'View Invoice' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(invNotif, 'view_invoice');
+  assert.equal(harness.openWindows.pop(), '/invoices/INV-555');
+
+  // Announcement push
+  await harness.dispatchPush({
+    title: 'System Update',
+    body: 'New reporting charts live.',
+    data: { type: 'ANNOUNCEMENT', announcementId: '77', tag: 'notif-ann-77' },
+  });
+  const annNotif = harness.activeNotifications.get('notif-ann-77');
+  assert.deepEqual(toPlain(annNotif.actions), [
+    { action: 'read_more', title: 'Read More' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(annNotif, 'read_more');
+  assert.equal(harness.openWindows.pop(), '/announcements/77');
+
+  // Low stock push
+  await harness.dispatchPush({
+    title: 'Low Stock Alert',
+    body: 'Nike Air is below threshold.',
+    data: { type: 'LOW_STOCK', itemType: 'LOW_STOCK', tag: 'notif-stock-1' },
+  });
+  const stockNotif = harness.activeNotifications.get('notif-stock-1');
+  assert.deepEqual(toPlain(stockNotif.actions), [
+    { action: 'view_stock', title: 'View Stock' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(stockNotif, 'view_stock');
+  assert.equal(harness.openWindows.pop(), '/inventory?filter=low-stock');
+
+  // Fallback for OWNER/ADMIN
+  harness.syncUserRole('ADMIN');
+  await harness.dispatchPush({
+    title: 'Return Alert #RET-1',
+    body: 'Refund issued.',
+    data: { type: 'RETURN', returnNumber: 'RET-1', tag: 'notif-ret-admin' },
+  });
+  const adminRet = harness.activeNotifications.get('notif-ret-admin');
+  assert.deepEqual(toPlain(adminRet.actions), [
+    { action: 'open_dashboard', title: 'Dashboard' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(adminRet, 'open_dashboard');
+  assert.equal(harness.openWindows.pop(), '/dashboard');
+
+  // Fallback for CASHIER omits Dashboard button
+  harness.syncUserRole('CASHIER');
+  await harness.dispatchPush({
+    title: 'Return Alert #RET-2',
+    body: 'Refund issued.',
+    data: { type: 'RETURN', returnNumber: 'RET-2', tag: 'notif-ret-cashier' },
+  });
+  const cashierRet = harness.activeNotifications.get('notif-ret-cashier');
+  assert.deepEqual(toPlain(cashierRet.actions), [
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+
+  // Open POS action focuses open window and sends POS_DEEP_LINK_NOTIFICATION
+  harness.setOpenWindowClient();
+  await harness.dispatchClick(cashierRet, 'open_pos');
+  assert.equal(harness.postedMessages[0].type, 'POS_DEEP_LINK_NOTIFICATION');
+  assert.equal(harness.postedMessages[0].action, 'open_pos');
+  assert.equal(harness.postedMessages[0].targetUrl, '/pos');
+});
+
+test('UI notification footers have removed custom Dismiss and Unsubscribe buttons', () => {
+  const swSrc = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  const notificationsViewSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'notifications', 'NotificationsView.tsx'),
+    'utf8'
+  );
+  const headerSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'common', 'Header.tsx'),
+    'utf8'
+  );
+
+  // SW must never emit dismiss or unsubscribe actions
+  assert.equal(/action:\s*['"](?:dismiss|unsubscribe)['"]/.test(swSrc), false);
+
+  // NotificationsView card footer uses dynamic action resolver without Dismiss button
+  assert.equal(notificationsViewSrc.includes('resolveNotificationActions'), true);
+  assert.equal(notificationsViewSrc.includes("<span>{isDismissing ? 'Saving...' : 'Dismiss'}</span>"), false);
+
+  // Header dropdown cards and floating push toast use dynamic action resolver without Dismiss buttons
+  assert.equal(headerSrc.includes('resolveNotificationActions'), true);
+  assert.equal(headerSrc.includes('<span>Dismiss</span>'), false);
+  assert.equal(headerSrc.includes('>Dismiss<'), false);
+});

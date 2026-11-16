@@ -134,7 +134,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
   useEffect(() => {
     const checkDeepLinkInvoice = async (invoiceNum?: string) => {
-      const inv = invoiceNum || new URLSearchParams(window.location.search).get('viewInvoice');
+      const pathMatch = window.location.pathname.match(/^\/invoices\/([^/?#]+)/i);
+      const pathInv = pathMatch && pathMatch[1] ? decodeURIComponent(pathMatch[1]) : '';
+      const inv = invoiceNum || pathInv || new URLSearchParams(window.location.search).get('viewInvoice');
       if (inv) {
         try {
           const verifyRes = await api.returns.verifyInvoice(inv);

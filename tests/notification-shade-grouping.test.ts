@@ -220,7 +220,7 @@ test('public/sw.js treats Sale, Return, Exchange, and System Announcement as ind
   assert.equal('isGroupSummary' in sale.data, false);
   assert.deepEqual(
     Array.from(sale.actions, (a: any) => a.action),
-    ['open_receipt', 'dismiss']
+    ['view_invoice', 'open_pos']
   );
 
   // Clicking one individual notification opens its own deep link and closes only itself
@@ -276,7 +276,7 @@ test('showSingleNotificationWithRegistration displays each notification individu
   assert.equal('isGroupSummary' in active.get('fg-pos-1').data, false);
   assert.deepEqual(
     Array.from(active.get('fg-pos-2').actions, (a: any) => a.action),
-    ['open_receipt', 'dismiss']
+    ['view_invoice', 'open_pos']
   );
 
   // Re-dispatching an active tag with renotify=false skips duplicate showNotification call

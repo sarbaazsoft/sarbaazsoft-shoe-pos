@@ -41,7 +41,8 @@ router.get('/verify-invoice/:invoiceNumber', requireAuth, async (req: Authentica
        FROM sales s
        LEFT JOIN customers c ON s.customer_id = c.id AND c.tenant_id = $2
        LEFT JOIN users u ON s.created_by = u.id
-       WHERE UPPER(s.invoice_number) = UPPER($1) AND s.tenant_id = $2`,
+       WHERE (UPPER(s.invoice_number) = UPPER($1) OR ($1 ~ '^[0-9]+$' AND s.id = $1::int))
+         AND s.tenant_id = $2`,
       [invoiceNumber, tenantId]
     );
 

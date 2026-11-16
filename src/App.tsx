@@ -29,9 +29,11 @@ const TenantOnboardingWizard = lazy(() => import('./components/saas/TenantOnboar
 const InstallationWizard = lazy(() => import('./components/saas/InstallationWizard.tsx').then((m) => ({ default: m.InstallationWizard })));
 const NotificationsView = lazy(() => import('./components/notifications/NotificationsView.tsx').then((m) => ({ default: memo(m.NotificationsView) })));
 const VerifyEmailNoticeView = lazy(() => import('./components/auth/VerifyEmailNoticeView.tsx').then((m) => ({ default: m.VerifyEmailNoticeView })));
+const InstallAppModal = lazy(() => import('./components/common/InstallAppModal.tsx').then((m) => ({ default: m.InstallAppModal })));
 import { ShieldAlert, Loader2 } from 'lucide-react';
 import { initNativeNotificationPrompt } from './services/pushNotificationClient.ts';
 import { usePwaManifest } from './hooks/usePwaManifest.ts';
+import { usePWAInstall } from './hooks/usePWAInstall.ts';
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle, PLATFORM_DOCUMENT_NAME } from './utils/documentTitle.ts';
 import { APP_VERSION } from './version.ts';
@@ -59,6 +61,74 @@ const APP_TAB_ROUTES = new Set([
 
 function appPathForTab(tab: string): string {
   return `/${tab || 'dashboard'}`;
+}
+
+interface ParsedSubRoute {
+  tab: string;
+  invoiceId?: string;
+  announcementId?: string;
+  lowStockOnly?: boolean;
+  canonicalPath?: string;
+}
+
+function parseAppSubRoute(pathname: string, search: string = ''): ParsedSubRoute | null {
+  const cleanPath = String(pathname || '').trim();
+  const sp = new URLSearchParams(search || '');
+
+  const invoiceMatch = cleanPath.match(/^\/invoices\/([^/?#]+)/i);
+  if (invoiceMatch && invoiceMatch[1]) {
+    let decoded = invoiceMatch[1];
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {}
+    return {
+      tab: 'reports',
+      invoiceId: decoded,
+      canonicalPath: `/invoices/${encodeURIComponent(decoded)}`,
+    };
+  }
+
+  const announcementMatch = cleanPath.match(/^\/announcements\/([^/?#]+)/i);
+  if (announcementMatch && announcementMatch[1]) {
+    let decoded = announcementMatch[1];
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {}
+    return {
+      tab: 'notifications',
+      announcementId: decoded,
+      canonicalPath: `/announcements/${encodeURIComponent(decoded)}`,
+    };
+  }
+
+  let pathTab = cleanPath.replace(/^\/+|\/+$/g, '').toLowerCase();
+  if (pathTab === 'dashboard/notifications') {
+    pathTab = 'notifications';
+  }
+  const queryTab = sp.get('tab')?.toLowerCase() || '';
+  const lowStockOnly = sp.get('filter') === 'low-stock' || sp.get('lowStockOnly') === 'true';
+
+  if (pathTab === 'inventory' && lowStockOnly) {
+    return {
+      tab: 'inventory',
+      lowStockOnly: true,
+      canonicalPath: '/inventory?filter=low-stock',
+    };
+  }
+
+  const candidateTab = APP_TAB_ROUTES.has(pathTab) ? pathTab : APP_TAB_ROUTES.has(queryTab) ? queryTab : '';
+  if (candidateTab) {
+    if (candidateTab === 'inventory' && lowStockOnly) {
+      return {
+        tab: 'inventory',
+        lowStockOnly: true,
+        canonicalPath: '/inventory?filter=low-stock',
+      };
+    }
+    return { tab: candidateTab };
+  }
+
+  return null;
 }
 
 function resolveTargetTab(requestedTab: string | undefined | null, user: any, companySettings?: any): string {
@@ -261,12 +331,8 @@ function detectInitialRouteFromLocation(): {
     return { mode: 'AUTH', tenantIdParam };
   }
 
-  let pathTab = pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-  if (pathTab === 'dashboard/notifications') {
-    pathTab = 'notifications';
-  }
-  const queryTab = searchParams.get('tab')?.toLowerCase() || '';
-  const requestedTab = APP_TAB_ROUTES.has(pathTab) ? pathTab : queryTab;
+  const parsedSubRoute = parseAppSubRoute(pathname, window.location.search);
+  const requestedTab = parsedSubRoute?.tab || '';
   const isProtectedAppTab = Boolean(requestedTab && APP_TAB_ROUTES.has(requestedTab));
 
   if (!hasAuthToken || !storedUser) {
@@ -292,7 +358,11 @@ function detectInitialRouteFromLocation(): {
   if (isSuperAdminStored) {
     const activeStoredTenant = getActiveTenantId();
     if (isProtectedAppTab && activeStoredTenant && activeStoredTenant > 0) {
-      if (pathname === '/' || queryTab) {
+      if (parsedSubRoute?.canonicalPath) {
+        if (`${pathname}${window.location.search}` !== parsedSubRoute.canonicalPath) {
+          try { window.history.replaceState({}, '', parsedSubRoute.canonicalPath); } catch {}
+        }
+      } else if (pathname === '/' || searchParams.get('tab')) {
         try { window.history.replaceState({}, '', appPathForTab(requestedTab)); } catch {}
       }
       return { mode: 'TENANT_ACTIVE', tenantIdParam: '' };
@@ -311,8 +381,11 @@ function detectInitialRouteFromLocation(): {
   }
 
   const targetTab = resolveTargetTab(isProtectedAppTab ? requestedTab : undefined, storedUser);
-  if (pathname !== appPathForTab(targetTab) || queryTab) {
-    try { window.history.replaceState({}, '', appPathForTab(targetTab)); } catch {}
+  const expectedPath = parsedSubRoute?.canonicalPath && targetTab === requestedTab
+    ? parsedSubRoute.canonicalPath
+    : appPathForTab(targetTab);
+  if (`${pathname}${window.location.search}` !== expectedPath) {
+    try { window.history.replaceState({}, '', expectedPath); } catch {}
   }
   return { mode: 'TENANT_ACTIVE', tenantIdParam: '' };
 }
@@ -350,10 +423,8 @@ export default function App() {
     try {
       const stored = localStorage.getItem('pos_current_user');
       const user = stored ? JSON.parse(stored) : null;
-      const pathTab = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-      const searchTab = new URLSearchParams(window.location.search).get('tab');
-      const requestedTab = APP_TAB_ROUTES.has(pathTab) ? pathTab : searchTab;
-      return resolveTargetTab(requestedTab, user);
+      const subRoute = parseAppSubRoute(window.location.pathname, window.location.search);
+      return resolveTargetTab(subRoute?.tab || undefined, user);
     } catch {
       return 'dashboard';
     }
@@ -468,6 +539,27 @@ export default function App() {
     role: currentUser?.role,
     saasMode,
     pathname: typeof window !== 'undefined' ? window.location.pathname : '/',
+  });
+
+  const [isIosInstallGuideOpen, setIsIosInstallGuideOpen] = useState(false);
+
+  const isAppropriateInstallPromptMoment =
+    !isInitializing &&
+    (saasMode === 'LANDING' ||
+      saasMode === 'AUTH' ||
+      saasMode === 'TENANT_ACTIVE' ||
+      saasMode === 'SUPERADMIN');
+
+  const isAppropriateIosGuideMoment =
+    !isInitializing &&
+    (saasMode === 'LANDING' ||
+      saasMode === 'TENANT_ACTIVE' ||
+      saasMode === 'SUPERADMIN');
+
+  const { isInstalled: isPwaInstalled, dismiss: dismissPwaInstall } = usePWAInstall({
+    autoPrompt: isAppropriateInstallPromptMoment,
+    allowIOSInstructions: isAppropriateIosGuideMoment,
+    onShowIOSInstructions: () => setIsIosInstallGuideOpen(true),
   });
 
   // Resolve the shared tenant directory and selected store status.
@@ -700,13 +792,22 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Warm up Firebase client foreground listener on session load (never calls Notification.requestPermission() or getToken() automatically)
+  // Warm up Firebase client foreground listener and sync role to SW (never calls Notification.requestPermission() or getToken() automatically)
   useEffect(() => {
     if (currentUser?.role) {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        try {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SYNC_AUTH_CONTEXT',
+            tenantId: currentUser.tenantId,
+            userRole: String(currentUser.role).toUpperCase(),
+          });
+        } catch {}
+      }
       const cleanup = initNativeNotificationPrompt(currentUser.role);
       return cleanup;
     }
-  }, [currentUser?.role]);
+  }, [currentUser?.role, currentUser?.tenantId]);
 
   // PWA launch URLs use /?tenantId=<tenant id>. Resolve the id against the
   // public tenant directory before presenting a tenant-scoped sign-in.
@@ -750,6 +851,13 @@ export default function App() {
   // tenantId is only a pre-authentication selector. Authenticated pages use clean section paths.
   useEffect(() => {
     if (saasMode !== 'TENANT_ACTIVE' || isInitializing || !currentUser) return;
+    const subRoute = parseAppSubRoute(window.location.pathname, window.location.search);
+    if (subRoute?.canonicalPath && subRoute.tab === currentTab) {
+      if (`${window.location.pathname}${window.location.search}` !== subRoute.canonicalPath) {
+        window.history.replaceState({}, '', subRoute.canonicalPath);
+      }
+      return;
+    }
     const canonicalPath = appPathForTab(currentTab);
     if (window.location.pathname !== canonicalPath || window.location.search) {
       window.history.replaceState({}, '', canonicalPath);
@@ -910,13 +1018,25 @@ export default function App() {
         return;
       }
 
-      let popTab = pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
-      if (popTab === 'dashboard/notifications') popTab = 'notifications';
-      if (APP_TAB_ROUTES.has(popTab)) {
+      const popSubRoute = parseAppSubRoute(pathname, window.location.search);
+      if (popSubRoute && APP_TAB_ROUTES.has(popSubRoute.tab)) {
         if (currentUser) {
-          const valid = resolveTargetTab(popTab, currentUser, companySettings);
+          const valid = resolveTargetTab(popSubRoute.tab, currentUser, companySettings);
           setCurrentTab(valid);
           setSaasMode('TENANT_ACTIVE');
+          if (popSubRoute.invoiceId) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: popSubRoute.invoiceId } }));
+            }, 150);
+          } else if (popSubRoute.announcementId) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('pos:open-announcement', { detail: { announcementId: popSubRoute.announcementId } }));
+            }, 150);
+          } else if (popSubRoute.lowStockOnly) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+            }, 150);
+          }
         } else {
           const redirectUrl = tid ? `/auth?tenantId=${encodeURIComponent(tid)}` : '/';
           window.history.replaceState({}, '', redirectUrl);
@@ -1198,18 +1318,78 @@ export default function App() {
 
   // Deep-link event listener from Web Push notifications & Service Worker
   useEffect(() => {
+    const navigateToParsedRoute = (rawUrl: string) => {
+      try {
+        const parsed = new URL(rawUrl, window.location.origin);
+        const sub = parseAppSubRoute(parsed.pathname, parsed.search);
+        if (!sub) return false;
+
+        if (sub.canonicalPath) {
+          const valid = resolveTargetTab(sub.tab, currentUser, companySettings);
+          setCurrentTab(valid);
+          if (valid === sub.tab) {
+            window.history.pushState({}, '', sub.canonicalPath);
+          } else {
+            window.history.replaceState({}, '', appPathForTab(valid));
+          }
+        } else {
+          handleTabChange(sub.tab);
+        }
+
+        if (sub.invoiceId) {
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: sub.invoiceId } })
+            );
+          }, 150);
+        } else if (sub.announcementId) {
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('pos:open-announcement', { detail: { announcementId: sub.announcementId } })
+            );
+          }, 150);
+        } else if (sub.lowStockOnly) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+          }, 150);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     const handleDeepLink = (detail: any) => {
       if (!detail) return;
+      const rawUrl = String(detail.url || detail.deepLinkUrl || '').trim();
+      if (rawUrl && rawUrl.startsWith('/') && navigateToParsedRoute(rawUrl)) {
+        return;
+      }
+
       const type = String(detail.type || '').toUpperCase();
       const itemType = String(detail.itemType || '').toUpperCase();
-      const invoice = detail.invoiceNumber || detail.invoice;
+      const invoice = detail.invoiceId || detail.invoiceNumber || detail.invoice;
       const returnNum = detail.returnNumber;
+      const announcementId = detail.announcementId || detail.notificationId;
 
-      if (type === 'STOCK' || itemType === 'LOW_STOCK' || detail.lowStockOnly === 'true' || detail.actionTab === 'inventory') {
-        handleTabChange('inventory');
+      if (type === 'STOCK' || type === 'LOW_STOCK' || itemType === 'LOW_STOCK' || detail.lowStockOnly === 'true' || detail.actionTab === 'inventory') {
+        setCurrentTab('inventory');
+        window.history.pushState({}, '', '/inventory?filter=low-stock');
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
         }, 150);
+      } else if (announcementId || type === 'ANNOUNCEMENT' || itemType === 'ANNOUNCEMENT') {
+        setCurrentTab('notifications');
+        if (announcementId) {
+          window.history.pushState({}, '', `/announcements/${encodeURIComponent(String(announcementId))}`);
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('pos:open-announcement', { detail: { announcementId: String(announcementId) } })
+            );
+          }, 150);
+        } else {
+          window.history.replaceState({}, '', '/notifications');
+        }
       } else if (type === 'RETURN') {
         handleTabChange('returns');
         if (invoice) {
@@ -1220,7 +1400,8 @@ export default function App() {
           }, 150);
         }
       } else if (invoice) {
-        handleTabChange('reports');
+        setCurrentTab('reports');
+        window.history.pushState({}, '', `/invoices/${encodeURIComponent(String(invoice))}`);
         setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invoice } })
@@ -1237,39 +1418,61 @@ export default function App() {
 
     const onSwMessage = (e: MessageEvent) => {
       if (e.data?.type === 'POS_DEEP_LINK_NOTIFICATION') {
-        handleDeepLink(e.data.payload);
+        handleDeepLink({
+          ...(e.data.payload || {}),
+          ...(e.data.targetUrl ? { url: e.data.targetUrl, deepLinkUrl: e.data.targetUrl } : {}),
+        });
       }
     };
 
     window.addEventListener('pos:navigate-deep-link', onCustomDeepLink);
     window.addEventListener('message', onSwMessage);
 
-    const params = new URLSearchParams(window.location.search);
-    const viewInv = params.get('viewInvoice');
-    const urlTab = params.get('tab');
-    const lowStockOnly = params.get('lowStockOnly') === 'true';
-
-    if (urlTab === 'inventory' || lowStockOnly) {
-      handleTabChange('inventory');
-      if (lowStockOnly) {
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-        }, 300);
-      }
-    } else if (viewInv) {
-      handleTabChange('reports');
+    const initialSub = parseAppSubRoute(window.location.pathname, window.location.search);
+    if (initialSub?.invoiceId) {
       setTimeout(() => {
         window.dispatchEvent(
-          new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: viewInv } })
+          new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: initialSub.invoiceId } })
         );
       }, 300);
+    } else if (initialSub?.announcementId) {
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent('pos:open-announcement', { detail: { announcementId: initialSub.announcementId } })
+        );
+      }, 300);
+    } else if (initialSub?.lowStockOnly) {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+      }, 300);
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      const viewInv = params.get('viewInvoice');
+      const urlTab = params.get('tab');
+      const lowStockOnly = params.get('lowStockOnly') === 'true' || params.get('filter') === 'low-stock';
+
+      if (urlTab === 'inventory' || lowStockOnly) {
+        handleTabChange('inventory');
+        if (lowStockOnly) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+          }, 300);
+        }
+      } else if (viewInv) {
+        handleTabChange('reports');
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: viewInv } })
+          );
+        }, 300);
+      }
     }
 
     return () => {
       window.removeEventListener('pos:navigate-deep-link', onCustomDeepLink);
       window.removeEventListener('message', onSwMessage);
     };
-  }, []);
+  }, [currentUser, companySettings, handleTabChange]);
 
   const handleAuthSuccess = useCallback((user: any) => {
     clearStoredUnauthTenantId();
@@ -2158,6 +2361,20 @@ export default function App() {
         onStaySignedIn={handleCashierStaySignedIn}
         onLogoutNow={handleCashierLogoutNow}
       />
+
+      {isIosInstallGuideOpen && !isPwaInstalled && (
+        <Suspense fallback={null}>
+          <InstallAppModal
+            isOpen={isIosInstallGuideOpen}
+            onClose={() => {
+              dismissPwaInstall();
+              setIsIosInstallGuideOpen(false);
+            }}
+            isAdmin={saasMode === 'SUPERADMIN'}
+            role={currentUser?.role}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
