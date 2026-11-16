@@ -364,8 +364,23 @@ async function showSingleShadeNotification(title, options = {}) {
           reason: 'delivery-rejected',
           timestamp: Date.now(),
         });
+        throw showErr;
       }
-      throw showErr;
+
+      // Safari / WebKit PWAs may reject non-standard fields like vibrate or actions;
+      // retry once with minimal standards-compliant notification options before failing.
+      try {
+        await self.registration.showNotification(cleanTitle, {
+          body: cleanBody,
+          icon,
+          badge,
+          tag: incomingTag,
+          data: notificationOptions.data,
+        });
+        broadcastPushDedupeEvent(dedupeBroadcastPayload);
+      } catch {
+        throw showErr;
+      }
     }
   };
 
@@ -549,25 +564,60 @@ self.addEventListener('notificationclick', (event) => {
   }
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // 1. If an active window is already open, notify it and bring to focus
-      for (const client of clientList) {
-        if ('focus' in client) {
-          try {
-            client.postMessage({
-              type: 'POS_DEEP_LINK_NOTIFICATION',
-              payload: notifData,
-              targetUrl,
-            });
-            if (client.url && client.navigate) {
-              Promise.resolve(client.navigate(targetUrl)).catch(() => {});
-            }
-          } catch {}
-          return client.focus();
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+      const targetResolved = new URL(
+        targetUrl,
+        self.location && self.location.origin ? self.location.origin : 'https://localhost'
+      );
+
+      // Prefer an already-open client matching the target route, else any controllable same-origin window client
+      const exactMatchClient = clientList.find((c) => {
+        try {
+          const parsed = new URL(c.url || '', targetResolved.origin);
+          return (
+            parsed.origin === targetResolved.origin &&
+            `${parsed.pathname}${parsed.search}` === `${targetResolved.pathname}${targetResolved.search}`
+          );
+        } catch {
+          return false;
         }
+      });
+
+      const targetClient =
+        exactMatchClient ||
+        clientList.find((c) => {
+          if (!('focus' in c)) return false;
+          try {
+            return !c.url || new URL(c.url).origin === targetResolved.origin;
+          } catch {
+            return true;
+          }
+        }) ||
+        clientList.find((c) => 'focus' in c);
+
+      if (targetClient && 'focus' in targetClient) {
+        try {
+          targetClient.postMessage({
+            type: 'POS_DEEP_LINK_NOTIFICATION',
+            payload: notifData,
+            targetUrl,
+          });
+        } catch {}
+
+        try {
+          if (
+            targetClient.url &&
+            typeof targetClient.navigate === 'function' &&
+            targetClient !== exactMatchClient
+          ) {
+            await Promise.resolve(targetClient.navigate(targetUrl)).catch(() => {});
+          }
+        } catch {}
+
+        return targetClient.focus();
       }
 
-      // 2. If no window is open, open a new window
+      // If no window is open, open the target app URL in a new window
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }
@@ -607,6 +657,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 // 4B. Firebase Cloud Messaging (FCM) Compat Initialization
 // -------------------------------------------------------------------------
 let messagingInitialized = false;
+let initFirebasePromise = null;
 
 try {
   importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
@@ -615,69 +666,87 @@ try {
   // Graceful fallback if running offline or in network-isolated environments
 }
 
-async function initFirebaseInWorker() {
-  if (messagingInitialized || typeof firebase === 'undefined') return;
-  try {
-    const res = await fetch('/api/notifications/fcm-config', { cache: 'no-store' });
-    if (!res.ok) return;
-    const config = await res.json();
-    if (config && config.apiKey && config.projectId) {
-      if (!firebase.apps.length) {
-        firebase.initializeApp({
-          apiKey: config.apiKey,
-          projectId: config.projectId,
-          messagingSenderId: config.messagingSenderId,
-          appId: config.appId,
-          measurementId: config.measurementId,
-        });
-      }
-      const messaging = firebase.messaging();
-      messaging.onBackgroundMessage((payload) => {
-        const title = payload.notification?.title || payload.data?.title || 'SarbaazSoft Shoe POS Alert';
-        const body = payload.notification?.body || payload.data?.body || 'New store transaction activity received.';
-        const url = payload.data?.url || '/?tab=reports';
-        const isAdminTarget = String(url).startsWith('/admin') || payload.data?.isAdmin === 'true';
-        const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
-        const icon = payload.notification?.icon || payload.data?.icon || defaultIcon;
-        const rawBadge = payload.data?.badge || payload.notification?.badge;
-        const badge =
-          rawBadge && !String(rawBadge).includes('pwa-192x192')
-            ? rawBadge
-            : NOTIFICATION_BADGE_ICON;
-        const tag =
-          payload.data?.tag ||
-          payload.data?.eventId ||
-          payload.data?.event_id ||
-          payload.notification?.tag ||
-          payload.messageId ||
-          `pos-fcm-${hashPushKey(`${title}|${body}|${url}`)}`;
-        const timestamp = resolveShadeTimestamp(payload.data?.timestamp);
-
-        const notificationOptions = {
-          body,
-          icon,
-          badge,
-          tag,
-          timestamp,
-          vibrate: [200, 100, 200],
-          data: {
-            url,
-            isAdmin: isAdminTarget ? 'true' : 'false',
-            ...payload.data,
-          },
-          actions: [
-            { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
-            { action: 'dismiss', title: 'Dismiss' },
-          ],
-        };
-
-        return showSingleShadeNotification(title, notificationOptions);
-      });
-      messagingInitialized = true;
-    }
-  } catch {
-    // Non-fatal if config not yet saved or offline
+function initFirebaseInWorker() {
+  if (messagingInitialized || typeof firebase === 'undefined') {
+    return Promise.resolve();
   }
+  if (initFirebasePromise) {
+    return initFirebasePromise;
+  }
+
+  initFirebasePromise = (async () => {
+    try {
+      const res = await fetch('/api/notifications/fcm-config', { cache: 'no-store' });
+      if (!res.ok) return;
+      const config = await res.json();
+      if (config && config.apiKey && config.projectId) {
+        if (!firebase.apps.length) {
+          firebase.initializeApp({
+            apiKey: config.apiKey,
+            projectId: config.projectId,
+            messagingSenderId: config.messagingSenderId,
+            appId: config.appId,
+            measurementId: config.measurementId,
+          });
+        }
+        const messaging = firebase.messaging();
+        messaging.onBackgroundMessage((payload) => {
+          const title = payload.notification?.title || payload.data?.title || 'SarbaazSoft Shoe POS Alert';
+          const body =
+            payload.notification?.body ||
+            payload.data?.body ||
+            payload.data?.message ||
+            'New store transaction activity received.';
+          const url = payload.data?.url || payload.data?.deepLinkUrl || '/?tab=reports';
+          const isAdminTarget = String(url).startsWith('/admin') || payload.data?.isAdmin === 'true';
+          const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';
+          const icon = payload.notification?.icon || payload.data?.icon || defaultIcon;
+          const rawBadge = payload.data?.badge || payload.notification?.badge;
+          const badge =
+            rawBadge && !String(rawBadge).includes('pwa-192x192')
+              ? rawBadge
+              : NOTIFICATION_BADGE_ICON;
+          const tag =
+            payload.data?.tag ||
+            payload.data?.eventId ||
+            payload.data?.event_id ||
+            payload.notification?.tag ||
+            payload.messageId ||
+            `pos-fcm-${hashPushKey(`${title}|${body}|${url}`)}`;
+          const timestamp = resolveShadeTimestamp(payload.data?.timestamp);
+
+          const notificationOptions = {
+            body,
+            icon,
+            badge,
+            tag,
+            timestamp,
+            renotify: false,
+            requireInteraction: false,
+            vibrate: [200, 100, 200],
+            data: {
+              url,
+              isAdmin: isAdminTarget ? 'true' : 'false',
+              ...payload.data,
+            },
+            actions: [
+              { action: 'open_pos', title: isAdminTarget ? 'Open Admin' : 'Open POS' },
+              { action: 'dismiss', title: 'Dismiss' },
+            ],
+          };
+
+          return showSingleShadeNotification(title, notificationOptions);
+        });
+        messagingInitialized = true;
+      }
+    } catch {
+      // Non-fatal if config not yet saved or offline
+    } finally {
+      initFirebasePromise = null;
+    }
+  })();
+
+  return initFirebasePromise;
 }
 
 initFirebaseInWorker().catch(() => {});
@@ -959,6 +1028,12 @@ self.addEventListener('message', (event) => {
       token: data.token || cachedAuthContext.token,
       tenantId: data.tenantId !== undefined ? data.tenantId : cachedAuthContext.tenantId,
     };
+    initFirebaseInWorker().catch(() => {});
+    return;
+  }
+
+  if (data.type === 'INIT_FIREBASE_MESSAGING') {
+    initFirebaseInWorker().catch(() => {});
     return;
   }
 

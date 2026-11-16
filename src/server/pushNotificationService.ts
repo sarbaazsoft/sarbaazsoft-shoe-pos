@@ -512,10 +512,44 @@ export interface PosActionNotification {
     netDifference: number;
   };
   deepLinkUrl: string;
+  actionTab?: string;
+  actionUrl?: string;
+  actionLabel?: string;
   timestamp: string;
   triggeredBy?: string;
   targetRole?: 'ALL' | 'ADMIN' | 'CASHIER';
   targetRoles?: ('ADMIN' | 'CASHIER')[];
+}
+
+export function broadcastSsePosAction(
+  tenantId: number,
+  payload: PosActionNotification & { tag?: string }
+): number {
+  const cleanTenantId = Number(tenantId) || 1;
+  const allowedRoles = payload.targetRoles || ['ADMIN', 'CASHIER'];
+  const sseMessage = `event: pos_action\ndata: ${JSON.stringify(payload)}\n\n`;
+  let delivered = 0;
+
+  for (const client of sseClients) {
+    if (
+      client.tenantId === cleanTenantId &&
+      client.role !== 'SUPERADMIN' &&
+      (allowedRoles.includes(client.role as any) ||
+        (client.role === 'OWNER' && allowedRoles.includes('ADMIN')))
+    ) {
+      if (client.role === 'CASHIER' && payload.cashierId && client.userId !== payload.cashierId) {
+        continue;
+      }
+      try {
+        client.res.write(sseMessage);
+        delivered++;
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  }
+
+  return delivered;
 }
 
 /**
@@ -563,23 +597,7 @@ export async function notifyPosAction(
   };
 
   // 1. Deliver to active browser dashboard sessions via Server-Sent Events (SSE)
-  const sseMessage = `event: pos_action\ndata: ${JSON.stringify(enrichedPayload)}\n\n`;
-  for (const client of sseClients) {
-    if (
-      client.tenantId === cleanTenantId &&
-      client.role !== 'SUPERADMIN' &&
-      allowedRoles.includes(client.role as any)
-    ) {
-      if (client.role === 'CASHIER' && enrichedPayload.cashierId && client.userId !== enrichedPayload.cashierId) {
-        continue;
-      }
-      try {
-        client.res.write(sseMessage);
-      } catch {
-        sseClients.delete(client);
-      }
-    }
-  }
+  broadcastSsePosAction(cleanTenantId, enrichedPayload);
 
   // 2. Deliver via Firebase Cloud Messaging (FCM) to all registered mobile and desktop devices
   try {

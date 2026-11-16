@@ -599,12 +599,41 @@ export const Header: React.FC<HeaderProps> = ({
     const { type, invoiceNumber, returnNumber, deepLinkUrl, actionUrl } = livePushToast;
     setLivePushToast(null);
 
+    const internalCandidate = [actionUrl, deepLinkUrl].find((u) => typeof u === 'string' && u.startsWith('/'));
+    if (internalCandidate) {
+      try {
+        const parsed = new URL(internalCandidate, window.location.origin);
+        const tabFromQuery = parsed.searchParams.get('tab');
+        const tabFromPath = parsed.pathname.replace(/^\/+/, '').split('/')[0];
+        const targetTab = (tabFromQuery || tabFromPath || '').trim();
+        const lowStockOnly = parsed.searchParams.get('lowStockOnly') === 'true';
+
+        if (targetTab) {
+          onTabChange?.(targetTab);
+          if (targetTab === 'inventory' && (lowStockOnly || String(type || '').toUpperCase() === 'STOCK')) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+            }, 150);
+          }
+          return;
+        }
+      } catch {}
+    }
+
     if (actionUrl) {
       try {
         window.open(actionUrl, '_blank');
       } catch {
         window.location.href = actionUrl;
       }
+      return;
+    }
+
+    if (String(type || '').toUpperCase() === 'STOCK') {
+      onTabChange?.('inventory');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+      }, 150);
       return;
     }
 
@@ -815,6 +844,19 @@ export const Header: React.FC<HeaderProps> = ({
     const raw = item.raw || item;
     markAsRead(raw.id);
     setShowNotifications(false);
+
+    if (
+      String(raw.itemType || '').toUpperCase() === 'LOW_STOCK' ||
+      String(raw.type || '').toUpperCase() === 'STOCK' ||
+      raw.actionTab === 'inventory'
+    ) {
+      onTabChange?.('inventory');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+      }, 150);
+      return;
+    }
+
     const invoiceMatch = raw.message?.match(/#([A-Z0-9-]+)/i) || raw.title?.match(/#([A-Z0-9-]+)/i);
     const invNumber = invoiceMatch ? invoiceMatch[1] : null;
 

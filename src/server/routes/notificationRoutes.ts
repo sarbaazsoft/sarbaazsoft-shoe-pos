@@ -12,7 +12,7 @@ import {
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { extractTokenFromRequest, getJwtSecret } from '../auth.ts';
 import { pgClient } from '../../db/index.ts';
-import { ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
+import { ensureNotificationsSchema, ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
 
 const router = Router();
 
@@ -88,7 +88,7 @@ function resolveRequestIdentity(req: Request): { tenantId: number; userId: numbe
  */
 router.get('/grouped', async (req: Request, res: Response) => {
   try {
-    await ensurePlatformNotificationsSchema();
+    await Promise.all([ensurePlatformNotificationsSchema(), ensureNotificationsSchema()]);
     const { tenantId, userId, role } = resolveRequestIdentity(req);
     const cleanTenantId = tenantId || 1;
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || '5'), 10) || 5, 1), 10);
@@ -281,8 +281,51 @@ router.get('/grouped', async (req: Request, res: Response) => {
         isRead: false,
       }));
 
+      let mappedLowStock: any[] = [];
+      if (role === 'ADMIN' || role === 'OWNER') {
+        const lowStockRes = await pgClient.query<{
+          id: number;
+          type: string;
+          title: string;
+          message: string;
+          sale_id: number | null;
+          invoice_number: string | null;
+          action_url: string | null;
+          items_json: any;
+          created_at: string;
+          is_read: boolean;
+        }>(
+          `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
+           FROM public.notifications
+           WHERE tenant_id = $1
+             AND COALESCE(is_read, false) = false
+             AND created_at >= NOW() - INTERVAL '48 HOURS'
+           ORDER BY created_at DESC
+           LIMIT $2`,
+          [cleanTenantId, limit]
+        ).catch(() => ({ rows: [] }));
+
+        mappedLowStock = lowStockRes.rows.map((row) => ({
+          id: `notif-${row.id}`,
+          rawId: row.id,
+          itemType: 'LOW_STOCK',
+          type: 'STOCK',
+          title: row.title,
+          message: row.message,
+          saleId: row.sale_id || undefined,
+          invoiceNumber: row.invoice_number || undefined,
+          items: Array.isArray(row.items_json) ? row.items_json : [],
+          actionUrl: row.action_url || '/?tab=inventory&lowStockOnly=true',
+          deepLinkUrl: row.action_url || '/?tab=inventory&lowStockOnly=true',
+          actionTab: 'inventory',
+          createdAt: row.created_at || new Date().toISOString(),
+          timestamp: row.created_at || new Date().toISOString(),
+          isRead: Boolean(row.is_read),
+        }));
+      }
+
       // Combine and cap at limit (max 5)
-      operationalNotifications = [...mappedSales, ...mappedReturns]
+      operationalNotifications = [...mappedLowStock, ...mappedSales, ...mappedReturns]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, limit);
     }
@@ -318,7 +361,7 @@ router.get('/grouped', async (req: Request, res: Response) => {
  */
 router.get('/all', async (req: Request, res: Response) => {
   try {
-    await ensurePlatformNotificationsSchema();
+    await Promise.all([ensurePlatformNotificationsSchema(), ensureNotificationsSchema()]);
     const { tenantId, userId, role } = resolveRequestIdentity(req);
     const cleanTenantId = tenantId || 1;
 
@@ -427,10 +470,19 @@ router.get('/all', async (req: Request, res: Response) => {
       }));
     }
 
-    // 2. Fetch historical POS Operational Activity (Sales & Returns)
-    // Cashiers ONLY view historical notifications for their own operations
+    // 2. Fetch historical POS Operational Activity (Sales, Returns, & Low Stock)
+    // Cashiers ONLY view historical notifications for their own operations (never LOW_STOCK)
     let operationalItems: any[] = [];
-    if (role !== 'SUPERADMIN' && (tabFilter === 'all' || tabFilter === 'notifications' || tabFilter === 'operational' || tabFilter === 'sales' || tabFilter === 'returns')) {
+    if (
+      role !== 'SUPERADMIN' &&
+      (tabFilter === 'all' ||
+        tabFilter === 'notifications' ||
+        tabFilter === 'operational' ||
+        tabFilter === 'sales' ||
+        tabFilter === 'returns' ||
+        tabFilter === 'stock' ||
+        tabFilter === 'low_stock')
+    ) {
       const salesRes = await pgClient.query(
         `SELECT
            s.id,
@@ -508,12 +560,56 @@ router.get('/all', async (req: Request, res: Response) => {
         isRead: Boolean(row.is_dismissed),
       }));
 
+      let mappedLowStock: any[] = [];
+      if (role === 'ADMIN' || role === 'OWNER') {
+        const lowStockRes = await pgClient.query<{
+          id: number;
+          type: string;
+          title: string;
+          message: string;
+          sale_id: number | null;
+          invoice_number: string | null;
+          action_url: string | null;
+          items_json: any;
+          created_at: string;
+          is_read: boolean;
+        }>(
+          `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
+           FROM public.notifications
+           WHERE tenant_id = $1
+           ORDER BY created_at DESC
+           LIMIT 200`,
+          [cleanTenantId]
+        ).catch(() => ({ rows: [] }));
+
+        mappedLowStock = lowStockRes.rows.map((row) => ({
+          id: `notif-${row.id}`,
+          rawId: row.id,
+          kind: 'OPERATIONAL',
+          itemType: 'LOW_STOCK',
+          type: 'STOCK',
+          title: row.title,
+          message: row.message,
+          invoiceNumber: row.invoice_number || undefined,
+          saleId: row.sale_id || undefined,
+          items: Array.isArray(row.items_json) ? row.items_json : [],
+          actionUrl: row.action_url || '/?tab=inventory&lowStockOnly=true',
+          actionLabel: 'Restock Inventory',
+          deepLinkUrl: row.action_url || '/?tab=inventory&lowStockOnly=true',
+          createdAt: row.created_at || new Date().toISOString(),
+          expiresAt: null,
+          isRead: Boolean(row.is_read),
+        }));
+      }
+
       if (tabFilter === 'sales') {
         operationalItems = mappedSales;
       } else if (tabFilter === 'returns') {
         operationalItems = mappedReturns;
+      } else if (tabFilter === 'stock' || tabFilter === 'low_stock') {
+        operationalItems = mappedLowStock;
       } else {
-        operationalItems = [...mappedSales, ...mappedReturns];
+        operationalItems = [...mappedLowStock, ...mappedSales, ...mappedReturns];
       }
     }
 
@@ -627,7 +723,7 @@ router.post('/dismiss-welcome', async (req: Request, res: Response) => {
  */
 router.post(['/:id/dismiss', '/dismiss'], async (req: Request, res: Response) => {
   try {
-    await ensurePlatformNotificationsSchema();
+    await Promise.all([ensurePlatformNotificationsSchema(), ensureNotificationsSchema()]);
     const { tenantId, userId } = resolveRequestIdentity(req);
     const cleanTenantId = tenantId || 1;
 
@@ -639,7 +735,17 @@ router.post(['/:id/dismiss', '/dismiss'], async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Notification ID is required.' });
     }
 
-    if (cleanIdStr.startsWith('notice-') || itemType === 'NOTICE' || /^\d+$/.test(cleanIdStr)) {
+    if (cleanIdStr.startsWith('notif-') || itemType === 'LOW_STOCK') {
+      const notifId = parseInt(cleanIdStr.replace(/^notif-/, ''), 10);
+      if (Number.isInteger(notifId) && notifId > 0) {
+        await pgClient.query(
+          `UPDATE public.notifications
+           SET is_read = true, read_at = NOW()
+           WHERE id = $1 AND tenant_id = $2`,
+          [notifId, cleanTenantId]
+        );
+      }
+    } else if (cleanIdStr.startsWith('notice-') || itemType === 'NOTICE' || /^\d+$/.test(cleanIdStr)) {
       const numericId = parseInt(cleanIdStr.replace(/^notice-/, ''), 10);
       if (Number.isInteger(numericId) && numericId > 0) {
         await pgClient.query(
@@ -683,7 +789,7 @@ router.post(['/:id/dismiss', '/dismiss'], async (req: Request, res: Response) =>
  */
 router.post(['/dismiss-all', '/mark-all-read'], async (req: Request, res: Response) => {
   try {
-    await ensurePlatformNotificationsSchema();
+    await Promise.all([ensurePlatformNotificationsSchema(), ensureNotificationsSchema()]);
     const { tenantId, userId, role } = resolveRequestIdentity(req);
     const cleanTenantId = tenantId || 1;
 
@@ -704,8 +810,17 @@ router.post(['/dismiss-all', '/mark-all-read'], async (req: Request, res: Respon
       [cleanTenantId, userId, role]
     ).catch(() => {});
 
-    // 2. Dismiss/read all recent 48-hour sales & returns (scoped to cashier's own if role is CASHIER)
+    // 2. Dismiss/read all recent 48-hour sales, returns & admin low-stock alerts
     if (role !== 'SUPERADMIN') {
+      if (role === 'ADMIN' || role === 'OWNER') {
+        await pgClient.query(
+          `UPDATE public.notifications
+           SET is_read = true, read_at = NOW()
+           WHERE tenant_id = $1 AND COALESCE(is_read, false) = false`,
+          [cleanTenantId]
+        ).catch(() => {});
+      }
+
       await pgClient.query(
         `INSERT INTO pos_notification_dismissals (tenant_id, user_id, item_type, item_id, dismissed_at)
          SELECT $1, $2, 'SALE', s.id, NOW()

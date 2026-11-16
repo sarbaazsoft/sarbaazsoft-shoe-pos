@@ -133,6 +133,7 @@ export function isSaasControlPlaneInitialized(): boolean {
 
 let databaseEnumsSchemaPromise: Promise<void> | null = null;
 let platformNotificationsSchemaPromise: Promise<void> | null = null;
+let notificationsSchemaPromise: Promise<void> | null = null;
 
 export function resetSaasControlPlaneState(): void {
   saasControlPlaneInitialized = false;
@@ -143,6 +144,7 @@ export function resetSaasControlPlaneState(): void {
   salesTransactionIdSchemaPromise = null;
   fcmTokensSchemaPromise = null;
   platformNotificationsSchemaPromise = null;
+  notificationsSchemaPromise = null;
   productPriceMigrationPromise = null;
   documentPrefixMigrationPromise = null;
 }
@@ -245,6 +247,7 @@ export const REQUIRED_DATABASE_TABLES = [
   'platform_notifications',
   'platform_notification_reads',
   'pos_notification_dismissals',
+  'notifications',
 ] as const;
 
 export const DATABASE_ENUM_DDL: string[] = [
@@ -411,6 +414,8 @@ const DATABASE_TABLE_DDL: string[] = [
     pairs_per_carton INTEGER NOT NULL DEFAULT 12,
     allow_half_carton BOOLEAN NOT NULL DEFAULT true,
     total_stock INTEGER NOT NULL DEFAULT 0,
+    low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+    is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false,
     active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -671,10 +676,30 @@ const DATABASE_TABLE_DDL: string[] = [
     dismissed_at TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT pos_notification_dismissals_unique UNIQUE(tenant_id, user_id, item_type, item_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL DEFAULT 1,
+    target_role TEXT NOT NULL DEFAULT 'ADMIN',
+    type TEXT NOT NULL DEFAULT 'LOW_STOCK',
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    sale_id INTEGER NULL REFERENCES sales(id) ON DELETE SET NULL,
+    invoice_number TEXT DEFAULT '',
+    action_url TEXT DEFAULT '/?tab=inventory&lowStockOnly=true',
+    items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    event_id TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT false,
+    read_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
 ];
 
 const DATABASE_INDEX_DDL: string[] = [
   `ALTER TABLE IF EXISTS products DROP COLUMN IF EXISTS sku`,
+  `CREATE INDEX IF NOT EXISTS pos_notification_dismissals_idx ON pos_notification_dismissals(tenant_id, user_id, item_type)`,
+  `CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON notifications(tenant_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications(tenant_id, is_read)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id) WHERE event_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON platform_notifications(created_at)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id) WHERE event_id IS NOT NULL`,
@@ -826,6 +851,43 @@ export function ensurePlatformNotificationsSchema(): Promise<void> {
     });
   }
   return platformNotificationsSchemaPromise;
+}
+
+/** Ensures the tenant-scoped notifications table & product low-stock tracking columns exist. */
+export function ensureNotificationsSchema(): Promise<void> {
+  if (!notificationsSchemaPromise) {
+    notificationsSchemaPromise = (async () => {
+      await pgClient.waitReady;
+      await pgClient.exec(`
+        ALTER TABLE IF EXISTS public.products ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;
+        ALTER TABLE IF EXISTS public.products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false;
+
+        CREATE TABLE IF NOT EXISTS public.notifications (
+          id SERIAL PRIMARY KEY,
+          tenant_id INTEGER NOT NULL DEFAULT 1,
+          target_role TEXT NOT NULL DEFAULT 'ADMIN',
+          type TEXT NOT NULL DEFAULT 'LOW_STOCK',
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          sale_id INTEGER NULL,
+          invoice_number TEXT DEFAULT '',
+          action_url TEXT DEFAULT '/?tab=inventory&lowStockOnly=true',
+          items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          event_id TEXT,
+          is_read BOOLEAN NOT NULL DEFAULT false,
+          read_at TIMESTAMP NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON public.notifications(tenant_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS notifications_unread_idx ON public.notifications(tenant_id, is_read);
+        CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON public.notifications(event_id) WHERE event_id IS NOT NULL;
+      `);
+    })().catch((error) => {
+      notificationsSchemaPromise = null;
+      throw error;
+    });
+  }
+  return notificationsSchemaPromise;
 }
 
 /**
@@ -1117,6 +1179,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       }
       await ensureCustomerLedgerSchema();
       await ensurePlatformNotificationsSchema();
+      await ensureNotificationsSchema();
 
       await migrateLegacyWholesaleProductPrices();
       await dropLegacyDocumentPrefixColumns();
@@ -1247,6 +1310,17 @@ export async function ensureDatabaseSchema(): Promise<void> {
           EXCEPTION WHEN OTHERS THEN NULL;
           END;
           BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'low_stock_threshold'
+            ) THEN
+              ALTER TABLE products ADD COLUMN low_stock_threshold INTEGER NOT NULL DEFAULT 5;
+              UPDATE products p
+              SET low_stock_threshold = GREATEST(1, COALESCE(cs.low_stock_threshold, 5))
+              FROM company_settings cs
+              WHERE COALESCE(p.tenant_id, 1) = COALESCE(cs.tenant_id, 1);
+            END IF;
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_half_carton BOOLEAN NOT NULL DEFAULT true;
             ALTER TABLE products DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
             ALTER TABLE products DROP COLUMN IF EXISTS low_stock_limit CASCADE;
@@ -1703,8 +1777,9 @@ export async function ensureSaasControlPlane(): Promise<void> {
         END $$;
       `).catch(() => {});
 
-      // Always ensure platform notification tables exist
+      // Always ensure platform notification & tenant notifications tables exist
       await ensurePlatformNotificationsSchema();
+      await ensureNotificationsSchema();
 
       // Fast-path check: if schema & control plane have already been verified in this persistent DB, skip heavy DDL & bcrypt loops
       const fastCheck = await pgClient
@@ -1716,6 +1791,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
                    AND to_regclass('public.trial_activations') IS NOT NULL
                    AND to_regclass('public.platform_notifications') IS NOT NULL
                    AND to_regclass('public.platform_notification_reads') IS NOT NULL
+                   AND to_regclass('public.notifications') IS NOT NULL
                    AND to_regclass('public.store_requests') IS NULL
                    AND to_regclass('public.customer_khata_ledger') IS NULL
                    AND NOT EXISTS (
@@ -1724,10 +1800,18 @@ export async function ensureSaasControlPlane(): Promise<void> {
                    )
                    AND EXISTS (
                      SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'low_stock_threshold'
+                   )
+                   AND EXISTS (
+                     SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'is_low_stock_alert_sent'
+                   )
+                   AND EXISTS (
+                     SELECT 1 FROM information_schema.columns
                      WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'low_stock_threshold'
                    )) as has_core_tables
            FROM app_settings
-           WHERE key = '__schema_v16_low_stock_threshold__'`
+           WHERE key = '__schema_v17_product_low_stock_alerts__'`
         )
         .catch(() => null);
 
@@ -1888,7 +1972,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
     await pgClient
       .query(
         `INSERT INTO app_settings (key, value, category, description, is_secret)
-         VALUES ('__schema_v16_low_stock_threshold__', 'true', 'system', 'Schema migration removing product-level low_stock_limit and using company_settings.low_stock_threshold', false)
+         VALUES ('__schema_v17_product_low_stock_alerts__', 'true', 'system', 'Schema migration adding products.low_stock_threshold, products.is_low_stock_alert_sent, and notifications table', false)
          ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`
       )
       .catch(() => {});
@@ -1913,6 +1997,7 @@ export async function dropAllTables(): Promise<void> {
 
   await pgClient.exec(`
     DROP TABLE IF EXISTS 
+      notifications,
       pos_notification_dismissals,
       platform_notification_reads,
       platform_notifications,

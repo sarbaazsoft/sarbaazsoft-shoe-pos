@@ -164,7 +164,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
           false
         );
         showBlockedModal(currentSnap);
-        dismissSoftPushPrompt(30);
+        dismissSoftPushPrompt(7);
         setIsVisible(false);
         return;
       }
@@ -211,11 +211,11 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
         showBlockedModal(refreshedSnap);
 
         // Dismiss soft prompt immediately and suppress repeats
-        dismissSoftPushPrompt(30);
+        dismissSoftPushPrompt(7);
         setIsVisible(false);
       } else {
         // User dismissed native prompt or error occurred — suppress repeats
-        dismissSoftPushPrompt(30);
+        dismissSoftPushPrompt(7);
         setIsVisible(false);
       }
     } catch (err: any) {
@@ -249,7 +249,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
 
   const handleDismiss = () => {
     // Store preference in localStorage so pre-prompt does not repeatedly nag
-    dismissSoftPushPrompt(30);
+    dismissSoftPushPrompt(7);
     setIsVisible(false);
   };
 

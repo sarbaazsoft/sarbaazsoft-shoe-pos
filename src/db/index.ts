@@ -313,6 +313,8 @@ const mockStore: Record<string, any[]> = {
       max_price: 4200,
       pairs_per_carton: 12,
       total_stock: 20,
+      low_stock_threshold: 5,
+      is_low_stock_alert_sent: false,
       allow_half_carton: true,
       active: true,
       created_at: new Date().toISOString(),
@@ -364,11 +366,15 @@ const mockStore: Record<string, any[]> = {
     { key: 'EMAIL_WEBHOOK_URL', value: '', category: 'email', description: 'Custom webhook URL to receive outgoing email payloads', is_secret: false, updated_at: new Date().toISOString() },
     { key: 'RESEND_WEBHOOK_URL', value: '', category: 'email', description: 'Resend delivery webhook URL', is_secret: false, updated_at: new Date().toISOString() },
     { key: 'REQUIRE_EMAIL_VERIFICATION_FOR_FREE_TRIAL', value: 'true', category: 'email', description: 'Require email verification for new free trial registrations before access is activated', is_secret: false, updated_at: new Date().toISOString() },
+    { key: 'LOW_STOCK_EMAIL_ALERTS_ENABLED', value: 'true', category: 'notifications', description: 'Send consolidated email alerts to store owners when products cross low-stock threshold', is_secret: false, updated_at: new Date().toISOString() },
+    { key: 'LOW_STOCK_PUSH_ALERTS_ENABLED', value: 'true', category: 'notifications', description: 'Send consolidated FCM push alerts to store owners when products cross low-stock threshold', is_secret: false, updated_at: new Date().toISOString() },
     { key: 'DISABLE_HMR', value: 'false', category: 'system', description: 'Disable Vite Hot Module Reloading in sandbox environments', is_secret: false, updated_at: new Date().toISOString() },
   ],
   platform_notifications: [],
   platform_notification_reads: [],
   pos_notification_dismissals: [],
+  notifications: [],
+  fcm_tokens: [],
   email_verification_tokens: [],
 };
 
@@ -396,6 +402,8 @@ let mockIdCounters: Record<string, number> = {
   platform_notifications: 1,
   platform_notification_reads: 1,
   pos_notification_dismissals: 1,
+  notifications: 1,
+  fcm_tokens: 1,
   email_verification_tokens: 1,
 };
 
@@ -644,6 +652,199 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         }
       }
       return { rows: entry ? ([entry] as unknown as T[]) : [], rowCount: entry ? 1 : 0 };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
+  // Tenant-scoped operational notifications table (must be checked BEFORE PLATFORM_NOTIFICATIONS)
+  if (/(?:INTO|FROM|UPDATE)\s+(?:PUBLIC\.)?NOTIFICATIONS\b/.test(upper)) {
+    if (!mockStore.notifications) mockStore.notifications = [];
+
+    if (upper.startsWith('INSERT INTO')) {
+      const colMatch = sql.match(/INSERT\s+INTO\s+(?:public\.)?notifications\s*\(([^)]+)\)\s*VALUES\s*\(([\s\S]*?)\)\s*(?:ON\s+CONFLICT|RETURNING|$)/i);
+      const entry: Record<string, any> = {
+        id: nextMockId('notifications'),
+        tenant_id: 1,
+        target_role: 'ADMIN',
+        type: 'LOW_STOCK',
+        title: '',
+        message: '',
+        sale_id: null,
+        invoice_number: '',
+        action_url: '/?tab=inventory&lowStockOnly=true',
+        items_json: [],
+        event_id: null,
+        is_read: false,
+        read_at: null,
+        created_at: new Date().toISOString(),
+      };
+      if (colMatch) {
+        const cols = colMatch[1].split(',').map((c) => c.trim().toLowerCase());
+        const vals = colMatch[2].split(',').map((v) => v.trim());
+        cols.forEach((col, idx) => {
+          const expr = vals[idx];
+          if (expr === undefined) return;
+          const cleanExpr = expr.replace(/::\w+/g, '').trim();
+          const paramMatch = cleanExpr.match(/^\$(\d+)$/);
+          let rawVal: any;
+          if (paramMatch) {
+            rawVal = params[Number(paramMatch[1]) - 1];
+          } else if (/^null$/i.test(cleanExpr)) {
+            rawVal = null;
+          } else if (/^true$/i.test(cleanExpr)) {
+            rawVal = true;
+          } else if (/^false$/i.test(cleanExpr)) {
+            rawVal = false;
+          } else if (/^now\(\)$/i.test(cleanExpr)) {
+            rawVal = new Date().toISOString();
+          } else {
+            const strMatch = cleanExpr.match(/^'([^']*)'$/);
+            rawVal = strMatch ? strMatch[1] : cleanExpr;
+          }
+          if (col === 'items_json') {
+            if (typeof rawVal === 'string') {
+              try {
+                entry[col] = JSON.parse(rawVal);
+              } catch {
+                entry[col] = [];
+              }
+            } else {
+              entry[col] = Array.isArray(rawVal) ? rawVal : [];
+            }
+          } else {
+            entry[col] = rawVal;
+          }
+        });
+      }
+      if (entry.event_id) {
+        const dup = mockStore.notifications.find((n: any) => n.event_id && String(n.event_id) === String(entry.event_id));
+        if (dup) {
+          if (upper.includes('ON CONFLICT') && upper.includes('DO NOTHING')) {
+            return { rows: [], rowCount: 0 };
+          }
+          const dupErr: any = new Error('duplicate key value violates unique constraint "notifications_event_id_unique_idx"');
+          dupErr.code = '23505';
+          throw dupErr;
+        }
+      }
+      mockStore.notifications.unshift(entry);
+      return { rows: [entry as unknown as T], rowCount: 1 };
+    }
+
+    if (upper.startsWith('SELECT')) {
+      const tid = params.length > 0 && params[0] !== null && params[0] !== undefined ? Number(params[0]) : 1;
+      let list = (mockStore.notifications || []).filter((n: any) => Number(n.tenant_id || 1) === tid);
+      if (upper.includes('IS_READ = FALSE') || upper.includes('COALESCE(IS_READ, FALSE) = FALSE') || upper.includes('COALESCE(N.IS_READ, FALSE) = FALSE')) {
+        list = list.filter((n: any) => !n.is_read);
+      }
+      if (upper.includes("INTERVAL '48 HOURS'")) {
+        const cutoff = Date.now() - 48 * 3600 * 1000;
+        list = list.filter((n: any) => new Date(n.created_at).getTime() >= cutoff);
+      }
+      if (upper.includes('LIMIT $')) {
+        const limitParam = params.find((_, idx) => upper.includes(`LIMIT $${idx + 1}`));
+        if (limitParam && Number(limitParam) > 0) {
+          list = list.slice(0, Number(limitParam));
+        }
+      }
+      return { rows: list as unknown as T[], rowCount: list.length };
+    }
+
+    if (upper.startsWith('UPDATE')) {
+      if (upper.includes('WHERE ID = $1') && upper.includes('TENANT_ID = $2')) {
+        const id = Number(params[0]);
+        const tid = Number(params[1]);
+        const row = (mockStore.notifications || []).find((n: any) => Number(n.id) === id && Number(n.tenant_id || 1) === tid);
+        if (row) {
+          row.is_read = true;
+          row.read_at = new Date().toISOString();
+          return { rows: [row as unknown as T], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      const tid = Number(params[0] || 1);
+      let updated = 0;
+      for (const n of mockStore.notifications || []) {
+        if (Number(n.tenant_id || 1) === tid && !n.is_read) {
+          n.is_read = true;
+          n.read_at = new Date().toISOString();
+          updated++;
+        }
+      }
+      return { rows: [], rowCount: updated };
+    }
+
+    if (upper.startsWith('DELETE FROM')) {
+      if (upper.includes('WHERE TENANT_ID = $1')) {
+        const tid = Number(params[0] || 1);
+        const before = (mockStore.notifications || []).length;
+        mockStore.notifications = (mockStore.notifications || []).filter(
+          (n: any) => Number(n.tenant_id || 1) !== tid
+        );
+        return { rows: [], rowCount: before - mockStore.notifications.length };
+      }
+      const before = (mockStore.notifications || []).length;
+      mockStore.notifications = [];
+      return { rows: [], rowCount: before };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
+  // FCM_TOKENS tracking for background push delivery
+  if (upper.includes('FCM_TOKENS')) {
+    if (!mockStore.fcm_tokens) mockStore.fcm_tokens = [];
+    if (upper.startsWith('INSERT INTO')) {
+      const token = String(params[0] || '').trim();
+      const tid = Number(params[1] || 1);
+      const uid = Number(params[2] || 0);
+      const role = String(params[3] || 'ADMIN').toUpperCase();
+      const ua = String(params[4] || '');
+      const deviceName = String(params[5] || '');
+      const existing = mockStore.fcm_tokens.find((f: any) => f.token === token);
+      if (existing) {
+        existing.tenant_id = tid;
+        existing.user_id = uid;
+        existing.user_role = role;
+        existing.user_agent = ua;
+        existing.device_name = deviceName;
+        existing.updated_at = new Date().toISOString();
+        return { rows: [existing as unknown as T], rowCount: 1 };
+      }
+      const entry = {
+        id: nextMockId('fcm_tokens'),
+        token,
+        tenant_id: tid,
+        user_id: uid,
+        user_role: role,
+        user_agent: ua,
+        device_name: deviceName,
+        updated_at: new Date().toISOString(),
+      };
+      mockStore.fcm_tokens.push(entry);
+      return { rows: [entry as unknown as T], rowCount: 1 };
+    }
+    if (upper.startsWith('SELECT')) {
+      let rows = [...mockStore.fcm_tokens];
+      if (upper.includes('TENANT_ID = $1')) {
+        const tid = Number(params[0] || 1);
+        rows = rows.filter((f: any) => Number(f.tenant_id) === tid);
+      }
+      if (upper.includes("UPPER(USER_ROLE) IN ('ADMIN', 'OWNER')")) {
+        rows = rows.filter((f: any) => ['ADMIN', 'OWNER'].includes(String(f.user_role || '').toUpperCase()));
+      } else if (upper.includes("UPPER(USER_ROLE) = 'SUPERADMIN'")) {
+        rows = rows.filter((f: any) => String(f.user_role || '').toUpperCase() === 'SUPERADMIN');
+      }
+      return { rows: rows as unknown as T[], rowCount: rows.length };
+    }
+    if (upper.startsWith('DELETE FROM')) {
+      if (Array.isArray(params[0])) {
+        const delSet = new Set(params[0].map((x: any) => String(x)));
+        mockStore.fcm_tokens = mockStore.fcm_tokens.filter((f: any) => !delSet.has(f.token));
+      } else if (params[0]) {
+        const tok = String(params[0]);
+        mockStore.fcm_tokens = mockStore.fcm_tokens.filter((f: any) => f.token !== tok);
+      }
+      return { rows: [], rowCount: 1 };
     }
     return { rows: [], rowCount: 0 };
   }
@@ -1396,7 +1597,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
   }
 
   // COMPANY_SETTINGS queries (SELECT, INSERT, UPDATE, DELETE)
-  if (upper.startsWith('SELECT') && upper.includes('FROM COMPANY_SETTINGS')) {
+  if (upper.startsWith('SELECT') && upper.includes('FROM COMPANY_SETTINGS') && !upper.includes('FROM PRODUCTS')) {
     let rows = mockStore.company_settings.map((cs) => ({
       ...cs,
       name: mockStore.tenants.find((t) => Number(t.id) === Number(cs.tenant_id))?.name || cs.name || 'Baloch Shoes',
@@ -1542,11 +1743,14 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
           String(u.email).toLowerCase() === String(params[0] || '').toLowerCase() &&
           Number(u.tenant_id) === Number(params[1])
       );
-    } else if (upper.includes("ROLE = 'ADMIN'") && upper.includes('TENANT_ID = $1')) {
+    } else if (
+      (upper.includes("ROLE = 'ADMIN'") || upper.includes("UPPER(COALESCE(ROLE::TEXT, '')) IN ('ADMIN', 'OWNER')") || upper.includes("UPPER(ROLE::TEXT) IN ('ADMIN', 'OWNER')")) &&
+      upper.includes('TENANT_ID = $1')
+    ) {
       rows = rows.filter(
         (u) =>
           Number(u.tenant_id) === Number(params[0]) &&
-          u.role === 'ADMIN' &&
+          ['ADMIN', 'OWNER'].includes(String(u.role || '').toUpperCase()) &&
           (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
           (!upper.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
       );
@@ -1821,9 +2025,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     ) {
       const targetId = Number(params[0]);
       const tFilter = Number(params[1] || 1);
-      const matched = mockStore.products.filter(
-        (p) => Number(p.id) === targetId && Number(p.tenant_id || 1) === tFilter
-      );
+      const csRow = mockStore.company_settings.find((cs) => Number(cs.tenant_id) === tFilter);
+      const matched = mockStore.products
+        .filter((p) => Number(p.id) === targetId && Number(p.tenant_id || 1) === tFilter)
+        .map((p) => ({
+          ...p,
+          pricing_mode: csRow?.pricing_mode ?? 'FIXED',
+        }));
       return { rows: matched as unknown as T[], rowCount: matched.length };
     }
 
@@ -1905,59 +2113,80 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       })) as unknown as T[];
       return { rows, rowCount: rows.length };
     }
+    if (upper.includes('COALESCE(P.LOW_STOCK_THRESHOLD') || upper.includes('COALESCE(LOW_STOCK_THRESHOLD')) {
+      const lowOnly = upper.includes('TOTAL_STOCK <= COALESCE(');
+      if (lowOnly) {
+        const filtered = storeProds.filter((p) => {
+          const thr = Number.isFinite(Number(p.low_stock_threshold)) && Number(p.low_stock_threshold) >= 0
+            ? Math.trunc(Number(p.low_stock_threshold))
+            : 5;
+          return Number(p.total_stock || 0) <= thr;
+        });
+        return { rows: filtered as unknown as T[], rowCount: filtered.length };
+      }
+    }
     return { rows: storeProds as unknown as T[], rowCount: storeProds.length };
   }
 
   if (upper.startsWith('INSERT INTO PRODUCTS')) {
     const tid = Number(params[0]) || 1;
     const storeProds = mockStore.products.filter((p) => Number(p.tenant_id) === tid);
-    const isFullInsert = params.length >= 14;
-    const hasAllowHalfCarton = upper.includes('ALLOW_HALF_CARTON');
-    const newProd = isFullInsert
-      ? {
-          id: nextMockId('products'),
-          tenant_id: tid,
-          tenant_product_no: Number(params[1]) || storeProds.length + 1,
-          name: String(params[2] || 'Shoe Product'),
-          brand: String(params[3] || 'Unbranded'),
-          category: String(params[4] || 'Men'),
-          article: String(params[5] || 'SH-01'),
-          barcode: String(params[6] || `BC-${Date.now()}`),
-          primary_image_url: String(params[7] || ''),
-          description: String(params[8] || ''),
-          cost_price: Number(params[9] || 0),
-          min_price: Number(params[10] || 0),
-          max_price: Number(params[11] || 0),
-          pairs_per_carton: Number(params[12] || 12),
-          allow_half_carton: hasAllowHalfCarton ? Boolean(params.find((p, idx) => idx >= 13 && typeof p === 'boolean') ?? true) : true,
-          total_stock: Number(params[13] || 0),
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+    const colMatch = sql.match(/INSERT\s+INTO\s+(?:public\.)?products\s*\(([^)]+)\)\s*VALUES\s*\(([\s\S]*?)\)\s*(?:RETURNING|$)/i);
+    if (colMatch) {
+      const cols = colMatch[1].split(',').map((c) => c.trim().toLowerCase());
+      const vals = colMatch[2].split(',').map((v) => v.trim());
+      const newProd: Record<string, any> = {
+        id: nextMockId('products'),
+        tenant_id: tid,
+        tenant_product_no: storeProds.length + 1,
+        name: 'Shoe Product',
+        brand: 'Unbranded',
+        category: 'Men',
+        article: 'SH-01',
+        barcode: `BC-${Date.now()}`,
+        primary_image_url: '',
+        description: '',
+        cost_price: 0,
+        min_price: 0,
+        max_price: 0,
+        pairs_per_carton: 12,
+        allow_half_carton: true,
+        total_stock: 0,
+        low_stock_threshold: 5,
+        is_low_stock_alert_sent: false,
+        active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      cols.forEach((col, idx) => {
+        const expr = vals[idx];
+        if (expr === undefined) return;
+        const cleanExpr = expr.replace(/::\w+/g, '').trim();
+        const paramMatch = cleanExpr.match(/^\$(\d+)$/);
+        let rawVal: any;
+        if (paramMatch) {
+          rawVal = params[Number(paramMatch[1]) - 1];
+        } else if (/^true$/i.test(cleanExpr)) {
+          rawVal = true;
+        } else if (/^false$/i.test(cleanExpr)) {
+          rawVal = false;
+        } else if (/^null$/i.test(cleanExpr)) {
+          rawVal = null;
+        } else {
+          const strMatch = cleanExpr.match(/^'([^']*)'$/);
+          rawVal = strMatch ? strMatch[1] : Number(cleanExpr);
         }
-      : {
-          id: nextMockId('products'),
-          tenant_id: tid,
-          tenant_product_no: storeProds.length + 1,
-          name: String(params[1] || 'Shoe Product'),
-          article: String(params[1] || 'SH-01'),
-          barcode: String(params[2] || `BC-${Date.now()}`),
-          brand: String(params[3] || 'Unbranded'),
-          category: String(params[4] || 'Casual Shoes'),
-          cost_price: Number(params[5] || 2000),
-          min_price: Number(params[6] || 3000),
-          max_price: Number(params[7] || 3500),
-          pairs_per_carton: 12,
-          allow_half_carton: true,
-          total_stock: Number(params[8] || 15),
-          primary_image_url: '',
-          description: '',
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-    mockStore.products.push(newProd);
-    return { rows: [newProd as unknown as T], rowCount: 1 };
+        newProd[col] = rawVal;
+      });
+      if (!newProd.name && newProd.article) newProd.name = newProd.article;
+      if (!newProd.article && newProd.name) newProd.article = newProd.name;
+      const rawThr = Number(newProd.low_stock_threshold);
+      newProd.low_stock_threshold = Number.isFinite(rawThr) && rawThr >= 0 ? Math.trunc(rawThr) : 5;
+      newProd.is_low_stock_alert_sent = Boolean(newProd.is_low_stock_alert_sent);
+      mockStore.products.push(newProd);
+      return { rows: [newProd as unknown as T], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
   }
 
   if (upper.startsWith('UPDATE PRODUCTS')) {
@@ -1970,43 +2199,6 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       }
       return { rows: [], rowCount: 1 };
     }
-    if (upper.includes('WHERE ID = $15 AND COALESCE(TENANT_ID, 1) = $16')) {
-      const targetId = Number(params[params.length - 2]);
-      const tid = Number(params[params.length - 1]) || 1;
-      const prod = mockStore.products.find((p) => Number(p.id) === targetId && Number(p.tenant_id || 1) === tid);
-      if (prod) {
-        prod.name = String(params[0] ?? prod.name);
-        prod.brand = String(params[1] ?? prod.brand);
-        prod.category = String(params[2] ?? prod.category);
-        prod.article = String(params[3] ?? prod.article);
-        prod.barcode = String(params[4] ?? prod.barcode);
-        prod.pairs_per_carton = Number(params[5] ?? prod.pairs_per_carton ?? 12);
-        prod.primary_image_url = String(params[6] ?? prod.primary_image_url);
-        prod.description = String(params[7] ?? prod.description);
-        prod.cost_price = Number(params[8] ?? prod.cost_price);
-        prod.total_stock = Number(params[9] ?? prod.total_stock);
-        prod.active = Boolean(params[10] ?? prod.active);
-        prod.min_price = Number(params[11] ?? prod.min_price);
-        prod.max_price = Number(params[12] ?? prod.max_price);
-        prod.allow_half_carton = Boolean(params[13] ?? prod.allow_half_carton ?? true);
-        prod.updated_at = new Date().toISOString();
-        return { rows: [prod as unknown as T], rowCount: 1 };
-      }
-      return { rows: [], rowCount: 0 };
-    }
-    if (upper.includes('SET TOTAL_STOCK = $1') && upper.includes('WHERE ID = $2')) {
-      const nextStock = Number(params[0]);
-      const targetId = Number(params[1]);
-      const tid = params.length >= 3 ? Number(params[2]) || 1 : null;
-      const prod = mockStore.products.find(
-        (p) => Number(p.id) === targetId && (!tid || Number(p.tenant_id || 1) === tid)
-      );
-      if (prod) {
-        prod.total_stock = nextStock;
-        prod.updated_at = new Date().toISOString();
-      }
-      return { rows: prod ? ([prod] as unknown as T[]) : [], rowCount: prod ? 1 : 0 };
-    }
     if (upper.includes('SET ACTIVE = FALSE') && upper.includes('WHERE ID = $1')) {
       const targetId = Number(params[0]);
       const tid = Number(params[1]) || 1;
@@ -2016,6 +2208,44 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         prod.updated_at = new Date().toISOString();
       }
       return { rows: prod ? ([prod] as unknown as T[]) : [], rowCount: prod ? 1 : 0 };
+    }
+
+    const whereMatch = sql.match(/SET\s+([\s\S]+?)\s+WHERE\s+([\s\S]+?)(?:\s+RETURNING\b|$)/i);
+    if (whereMatch) {
+      const setClause = whereMatch[1];
+      const whereClause = whereMatch[2];
+      const idParamMatch = whereClause.match(/\bid\s*=\s*\$(\d+)/i);
+      const tidParamMatch = whereClause.match(/tenant_id(?:\s*,\s*1\s*\))?\s*=\s*\$(\d+)/i);
+      const targetId = idParamMatch ? Number(params[Number(idParamMatch[1]) - 1]) : null;
+      const tid = tidParamMatch ? Number(params[Number(tidParamMatch[1]) - 1]) : null;
+      const prod = mockStore.products.find(
+        (p) => (targetId === null || Number(p.id) === targetId) && (!tid || Number(p.tenant_id || 1) === tid)
+      );
+      if (!prod) return { rows: [], rowCount: 0 };
+
+      const assignments = setClause.split(',');
+      for (const assign of assignments) {
+        const eqIdx = assign.indexOf('=');
+        if (eqIdx === -1) continue;
+        const col = assign.slice(0, eqIdx).trim().toLowerCase();
+        const rhs = assign.slice(eqIdx + 1).trim();
+        if (col === 'updated_at') {
+          prod.updated_at = new Date().toISOString();
+          continue;
+        }
+        const paramMatch = rhs.match(/^\$(\d+)$/);
+        if (paramMatch) {
+          prod[col] = params[Number(paramMatch[1]) - 1];
+        } else if (/^true$/i.test(rhs)) {
+          prod[col] = true;
+        } else if (/^false$/i.test(rhs)) {
+          prod[col] = false;
+        } else if (/^null$/i.test(rhs)) {
+          prod[col] = null;
+        }
+      }
+      prod.updated_at = new Date().toISOString();
+      return { rows: [prod as unknown as T], rowCount: 1 };
     }
     return { rows: [], rowCount: 0 };
   }
@@ -2526,8 +2756,56 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: riList as unknown as T[], rowCount: riList.length };
   }
 
-  if (upper.startsWith('SELECT') && upper.includes('FROM PURCHASES') && upper.includes('COUNT(*)')) {
-    return { rows: [{ count: String(mockStore.purchases.length), total: '0' } as unknown as T], rowCount: 1 };
+  // PURCHASES & PURCHASE_ITEMS
+  if (upper.startsWith('INSERT INTO PURCHASES')) {
+    if (!mockStore.purchases) mockStore.purchases = [];
+    const newPur = {
+      id: nextMockId('purchases'),
+      tenant_id: Number(params[0] || 1),
+      purchase_number: String(params[1] || 'PUR-000001'),
+      supplier_id: params[2] ? Number(params[2]) : null,
+      supplier_name: String(params[3] || ''),
+      purchase_date: String(params[4] || new Date().toISOString().slice(0, 10)),
+      total_amount: Number(params[5] || 0),
+      paid_amount: Number(params[6] || 0),
+      payment_status: String(params[7] || 'UNPAID'),
+      payment_method: String(params[8] || 'CASH'),
+      notes: params[9] ?? null,
+      created_by: Number(params[10] || 1),
+      created_at: new Date().toISOString(),
+    };
+    mockStore.purchases.unshift(newPur);
+    return { rows: [{ id: newPur.id } as unknown as T], rowCount: 1 };
+  }
+
+  if (upper.startsWith('INSERT INTO PURCHASE_ITEMS')) {
+    if (!mockStore.purchase_items) mockStore.purchase_items = [];
+    const newItem = {
+      id: nextMockId('purchase_items'),
+      tenant_id: Number(params[0] || 1),
+      purchase_id: Number(params[1]),
+      product_id: Number(params[2]),
+      quantity: Number(params[3]),
+      unit_purchase_price: Number(params[4]),
+      subtotal: Number(params[5]),
+    };
+    mockStore.purchase_items.push(newItem);
+    return { rows: [newItem as unknown as T], rowCount: 1 };
+  }
+
+  if (upper.startsWith('SELECT') && upper.includes('FROM PURCHASES')) {
+    if (upper.includes('COUNT(*)')) {
+      return { rows: [{ count: String(mockStore.purchases.length), total: '0' } as unknown as T], rowCount: 1 };
+    }
+    const tid = params.length > 0 ? Number(params[0] || 1) : 1;
+    let pList = mockStore.purchases.filter((p: any) => Number(p.tenant_id || 1) === tid);
+    if (upper.includes('PURCHASE_NUMBER LIKE $2')) {
+      const prefix = String(params[1] || '').replace(/%$/, '').toLowerCase();
+      pList = pList
+        .filter((p: any) => String(p.purchase_number || '').toLowerCase().startsWith(prefix))
+        .sort((a: any, b: any) => Number(b.id) - Number(a.id));
+    }
+    return { rows: pList as unknown as T[], rowCount: pList.length };
   }
 
   if (upper.startsWith('SELECT') && upper.includes('FROM CATEGORIES')) {

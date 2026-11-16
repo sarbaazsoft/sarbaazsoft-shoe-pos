@@ -4221,10 +4221,10 @@ setFormErrors(errors);
                   <button
                     type="button"
                     onClick={() => {
-                      dismissSoftPushPrompt(30);
+                      dismissSoftPushPrompt(7);
                       setNotifToggleMessage({
                         type: 'info',
-                        text: 'Reminder snoozed. You can click Enable Notifications here whenever you are ready.',
+                        text: 'Reminder snoozed for 7 days. You can click Enable Notifications here whenever you are ready.',
                       });
                     }}
                     className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold shrink-0 transition cursor-pointer"

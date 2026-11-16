@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
+import { getMessaging, getToken, deleteToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
 import { api, getActiveTenantId } from './api.ts';
 import { playAudioFeedback } from '../utils/audio.ts';
 import {
@@ -965,17 +965,36 @@ export async function requestFcmDeviceToken(overrideRole?: string): Promise<{
 }
 
 /**
- * Unsubscribes and deletes the stored FCM token from the database.
+ * Unsubscribes and deletes the FCM token via Firebase deleteToken(), removes it from
+ * the backend database, and cleans up browser PushManager & localStorage flags.
  */
 export async function unregisterFcmDeviceToken(): Promise<boolean> {
   clearPersistedFcmSyncSignature();
-  const token = localStorage.getItem('pos_fcm_token');
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem(FCM_TOKEN_KEY) : null;
+
+  // 1. Gracefully delete the client FCM token with Firebase SDK
+  try {
+    let messagingInstance = cachedMessaging;
+    if (!messagingInstance) {
+      const initialized = await initFirebaseClient().catch(() => ({ app: null, messaging: null }));
+      messagingInstance = initialized.messaging;
+    }
+    if (messagingInstance && typeof deleteToken === 'function') {
+      await deleteToken(messagingInstance).catch(() => false);
+    }
+  } catch {}
+
+  // 2. Remove the token from backend PostgreSQL storage
   if (token) {
     try {
       await api.notifications.removeFcmToken(token);
     } catch {}
-    localStorage.removeItem('pos_fcm_token');
+    try {
+      localStorage.removeItem(FCM_TOKEN_KEY);
+    } catch {}
   }
+
+  // 3. Unsubscribe active Web Push subscription on root SW scope
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.getRegistration('/');
@@ -985,14 +1004,23 @@ export async function unregisterFcmDeviceToken(): Promise<boolean> {
       }
     } catch {}
   }
-  localStorage.setItem(PUSH_ENABLED_KEY, 'false');
-  localStorage.setItem(PUSH_USER_OPTED_OUT_KEY, 'true');
-  localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
-  window.dispatchEvent(
-    new CustomEvent('pos:push-status-changed', {
-      detail: { permission: typeof Notification !== 'undefined' ? Notification.permission : 'default', isSubscribed: false },
-    })
-  );
+
+  try {
+    localStorage.setItem(PUSH_ENABLED_KEY, 'false');
+    localStorage.setItem(PUSH_USER_OPTED_OUT_KEY, 'true');
+    localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
+  } catch {}
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('pos:push-status-changed', {
+        detail: {
+          permission: typeof Notification !== 'undefined' ? Notification.permission : 'default',
+          isSubscribed: false,
+        },
+      })
+    );
+  }
   return true;
 }
 

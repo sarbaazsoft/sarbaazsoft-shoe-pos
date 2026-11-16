@@ -700,7 +700,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Directly trigger platform's official native notification permission dialog (no custom HTML banners/popups)
+  // Warm up Firebase client foreground listener on session load (never calls Notification.requestPermission() or getToken() automatically)
   useEffect(() => {
     if (currentUser?.role) {
       const cleanup = initNativeNotificationPrompt(currentUser.role);
@@ -1200,11 +1200,17 @@ export default function App() {
   useEffect(() => {
     const handleDeepLink = (detail: any) => {
       if (!detail) return;
-      const type = (detail.type || '').toUpperCase();
+      const type = String(detail.type || '').toUpperCase();
+      const itemType = String(detail.itemType || '').toUpperCase();
       const invoice = detail.invoiceNumber || detail.invoice;
       const returnNum = detail.returnNumber;
 
-      if (type === 'RETURN') {
+      if (type === 'STOCK' || itemType === 'LOW_STOCK' || detail.lowStockOnly === 'true' || detail.actionTab === 'inventory') {
+        handleTabChange('inventory');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+        }, 150);
+      } else if (type === 'RETURN') {
         handleTabChange('returns');
         if (invoice) {
           setTimeout(() => {
@@ -1240,7 +1246,17 @@ export default function App() {
 
     const params = new URLSearchParams(window.location.search);
     const viewInv = params.get('viewInvoice');
-    if (viewInv) {
+    const urlTab = params.get('tab');
+    const lowStockOnly = params.get('lowStockOnly') === 'true';
+
+    if (urlTab === 'inventory' || lowStockOnly) {
+      handleTabChange('inventory');
+      if (lowStockOnly) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+        }, 300);
+      }
+    } else if (viewInv) {
       handleTabChange('reports');
       setTimeout(() => {
         window.dispatchEvent(

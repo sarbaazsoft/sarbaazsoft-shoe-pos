@@ -7,6 +7,7 @@ import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { generateCode128Barcode, analyzeBarcode } from '../../utils/barcode.ts';
 import { parseCategoryPrefix, generateSuggestedArticle, buildArticleInfo, normalizeFootwearCategory } from '../../utils/footwear.ts';
 import { validateAndNormalizeProductPricing, validateProductBrand } from '../../schemas/productSchema.ts';
+import { resolveLowStockThreshold, shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
 
 const router = Router();
 
@@ -532,6 +533,8 @@ async function ensureProductAndSettingsColumns() {
           END IF;
         END $$`);
         await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_half_carton BOOLEAN NOT NULL DEFAULT true");
+        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5");
+        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false");
         await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS min_selling_quantity");
         await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS low_stock_limit");
         await pgClient.query(`
@@ -670,6 +673,10 @@ function mapProductRow(row: any, settings: {
     minSalePrice: minPrice,
     maxSalePrice: maxPrice,
     totalStock: row.total_stock,
+    lowStockThreshold: resolveLowStockThreshold(row.low_stock_threshold, 5),
+    low_stock_threshold: resolveLowStockThreshold(row.low_stock_threshold, 5),
+    isLowStockAlertSent: Boolean(row.is_low_stock_alert_sent),
+    is_low_stock_alert_sent: Boolean(row.is_low_stock_alert_sent),
     active: row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -689,7 +696,10 @@ router.get(['/lookup/:barcode', '/barcode/:barcode'], requireAuth, async (req: A
                 p.primary_image_url, p.description, COALESCE(p.cost_price, 0) as cost_price,
                 COALESCE(p.min_price, 0) as min_price,
                 COALESCE(p.max_price, 0) as max_price,
-                p.total_stock, p.active, p.created_at, p.updated_at
+                p.total_stock,
+                COALESCE(p.low_stock_threshold, 5) as low_stock_threshold,
+                COALESCE(p.is_low_stock_alert_sent, false) as is_low_stock_alert_sent,
+                p.active, p.created_at, p.updated_at
          FROM products p
          WHERE COALESCE(p.tenant_id, 1) = $2
            AND (
@@ -728,7 +738,10 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
              p.pairs_per_carton, p.allow_half_carton, p.primary_image_url, p.description, COALESCE(p.cost_price, 0) as cost_price,
              COALESCE(p.min_price, 0) as min_price,
              COALESCE(p.max_price, 0) as max_price,
-             p.total_stock, p.active, p.created_at, p.updated_at
+             p.total_stock,
+             COALESCE(p.low_stock_threshold, 5) as low_stock_threshold,
+             COALESCE(p.is_low_stock_alert_sent, false) as is_low_stock_alert_sent,
+             p.active, p.created_at, p.updated_at
       FROM products p
       WHERE COALESCE(p.tenant_id, 1) = $1
     `;
@@ -752,7 +765,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
     }
 
     if (lowStockOnly === 'true') {
-      query += ` AND p.total_stock <= COALESCE((SELECT cs.low_stock_threshold FROM company_settings cs WHERE COALESCE(cs.tenant_id, 1) = COALESCE(p.tenant_id, 1) LIMIT 1), 5)`;
+      query += ` AND p.total_stock <= COALESCE(p.low_stock_threshold, (SELECT cs.low_stock_threshold FROM company_settings cs WHERE COALESCE(cs.tenant_id, 1) = COALESCE(p.tenant_id, 1) LIMIT 1), 5)`;
     }
 
     query += ` ORDER BY p.id DESC`;
@@ -939,6 +952,8 @@ router.post('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, re
 
     const rawAllowHalf = req.body.allowHalfCarton ?? req.body.allow_half_carton;
     const finalAllowHalfCarton = rawAllowHalf !== undefined ? Boolean(rawAllowHalf) : true;
+    const rawThreshold = req.body.lowStockThreshold ?? req.body.low_stock_threshold;
+    const finalLowStockThreshold = resolveLowStockThreshold(rawThreshold, settings.lowStockThreshold || 5);
 
     // ATOMIC TRANSACTION: Create product with refined pricing fields and initial stock movement
     await pgClient.query('BEGIN');
@@ -947,8 +962,8 @@ router.post('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, re
         `INSERT INTO products (
           tenant_id, tenant_product_no, name, brand, category, article, barcode, primary_image_url,
           description, cost_price, min_price, max_price, pairs_per_carton,
-          total_stock, active, allow_half_carton
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true, $15)
+          total_stock, low_stock_threshold, is_low_stock_alert_sent, active, allow_half_carton
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, true, $16)
         RETURNING id`,
         [
           tenantId,
@@ -965,6 +980,7 @@ router.post('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, re
           finalMaxPrice,
           finalPairsPerCarton,
           physicalStock,
+          finalLowStockThreshold,
           finalAllowHalfCarton,
         ]
       );
@@ -1151,6 +1167,14 @@ router.put('/:id', requireAuth, requireAdmin, async (req: AuthenticatedRequest, 
 
     const rawAllowHalf = req.body.allowHalfCarton ?? req.body.allow_half_carton;
     const finalAllowHalfCarton = rawAllowHalf !== undefined ? Boolean(rawAllowHalf) : (current.allow_half_carton !== false);
+    const rawThreshold = req.body.lowStockThreshold ?? req.body.low_stock_threshold;
+    const finalLowStockThreshold =
+      rawThreshold !== undefined && rawThreshold !== null && rawThreshold !== ''
+        ? resolveLowStockThreshold(rawThreshold, 5)
+        : resolveLowStockThreshold(current.low_stock_threshold, settings.lowStockThreshold || 5);
+    const nextAlertSent = shouldResetLowStockAlert(updatedStock, finalLowStockThreshold)
+      ? false
+      : Boolean(current.is_low_stock_alert_sent);
 
     await pgClient.query(
       `UPDATE products SET
@@ -1159,8 +1183,10 @@ router.put('/:id', requireAuth, requireAdmin, async (req: AuthenticatedRequest, 
         primary_image_url = $7, description = $8, cost_price = $9, total_stock = $10,
         active = $11, min_price = $12, max_price = $13,
         allow_half_carton = $14,
+        low_stock_threshold = $15,
+        is_low_stock_alert_sent = $16,
         updated_at = NOW()
-      WHERE id = $15 AND COALESCE(tenant_id, 1) = $16`,
+      WHERE id = $17 AND COALESCE(tenant_id, 1) = $18`,
       [
         finalName,
         finalBrand,
@@ -1176,6 +1202,8 @@ router.put('/:id', requireAuth, requireAdmin, async (req: AuthenticatedRequest, 
         finalMinPrice,
         finalMaxPrice,
         finalAllowHalfCarton,
+        finalLowStockThreshold,
+        nextAlertSent,
         id,
         tenantId,
       ]
@@ -1358,11 +1386,19 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
           }
 
           const prevStock = Number(existingProduct.total_stock) || 0;
+          const rawItemThreshold = rawItem.low_stock_threshold ?? rawItem.lowStockThreshold;
+          const nextThreshold =
+            rawItemThreshold !== undefined && rawItemThreshold !== null && rawItemThreshold !== ''
+              ? resolveLowStockThreshold(rawItemThreshold, 5)
+              : resolveLowStockThreshold(existingProduct.low_stock_threshold, settings.lowStockThreshold || 5);
 
           if (rowStrategy === 'MERGE') {
             const newStock = prevStock + importedStock;
             const mergedName =
               String(rawItem.name ?? '').trim() || existingProduct.name || existingProduct.article;
+            const nextAlertSent = shouldResetLowStockAlert(newStock, nextThreshold)
+              ? false
+              : Boolean(existingProduct.is_low_stock_alert_sent);
             await pgClient.query(
               `UPDATE products SET
                 name = $1,
@@ -1374,9 +1410,11 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
                 total_stock = $7,
                 primary_image_url = $8,
                 description = $9,
+                low_stock_threshold = $10,
+                is_low_stock_alert_sent = $11,
                 active = true,
                 updated_at = NOW()
-              WHERE id = $10 AND COALESCE(tenant_id, 1) = $11`,
+              WHERE id = $12 AND COALESCE(tenant_id, 1) = $13`,
               [
                 mergedName,
                 rawBrand ? finalBrand : existingProduct.brand,
@@ -1387,6 +1425,8 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
                 newStock,
                 rawImageUrl || existingProduct.primary_image_url || '',
                 rawDesc || existingProduct.description || '',
+                nextThreshold,
+                nextAlertSent,
                 existingProduct.id,
                 tenantId,
               ]
@@ -1407,6 +1447,9 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
           if (rowStrategy === 'OVERWRITE') {
             const finalArticle = rawArticle || existingProduct.article;
             const finalName = String(rawItem.name ?? '').trim() || finalArticle;
+            const nextAlertSent = shouldResetLowStockAlert(importedStock, nextThreshold)
+              ? false
+              : Boolean(existingProduct.is_low_stock_alert_sent);
             await pgClient.query(
               `UPDATE products SET
                 name = $1,
@@ -1419,9 +1462,11 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
                 total_stock = $8,
                 primary_image_url = $9,
                 description = $10,
+                low_stock_threshold = $11,
+                is_low_stock_alert_sent = $12,
                 active = true,
                 updated_at = NOW()
-              WHERE id = $11 AND COALESCE(tenant_id, 1) = $12`,
+              WHERE id = $13 AND COALESCE(tenant_id, 1) = $14`,
               [
                 finalName,
                 finalBrand,
@@ -1433,6 +1478,8 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
                 importedStock,
                 rawImageUrl,
                 rawDesc,
+                nextThreshold,
+                nextAlertSent,
                 existingProduct.id,
                 tenantId,
               ]
@@ -1493,13 +1540,18 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
 
         const importedPairsPerCarton =
           normalizePairsPerCarton(rawItem.pairs_per_carton ?? rawItem.pairsPerCarton) || 12;
+        const rawImportedThreshold = rawItem.low_stock_threshold ?? rawItem.lowStockThreshold;
+        const importedLowStockThreshold = resolveLowStockThreshold(
+          rawImportedThreshold,
+          settings.lowStockThreshold || 5
+        );
 
         const insertRes = await pgClient.query<{ id: number }>(
           `INSERT INTO products (
             tenant_id, tenant_product_no, name, brand, category, article, barcode, primary_image_url,
             description, cost_price, min_price, max_price, pairs_per_carton,
-            total_stock, active, allow_half_carton
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true, $15)
+            total_stock, low_stock_threshold, is_low_stock_alert_sent, active, allow_half_carton
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false, true, $16)
           RETURNING id`,
           [
             tenantId,
@@ -1516,6 +1568,7 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
             finalMaxPrice,
             importedPairsPerCarton,
             importedStock,
+            importedLowStockThreshold,
             true,
           ]
         );

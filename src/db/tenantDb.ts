@@ -1,5 +1,9 @@
 import { pgClient } from './index.ts';
 import type { AuthenticatedRequest } from '../server/auth.ts';
+import {
+  resolveLowStockThreshold,
+  shouldResetLowStockAlert,
+} from '../server/services/lowStockNotificationService.ts';
 
 /**
  * Strict Server-Side Tenant Extractor:
@@ -71,7 +75,7 @@ export class TenantScopedDb {
         sql += ` AND LOWER(category) = $${params.length}`;
       }
       if (filters?.lowStockOnly) {
-        sql += ` AND total_stock <= COALESCE((SELECT cs.low_stock_threshold FROM company_settings cs WHERE cs.tenant_id = products.tenant_id LIMIT 1), 5)`;
+        sql += ` AND total_stock <= COALESCE(low_stock_threshold, (SELECT cs.low_stock_threshold FROM company_settings cs WHERE cs.tenant_id = products.tenant_id LIMIT 1), 5)`;
       }
 
       sql += ` ORDER BY id DESC`;
@@ -116,15 +120,17 @@ export class TenantScopedDb {
       minPrice: number;
       maxPrice: number;
       totalStock: number;
+      lowStockThreshold?: number;
       pairsPerCarton?: number;
     }) => {
+      const threshold = resolveLowStockThreshold(data.lowStockThreshold, 5);
       const res = await pgClient.query(
         `INSERT INTO products (
           tenant_id, name, brand, category, barcode, article,
           primary_image_url, description, cost_price,
-          min_price, max_price, total_stock, active,
+          min_price, max_price, total_stock, low_stock_threshold, is_low_stock_alert_sent, active,
           pairs_per_carton
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true, $13)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, false, true, $14)
         RETURNING *`,
         [
           this.tenantId,
@@ -139,6 +145,7 @@ export class TenantScopedDb {
           data.minPrice,
           data.maxPrice,
           data.totalStock,
+          threshold,
           Number(data.pairsPerCarton) || 12,
         ]
       );
@@ -157,10 +164,20 @@ export class TenantScopedDb {
       minPrice: number;
       maxPrice: number;
       totalStock: number;
+      lowStockThreshold: number;
       pairsPerCarton: number;
     }>) => {
       const existing = await this.products.findById(id);
       if (!existing) return null;
+
+      const nextStock = data.totalStock ?? existing.total_stock;
+      const nextThreshold =
+        data.lowStockThreshold !== undefined
+          ? resolveLowStockThreshold(data.lowStockThreshold, 5)
+          : resolveLowStockThreshold(existing.low_stock_threshold, 5);
+      const nextAlertSent = shouldResetLowStockAlert(nextStock, nextThreshold)
+        ? false
+        : Boolean(existing.is_low_stock_alert_sent);
 
       const res = await pgClient.query(
         `UPDATE products SET
@@ -169,8 +186,10 @@ export class TenantScopedDb {
           cost_price = $8, min_price = $9, max_price = $10,
           total_stock = $11,
           pairs_per_carton = $12,
+          low_stock_threshold = $13,
+          is_low_stock_alert_sent = $14,
           updated_at = NOW()
-         WHERE id = $13 AND tenant_id = $14
+         WHERE id = $15 AND tenant_id = $16
          RETURNING *`,
         [
           data.name ?? existing.name,
@@ -183,8 +202,10 @@ export class TenantScopedDb {
           data.costPrice ?? existing.cost_price,
           data.minPrice ?? existing.min_price,
           data.maxPrice ?? existing.max_price,
-          data.totalStock ?? existing.total_stock,
+          nextStock,
           data.pairsPerCarton !== undefined ? Number(data.pairsPerCarton) : (existing.pairs_per_carton || 12),
+          nextThreshold,
+          nextAlertSent,
           id,
           this.tenantId,
         ]
@@ -465,8 +486,18 @@ export class TenantScopedDb {
     adjustStock: async (params: { productId: number; newStock: number; notes: string; userId: number }) => {
       await pgClient.query('BEGIN');
       try {
-        const prodRes = await pgClient.query<{ id: number; name: string; article: string; total_stock: number }>(
-          `SELECT id, name, article, total_stock FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        const prodRes = await pgClient.query<{
+          id: number;
+          name: string;
+          article: string;
+          total_stock: number;
+          low_stock_threshold: number;
+          is_low_stock_alert_sent: boolean;
+        }>(
+          `SELECT id, name, article, total_stock,
+                  COALESCE(low_stock_threshold, 5) AS low_stock_threshold,
+                  COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent
+           FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
           [params.productId, this.tenantId]
         );
         if (prodRes.rows.length === 0) {
@@ -476,6 +507,9 @@ export class TenantScopedDb {
         const prod = prodRes.rows[0];
         const prevStock = prod.total_stock;
         const qtyChange = params.newStock - prevStock;
+        const nextAlertSent = shouldResetLowStockAlert(params.newStock, prod.low_stock_threshold)
+          ? false
+          : Boolean(prod.is_low_stock_alert_sent);
 
         if (qtyChange === 0) {
           await pgClient.query('COMMIT');
@@ -488,8 +522,8 @@ export class TenantScopedDb {
         }
 
         await pgClient.query(
-          `UPDATE products SET total_stock = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
-          [params.newStock, prod.id, this.tenantId]
+          `UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4`,
+          [params.newStock, nextAlertSent, prod.id, this.tenantId]
         );
 
         await pgClient.query(

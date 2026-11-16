@@ -10,6 +10,12 @@ import { notifyPosAction } from '../pushNotificationService.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
 import { fetchLockedCustomerPreviousBalance, recordCustomerSaleKhataEntry } from '../services/ledgerService.ts';
+import {
+  evaluateLowStockTransition,
+  scheduleLowStockBatchDispatch,
+  shouldResetLowStockAlert,
+  type LowStockBatchItem,
+} from '../services/lowStockNotificationService.ts';
 
 const router = Router();
 
@@ -283,8 +289,14 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           throw new Error(`Invalid refund price for returned product #${prodId}.`);
         }
 
-        const prodRes = await pgClient.query<{ id: number; total_stock: number; article: string }>(
-          'SELECT id, total_stock, COALESCE(article, id::text) as article FROM products WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 FOR UPDATE',
+        const prodRes = await pgClient.query<{
+          id: number;
+          total_stock: number;
+          article: string;
+          low_stock_threshold: number;
+          is_low_stock_alert_sent: boolean;
+        }>(
+          'SELECT id, total_stock, COALESCE(article, id::text) as article, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 FOR UPDATE',
           [prodId, tenantId]
         );
         if (prodRes.rows.length === 0) {
@@ -292,14 +304,16 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         }
         const prevStock = prodRes.rows[0].total_stock;
         const newStock = prevStock + retQty;
+        const nextAlertSent = shouldResetLowStockAlert(newStock, prodRes.rows[0].low_stock_threshold)
+          ? false
+          : Boolean(prodRes.rows[0].is_low_stock_alert_sent);
         const itemCredit = Math.round(retQty * refundPrice * 100) / 100;
         totalExchangeCredit += itemCredit;
 
-        await pgClient.query('UPDATE products SET total_stock = $1, updated_at = NOW() WHERE id = $2 AND COALESCE(tenant_id, 1) = $3', [
-          newStock,
-          prodId,
-          tenantId,
-        ]);
+        await pgClient.query(
+          'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND COALESCE(tenant_id, 1) = $4',
+          [newStock, nextAlertSent, prodId, tenantId]
+        );
 
         validatedReturnItems.push({
           saleItemId: 0,
@@ -397,8 +411,13 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           );
         }
 
-        const prodRes = await pgClient.query<{ id: number; total_stock: number }>(
-          'SELECT id, total_stock FROM products WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 FOR UPDATE',
+        const prodRes = await pgClient.query<{
+          id: number;
+          total_stock: number;
+          low_stock_threshold: number;
+          is_low_stock_alert_sent: boolean;
+        }>(
+          'SELECT id, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 FOR UPDATE',
           [saleItem.product_id, tenantId]
         );
         if (prodRes.rows.length === 0) {
@@ -406,14 +425,16 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         }
         const prevStock = prodRes.rows[0].total_stock;
         const newStock = prevStock + retQty;
+        const nextAlertSent = shouldResetLowStockAlert(newStock, prodRes.rows[0].low_stock_threshold)
+          ? false
+          : Boolean(prodRes.rows[0].is_low_stock_alert_sent);
         const itemCredit = Math.round(retQty * refundPrice * 100) / 100;
         totalExchangeCredit += itemCredit;
 
-        await pgClient.query('UPDATE products SET total_stock = $1, updated_at = NOW() WHERE id = $2 AND COALESCE(tenant_id, 1) = $3', [
-          newStock,
-          saleItem.product_id,
-          tenantId,
-        ]);
+        await pgClient.query(
+          'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND COALESCE(tenant_id, 1) = $4',
+          [newStock, nextAlertSent, saleItem.product_id, tenantId]
+        );
 
         validatedReturnItems.push({
           saleItemId: saleItem.id,
@@ -485,6 +506,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       newStock: number;
     }> = [];
 
+    const lowStockBatchMap = new Map<number, LowStockBatchItem>();
+
     for (const item of items) {
       const qty = parseInt(item.quantity, 10);
       const unitPrice = parseFloat(item.unitPrice);
@@ -504,12 +527,18 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         id: number;
         name: string;
         article: string;
+        barcode: string;
         total_stock: number;
         cost_price: string;
-      }>('SELECT id, name, article, total_stock, COALESCE(cost_price, 0) as cost_price FROM products WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 FOR UPDATE', [
-        item.productId,
-        tenantId,
-      ]);
+        low_stock_threshold: number;
+        is_low_stock_alert_sent: boolean;
+      }>(
+        `SELECT id, name, article, barcode, total_stock, COALESCE(cost_price, 0) as cost_price,
+                COALESCE(low_stock_threshold, 5) AS low_stock_threshold,
+                COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent
+         FROM products WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 FOR UPDATE`,
+        [item.productId, tenantId]
+      );
 
       if (pRes.rows.length === 0) {
         throw new Error(`Product ID ${item.productId} does not exist in your store.`);
@@ -530,10 +559,33 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       calculatedSubtotal += unitPrice * qty;
       calculatedTotalDiscount += discount;
 
-      await pgClient.query(
-        'UPDATE products SET total_stock = $1, updated_at = NOW() WHERE id = $2 AND COALESCE(tenant_id, 1) = $3',
-        [newStock, product.id, tenantId]
-      );
+      // Fast-fail in-memory guard-clause evaluation on sold item only (zero table scans)
+      const lowStockEval = evaluateLowStockTransition({
+        productId: product.id,
+        article: product.article,
+        name: product.name,
+        barcode: product.barcode,
+        updatedStock: newStock,
+        lowStockThreshold: product.low_stock_threshold,
+        isLowStockAlertSent: product.is_low_stock_alert_sent,
+      });
+
+      if (lowStockEval.shouldAlert) {
+        await pgClient.query(
+          'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND COALESCE(tenant_id, 1) = $4',
+          [newStock, true, product.id, tenantId]
+        );
+        lowStockBatchMap.set(product.id, lowStockEval.item);
+      } else {
+        await pgClient.query(
+          'UPDATE products SET total_stock = $1, updated_at = NOW() WHERE id = $2 AND COALESCE(tenant_id, 1) = $3',
+          [newStock, product.id, tenantId]
+        );
+        const existingInBatch = lowStockBatchMap.get(product.id);
+        if (existingInBatch) {
+          existingInBatch.remainingStock = newStock;
+        }
+      }
 
       validatedItems.push({
         productId: product.id,
@@ -747,6 +799,17 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     }
 
     await pgClient.query('COMMIT');
+
+    // Non-blocking post-commit consolidated low-stock dispatch (never slows down checkout)
+    if (lowStockBatchMap.size > 0) {
+      scheduleLowStockBatchDispatch({
+        tenantId,
+        saleId,
+        invoiceNumber,
+        cashierName: user.name || 'Counter Staff',
+        items: Array.from(lowStockBatchMap.values()),
+      });
+    }
 
     const fullSale = await pgClient.query(
       `SELECT s.*, u.name as cashier_name, c.name as customer_name, c.phone as customer_phone,

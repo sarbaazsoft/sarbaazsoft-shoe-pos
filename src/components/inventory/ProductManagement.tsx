@@ -47,7 +47,13 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   const initialCatStr = initialCategory || (typeof initialCategoryId === 'string' ? initialCategoryId : '') || '';
   const [selectedBrand, setSelectedBrand] = useState<string>(initialBrandStr);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCatStr);
-  const [lowStockFilter, setLowStockFilter] = useState(false);
+  const [lowStockFilter, setLowStockFilter] = useState<boolean>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('lowStockOnly') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [visibleCount, setVisibleCount] = useState<number>(25);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
@@ -246,13 +252,19 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       }
     };
 
+    const handleLowStockFilterEvent = () => {
+      setLowStockFilter(true);
+    };
+
     window.addEventListener('product:edit', handleEditEvent);
     window.addEventListener('inventory:print-barcode', handleBarcodeEvent);
+    window.addEventListener('inventory:filter-low-stock', handleLowStockFilterEvent);
     consumePendingInventoryIntents();
 
     return () => {
       window.removeEventListener('product:edit', handleEditEvent);
       window.removeEventListener('inventory:print-barcode', handleBarcodeEvent);
+      window.removeEventListener('inventory:filter-low-stock', handleLowStockFilterEvent);
     };
   }, []);
 

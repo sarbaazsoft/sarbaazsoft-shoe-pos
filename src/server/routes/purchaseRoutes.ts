@@ -6,6 +6,7 @@ import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { generateSupplierPaymentNumber } from '../services/ledgerService.ts';
+import { shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
 
 const router = Router();
 
@@ -210,11 +211,15 @@ router.post('/', requireAuth, forbidCashier, requireAdmin, async (req: Authentic
         id: number;
         article: string;
         total_stock: number;
+        low_stock_threshold: number;
+        is_low_stock_alert_sent: boolean;
         pricing_mode: string | null;
         min_price: number;
         max_price: number;
       }>(
         `SELECT p.id, p.article, p.total_stock,
+                COALESCE(p.low_stock_threshold, 5) AS low_stock_threshold,
+                COALESCE(p.is_low_stock_alert_sent, false) AS is_low_stock_alert_sent,
                 (SELECT cs.pricing_mode FROM company_settings cs WHERE cs.tenant_id = $2 LIMIT 1) AS pricing_mode,
                 p.min_price, p.max_price
          FROM products p WHERE p.id = $1 AND p.tenant_id = $2 FOR UPDATE`,
@@ -228,6 +233,9 @@ router.post('/', requireAuth, forbidCashier, requireAdmin, async (req: Authentic
       const prod = pRes.rows[0];
       const prevStock = prod.total_stock;
       const newStock = prevStock + qty;
+      const nextAlertSent = shouldResetLowStockAlert(newStock, prod.low_stock_threshold)
+        ? false
+        : Boolean(prod.is_low_stock_alert_sent);
       const subtotal = Math.round(qty * unitPrice * 100) / 100;
       totalAmount = Math.round((totalAmount + subtotal) * 100) / 100;
 
@@ -240,8 +248,8 @@ router.post('/', requireAuth, forbidCashier, requireAdmin, async (req: Authentic
       const persistedMinPrice = isFixedPrice ? nextMaxPrice : nextMinPrice;
 
       await pgClient.query(
-        'UPDATE products SET total_stock = $1, cost_price = $2, min_price = $3, max_price = $4, updated_at = NOW() WHERE id = $5 AND tenant_id = $6',
-        [newStock, unitPrice, persistedMinPrice, nextMaxPrice, prod.id, tenantId]
+        'UPDATE products SET total_stock = $1, cost_price = $2, min_price = $3, max_price = $4, is_low_stock_alert_sent = $5, updated_at = NOW() WHERE id = $6 AND tenant_id = $7',
+        [newStock, unitPrice, persistedMinPrice, nextMaxPrice, nextAlertSent, prod.id, tenantId]
       );
 
       validatedItems.push({

@@ -400,9 +400,19 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     if (item.actionUrl) {
       try {
         if (item.actionUrl.startsWith('/')) {
-          const tabMatch = item.actionUrl.replace(/^\/+/, '').split('?')[0];
-          if (tabMatch && tabMatch !== 'notifications') {
-            onNavigateTab(tabMatch);
+          const parsed = new URL(item.actionUrl, window.location.origin);
+          const tabFromQuery = parsed.searchParams.get('tab');
+          const tabFromPath = parsed.pathname.replace(/^\/+/, '').split('/')[0];
+          const targetTab = (tabFromQuery || tabFromPath || '').trim();
+          const lowStockOnly = parsed.searchParams.get('lowStockOnly') === 'true';
+
+          if (targetTab && targetTab !== 'notifications') {
+            onNavigateTab(targetTab);
+            if (targetTab === 'inventory' && (lowStockOnly || item.itemType === 'LOW_STOCK')) {
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+              }, 150);
+            }
             return;
           }
         }
@@ -410,6 +420,14 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       } catch {
         window.location.href = item.actionUrl;
       }
+      return;
+    }
+
+    if (item.itemType === 'LOW_STOCK' || item.type === 'STOCK') {
+      onNavigateTab('inventory');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+      }, 150);
       return;
     }
 
@@ -510,6 +528,14 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           };
       }
     } else {
+      if (item.itemType === 'LOW_STOCK' || t === 'STOCK') {
+        return {
+          label: 'Low Stock Alert',
+          badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border-amber-300 dark:border-amber-700',
+          cardBg: 'border-amber-300/80 dark:border-amber-800/50 bg-amber-50/30 dark:bg-amber-950/15',
+          icon: <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />,
+        };
+      }
       if (item.itemType === 'SALE') {
         return {
           label: 'POS Sale',

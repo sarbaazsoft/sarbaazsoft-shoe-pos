@@ -491,17 +491,28 @@ export async function resyncPushSubscriptionIfEnabled(overrideRole?: string): Pr
 
 export const SOFT_PROMPT_STORAGE_KEY = 'pos_push_soft_prompt_dismissed_until';
 export const SOFT_PROMPT_DISMISSED_KEY = 'pos_push_soft_prompt_dismissed';
+export const DEFAULT_SOFT_PROMPT_SNOOZE_DAYS = 7;
 
 export function isSoftPromptDismissed(): boolean {
   if (typeof window === 'undefined') return true;
   try {
+    const raw = localStorage.getItem(SOFT_PROMPT_STORAGE_KEY);
+    if (raw) {
+      const until = Number(raw);
+      if (!isNaN(until) && until > 0) {
+        if (until > Date.now()) {
+          return true;
+        }
+        // 7-day snooze expired cleanly — allow prompt again if still in 'default' permission state
+        localStorage.removeItem(SOFT_PROMPT_STORAGE_KEY);
+        localStorage.removeItem(SOFT_PROMPT_DISMISSED_KEY);
+        return false;
+      }
+    }
     if (localStorage.getItem(SOFT_PROMPT_DISMISSED_KEY) === 'true') {
       return true;
     }
-    const raw = localStorage.getItem(SOFT_PROMPT_STORAGE_KEY);
-    if (!raw) return false;
-    const until = Number(raw);
-    return !isNaN(until) && until > Date.now();
+    return false;
   } catch {
     return false;
   }
@@ -533,7 +544,7 @@ export async function shouldShowSoftPushPromptAsync(): Promise<boolean> {
   return snapshot.effectiveStatus === 'default';
 }
 
-export function dismissSoftPushPrompt(days = 30): void {
+export function dismissSoftPushPrompt(days = DEFAULT_SOFT_PROMPT_SNOOZE_DAYS): void {
   if (typeof window === 'undefined') return;
   try {
     const until = Date.now() + Math.max(days, 1) * 86400000;
@@ -648,10 +659,10 @@ let lastNativePromptInitKey = '';
 let lastNativePromptInitAt = 0;
 
 /**
- * Background FCM initialization on session load:
- * 1. Warm up the Firebase client and foreground listener.
- * 2. If permission is already granted (and user hasn't disabled notifications), silently verify & reuse/sync FCM token.
- * 3. Coalesces concurrent mount calls across App/Header/SuperAdminPanel and NEVER triggers permission prompts.
+ * Background Firebase client warm-up on session load:
+ * 1. Initializes the Firebase app + foreground `onMessage` listener in the background.
+ * 2. NEVER calls `Notification.requestPermission()` or `getToken()` automatically on page load or login.
+ *    Token acquisition only runs after an explicit user click (e.g. Enable Notifications / Check Status).
  */
 export function initNativeNotificationPrompt(overrideRole?: string): () => void {
   if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -666,13 +677,8 @@ export function initNativeNotificationPrompt(overrideRole?: string): () => void 
   lastNativePromptInitKey = normalizedRole;
   lastNativePromptInitAt = now;
 
-  // Pre-initialize Firebase client in the background
+  // Pre-initialize Firebase client & foreground onMessage listener only (no getToken / no requestPermission)
   initFirebaseClient().catch(() => {});
-
-  // If already granted, perform silent token verification/resync in background without re-prompting
-  if (Notification.permission === 'granted') {
-    syncFcmTokenSilently(normalizedRole).catch(() => {});
-  }
 
   return () => {};
 }

@@ -6,6 +6,7 @@ import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { notifyPosAction } from '../pushNotificationService.ts';
 import { calculateReturnNetUnitPrice } from '../../utils/posCalculations.ts';
+import { shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
 
 const router = Router();
 
@@ -223,20 +224,27 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       }
 
       // Lock product row and increment stock
-      const prodRes = await pgClient.query<{ id: number; total_stock: number }>(
-        'SELECT id, total_stock FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      const prodRes = await pgClient.query<{
+        id: number;
+        total_stock: number;
+        low_stock_threshold: number;
+        is_low_stock_alert_sent: boolean;
+      }>(
+        'SELECT id, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
         [saleItem.product_id, tenantId]
       );
       const prevStock = prodRes.rows[0].total_stock;
       const newStock = prevStock + returnQty;
+      const nextAlertSent = shouldResetLowStockAlert(newStock, prodRes.rows[0].low_stock_threshold)
+        ? false
+        : Boolean(prodRes.rows[0].is_low_stock_alert_sent);
       const subtotal = returnQty * refundPrice;
       totalRefundAmount += subtotal;
 
-      await pgClient.query('UPDATE products SET total_stock = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3', [
-        newStock,
-        saleItem.product_id,
-        tenantId,
-      ]);
+      await pgClient.query(
+        'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4',
+        [newStock, nextAlertSent, saleItem.product_id, tenantId]
+      );
 
       validatedItems.push({
         saleItemId: saleItem.id,

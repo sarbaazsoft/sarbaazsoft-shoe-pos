@@ -214,6 +214,20 @@ export const APP_SETTINGS_DEFAULTS: AppSettingDefinition[] = [
     description: 'Trigger native push notifications to SuperAdmin for high-value store sales or platform auditing',
     isSecret: false,
   },
+  {
+    key: 'LOW_STOCK_EMAIL_ALERTS_ENABLED',
+    defaultValue: 'true',
+    category: 'notifications',
+    description: 'Send consolidated batched email alerts to store owners/admins when sold items cross below low stock threshold',
+    isSecret: false,
+  },
+  {
+    key: 'LOW_STOCK_PUSH_ALERTS_ENABLED',
+    defaultValue: 'true',
+    category: 'notifications',
+    description: 'Send consolidated batched push and real-time dashboard alerts to store owners/admins on low stock threshold crossing',
+    isSecret: false,
+  },
 
   // 4. System Group
   {

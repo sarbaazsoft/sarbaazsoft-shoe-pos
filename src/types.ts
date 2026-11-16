@@ -256,6 +256,10 @@ export interface Product {
   minSalePrice?: number | null;
   maxSalePrice?: number | null;
   totalStock: number;
+  lowStockThreshold?: number;
+  low_stock_threshold?: number;
+  isLowStockAlertSent?: boolean;
+  is_low_stock_alert_sent?: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;
