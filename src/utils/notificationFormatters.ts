@@ -253,7 +253,7 @@ export function formatSaleNotification(input: SaleNotificationInput): FormattedN
     : soldText;
 
   return {
-    title: 'Sale Completed',
+    title: 'Sale Completed ✅',
     message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary,
   };
@@ -321,7 +321,7 @@ export function formatReturnNotification(input: ReturnNotificationInput): Format
   }
 
   return {
-    title: 'Return Completed',
+    title: 'Return Completed ✅',
     message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary: qtyText,
   };
@@ -359,7 +359,7 @@ export function formatExchangeNotification(input: ExchangeNotificationInput): Fo
   }
 
   return {
-    title: 'Exchange Completed',
+    title: 'Exchange Completed ✅',
     message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary: qtyText,
   };

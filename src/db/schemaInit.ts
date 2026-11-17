@@ -831,10 +831,11 @@ export function ensurePlatformNotificationsSchema(): Promise<void> {
         WHERE target_role != 'SUPERADMIN'
           AND (
             title ILIKE 'New Free Trial%'
-            OR title ILIKE 'Renewal Request%'
+            OR title ILIKE 'New Renewal Request%'
+            OR title ILIKE 'Renewal Request:%'
             OR action_url ILIKE '%/superadmin%'
             OR message ILIKE '%Free Tier store registered%'
-            OR message ILIKE '%subscription renewal%'
+            OR message ILIKE '%requested subscription renewal%'
           );
 
         -- Purge duplicate welcome notices to ensure only one welcome notification exists per tenant
@@ -901,20 +902,30 @@ export function ensureNotificationsSchema(): Promise<void> {
 export async function clearSubscriptionAlertsOnRenewal(tenantId: number): Promise<void> {
   const cleanId = Number(tenantId) || 1;
   try {
+    const tenantRes = await pgClient
+      .query<{ name: string }>('SELECT name FROM tenants WHERE id = $1 LIMIT 1', [cleanId])
+      .catch(() => ({ rows: [] as Array<{ name: string }> }));
+    const storeName = String(tenantRes.rows[0]?.name || '').trim();
+    const storeNamePattern = storeName ? `%${storeName}%` : '__never_match_store_name__';
+
     await pgClient.query(
       `UPDATE platform_notifications
        SET expires_at = NOW()
-       WHERE (tenant_id = $1 OR target_role = 'SUPERADMIN')
-         AND (
-           title ILIKE '%Renewal Request%'
-           OR title ILIKE '%Subscription%'
+       WHERE (
+         (tenant_id = $1 AND (
+           title ILIKE '%Expiring Soon%'
+           OR title ILIKE '%Subscription Expired%'
            OR title ILIKE '%Free Trial%'
-           OR message ILIKE '%renewal%'
-           OR message ILIKE '%subscription%'
-           OR message ILIKE '%free tier store registered%'
-         )
+           OR title ILIKE '%Subscription%'
+         ))
+         OR (target_role = 'SUPERADMIN' AND (
+           event_id LIKE $2
+           OR event_id LIKE $3
+           OR ((title ILIKE 'New Renewal Request%' OR title ILIKE 'Renewal Request:%' OR title ILIKE '%Expired%') AND message ILIKE $4)
+         ))
+       )
          AND (expires_at IS NULL OR expires_at > NOW())`,
-      [cleanId]
+      [cleanId, `renewal-request-${cleanId}-%`, `sa-sub-expired-${cleanId}-%`, storeNamePattern]
     );
   } catch (err) {
     console.warn('Could not clear subscription alerts on renewal:', err);

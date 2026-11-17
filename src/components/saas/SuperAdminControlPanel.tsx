@@ -828,7 +828,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           setShowNotifDropdown(false);
           const targetStore = notif.tenantId
             ? stores.find((s) => s.id === notif.tenantId)
-            : stores.find((s) => notif.title.toLowerCase().includes(s.name.toLowerCase()));
+            : stores.find(
+                (s) =>
+                  notif.title.toLowerCase().includes(s.name.toLowerCase()) ||
+                  notif.message.toLowerCase().includes(`'${s.name.toLowerCase()}'`) ||
+                  notif.message.toLowerCase().includes(s.name.toLowerCase())
+              );
           if (targetStore) {
             setStoreToEditSub(targetStore);
           } else {

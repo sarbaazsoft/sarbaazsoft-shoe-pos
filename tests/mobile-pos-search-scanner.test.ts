@@ -76,4 +76,15 @@ test('PosTerminal barcode scanner implements compact icon-to-relative-full-width
   assert.ok(src.includes('id="pos-mode-scanner-btn"'));
   assert.ok(src.includes('id="pos-mode-manual-btn"'));
   assert.ok(src.includes('Scan Barcode / Search Article'));
+
+  // Synchronous flushSync focus on tap + zero vertical layout shift on Row 2 + relative anchored dropdown
+  const headerSrc = readProjectFile('src/components/common/Header.tsx');
+  assert.ok(headerSrc.includes("import { flushSync } from 'react-dom';"));
+  assert.ok(headerSrc.includes('flushSync(() => {\n                setIsMobileSearchExpanded(true);\n              });'));
+  assert.ok(headerSrc.includes('w-11 max-w-11 h-11 opacity-100 visible'));
+  assert.ok(headerSrc.includes('pr-20 sm:pr-8'));
+
+  assert.ok(src.includes("import { flushSync } from 'react-dom';"));
+  assert.ok(src.includes('className="flex flex-wrap items-center gap-1.5 sm:gap-2 basis-full sm:basis-auto order-3 sm:order-2"'));
+  assert.ok(src.includes('className="absolute left-0 right-0 top-full z-40 mt-2 max-h-64 overflow-y-auto'));
 });

@@ -50,7 +50,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     paymentMethod: 'CASH',
     cashierName: 'Usman Staff',
   });
-  assert.equal(retailSale.title, 'Sale Completed');
+  assert.equal(retailSale.title, 'Sale Completed ✅');
   assert.equal(
     retailSale.message,
     'Invoice: #INV-000101\n2 pairs sold to Walk-in Customer.\nPayment: Cash\nProcessed by: Usman Staff'
@@ -68,7 +68,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     paymentMethod: 'CASH',
     cashierName: 'Usman Staff',
   });
-  assert.equal(retailWithReturn.title, 'Sale Completed');
+  assert.equal(retailWithReturn.title, 'Sale Completed ✅');
   assert.equal(
     retailWithReturn.message,
     'Invoice: #INV-000102\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\nSold to: Ahmed Customer\nPayment: Cash\nProcessed by: Usman Staff'
@@ -83,7 +83,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     paymentMethod: 'BANK_TRANSFER',
     cashierName: 'Usman Staff',
   });
-  assert.equal(wholesaleNoReturn.title, 'Sale Completed');
+  assert.equal(wholesaleNoReturn.title, 'Sale Completed ✅');
   assert.equal(
     wholesaleNoReturn.message,
     'Invoice: #INV-000103\nTotal Sold: 120 pairs\nSold to: National Shoes Wholesale\nPayment: Bank Transfer\nProcessed by: Usman Staff'
@@ -113,7 +113,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     customerName: 'Ahmed Customer',
     cashierName: 'Usman Staff',
   });
-  assert.equal(independentRet.title, 'Return Completed');
+  assert.equal(independentRet.title, 'Return Completed ✅');
   assert.equal(
     independentRet.message,
     'Return #: #RET-000012\n2 pairs returned by Ahmed Customer.\nRefund: Rs. 1,550 (Cash)\nProcessed by: Usman Staff'
@@ -128,7 +128,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     customerName: 'Ahmed Customer',
     cashierName: 'Usman Staff',
   });
-  assert.equal(exchPay.title, 'Exchange Completed');
+  assert.equal(exchPay.title, 'Exchange Completed ✅');
   assert.equal(
     exchPay.message,
     'Exchange #: #EXC-000008\n2 pairs exchanged by Ahmed Customer.\nAdditional Payment: Rs. 500 (Cash)\nProcessed by: Usman Staff'
@@ -348,13 +348,13 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
 
     const saleEvt = sseEvents.find((e) => e.data?.type === 'SALE' && e.data?.invoiceNumber === saleInv);
     assert.ok(saleEvt, 'Expected SSE SALE notification');
-    assert.equal(saleEvt!.data.title, 'Sale Completed');
+    assert.equal(saleEvt!.data.title, 'Sale Completed ✅');
     assert.equal(
       saleEvt!.data.message,
       `Invoice: #${saleInv}\n3 pairs sold to Tariq Footwear.\nPayment: Cash\nProcessed by: Usman Cashier`
     );
 
-    // 2. Retail Sale - With Return against same invoice (1 pair returned) -> updates Sale Completed cleanly, NO Return Completed
+    // 2. Retail Sale - With Return against same invoice (1 pair returned) -> updates Sale Completed, NO Return Completed
     const saleItemsRows = await pgClient.query<{ id: number }>(
       'SELECT id FROM sale_items WHERE sale_id = $1 AND tenant_id = $2',
       [origSaleId, tenantId]
@@ -380,7 +380,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
       (e) => e.data?.type === 'SALE' && e.data?.invoiceNumber === saleInv
     );
     assert.ok(consolidatedEvt);
-    assert.equal(consolidatedEvt!.data.title, 'Sale Completed');
+    assert.equal(consolidatedEvt!.data.title, 'Sale Completed ✅');
     assert.equal(
       consolidatedEvt!.data.message,
       `Invoice: #${saleInv}\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\nSold to: Tariq Footwear\nPayment: Cash\nProcessed by: Usman Cashier`
@@ -406,7 +406,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
 
     const indepRetEvt = sseEvents.slice(beforeIndepReturn).find((e) => e.data?.type === 'RETURN');
     assert.ok(indepRetEvt, 'Expected SSE RETURN notification for independent return');
-    assert.equal(indepRetEvt!.data.title, 'Return Completed');
+    assert.equal(indepRetEvt!.data.title, 'Return Completed ✅');
     assert.equal(
       indepRetEvt!.data.message,
       `Return #: #${indepRetNo}\n2 pairs returned by Tariq Footwear.\nRefund: Rs. 3,100 (Cash)\nProcessed by: Usman Cashier`
@@ -437,7 +437,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
 
     const exchEvt = sseEvents.find((e) => e.data?.type === 'EXCHANGE' && e.data?.invoiceNumber === exchInv);
     assert.ok(exchEvt, 'Expected SSE EXCHANGE notification');
-    assert.equal(exchEvt!.data.title, 'Exchange Completed');
+    assert.equal(exchEvt!.data.title, 'Exchange Completed ✅');
     assert.ok(exchEvt!.data.message.includes('1 pair exchanged by Tariq Footwear.'));
     assert.ok(exchEvt!.data.message.includes('Additional Payment: Rs. 300 (Online)'));
     assert.ok(exchEvt!.data.message.includes('Processed by: Usman Cashier'));
@@ -497,7 +497,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     await new Promise((r) => setTimeout(r, 40));
     const cashierIndepRetEvt = sseEvents.slice(beforeCashierIndepRet).find((e) => e.data?.type === 'RETURN');
     assert.ok(cashierIndepRetEvt, 'Expected SSE RETURN notification when created by Cashier');
-    assert.equal(cashierIndepRetEvt!.data.title, 'Return Completed');
+    assert.equal(cashierIndepRetEvt!.data.title, 'Return Completed ✅');
     assert.equal(
       cashierIndepRetEvt!.data.message,
       `Return #: #${cashierIndepRetNo}\n2 pairs returned by Tariq Footwear.\nRefund: Rs. 3,100 (Cash)\nProcessed by: Counter Cashier`
@@ -526,7 +526,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     await new Promise((r) => setTimeout(r, 40));
     const cashierExchEvt = sseEvents.find((e) => e.data?.type === 'EXCHANGE' && e.data?.invoiceNumber === cashierExchInv);
     assert.ok(cashierExchEvt, 'Expected SSE EXCHANGE notification when created by Cashier');
-    assert.equal(cashierExchEvt!.data.title, 'Exchange Completed');
+    assert.equal(cashierExchEvt!.data.title, 'Exchange Completed ✅');
     assert.ok(cashierExchEvt!.data.message.includes('1 pair exchanged by Tariq Footwear.'));
     assert.ok(cashierExchEvt!.data.message.includes('Additional Payment: Rs. 300 (Online)'));
     assert.ok(cashierExchEvt!.data.message.includes('Processed by: Counter Cashier'));
@@ -548,10 +548,10 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.ok(groupedIndepRet);
     assert.ok(groupedExch);
     assert.equal(groupedPur, undefined, 'Purchases must NEVER appear in /grouped');
-    assert.equal(groupedSale.title, 'Sale Completed');
+    assert.equal(groupedSale.title, 'Sale Completed ✅');
     assert.equal(groupedSale.message.includes('Total Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs'), true);
-    assert.equal(groupedIndepRet.title, 'Return Completed');
-    assert.equal(groupedExch.title, 'Exchange Completed');
+    assert.equal(groupedIndepRet.title, 'Return Completed ✅');
+    assert.equal(groupedExch.title, 'Exchange Completed ✅');
 
     // Verify CASHIER never receives PURCHASE notifications in /grouped or /all
     const cashierGroupedRes = await fetch(`${baseUrl}/api/notifications/grouped?limit=10`, { headers: cashierHeaders });
@@ -565,7 +565,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     const allItems: any[] = allJson.items || [];
     const allSale = allItems.find((n) => n.type === 'SALE' && n.invoiceNumber === saleInv);
     assert.ok(allSale);
-    assert.equal(allSale.title, 'Sale Completed');
+    assert.equal(allSale.title, 'Sale Completed ✅');
     assert.equal(allSale.message.includes('Total Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs'), true);
     assert.equal(allItems.some((n) => n.type === 'PURCHASE' || n.purchaseNumber === purNo), false, 'Purchases must NEVER appear in /all');
   } finally {

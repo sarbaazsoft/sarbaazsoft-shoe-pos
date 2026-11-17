@@ -507,7 +507,8 @@ router.get('/grouped', async (req: Request, res: Response) => {
                AND COALESCE(pn.target_role, 'ALL') != 'SUPERADMIN'
                AND COALESCE(pn.target_role, 'ALL') != 'CASHIER'
                AND pn.title NOT ILIKE 'New Free Trial%'
-               AND pn.title NOT ILIKE 'Renewal Request%'
+               AND pn.title NOT ILIKE 'New Renewal Request%'
+               AND pn.title NOT ILIKE 'Renewal Request:%'
                AND pn.action_url NOT ILIKE '%/superadmin%'
                AND pn.message NOT ILIKE '%staff account (cashier)%'
              )
@@ -519,7 +520,8 @@ router.get('/grouped', async (req: Request, res: Response) => {
                AND pn.title NOT ILIKE 'Welcome to SarbaazSoft%'
                AND pn.message NOT ILIKE '%thank you for choosing SarbaazSoft%'
                AND pn.title NOT ILIKE 'New Free Trial%'
-               AND pn.title NOT ILIKE 'Renewal Request%'
+               AND pn.title NOT ILIKE 'New Renewal Request%'
+               AND pn.title NOT ILIKE 'Renewal Request:%'
                AND pn.action_url NOT ILIKE '%/superadmin%'
              )
              ELSE (
@@ -527,7 +529,8 @@ router.get('/grouped', async (req: Request, res: Response) => {
                AND COALESCE(pn.target_role, 'ALL') = 'ALL'
                AND COALESCE(pn.target_role, 'ALL') != 'SUPERADMIN'
                AND pn.title NOT ILIKE 'New Free Trial%'
-               AND pn.title NOT ILIKE 'Renewal Request%'
+               AND pn.title NOT ILIKE 'New Renewal Request%'
+               AND pn.title NOT ILIKE 'Renewal Request:%'
                AND pn.action_url NOT ILIKE '%/superadmin%'
              )
            END
@@ -835,7 +838,8 @@ router.get('/all', async (req: Request, res: Response) => {
                AND COALESCE(pn.target_role, 'ALL') != 'SUPERADMIN'
                AND COALESCE(pn.target_role, 'ALL') != 'CASHIER'
                AND pn.title NOT ILIKE 'New Free Trial%'
-               AND pn.title NOT ILIKE 'Renewal Request%'
+               AND pn.title NOT ILIKE 'New Renewal Request%'
+               AND pn.title NOT ILIKE 'Renewal Request:%'
                AND pn.action_url NOT ILIKE '%/superadmin%'
                AND pn.message NOT ILIKE '%staff account (cashier)%'
              )
@@ -846,7 +850,8 @@ router.get('/all', async (req: Request, res: Response) => {
                AND COALESCE(pn.target_role, 'ALL') != 'ADMIN'
                AND pn.title NOT ILIKE 'Welcome to SarbaazSoft%' AND pn.message NOT ILIKE '%thank you for choosing SarbaazSoft%'
                AND pn.title NOT ILIKE 'New Free Trial%'
-               AND pn.title NOT ILIKE 'Renewal Request%'
+               AND pn.title NOT ILIKE 'New Renewal Request%'
+               AND pn.title NOT ILIKE 'Renewal Request:%'
                AND pn.action_url NOT ILIKE '%/superadmin%'
              )
              ELSE (
@@ -854,7 +859,8 @@ router.get('/all', async (req: Request, res: Response) => {
                AND COALESCE(pn.target_role, 'ALL') = 'ALL'
                AND COALESCE(pn.target_role, 'ALL') != 'SUPERADMIN'
                AND pn.title NOT ILIKE 'New Free Trial%'
-               AND pn.title NOT ILIKE 'Renewal Request%'
+               AND pn.title NOT ILIKE 'New Renewal Request%'
+               AND pn.title NOT ILIKE 'Renewal Request:%'
                AND pn.action_url NOT ILIKE '%/superadmin%'
              )
            END
@@ -1579,7 +1585,7 @@ router.get('/presence/status', requireAuth, (req: AuthenticatedRequest, res: Res
 router.get('/stream', (req: Request, res: Response) => {
   const { tenantId, userId, role, authenticated, sessionId } = resolveRequestIdentity(req);
 
-  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');

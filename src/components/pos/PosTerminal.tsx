@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Barcode, Search, Plus, Minus, Trash2, AlertTriangle, Banknote, ShieldAlert, Printer, ScanLine, Zap, Keyboard, Repeat, RotateCcw, X, CheckCircle2, Lock, ImageIcon, Truck, BookOpen, Package, Eye, EyeOff, AlertCircle, Coins, ArrowLeftRight, Landmark, Volume2, VolumeX } from 'lucide-react';
 import { api } from '../../services/api.ts';
@@ -1592,8 +1593,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   type="button"
                   id="pos-mobile-scanner-trigger"
                   onClick={() => {
-                    isMobileScannerExpandedRef.current = true;
-                    setIsMobileScannerExpanded(true);
+                    flushSync(() => {
+                      isMobileScannerExpandedRef.current = true;
+                      setIsMobileScannerExpanded(true);
+                    });
                     focusScannerInput(continuousScan);
                   }}
                   className={`sm:hidden flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 shadow-md shadow-purple-600/25 active:scale-95 transition-[width,max-width,opacity,visibility] duration-250 ease-out motion-reduce:transition-none cursor-pointer shrink-0 ${
@@ -1634,7 +1637,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         }
                       }}
                       placeholder="Scan Barcode or Type Article..."
-                      className="w-full h-11 sm:h-auto pl-[2.125rem] pr-9 sm:pr-40 sm:py-3 bg-white dark:bg-[#0A0E1A] border-2 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-all focus:border-purple-600 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-950/40 font-mono"
+                      className="w-full h-11 sm:h-auto pl-[2.125rem] pr-10 sm:pr-40 sm:py-3 bg-white dark:bg-[#0A0E1A] border-2 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none transition-all focus:border-purple-600 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-950/40 font-mono"
                       autoComplete="off"
                       autoFocus
                     />
@@ -1697,10 +1700,132 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <X className="w-4 h-4" />
                   </button>
                 </form>
+
+                {/* Live Search Dropdown (relatively anchored directly below scanner input) */}
+                <AnimatePresence>
+                  {searchResults.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.97, y: -6 }}
+                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                      style={{ transformOrigin: 'top center' }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      className="absolute left-0 right-0 top-full z-40 mt-2 max-h-64 overflow-y-auto bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-[#1A263D] rounded-xl shadow-xl divide-y divide-slate-100 dark:divide-slate-800"
+                    >
+                      {searchResults.slice(0, visibleSearchCount).map((prod) => (
+                        <div
+                          key={prod.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            if (prod.totalStock <= 0) {
+                              playAudioFeedback.warning();
+                              setErrorMessage(`Product "${prod.article || prod.name}" is OUT OF STOCK.`);
+                              focusScannerInput(false);
+                              return;
+                            }
+                            addProductToCart(prod);
+                            playAudioFeedback.barcodeScan();
+                            playAudioFeedback.invoiceItemAdded();
+                            setLastScannedFeedback({
+                              message: 'Product accepted & added to invoice',
+                              article: prod.article || prod.name,
+                            });
+                            setTimeout(() => setLastScannedFeedback(null), 3200);
+                            setBarcodeInput('');
+                            setSearchResults([]);
+                            focusScannerInput(false);
+                          }}
+                          className="p-2.5 sm:p-3 flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition"
+                        >
+                          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 flex-1">
+                            {prod.primaryImageUrl ? (
+                              <div className="relative w-10 h-10 shrink-0 rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                <img
+                                  src={prod.primaryImageUrl}
+                                  alt={prod.article || prod.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const skeleton = e.currentTarget.nextElementSibling;
+                                    if (skeleton) skeleton.classList.remove('hidden');
+                                  }}
+                                />
+                                <div className="hidden absolute inset-0 w-full h-full bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center">
+                                  <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                className="w-10 h-10 shrink-0 rounded border border-slate-200/80 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center p-1"
+                                title="No image - skeleton placeholder"
+                                aria-label="Product image skeleton"
+                              >
+                                <div className="w-4 h-4 rounded bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center">
+                                  <ImageIcon className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500" />
+                                </div>
+                                <div className="w-5 h-1 bg-slate-300/70 dark:bg-slate-700/70 rounded-full mt-1" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-semibold text-sm text-slate-900 dark:text-white truncate">{prod.article || prod.name}</p>
+                                {(prod.brandName || prod.brand_name) && (
+                                  <div className="inline-flex items-center gap-1 shrink-0">
+                                    <BrandLogo
+                                      logo={prod.brandLogo || prod.brand_logo}
+                                      name={prod.brandName || prod.brand_name}
+                                      size="xs"
+                                    />
+                                    <span className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">
+                                      {prod.brandName || prod.brand_name}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1.5 flex-wrap truncate">
+                                <span>Article: {prod.article || prod.name}</span>
+                                <span className="opacity-40">|</span>
+                                <span>Barcode: {prod.barcode}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right">
+                              <p className="font-bold text-sm text-slate-900 dark:text-white">
+                                {currencySymbol} {formatStockPrice(getProductRetailPrice(prod))}
+                              </p>
+                              <p className={`text-xs ${prod.totalStock <= (Number(companySettings?.lowStockThreshold ?? companySettings?.low_stock_threshold ?? 5) || 5) ? 'text-amber-600 font-semibold' : 'text-emerald-600'}`}>
+                                In Stock: {prod.totalStock}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {searchResults.length > visibleSearchCount && (
+                        <div className="p-2.5 text-center bg-slate-50/90 dark:bg-[#0B1120] border-t border-slate-200 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVisibleSearchCount((prev) => prev + 25);
+                            }}
+                            className="px-4 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/40 dark:hover:bg-purple-800/60 text-purple-700 dark:text-purple-200 font-bold text-xs border border-purple-200 dark:border-purple-700/60 transition cursor-pointer active:scale-95 shadow-xs"
+                          >
+                            Show More ({searchResults.length - visibleSearchCount} remaining)
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Mode Switcher & Mute Button */}
-              <div className={`items-center gap-1.5 sm:gap-2 flex-wrap order-2 sm:order-1 ${isMobileScannerExpanded ? 'hidden sm:flex' : 'flex'}`}>
+              <div className={`items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap order-2 sm:order-1 ${isMobileScannerExpanded ? 'hidden sm:flex' : 'flex'}`}>
                 <div className="inline-flex items-center p-1 bg-slate-200/70 dark:bg-slate-950/80 rounded-xl border border-slate-300/70 dark:border-slate-800 transition-colors">
                   <button
                     type="button"
@@ -1709,8 +1834,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                       setInputMode('SCANNER');
                       setSearchResults([]);
                       if (typeof window !== 'undefined' && window.innerWidth < 640) {
-                        isMobileScannerExpandedRef.current = true;
-                        setIsMobileScannerExpanded(true);
+                        flushSync(() => {
+                          isMobileScannerExpandedRef.current = true;
+                          setIsMobileScannerExpanded(true);
+                        });
                       }
                       focusScannerInput();
                     }}
@@ -1734,8 +1861,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     onClick={async () => {
                       setInputMode('MANUAL');
                       if (typeof window !== 'undefined' && window.innerWidth < 640) {
-                        isMobileScannerExpandedRef.current = true;
-                        setIsMobileScannerExpanded(true);
+                        flushSync(() => {
+                          isMobileScannerExpandedRef.current = true;
+                          setIsMobileScannerExpanded(true);
+                        });
                       }
                       focusScannerInput();
                       const cachedList = await searchCachedProductsOffline(
@@ -1786,7 +1915,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               </div>
 
               {/* Direct Shoe Exchange / Return & Continuous Scan / Hardware Status */}
-              <div className={`flex-wrap items-center gap-1.5 sm:gap-2 order-3 sm:order-2 ${isMobileScannerExpanded ? 'hidden sm:flex' : 'flex'}`}>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 basis-full sm:basis-auto order-3 sm:order-2">
                 <button
                   type="button"
                   id="pos-direct-exchange-btn"
@@ -1858,128 +1987,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 </span>
               </div>
             </div>
-
-            {/* Live Search Dropdown */}
-            <AnimatePresence>
-              {searchResults.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.97, y: -6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97, y: -6 }}
-                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ transformOrigin: 'top center' }}
-                  onMouseDown={(e) => e.preventDefault()}
-                  className="absolute left-3 right-3 sm:left-6 sm:right-6 z-40 mt-2 max-h-64 overflow-y-auto bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-[#1A263D] rounded-xl shadow-xl divide-y divide-slate-100 dark:divide-slate-800"
-                >
-                {searchResults.slice(0, visibleSearchCount).map((prod) => (
-                  <div
-                    key={prod.id}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      if (prod.totalStock <= 0) {
-                        playAudioFeedback.warning();
-                        setErrorMessage(`Product "${prod.article || prod.name}" is OUT OF STOCK.`);
-                        focusScannerInput(false);
-                        return;
-                      }
-                      addProductToCart(prod);
-                      playAudioFeedback.barcodeScan();
-                      playAudioFeedback.invoiceItemAdded();
-                      setLastScannedFeedback({
-                        message: 'Product accepted & added to invoice',
-                        article: prod.article || prod.name,
-                      });
-                      setTimeout(() => setLastScannedFeedback(null), 3200);
-                      setBarcodeInput('');
-                      setSearchResults([]);
-                      focusScannerInput(false);
-                    }}
-                    className="p-3 flex items-center justify-between hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {prod.primaryImageUrl ? (
-                        <div className="relative w-10 h-10 shrink-0 rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                          <img
-                            src={prod.primaryImageUrl}
-                            alt={prod.article || prod.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              const skeleton = e.currentTarget.nextElementSibling;
-                              if (skeleton) skeleton.classList.remove('hidden');
-                            }}
-                          />
-                          <div className="hidden absolute inset-0 w-full h-full bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center">
-                            <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          className="w-10 h-10 shrink-0 rounded border border-slate-200/80 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center p-1"
-                          title="No image - skeleton placeholder"
-                          aria-label="Product image skeleton"
-                        >
-                          <div className="w-4 h-4 rounded bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center">
-                            <ImageIcon className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500" />
-                          </div>
-                          <div className="w-5 h-1 bg-slate-300/70 dark:bg-slate-700/70 rounded-full mt-1" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="font-semibold text-sm text-slate-900 dark:text-white">{prod.article || prod.name}</p>
-                          {(prod.brandName || prod.brand_name) && (
-                            <div className="inline-flex items-center gap-1">
-                              <BrandLogo
-                                logo={prod.brandLogo || prod.brand_logo}
-                                name={prod.brandName || prod.brand_name}
-                                size="xs"
-                              />
-                              <span className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">
-                                {prod.brandName || prod.brand_name}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1.5 flex-wrap">
-                          <span>Article: {prod.article || prod.name}</span>
-                          <span className="opacity-40">|</span>
-                          <span>Barcode: {prod.barcode}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="font-bold text-sm text-slate-900 dark:text-white">
-                          {currencySymbol} {formatStockPrice(getProductRetailPrice(prod))}
-                        </p>
-                        <p className={`text-xs ${prod.totalStock <= (Number(companySettings?.lowStockThreshold ?? companySettings?.low_stock_threshold ?? 5) || 5) ? 'text-amber-600 font-semibold' : 'text-emerald-600'}`}>
-                          In Stock: {prod.totalStock}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {searchResults.length > visibleSearchCount && (
-                  <div className="p-2.5 text-center bg-slate-50/90 dark:bg-[#0B1120] border-t border-slate-200 dark:border-slate-800">
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setVisibleSearchCount((prev) => prev + 25);
-                      }}
-                      className="px-4 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/40 dark:hover:bg-purple-800/60 text-purple-700 dark:text-purple-200 font-bold text-xs border border-purple-200 dark:border-purple-700/60 transition cursor-pointer active:scale-95 shadow-xs"
-                    >
-                      Show More ({searchResults.length - visibleSearchCount} remaining)
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
 
             {offlineNotice && (
               <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800/60 rounded-xl flex items-center justify-between shadow-xs text-amber-900 dark:text-amber-200 text-xs animate-in fade-in duration-200">

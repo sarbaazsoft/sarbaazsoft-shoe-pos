@@ -32,7 +32,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
     paymentMethod: 'BANK_TRANSFER',
     cashierName: 'Hassan',
   });
-  assert.equal(wholesaleSale.title, 'Sale Completed');
+  assert.equal(wholesaleSale.title, 'Sale Completed ✅');
   assert.equal(
     wholesaleSale.message,
     'Invoice: #INV-1025\nTotal Sold: 120 pairs\nSold to: Al-Madina Footwear\nPayment: Bank Transfer\nProcessed by: Hassan'
@@ -51,7 +51,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
     paymentMethod: 'BANK_TRANSFER',
     cashierName: 'Hassan',
   });
-  assert.equal(wholesaleSaleWithReturn.title, 'Sale Completed');
+  assert.equal(wholesaleSaleWithReturn.title, 'Sale Completed ✅');
   assert.equal(
     wholesaleSaleWithReturn.message,
     'Invoice: #INV-1026\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\nSold to: Al-Madina Footwear\nPayment: Bank Transfer\nProcessed by: Hassan'
@@ -79,7 +79,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
     customerName: 'Al-Madina Footwear',
     cashierName: 'Hassan',
   });
-  assert.equal(ret.title, 'Return Completed');
+  assert.equal(ret.title, 'Return Completed ✅');
   assert.equal(
     ret.message,
     'Return #: #RET-000012\n3 pairs returned by Al-Madina Footwear.\nRefund: Rs. 6,000 (Cash)\nProcessed by: Hassan'
@@ -93,7 +93,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
     customerName: 'Al-Madina Footwear',
     cashierName: 'Hassan',
   });
-  assert.equal(exch.title, 'Exchange Completed');
+  assert.equal(exch.title, 'Exchange Completed ✅');
   assert.equal(
     exch.message,
     'Exchange #: #EXC-000008\n2 pairs exchanged by Al-Madina Footwear.\nAdditional Payment: Rs. 1,500 (Online)\nProcessed by: Hassan'
@@ -108,7 +108,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
     customerName: 'Al-Madina Footwear',
     cashierName: 'Hassan',
   });
-  assert.equal(saleExchange.title, 'Exchange Completed');
+  assert.equal(saleExchange.title, 'Exchange Completed ✅');
   assert.equal(
     saleExchange.message,
     'Exchange #: #EXC-000009\n4 pairs exchanged by Al-Madina Footwear.\nRefund: Rs. 500 (Cash)\nProcessed by: Hassan'
@@ -124,7 +124,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
     customerName: 'Al-Madina Footwear',
     cashierName: 'Hassan',
   });
-  assert.equal(saleReturn.title, 'Sale Completed');
+  assert.equal(saleReturn.title, 'Sale Completed ✅');
   assert.equal(
     saleReturn.message,
     'Invoice: #INV-1027\nTotal Sold: 12 pairs\nReturned: 6 pairs\nNet Sold: 6 pairs\nSold to: Al-Madina Footwear\nPayment: Khata\nProcessed by: Hassan'
@@ -267,7 +267,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
 
     const saleEvt = sseEvents.find((e) => e.data?.invoiceNumber === saleInv && e.data?.type === 'SALE');
     assert.ok(saleEvt, 'Expected SSE SALE notification');
-    assert.equal(saleEvt!.data.title, 'Sale Completed');
+    assert.equal(saleEvt!.data.title, 'Sale Completed ✅');
     assert.equal(
       saleEvt!.data.message,
       `Invoice: #${saleInv}\nTotal Sold: 120 pairs\nSold to: Madina Shoes Dealer\nPayment: Bank Transfer\nProcessed by: Kamran Staff`
@@ -303,7 +303,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
       (e) => e.data?.type === 'SALE' && e.data?.invoiceNumber === saleInv
     );
     assert.ok(updatedSaleEvt, 'Expected updated Sale Completed notification on same-invoice return');
-    assert.equal(updatedSaleEvt!.data.title, 'Sale Completed');
+    assert.equal(updatedSaleEvt!.data.title, 'Sale Completed ✅');
     assert.equal(
       updatedSaleEvt!.data.message,
       `Invoice: #${saleInv}\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\nSold to: Madina Shoes Dealer\nPayment: Bank Transfer\nProcessed by: Kamran Staff`
@@ -334,7 +334,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
 
     const saleRetEvents = sseEvents.filter((e) => e.data?.invoiceNumber === saleRetInv);
     assert.equal(saleRetEvents.length, 1, 'Combined Sale & Return must emit exactly 1 SSE notification');
-    assert.equal(saleRetEvents[0].data.title, 'Sale Completed');
+    assert.equal(saleRetEvents[0].data.title, 'Sale Completed ✅');
     assert.equal(
       saleRetEvents[0].data.message,
       `Invoice: #${saleRetInv}\nTotal Sold: 12 pairs\nReturned: 6 pairs\nNet Sold: 6 pairs\nSold to: Madina Shoes Dealer\nPayment: Cash\nProcessed by: Kamran Staff`
@@ -366,7 +366,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     const exchOnlyEvents = sseEvents.filter((e) => e.data?.invoiceNumber === exchOnlyInv);
     assert.equal(exchOnlyEvents.length, 1, 'Standalone Exchange must emit exactly 1 SSE notification');
     assert.equal(exchOnlyEvents[0].data.type, 'EXCHANGE');
-    assert.equal(exchOnlyEvents[0].data.title, 'Exchange Completed');
+    assert.equal(exchOnlyEvents[0].data.title, 'Exchange Completed ✅');
     assert.ok(exchOnlyEvents[0].data.message.includes('6 pairs exchanged by Madina Shoes Dealer.'));
     assert.ok(exchOnlyEvents[0].data.message.includes('Additional Payment: Rs. 1,200 (Cash)'));
     assert.ok(exchOnlyEvents[0].data.message.includes('Processed by: Kamran Staff'));
@@ -422,15 +422,15 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
 
     assert.ok(gSale, 'Expected consolidated Sale Completed in grouped notifications');
     assert.equal(gRetForSameInv, undefined, 'Same-invoice return must NOT appear as separate Return Completed in /grouped');
-    assert.equal(gSale.title, 'Sale Completed');
+    assert.equal(gSale.title, 'Sale Completed ✅');
     assert.equal(
       gSale.message,
       `Invoice: #${saleInv}\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\nSold to: Madina Shoes Dealer\nPayment: Bank Transfer\nProcessed by: Kamran Staff`
     );
     assert.ok(gSaleRet);
-    assert.equal(gSaleRet.title, 'Sale Completed');
+    assert.equal(gSaleRet.title, 'Sale Completed ✅');
     assert.ok(gExch);
-    assert.equal(gExch.title, 'Exchange Completed');
+    assert.equal(gExch.title, 'Exchange Completed ✅');
     assert.equal(gPurchase, undefined, 'Purchases must NOT appear in /api/notifications/grouped');
 
     const allRes = await fetch(`${baseUrl}/api/notifications/all?limit=25`, { headers });

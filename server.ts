@@ -43,6 +43,7 @@ import tenantSaasRoutes from './src/server/routes/tenantSaasRoutes.ts';
 import { transformKeysToCamelCase } from './src/utils/caseTransformer.ts';
 import { recordApplicationBaseUrl } from './src/server/services/welcomeService.ts';
 import { getAppSetting } from './src/server/services/appSettingsService.ts';
+import { syncAndNotifyTenantSubscriptionLifecycle } from './src/server/pushNotificationService.ts';
 import { buildPwaManifest, resolvePwaBranding, type PwaBrandingInput } from './src/utils/pwaBranding.ts';
 import { patchDesktopSetupExe, resolveDesktopTargetUrl } from './src/server/utils/windowsExePatcher.ts';
 import {
@@ -633,6 +634,11 @@ async function startServer() {
     if (installStatus.hasSuperAdmin || (installStatus.hasUsers && installStatus.hasAdmin)) {
       await ensureSaasControlPlane();
       console.log('✅ PostgreSQL Schema & SaaS Multi-Tenant Control Plane verified.');
+      void syncAndNotifyTenantSubscriptionLifecycle().catch(() => {});
+      const lifecycleTimer = setInterval(() => {
+        void syncAndNotifyTenantSubscriptionLifecycle().catch(() => {});
+      }, 15 * 60 * 1000);
+      lifecycleTimer.unref?.();
     }
   } catch (error) {
     console.error('PostgreSQL startup initialization error:', error);

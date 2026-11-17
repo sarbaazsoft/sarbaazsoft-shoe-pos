@@ -917,7 +917,8 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       const actionUrlLower = actionUrl.toLowerCase();
       if (
         titleLower.includes('new free trial') ||
-        titleLower.includes('renewal request') ||
+        titleLower.includes('new renewal request') ||
+        titleLower.includes('renewal request:') ||
         actionUrlLower.includes('/superadmin')
       ) {
         targetRole = 'SUPERADMIN';
@@ -1003,6 +1004,42 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         return { rows: found as unknown as T[], rowCount: found.length };
       }
 
+      if (upper.includes('WHERE TENANT_ID = $1') && upper.includes('TITLE = $2')) {
+        const tid = Number(params[0]);
+        const targetTitle = String(params[1] || '');
+        const adminOnly = upper.includes("TARGET_ROLE = 'ADMIN'");
+        const found = (mockStore.platform_notifications || []).filter((pn: any) => {
+          if (Number(pn.tenant_id) !== tid) return false;
+          if (String(pn.title || '') !== targetTitle) return false;
+          if (adminOnly && String(pn.target_role || '').toUpperCase() !== 'ADMIN') return false;
+          return true;
+        });
+        return { rows: found as unknown as T[], rowCount: found.length };
+      }
+
+      if (upper.includes('EVENT_ID LIKE $1')) {
+        const prefix = String(params[0] || '').replace(/%/g, '').toLowerCase();
+        const msgNeedle = String(params[1] || '').replace(/%/g, '').toLowerCase();
+        const nowMs = Date.now();
+        const found = (mockStore.platform_notifications || []).filter((pn: any) => {
+          if (pn.expires_at) {
+            const expTime = new Date(pn.expires_at).getTime();
+            if (!Number.isNaN(expTime) && expTime <= nowMs) return false;
+          }
+          if (String(pn.target_role || '').toUpperCase() !== 'SUPERADMIN') return false;
+          const ev = String(pn.event_id || '').toLowerCase();
+          const title = String(pn.title || '').toLowerCase();
+          const msg = String(pn.message || '').toLowerCase();
+          return (
+            (prefix !== '' && ev.startsWith(prefix)) ||
+            ((title.startsWith('new renewal request') || title.startsWith('renewal request:')) &&
+              msgNeedle !== '' &&
+              msg.includes(msgNeedle))
+          );
+        });
+        return { rows: found.slice(0, 1) as unknown as T[], rowCount: Math.min(1, found.length) };
+      }
+
       const tenantId = params.length > 0 && params[0] !== null && params[0] !== undefined ? Number(params[0]) : 1;
       const userId = params.length > 1 && params[1] !== null && params[1] !== undefined ? Number(params[1]) : 0;
       const role = params.length > 2 && params[2] !== null && params[2] !== undefined ? String(params[2]).toUpperCase() : 'ADMIN';
@@ -1039,9 +1076,10 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         const isSuperAdminOnly =
           notifRole === 'SUPERADMIN' ||
           notifTitle.includes('new free trial') ||
-          notifTitle.includes('renewal request') ||
+          notifTitle.includes('new renewal request') ||
+          notifTitle.includes('renewal request:') ||
           notifMsg.includes('free tier store registered') ||
-          notifMsg.includes('subscription renewal') ||
+          notifMsg.includes('requested subscription renewal') ||
           notifAction.includes('/superadmin');
 
         if (role === 'SUPERADMIN') {
@@ -1111,10 +1149,24 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       if (upper.includes('EXPIRES_AT = NOW()')) {
         const nowIso = new Date().toISOString();
         const targetTid = params.length > 0 && params[0] !== undefined ? Number(params[0]) : null;
+        const targetStoreName =
+          params.length > 1 && params[1]
+            ? String(params[1]).toLowerCase()
+            : targetTid
+              ? String(mockStore.tenants.find((t) => Number(t.id) === targetTid)?.name || '').toLowerCase()
+              : '';
         for (const pn of mockStore.platform_notifications || []) {
-          if (!targetTid || Number(pn.tenant_id) === targetTid || pn.target_role === 'SUPERADMIN') {
-            const title = (pn.title || '').toLowerCase();
-            const msg = (pn.message || '').toLowerCase();
+          const ev = String(pn.event_id || '').toLowerCase();
+          const msg = String(pn.message || '').toLowerCase();
+          const title = String(pn.title || '').toLowerCase();
+          const matchesTenant =
+            !targetTid ||
+            Number(pn.tenant_id) === targetTid ||
+            (pn.target_role === 'SUPERADMIN' &&
+              (ev.startsWith(`renewal-request-${targetTid}-`) ||
+                ev.startsWith(`sa-sub-expired-${targetTid}-`) ||
+                (targetStoreName !== '' && msg.includes(targetStoreName))));
+          if (matchesTenant) {
             if (
               title.includes('renewal') ||
               title.includes('subscription') ||
@@ -1148,7 +1200,11 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
 
       for (const pn of mockStore.platform_notifications || []) {
         const notifTitle = (pn.title || '').toLowerCase();
-        if (notifTitle.includes('new free trial') || notifTitle.includes('renewal request')) {
+        if (
+          notifTitle.includes('new free trial') ||
+          notifTitle.includes('new renewal request') ||
+          notifTitle.includes('renewal request:')
+        ) {
           pn.target_role = 'SUPERADMIN';
           pn.tenant_id = null;
         }
@@ -1432,6 +1488,25 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     } else if (upper.includes('WHERE ID = ANY($1')) {
       const ids: number[] = Array.isArray(params[0]) ? params[0].map(Number) : [];
       rows = rows.filter((r) => ids.includes(Number(r.id)));
+    } else if (upper.includes("SUBSCRIPTION_STATUS::TEXT = 'EXPIRED'")) {
+      rows = rows.filter(
+        (r) =>
+          Number(r.id) > 0 &&
+          String(r.status || 'ACTIVE').toUpperCase() !== 'SUSPENDED' &&
+          String(r.subscription_status || '').toUpperCase() === 'EXPIRED' &&
+          Boolean(r.subscription_end_date)
+      );
+    } else if (upper.includes("SUBSCRIPTION_END_DATE <= NOW() + INTERVAL '7 DAYS'")) {
+      const nowMs = Date.now();
+      const sevenDaysMs = nowMs + 7 * 86_400_000;
+      rows = rows.filter((r) => {
+        if (Number(r.id) <= 0) return false;
+        if (String(r.status || 'ACTIVE').toUpperCase() !== 'ACTIVE') return false;
+        if (String(r.subscription_status || 'ACTIVE').toUpperCase() !== 'ACTIVE') return false;
+        if (!r.subscription_end_date) return false;
+        const endMs = new Date(r.subscription_end_date).getTime();
+        return !Number.isNaN(endMs) && endMs > nowMs && endMs <= sevenDaysMs;
+      });
     } else if (upper.includes('WHERE T.ID = $1') || upper.includes('WHERE ID = $1')) {
       rows = rows.filter((r) => Number(r.id) === Number(params[0]));
     }
@@ -1583,6 +1658,10 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       tenant.subscription_end_date = params[2] || tenant.subscription_end_date;
     } else if (upper.includes("SET SUBSCRIPTION_STATUS = 'EXPIRED'")) {
       tenant.subscription_status = 'EXPIRED';
+    } else if (upper.includes("SET SUBSCRIPTION_END_DATE = NOW() - INTERVAL '1 HOUR'")) {
+      tenant.subscription_end_date = new Date(Date.now() - 3_600_000).toISOString();
+    } else if (upper.includes('SET SUBSCRIPTION_END_DATE = $1')) {
+      tenant.subscription_end_date = params[0] || tenant.subscription_end_date;
     }
     tenant.updated_at = new Date().toISOString();
     return { rows: [tenant as unknown as T], rowCount: 1 };
@@ -3116,6 +3195,10 @@ if (!isValidDatabaseUrl(rawDatabaseUrl)) {
       connectionTimeoutMillis: 5000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
+    });
+
+    rawPool.on('connect', (client) => {
+      client.query("SET client_encoding TO 'UTF8'").catch(() => {});
     });
 
     rawPool.on('error', (err: any) => {

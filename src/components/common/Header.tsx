@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, Settings, ChevronDown, Menu, Sun, Moon, Monitor, UserCog, LogOut, AlertTriangle, AlertCircle, CheckCircle2, ShoppingBag, ArrowLeftRight, Truck, RefreshCw, CheckCheck, Check, Boxes, X, ShieldCheck, User, ShoppingCart, Copy, Coins, Loader2, ImageIcon, Edit3, PackagePlus, Printer, BellRing, ExternalLink, Globe, Store, Info, Flame, Search } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
@@ -479,12 +480,15 @@ export const Header: React.FC<HeaderProps> = ({
       const titleLower = (payload.title || '').toLowerCase();
       const msgLower = (payload.message || '').toLowerCase();
       const actionUrlLower = (payload.actionUrl || '').toLowerCase();
+      const isRenewalRequestNotice =
+        titleLower.startsWith('renewal request:') ||
+        titleLower.includes('new renewal request') ||
+        msgLower.includes('requested subscription renewal');
       const isSuperAdminOnlyNotice =
         targetRole === 'SUPERADMIN' ||
         titleLower.includes('new free trial') ||
-        titleLower.includes('renewal request') ||
+        isRenewalRequestNotice ||
         msgLower.includes('free tier store registered') ||
-        msgLower.includes('subscription renewal') ||
         actionUrlLower.includes('/superadmin');
 
       if (String(payload.type || '').toUpperCase() === 'PURCHASE') {
@@ -764,13 +768,15 @@ export const Header: React.FC<HeaderProps> = ({
         msgLower.includes('welcome to sarbaazsoft') ||
         msgLower.includes('thank you for choosing sarbaazsoft');
 
+      const isRenewalRequestNotice =
+        titleLower.startsWith('renewal request:') ||
+        titleLower.includes('new renewal request') ||
+        msgLower.includes('requested subscription renewal');
       const isSuperAdminOnlyNotice =
         aTargetRole === 'SUPERADMIN' ||
         titleLower.includes('new free trial') ||
-        titleLower.includes('renewal request') ||
+        isRenewalRequestNotice ||
         msgLower.includes('free tier store registered') ||
-        msgLower.includes('subscription renewal') ||
-        msgLower.includes('renewal request') ||
         actionUrlLower.includes('/superadmin') ||
         actionUrlLower.includes('/admin');
 
@@ -1057,12 +1063,15 @@ export const Header: React.FC<HeaderProps> = ({
               setShowNotifications(false);
               setShowUserDropdown(false);
               setShowThemeDropdown(false);
-              setIsMobileSearchExpanded(true);
+              flushSync(() => {
+                setIsMobileSearchExpanded(true);
+              });
+              searchInputRef.current?.focus();
             }}
             className={`sm:hidden flex items-center justify-center rounded-lg border border-slate-200/90 dark:border-indigo-500/25 bg-slate-50/90 dark:bg-slate-900/60 text-indigo-600 dark:text-indigo-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-[width,max-width,opacity,visibility] duration-250 ease-out motion-reduce:transition-none cursor-pointer shrink-0 ${
               isMobileSearchExpanded
-                ? 'w-0 max-w-0 h-10 opacity-0 invisible p-0 border-0 overflow-hidden pointer-events-none'
-                : 'w-10 max-w-10 h-10 opacity-100 visible'
+                ? 'w-0 max-w-0 h-11 opacity-0 invisible p-0 border-0 overflow-hidden pointer-events-none'
+                : 'w-11 max-w-11 h-11 opacity-100 visible'
             }`}
             title="Quick price check (Article, Barcode)"
             aria-label="Open quick price search"
@@ -1111,9 +1120,9 @@ export const Header: React.FC<HeaderProps> = ({
                 }
               }}
               placeholder="Quick price check (Article, Barcode)..."
-              className="h-10 sm:h-8.5 uppercase w-full bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/90 dark:border-indigo-500/20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 pl-8 pr-18 sm:pr-7 py-1 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
+              className="h-11 sm:h-8.5 uppercase w-full bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/90 dark:border-indigo-500/20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 pl-8 pr-20 sm:pr-8 py-1 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
             />
-            <div className="absolute right-1.5 sm:right-2 flex items-center gap-1">
+            <div className="absolute right-1 sm:right-2 flex items-center gap-1">
               {searchQuery && (
                 <button
                   type="button"
@@ -1123,7 +1132,7 @@ export const Header: React.FC<HeaderProps> = ({
                     setIsSearching(false);
                     searchInputRef.current?.focus();
                   }}
-                  className="h-7 px-1.5 sm:h-6 sm:w-6 sm:px-0 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
+                  className="h-8 px-1.5 sm:h-6 sm:w-6 sm:px-0 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
                   title="Clear search"
                   aria-label="Clear search query"
                 >
@@ -1140,7 +1149,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsSearching(false);
                   setIsMobileSearchExpanded(false);
                 }}
-                className="sm:hidden h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800/80 cursor-pointer"
+                className="sm:hidden h-9 w-9 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800/80 cursor-pointer"
                 title="Close search"
                 aria-label="Close search"
               >

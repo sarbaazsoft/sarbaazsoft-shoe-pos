@@ -2,7 +2,12 @@ import { initializeApp, cert, getApps, deleteApp, type App } from 'firebase-admi
 import { getMessaging } from 'firebase-admin/messaging';
 import type { Response } from 'express';
 import { pgClient } from '../db/index.ts';
-import { ensureFcmTokensSchema } from '../db/schemaInit.ts';
+import {
+  ensureFcmTokensSchema,
+  ensurePlatformNotificationsSchema,
+  ensureSaasControlPlane,
+  normalizeSubscriptionPlan,
+} from '../db/schemaInit.ts';
 import { getAppSetting, registerSettingsUpdateListener } from './services/appSettingsService.ts';
 import { dispatchPosEmailAlert, dispatchSuperAdminEmailAlert } from './services/emailAlertService.ts';
 import { getApplicationBaseUrl } from './services/welcomeService.ts';
@@ -447,14 +452,25 @@ function resolveHttpsWebpushLink(linkUrl: string): string | undefined {
   }
 }
 
+/**
+ * Truncates text cleanly by Unicode code points (never splitting UTF-16 surrogate pairs
+ * such as multi-byte emojis like 🔔, ⏳, ✅, ⚠️, ❌).
+ */
+export function truncateUtf8Safe(value: string | undefined | null, maxCodePoints: number): string {
+  const normalized = String(value ?? '').trim();
+  if (!normalized || maxCodePoints <= 0) return '';
+  const codePoints = Array.from(normalized);
+  return codePoints.length > maxCodePoints ? codePoints.slice(0, maxCodePoints).join('') : normalized;
+}
+
 export function buildFcmNotificationConfig(payload: FcmPushPayload) {
   const linkUrl = payload.deepLinkUrl || '/';
   const isAdminTarget = linkUrl.startsWith('/admin') || payload.data?.isAdmin === 'true';
   const icon = payload.icon || (isAdminTarget ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON);
   const badge = payload.badge || NOTIFICATION_BADGE_ICON;
   const tag = payload.tag || `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const cleanWebTitle = String(payload.title || 'SarbaazSoft Shoe POS Alert').trim().slice(0, 120);
-  const cleanWebBody = String(payload.body || 'New store notification received.').trim().slice(0, 320);
+  const cleanWebTitle = truncateUtf8Safe(payload.title || 'SarbaazSoft Shoe POS Alert', 120);
+  const cleanWebBody = truncateUtf8Safe(payload.body || 'New store notification received.', 320);
 
   const rawTimestamp = payload.data?.timestamp;
   const numericTimestamp = rawTimestamp ? Number(rawTimestamp) || Date.parse(rawTimestamp) || Date.now() : Date.now();
@@ -1212,4 +1228,271 @@ export async function testFcmPush(
   inFlightTestPushByEventId.set(rawEventId, runPromise);
   return runPromise;
 }
+
+// ============================================================================
+// SUBSCRIPTION & TRIAL LIFECYCLE NOTIFICATIONS
+// ============================================================================
+
+export const SUBSCRIPTION_NOTIFICATION_TITLES = {
+  FREE_TRIAL_EXPIRING_SOON: 'Free Trial Expiring Soon ⏳',
+  SUBSCRIPTION_EXPIRING_SOON: 'Subscription Expiring Soon ⚠️',
+  SUBSCRIPTION_EXPIRED: 'Subscription Expired ❌',
+  SUBSCRIPTION_RENEWED: 'Subscription Renewed ✅',
+  NEW_RENEWAL_REQUEST: 'New Renewal Request 🔔',
+  RENEWAL_REQUEST_APPROVED: 'Renewal Request Approved ✅',
+} as const;
+
+export interface StoreSubscriptionNotificationInput {
+  tenantId: number | null;
+  targetRole: 'ADMIN' | 'SUPERADMIN' | 'ALL';
+  title: string;
+  message: string;
+  type?: 'INFO' | 'WARNING' | 'SUCCESS' | 'URGENT' | 'SYSTEM';
+  actionUrl?: string;
+  actionLabel?: string;
+  eventId: string;
+}
+
+/**
+ * Persists a UTF-8 platform notification idempotently using event_id and dispatches
+ * SSE + FCM Web Push (+ offline email if applicable) exactly once per eventId.
+ */
+export async function emitPlatformNotificationOnce(
+  input: StoreSubscriptionNotificationInput
+): Promise<boolean> {
+  await ensurePlatformNotificationsSchema();
+  const cleanTenantId =
+    input.tenantId === null || input.tenantId === undefined || Number(input.tenantId) <= 0
+      ? null
+      : Number(input.tenantId);
+
+  const insertRes = await pgClient.query<{ id: number; created_at: string }>(
+    `INSERT INTO platform_notifications (
+      tenant_id, target_role, title, message, type, action_url, action_label, event_id, created_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    ON CONFLICT (event_id) DO NOTHING
+    RETURNING id, created_at`,
+    [
+      cleanTenantId,
+      input.targetRole,
+      input.title,
+      input.message,
+      input.type || 'INFO',
+      input.actionUrl || (input.targetRole === 'SUPERADMIN' ? '/superadmin' : '/?tab=settings&section=subscription'),
+      input.actionLabel || (input.targetRole === 'SUPERADMIN' ? 'Review Store' : 'View Subscription'),
+      input.eventId,
+    ]
+  );
+
+  const row = insertRes.rows[0];
+  if (!row?.id) {
+    return false;
+  }
+
+  await notifyPlatformAnnouncement({
+    id: row.id,
+    eventId: input.eventId,
+    tenantId: cleanTenantId,
+    targetRole: input.targetRole,
+    title: input.title,
+    message: input.message,
+    type: input.type || 'INFO',
+    actionUrl: input.actionUrl || (input.targetRole === 'SUPERADMIN' ? '/superadmin' : '/?tab=settings&section=subscription'),
+    actionLabel: input.actionLabel || (input.targetRole === 'SUPERADMIN' ? 'Review Store' : 'View Subscription'),
+    timestamp: row.created_at || new Date().toISOString(),
+  }).catch(() => {});
+
+  return true;
+}
+
+export async function emitStoreSubscriptionNotification(params: {
+  tenantId: number;
+  storeName: string;
+  kind: 'RENEWED' | 'RENEWAL_APPROVED' | 'EXPIRED';
+  planLabel?: string;
+  endDate?: Date | string | null;
+}): Promise<boolean> {
+  const cleanId = Number(params.tenantId);
+  if (!Number.isSafeInteger(cleanId) || cleanId <= 0) return false;
+  const storeName = String(params.storeName || 'Retail Store').trim();
+  const endDateObj = params.endDate ? new Date(params.endDate) : new Date();
+  const endKey = Number.isNaN(endDateObj.getTime())
+    ? new Date().toISOString().slice(0, 10)
+    : endDateObj.toISOString().slice(0, 13);
+  const formattedEnd = Number.isNaN(endDateObj.getTime()) ? '' : endDateObj.toLocaleDateString();
+  const planText = params.planLabel || 'Subscription';
+
+  if (params.kind === 'EXPIRED') {
+    const storeEmitted = await emitPlatformNotificationOnce({
+      tenantId: cleanId,
+      targetRole: 'ADMIN',
+      title: SUBSCRIPTION_NOTIFICATION_TITLES.SUBSCRIPTION_EXPIRED,
+      message: `Subscription for '${storeName}' (${planText}) has expired. Please renew your plan to continue uninterrupted POS access.`,
+      type: 'WARNING',
+      actionUrl: '/?tab=settings&section=subscription',
+      actionLabel: 'Renew Subscription',
+      eventId: `sub-expired-${cleanId}-${endKey}`,
+    });
+
+    await emitPlatformNotificationOnce({
+      tenantId: null,
+      targetRole: 'SUPERADMIN',
+      title: SUBSCRIPTION_NOTIFICATION_TITLES.SUBSCRIPTION_EXPIRED,
+      message: `Store '${storeName}' (${planText}) subscription expired.`,
+      type: 'WARNING',
+      actionUrl: '/superadmin',
+      actionLabel: 'Review Store',
+      eventId: `sa-sub-expired-${cleanId}-${endKey}`,
+    }).catch(() => false);
+
+    return storeEmitted;
+  }
+
+  if (params.kind === 'RENEWAL_APPROVED') {
+    return emitPlatformNotificationOnce({
+      tenantId: cleanId,
+      targetRole: 'ADMIN',
+      title: SUBSCRIPTION_NOTIFICATION_TITLES.RENEWAL_REQUEST_APPROVED,
+      message: `Your subscription renewal request (${planText}) for '${storeName}' has been approved${formattedEnd ? ` and is valid until ${formattedEnd}` : ''}.`,
+      type: 'SUCCESS',
+      actionUrl: '/?tab=settings&section=subscription',
+      actionLabel: 'View Plan',
+      eventId: `renewal-approved-${cleanId}-${endKey}`,
+    });
+  }
+
+  return emitPlatformNotificationOnce({
+    tenantId: cleanId,
+    targetRole: 'ADMIN',
+    title: SUBSCRIPTION_NOTIFICATION_TITLES.SUBSCRIPTION_RENEWED,
+    message: `Subscription (${planText}) for '${storeName}' has been renewed${formattedEnd ? ` until ${formattedEnd}` : ''}.`,
+    type: 'SUCCESS',
+    actionUrl: '/?tab=settings&section=subscription',
+    actionLabel: 'View Plan',
+    eventId: `sub-renewed-${cleanId}-${endKey}`,
+  });
+}
+
+let lastLifecycleSyncMs = 0;
+let lifecycleSyncPromise: Promise<void> | null = null;
+
+/**
+ * Synchronizes expired subscriptions and dispatches idempotent alerts for:
+ * - "Subscription Expired ❌"
+ * - "Free Trial Expiring Soon ⏳" (free_tier <= 7 days remaining)
+ * - "Subscription Expiring Soon ⚠️" (paid plans <= 7 days remaining)
+ */
+export async function syncAndNotifyTenantSubscriptionLifecycle(options?: { force?: boolean }): Promise<void> {
+  const nowMs = Date.now();
+  if (!options?.force && lifecycleSyncPromise) {
+    return lifecycleSyncPromise;
+  }
+  if (!options?.force && nowMs - lastLifecycleSyncMs < 30_000) {
+    return;
+  }
+
+  const run = (async () => {
+    try {
+      await ensureSaasControlPlane();
+      await ensurePlatformNotificationsSchema();
+
+      // 1. Mark newly expired tenants
+      await pgClient.query(`
+        UPDATE tenants
+        SET subscription_status = 'EXPIRED',
+            updated_at = NOW()
+        WHERE subscription_end_date IS NOT NULL
+          AND subscription_end_date < NOW()
+          AND subscription_status NOT IN ('EXPIRED', 'SUSPENDED')
+      `);
+
+      // 2. Notify stores whose subscription is EXPIRED (idempotent per tenant + end_date)
+      const expiredRes = await pgClient.query<{
+        id: number;
+        name: string;
+        subscription_plan: string;
+        subscription_end_date: string;
+      }>(
+        `SELECT id, name, subscription_plan::text AS subscription_plan, subscription_end_date
+         FROM tenants
+         WHERE id > 0
+           AND COALESCE(status::text, 'ACTIVE') != 'SUSPENDED'
+           AND subscription_status::text = 'EXPIRED'
+           AND subscription_end_date IS NOT NULL`
+      );
+
+      for (const t of expiredRes.rows) {
+        const plan = normalizeSubscriptionPlan(t.subscription_plan);
+        const planLabel = plan === 'free_tier' ? 'Free Trial' : plan === '6_MONTHS' ? '6 Months' : 'Yearly';
+        await emitStoreSubscriptionNotification({
+          tenantId: t.id,
+          storeName: t.name,
+          kind: 'EXPIRED',
+          planLabel,
+          endDate: t.subscription_end_date,
+        }).catch(() => {});
+      }
+
+      // 3. Notify active stores expiring within 7 days
+      const expiringRes = await pgClient.query<{
+        id: number;
+        name: string;
+        subscription_plan: string;
+        subscription_end_date: string;
+      }>(
+        `SELECT id, name, subscription_plan::text AS subscription_plan, subscription_end_date
+         FROM tenants
+         WHERE id > 0
+           AND COALESCE(status::text, 'ACTIVE') = 'ACTIVE'
+           AND COALESCE(subscription_status::text, 'ACTIVE') = 'ACTIVE'
+           AND subscription_end_date IS NOT NULL
+           AND subscription_end_date > NOW()
+           AND subscription_end_date <= NOW() + INTERVAL '7 days'`
+      );
+
+      for (const t of expiringRes.rows) {
+        const endDate = new Date(t.subscription_end_date);
+        if (Number.isNaN(endDate.getTime())) continue;
+        const daysLeft = Math.max(1, Math.ceil((endDate.getTime() - Date.now()) / 86_400_000));
+        const daysLabel = daysLeft === 1 ? '1 day' : `${daysLeft} days`;
+        const endKey = endDate.toISOString().slice(0, 10);
+        const isFreeTrial = normalizeSubscriptionPlan(t.subscription_plan) === 'free_tier';
+
+        if (isFreeTrial) {
+          await emitPlatformNotificationOnce({
+            tenantId: t.id,
+            targetRole: 'ADMIN',
+            title: SUBSCRIPTION_NOTIFICATION_TITLES.FREE_TRIAL_EXPIRING_SOON,
+            message: `Your free trial for '${t.name}' expires in ${daysLabel}. Upgrade your subscription to continue uninterrupted POS access.`,
+            type: 'WARNING',
+            actionUrl: '/?tab=settings&section=subscription',
+            actionLabel: 'Upgrade Plan',
+            eventId: `trial-expiring-${t.id}-${endKey}`,
+          }).catch(() => {});
+        } else {
+          await emitPlatformNotificationOnce({
+            tenantId: t.id,
+            targetRole: 'ADMIN',
+            title: SUBSCRIPTION_NOTIFICATION_TITLES.SUBSCRIPTION_EXPIRING_SOON,
+            message: `Your subscription for '${t.name}' expires in ${daysLabel}. Renew now to avoid service interruption.`,
+            type: 'WARNING',
+            actionUrl: '/?tab=settings&section=subscription',
+            actionLabel: 'Renew Subscription',
+            eventId: `sub-expiring-${t.id}-${endKey}`,
+          }).catch(() => {});
+        }
+      }
+
+      lastLifecycleSyncMs = Date.now();
+    } catch (err: any) {
+      console.warn('[SubscriptionLifecycle] Notification sync warning:', err?.message || err);
+    } finally {
+      lifecycleSyncPromise = null;
+    }
+  })();
+
+  lifecycleSyncPromise = run;
+  return run;
+}
+
 

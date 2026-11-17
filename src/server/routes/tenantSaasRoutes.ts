@@ -5,7 +5,11 @@ import crypto from 'crypto';
 import { pgClient } from '../../db/index.ts';
 import { ensureSaasControlPlane, ensureDatabaseSchema, ensurePlatformNotificationsSchema, ensureTenantStoreUsers, ensureEmailVerificationSchema, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions, clearSubscriptionAlertsOnRenewal } from '../../db/schemaInit.ts';
 import { requireAuth, requireAdmin, requireSuperAdmin, generateToken, type AuthenticatedRequest, type AuthUser } from '../auth.ts';
-import { notifyPlatformAnnouncement } from '../pushNotificationService.ts';
+import {
+  notifyPlatformAnnouncement,
+  emitStoreSubscriptionNotification,
+  syncAndNotifyTenantSubscriptionLifecycle,
+} from '../pushNotificationService.ts';
 import { sendWelcomeMsg } from '../services/welcomeService.ts';
 import { sendTrialActivationEmail } from '../utils/email.ts';
 import { resolveTenantContext, isTenantOnlineInMiddleware, getTenantMiddlewareLastSeen, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
@@ -76,7 +80,7 @@ router.get(['/tenants/manifest', '/tenants/manifest.json', '/tenants/manifest.we
 router.get('/saas/resolve', async (req: Request, res: Response) => {
   try {
     await ensureSaasControlPlane();
-    await syncExpiredTenantSubscriptions();
+    await syncAndNotifyTenantSubscriptionLifecycle();
     const resolution = await resolveTenantContext(req);
 
     const directoryRes = await pgClient.query<{
@@ -987,9 +991,11 @@ router.patch('/superadmin/tenants/:id/status', requireAuth, requireSuperAdmin, a
 
     const currRes = await pgClient.query<{
       id: number;
+      name: string;
       subscription_plan: string;
+      subscription_status: string;
       subscription_end_date: string | null;
-    }>('SELECT id, subscription_plan, subscription_end_date FROM tenants WHERE id = $1 LIMIT 1', [tenantId]);
+    }>('SELECT id, name, subscription_plan, subscription_status, subscription_end_date FROM tenants WHERE id = $1 LIMIT 1', [tenantId]);
 
     if (currRes.rows.length === 0) {
       return res.status(404).json({ error: 'Store tenant not found.' });
@@ -1000,10 +1006,31 @@ router.patch('/superadmin/tenants/:id/status', requireAuth, requireSuperAdmin, a
     let nextSubStatus = status;
     let nextEndDate = curr.subscription_end_date ? new Date(curr.subscription_end_date) : calculateSubscriptionEndDate(curr.subscription_plan || 'YEARLY');
 
+    const wasExpired =
+      String(curr.subscription_status || '').toUpperCase() === 'EXPIRED' ||
+      (curr.subscription_end_date ? new Date(curr.subscription_end_date).getTime() < Date.now() : false);
+
     // If activating an expired store via status toggle, automatically renew its expiry from today based on its plan
     if (status === 'ACTIVE' && nextEndDate.getTime() < Date.now()) {
       nextEndDate = calculateSubscriptionEndDate(curr.subscription_plan || 'YEARLY', new Date());
     }
+
+    const pendingRenewalRes = status === 'ACTIVE'
+      ? await pgClient
+          .query<{ id: number }>(
+            `SELECT id FROM platform_notifications
+             WHERE target_role = 'SUPERADMIN'
+               AND (expires_at IS NULL OR expires_at > NOW())
+               AND (
+                 event_id LIKE $1
+                 OR ((title ILIKE 'New Renewal Request%' OR title ILIKE 'Renewal Request:%') AND message ILIKE $2)
+               )
+             LIMIT 1`,
+            [`renewal-request-${tenantId}-%`, `%${curr.name}%`]
+          )
+          .catch(() => ({ rows: [] as Array<{ id: number }> }))
+      : { rows: [] as Array<{ id: number }> };
+    const hasPendingRenewal = pendingRenewalRes.rows.length > 0;
 
     const updateRes = await pgClient.query<{
       id: number;
@@ -1026,6 +1053,28 @@ router.patch('/superadmin/tenants/:id/status', requireAuth, requireSuperAdmin, a
     if (updated.status !== 'ACTIVE' || updated.subscription_status !== 'ACTIVE') {
       removeTenantMiddlewarePresence(tenantId);
     }
+
+    const planNorm = normalizeSubscriptionPlan(curr.subscription_plan);
+    const planLabel = planNorm === 'free_tier' ? 'Free Trial' : planNorm === '6_MONTHS' ? '6 Months' : 'Yearly';
+    if (updated.subscription_status === 'EXPIRED' && String(curr.subscription_status || '').toUpperCase() !== 'EXPIRED') {
+      await emitStoreSubscriptionNotification({
+        tenantId,
+        storeName: updated.name,
+        kind: 'EXPIRED',
+        planLabel,
+        endDate: updated.subscription_end_date,
+      }).catch(() => {});
+    } else if (updated.subscription_status === 'ACTIVE' && (wasExpired || hasPendingRenewal)) {
+      await clearSubscriptionAlertsOnRenewal(tenantId);
+      await emitStoreSubscriptionNotification({
+        tenantId,
+        storeName: updated.name,
+        kind: hasPendingRenewal ? 'RENEWAL_APPROVED' : 'RENEWED',
+        planLabel,
+        endDate: updated.subscription_end_date,
+      }).catch(() => {});
+    }
+
     return res.json({
       success: true,
       tenant: updated,
@@ -1154,6 +1203,30 @@ async function handleUpdateTenantSubscription(req: AuthenticatedRequest, res: Re
     const finalTenantStatus = finalSubStatus === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
     const finalSubType = normalizeSubscriptionType(finalPlan);
 
+    const wasExpired =
+      String(curr.subscription_status || '').toUpperCase() === 'EXPIRED' ||
+      (curr.subscription_end_date ? new Date(curr.subscription_end_date).getTime() < Date.now() : false);
+    const prevEndMs = curr.subscription_end_date ? new Date(curr.subscription_end_date).getTime() : 0;
+    const isExtended = finalEndDate.getTime() > prevEndMs + 60_000;
+
+    const pendingRenewalRes = finalSubStatus === 'ACTIVE'
+      ? await pgClient
+          .query<{ id: number }>(
+            `SELECT id FROM platform_notifications
+             WHERE target_role = 'SUPERADMIN'
+               AND (expires_at IS NULL OR expires_at > NOW())
+               AND (
+                 event_id LIKE $1
+                 OR ((title ILIKE 'New Renewal Request%' OR title ILIKE 'Renewal Request:%') AND message ILIKE $2)
+               )
+             LIMIT 1`,
+            [`renewal-request-${tenantId}-%`, `%${curr.name}%`]
+          )
+          .catch(() => ({ rows: [] as Array<{ id: number }> }))
+      : { rows: [] as Array<{ id: number }> };
+    const hasPendingRenewalRequest = pendingRenewalRes.rows.length > 0;
+    const isApprovedRenewal = Boolean(req.body?.approvedRenewalRequest) || hasPendingRenewalRequest;
+
     const updatedRes = await pgClient.query(
       `UPDATE tenants
        SET name = $1,
@@ -1190,13 +1263,31 @@ async function handleUpdateTenantSubscription(req: AuthenticatedRequest, res: Re
         );
     }
 
-    if (finalSubStatus === 'ACTIVE') {
-      await clearSubscriptionAlertsOnRenewal(tenantId);
-    }
-
     const row = updatedRes.rows[0];
     const resolvedPlan = normalizeSubscriptionPlan(row?.subscription_plan || finalPlan);
     const resolvedType = normalizeSubscriptionType(row?.subscription_type || resolvedPlan);
+    const planLabel = resolvedPlan === 'free_tier' ? 'Free Trial' : resolvedPlan === '6_MONTHS' ? '6 Months' : 'Yearly';
+
+    if (finalSubStatus === 'EXPIRED' && String(curr.subscription_status || '').toUpperCase() !== 'EXPIRED') {
+      await emitStoreSubscriptionNotification({
+        tenantId,
+        storeName: row.name,
+        kind: 'EXPIRED',
+        planLabel,
+        endDate: row.subscription_end_date,
+      }).catch(() => {});
+    } else if (finalSubStatus === 'ACTIVE') {
+      await clearSubscriptionAlertsOnRenewal(tenantId);
+      if (renewFromNow || isApprovedRenewal || wasExpired || isExtended) {
+        await emitStoreSubscriptionNotification({
+          tenantId,
+          storeName: row.name,
+          kind: isApprovedRenewal ? 'RENEWAL_APPROVED' : 'RENEWED',
+          planLabel,
+          endDate: row.subscription_end_date,
+        }).catch(() => {});
+      }
+    }
     return res.json({
       success: true,
       tenant: {
@@ -2025,6 +2116,21 @@ router.post('/superadmin/trial-activations/:id/extend', requireAuth, requireSupe
     );
 
     if (trial.tenant_id) {
+      const pendingRenewalRes = await pgClient
+        .query<{ id: number }>(
+          `SELECT id FROM platform_notifications
+           WHERE target_role = 'SUPERADMIN'
+             AND (expires_at IS NULL OR expires_at > NOW())
+             AND (
+               event_id LIKE $1
+               OR ((title ILIKE 'New Renewal Request%' OR title ILIKE 'Renewal Request:%') AND message ILIKE $2)
+             )
+           LIMIT 1`,
+          [`renewal-request-${trial.tenant_id}-%`, `%${trial.store_name}%`]
+        )
+        .catch(() => ({ rows: [] as Array<{ id: number }> }));
+      const hasPendingRenewal = pendingRenewalRes.rows.length > 0;
+
       await pgClient.query(
         `UPDATE tenants
          SET subscription_end_date = $1,
@@ -2035,6 +2141,13 @@ router.post('/superadmin/trial-activations/:id/extend', requireAuth, requireSupe
         [newEndDate.toISOString(), trial.tenant_id]
       );
       await clearSubscriptionAlertsOnRenewal(trial.tenant_id);
+      await emitStoreSubscriptionNotification({
+        tenantId: Number(trial.tenant_id),
+        storeName: trial.store_name || 'Retail Store',
+        kind: hasPendingRenewal ? 'RENEWAL_APPROVED' : 'RENEWED',
+        planLabel: `${extensionDays}-Day Trial Extension`,
+        endDate: newEndDate.toISOString(),
+      }).catch(() => {});
     }
 
     return res.json({

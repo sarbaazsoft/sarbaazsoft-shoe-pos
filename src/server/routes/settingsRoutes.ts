@@ -319,7 +319,7 @@ router.post('/renew-subscription', requireAuth, requireAdmin, async (req: Authen
          ON CONFLICT (event_id) DO NOTHING
          RETURNING id, created_at`,
         [
-          `Renewal Request: ${storeName}`,
+          'New Renewal Request 🔔',
           `Store owner requested subscription renewal (${planLabel}) for '${storeName}'. Contact: ${ownerEmail} / ${ownerPhone}. Notes: ${fullNotes}`,
           renewalEventId,
         ]
@@ -332,7 +332,7 @@ router.post('/renew-subscription', requireAuth, requireAdmin, async (req: Authen
             eventId: renewalEventId,
             tenantId: null,
             targetRole: 'SUPERADMIN',
-            title: `Renewal Request: ${storeName}`,
+            title: 'New Renewal Request 🔔',
             message: `Store owner requested subscription renewal (${planLabel}) for '${storeName}'. Contact: ${ownerEmail} / ${ownerPhone}. Notes: ${fullNotes}`,
             type: 'SYSTEM',
             actionUrl: '/superadmin',
