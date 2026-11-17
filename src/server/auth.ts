@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import { pgClient } from '../db/index.ts';
 import { ensureSaasControlPlane, resetSaasControlPlaneState } from '../db/schemaInit.ts';
 import { recordTenantMiddlewarePresence, removeTenantMiddlewarePresence } from './middleware/tenantMiddleware.ts';
+import { clearTenantOwnerPresence } from './services/ownerPresenceService.ts';
+import { disconnectOwnerSseClients } from './pushNotificationService.ts';
 
 const DEV_JWT_SECRET_FALLBACK = 'shoe-pos-super-secure-jwt-secret-key-2026';
 
@@ -298,6 +300,8 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
                 fullPath.includes('/api/install/status'));
             if (!isAllowedExpiredAdminRoute) {
               removeTenantMiddlewarePresence(tRow.id);
+              clearTenantOwnerPresence(tRow.id);
+              disconnectOwnerSseClients(tRow.id);
               return res.status(403).json({
                 error: 'Your subscription key has expired. Please contact support to renew.',
                 code: 'SUBSCRIPTION_EXPIRED',
@@ -311,6 +315,8 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
             String(tRow.subscription_status || '').toUpperCase() === 'SUSPENDED'
           ) {
             removeTenantMiddlewarePresence(tRow.id);
+            clearTenantOwnerPresence(tRow.id);
+            disconnectOwnerSseClients(tRow.id);
             return res.status(423).json({
               error: `Store Suspended: Access to "${tRow.name}" has been suspended by platform administration.`,
               code: 'TENANT_SUSPENDED',

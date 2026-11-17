@@ -1,6 +1,8 @@
 import { pgClient } from '../../db/index.ts';
 import { getAppSetting } from './appSettingsService.ts';
-import { sendEmail } from '../utils/email.ts';
+import { sendEmail, type SendEmailOptions, type SendEmailResult } from '../utils/email.ts';
+import { getApplicationBaseUrl } from './welcomeService.ts';
+import { isPlatformSuperAdminOnline } from './ownerPresenceService.ts';
 import type { PosActionNotification } from '../pushNotificationService.ts';
 import {
   buildTransactionReceiptEmailHtml,
@@ -236,9 +238,9 @@ export async function dispatchPosEmailAlert(
       }
     }
 
-    // Optional SuperAdmin CC
+    // Optional SuperAdmin audit copy — also skips email when SuperAdmin is currently online
     const notifySuperAdmin = (await getAppSetting('EMAIL_SUPERADMIN_ON_SALES', 'false')).toLowerCase() === 'true';
-    if (notifySuperAdmin) {
+    if (notifySuperAdmin && !isPlatformSuperAdminOnline()) {
       const superAdminEmail = ((await getAppSetting('GMAIL_USER', '')) || '').trim().toLowerCase();
       if (superAdminEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(superAdminEmail)) {
         recipients.add(superAdminEmail);
@@ -276,6 +278,181 @@ export async function dispatchPosEmailAlert(
     }
   } catch (err: any) {
     console.warn('[emailAlertService] Exception during POS email dispatch:', err?.message || err);
+    return false;
+  }
+}
+
+export interface SuperAdminEmailAlertPayload {
+  id?: number;
+  eventId?: string;
+  title: string;
+  message: string;
+  type?: string;
+  actionUrl?: string;
+  actionLabel?: string;
+  timestamp?: string;
+}
+
+function escapeEmailHtml(value: string): string {
+  if (!value) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export function buildSuperAdminAlertEmailHtml(
+  payload: SuperAdminEmailAlertPayload,
+  consoleHref: string
+): { subject: string; html: string; text: string } {
+  const title = String(payload.title || 'SuperAdmin Platform Alert').trim();
+  const message = String(payload.message || 'A new platform notification requires your attention.').trim();
+  const alertType = String(payload.type || 'INFO').trim().toUpperCase();
+  const actionLabel = String(payload.actionLabel || 'Open SuperAdmin Console').trim();
+  const timestampStr = payload.timestamp
+    ? new Date(payload.timestamp).toLocaleString()
+    : new Date().toLocaleString();
+
+  const badgeColors =
+    alertType === 'URGENT' || alertType === 'SECURITY' || alertType === 'EXPIRED'
+      ? { bg: '#fee2e2', text: '#b91c1c', border: '#fecaca', header: '#991b1b' }
+      : alertType === 'WARNING' || alertType === 'SYSTEM'
+      ? { bg: '#fef3c7', text: '#b45309', border: '#fde68a', header: '#92400e' }
+      : { bg: '#ede9fe', text: '#6d28d9', border: '#ddd6fe', header: '#5b21b6' };
+
+  const subject = `[SuperAdmin Alert] ${title}`;
+  const text = `${title}\n\nType: ${alertType}\nTime: ${timestampStr}\n\n${message}\n\nOpen Console: ${consoleHref}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeEmailHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:24px 16px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0f172a 0%,${badgeColors.header} 100%);padding:24px 28px;color:#ffffff;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;opacity:0.85;">SarbaazSoft POS SaaS • Platform C-Panel</div>
+        <div style="font-size:20px;font-weight:800;margin-top:6px;">SuperAdmin Alert Notification</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px;">
+        <div style="margin-bottom:14px;">
+          <span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;background-color:${badgeColors.bg};color:${badgeColors.text};border:1px solid ${badgeColors.border};">
+            ${escapeEmailHtml(alertType)}
+          </span>
+          <span style="font-size:12px;color:#64748b;margin-left:10px;">${escapeEmailHtml(timestampStr)}</span>
+        </div>
+        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">${escapeEmailHtml(title)}</h2>
+        <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-line;">
+          ${escapeEmailHtml(message)}
+        </div>
+        <div style="text-align:center;margin:26px 0 8px;">
+          <a href="${escapeEmailHtml(consoleHref)}" style="display:inline-block;background-color:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:10px;">
+            ${escapeEmailHtml(actionLabel)}
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 28px;background-color:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;line-height:1.5;">
+        Sent to your SuperAdmin email because no active SuperAdmin browser/app session is currently online. Sign in to the console to receive real-time in-app &amp; push notifications instead.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
+export interface SuperAdminEmailDeps {
+  fetchRecipientEmailsFn?: () => Promise<string[]>;
+  sendEmailFn?: (opts: SendEmailOptions) => Promise<SendEmailResult>;
+}
+
+/**
+ * Dispatches an email alert to SuperAdmin (used when SuperAdmin is offline/logged out).
+ */
+export async function dispatchSuperAdminEmailAlert(
+  payload: SuperAdminEmailAlertPayload,
+  deps?: SuperAdminEmailDeps
+): Promise<boolean> {
+  try {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const recipients = new Set<string>();
+
+    if (deps?.fetchRecipientEmailsFn) {
+      const provided = await deps.fetchRecipientEmailsFn();
+      for (const e of provided) {
+        if (e && emailRegex.test(String(e).trim())) {
+          recipients.add(String(e).trim().toLowerCase());
+        }
+      }
+    } else {
+      const saUsersRes = await pgClient
+        .query<{ email: string }>(
+          `SELECT email FROM users
+           WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN'
+             AND status = 'APPROVED'
+             AND COALESCE(active, true) = true`
+        )
+        .catch(() => ({ rows: [] as Array<{ email: string }> }));
+
+      for (const u of saUsersRes.rows) {
+        if (u.email && emailRegex.test(u.email.trim())) {
+          recipients.add(u.email.trim().toLowerCase());
+        }
+      }
+
+      if (recipients.size === 0) {
+        const gmailFallback = ((await getAppSetting('GMAIL_USER', '')) || '').trim().toLowerCase();
+        if (gmailFallback && emailRegex.test(gmailFallback)) {
+          recipients.add(gmailFallback);
+        }
+      }
+    }
+
+    if (recipients.size === 0) {
+      return false;
+    }
+
+    const baseUrl = getApplicationBaseUrl();
+    const rawAction = String(payload.actionUrl || '/superadmin').trim() || '/superadmin';
+    const consoleHref =
+      rawAction.startsWith('http')
+        ? rawAction
+        : baseUrl
+        ? `${baseUrl.replace(/\/+$/, '')}${rawAction.startsWith('/') ? rawAction : `/${rawAction}`}`
+        : rawAction;
+
+    const rendered = buildSuperAdminAlertEmailHtml(payload, consoleHref);
+    const sendEmailImpl = deps?.sendEmailFn || sendEmail;
+    const recipientList = Array.from(recipients);
+    const sendRes = await sendEmailImpl({
+      to: recipientList,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      tags: [{ name: 'category', value: 'superadmin_alert' }],
+    });
+
+    if (sendRes?.delivered) {
+      console.log(`✉️ SuperAdmin email alert delivered to ${recipientList.join(', ')} (${sendRes.provider})`);
+      return true;
+    }
+    if (sendRes?.error) {
+      console.warn(`[emailAlertService] SuperAdmin email notice: ${sendRes.error}`);
+    }
+    return false;
+  } catch (err: any) {
+    console.warn('[emailAlertService] Exception during SuperAdmin email dispatch:', err?.message || err);
     return false;
   }
 }

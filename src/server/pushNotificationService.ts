@@ -4,9 +4,16 @@ import type { Response } from 'express';
 import { pgClient } from '../db/index.ts';
 import { ensureFcmTokensSchema } from '../db/schemaInit.ts';
 import { getAppSetting, registerSettingsUpdateListener } from './services/appSettingsService.ts';
-import { dispatchPosEmailAlert } from './services/emailAlertService.ts';
+import { dispatchPosEmailAlert, dispatchSuperAdminEmailAlert } from './services/emailAlertService.ts';
 import { getApplicationBaseUrl } from './services/welcomeService.ts';
 import { normalizeVapidPublicKey } from '../utils/vapid.ts';
+import {
+  isOwnerRole,
+  hasFreshOwnerHeartbeat,
+  isSuperAdminRole,
+  hasFreshSuperAdminHeartbeat,
+  registerSuperAdminSseChecker,
+} from './services/ownerPresenceService.ts';
 
 export { normalizeVapidPublicKey };
 
@@ -90,26 +97,38 @@ export interface SseClientRecord {
   res: Response;
   tenantId: number;
   userId: number;
-  role: string; // 'SUPERADMIN' | 'ADMIN' | 'CASHIER'
+  role: string; // 'SUPERADMIN' | 'ADMIN' | 'OWNER' | 'CASHIER'
+  sessionId: string;
+  authenticated: boolean;
 }
 
 const sseClients = new Set<SseClientRecord>();
+
+function sanitizeSseSessionId(sessionId?: string | null): string {
+  const clean = String(sessionId || '').trim().replace(/[^a-zA-Z0-9._:-]/g, '');
+  return clean ? clean.slice(0, 64) : 'default';
+}
 
 export function registerSseClient(
   tenantId: number,
   userId: number,
   role: string,
-  res: Response
+  res: Response,
+  options?: { sessionId?: string; authenticated?: boolean }
 ): () => void {
   const cleanTenantId = Number(tenantId) || 0;
   const cleanUserId = Number(userId) || 0;
   const cleanRole = String(role || (cleanTenantId === 0 ? 'SUPERADMIN' : 'CASHIER')).trim().toUpperCase();
+  const cleanSessionId = sanitizeSseSessionId(options?.sessionId);
+  const authenticated = options?.authenticated !== false;
 
   const client: SseClientRecord = {
     res,
     tenantId: cleanTenantId,
     userId: cleanUserId,
     role: cleanRole,
+    sessionId: cleanSessionId,
+    authenticated,
   };
   sseClients.add(client);
 
@@ -117,6 +136,111 @@ export function registerSseClient(
     sseClients.delete(client);
   };
 }
+
+export function hasActiveAuthenticatedOwnerSse(tenantId: number): boolean {
+  const cleanTenantId = Number(tenantId);
+  if (!Number.isInteger(cleanTenantId) || cleanTenantId <= 0) return false;
+
+  for (const client of sseClients) {
+    if (
+      client.tenantId === cleanTenantId &&
+      client.authenticated !== false &&
+      isOwnerRole(client.role) &&
+      client.userId > 0 &&
+      !client.res?.writableEnded &&
+      !client.res?.destroyed
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function disconnectOwnerSseClients(
+  tenantId: number,
+  userId?: number,
+  sessionId?: string
+): number {
+  const cleanTenantId = Number(tenantId);
+  if (!Number.isInteger(cleanTenantId) || cleanTenantId <= 0) return 0;
+
+  const cleanUserId = Number(userId);
+  const hasUserFilter = Number.isInteger(cleanUserId) && cleanUserId > 0;
+  const hasSessionFilter = Boolean(sessionId && String(sessionId).trim());
+  const cleanSessionId = hasSessionFilter ? sanitizeSseSessionId(sessionId) : '';
+
+  let closed = 0;
+  for (const client of Array.from(sseClients)) {
+    if (client.tenantId !== cleanTenantId || !isOwnerRole(client.role)) {
+      continue;
+    }
+    if (hasUserFilter && client.userId !== cleanUserId) {
+      continue;
+    }
+    if (hasSessionFilter && client.sessionId !== cleanSessionId) {
+      continue;
+    }
+    sseClients.delete(client);
+    try {
+      client.res?.end?.();
+    } catch {}
+    closed++;
+  }
+  return closed;
+}
+
+export function isStoreOwnerOnline(tenantId: number, now?: number): boolean {
+  const cleanTenantId = Number(tenantId);
+  if (!Number.isInteger(cleanTenantId) || cleanTenantId <= 0) return false;
+  return hasActiveAuthenticatedOwnerSse(cleanTenantId) || hasFreshOwnerHeartbeat(cleanTenantId, now);
+}
+
+export function hasActiveAuthenticatedSuperAdminSse(): boolean {
+  for (const client of sseClients) {
+    if (
+      client.authenticated !== false &&
+      isSuperAdminRole(client.role) &&
+      client.userId > 0 &&
+      !client.res?.writableEnded &&
+      !client.res?.destroyed
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function disconnectSuperAdminSseClients(userId?: number, sessionId?: string): number {
+  const cleanUserId = Number(userId);
+  const hasUserFilter = Number.isInteger(cleanUserId) && cleanUserId > 0;
+  const hasSessionFilter = Boolean(sessionId && String(sessionId).trim());
+  const cleanSessionId = hasSessionFilter ? sanitizeSseSessionId(sessionId) : '';
+
+  let closed = 0;
+  for (const client of Array.from(sseClients)) {
+    if (!isSuperAdminRole(client.role)) {
+      continue;
+    }
+    if (hasUserFilter && client.userId !== cleanUserId) {
+      continue;
+    }
+    if (hasSessionFilter && client.sessionId !== cleanSessionId) {
+      continue;
+    }
+    sseClients.delete(client);
+    try {
+      client.res?.end?.();
+    } catch {}
+    closed++;
+  }
+  return closed;
+}
+
+export function isSuperAdminOnline(now?: number): boolean {
+  return hasActiveAuthenticatedSuperAdminSse() || hasFreshSuperAdminHeartbeat(now);
+}
+
+registerSuperAdminSseChecker(() => hasActiveAuthenticatedSuperAdminSse());
 
 // ============================================================================
 // FCM DEVICE TOKEN PERSISTENCE
@@ -525,9 +649,14 @@ export interface PosActionNotification {
   targetRoles?: ('ADMIN' | 'CASHIER')[];
 }
 
+export interface BroadcastSseOptions {
+  skipOwnerClients?: boolean;
+}
+
 export function broadcastSsePosAction(
   tenantId: number,
-  payload: PosActionNotification & { tag?: string }
+  payload: PosActionNotification & { tag?: string },
+  options?: BroadcastSseOptions
 ): number {
   const actionType = String(payload.type || '').toUpperCase();
   if (!['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'STOCK'].includes(actionType)) {
@@ -543,8 +672,14 @@ export function broadcastSsePosAction(
       client.tenantId === cleanTenantId &&
       client.role !== 'SUPERADMIN' &&
       (allowedRoles.includes(client.role as any) ||
-        (client.role === 'OWNER' && allowedRoles.includes('ADMIN')))
+        (isOwnerRole(client.role) && allowedRoles.includes('ADMIN')))
     ) {
+      if (isOwnerRole(client.role) && client.authenticated === false) {
+        continue;
+      }
+      if (options?.skipOwnerClients && isOwnerRole(client.role)) {
+        continue;
+      }
       if (client.role === 'CASHIER' && payload.cashierId && client.userId !== payload.cashierId) {
         continue;
       }
@@ -560,19 +695,28 @@ export function broadcastSsePosAction(
   return delivered;
 }
 
+export interface NotifyPosActionDeps {
+  isOwnerOnlineFn?: (tenantId: number) => boolean;
+  dispatchPosEmailAlertFn?: typeof dispatchPosEmailAlert;
+  sendFcmPushToTokensFn?: typeof sendFcmPushToTokens;
+  fetchFcmTokensFn?: (
+    tenantId: number,
+    allowedRoles: string[]
+  ) => Promise<Array<{ token: string; user_role: string; user_id: number }>>;
+}
+
 /**
- * Broadcasts real-time POS transactional alerts:
- * 1. Active Web dashboard sessions via Server-Sent Events (SSE)
- * 2. Mobile and desktop devices via Firebase Cloud Messaging (FCM)
- *
- * Routing rules:
- * - Store Owners (ADMIN / OWNER) ALWAYS receive all transactional sales, returns, and low stock alerts.
- * - Cashiers only receive alerts for their own counter transactions.
- * - SuperAdmin does not receive individual store POS counter alerts.
+ * Broadcasts real-time POS transactional alerts with smart Store Owner routing:
+ * - Owner Online  (active authenticated session / heartbeat / SSE):
+ *     Send in-app (SSE) + push (FCM) ONLY — do NOT send transactional email.
+ * - Owner Offline (offline, logged out, or expired session):
+ *     Send transactional email alert reliably — skip owner push/SSE to avoid duplicates.
+ * - Cashiers continue receiving counter alerts for their own transactions.
  */
 export async function notifyPosAction(
   tenantId: number,
-  payload: PosActionNotification
+  payload: PosActionNotification,
+  deps?: NotifyPosActionDeps
 ): Promise<void> {
   const actionType = String(payload.type || '').toUpperCase();
   if (!['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'STOCK'].includes(actionType)) {
@@ -612,41 +756,61 @@ export async function notifyPosAction(
     targetRoles: allowedRoles,
   };
 
+  const isTransactionAlert = actionType !== 'STOCK';
+  const ownerAllowed = allowedRoles.some((r) => isOwnerRole(r));
+  const ownerOnline = deps?.isOwnerOnlineFn
+    ? deps.isOwnerOnlineFn(cleanTenantId)
+    : isStoreOwnerOnline(cleanTenantId);
+
+  const deliverOwnerInAppAndPush = !isTransactionAlert || !ownerAllowed || ownerOnline;
+  const deliverOwnerEmail = isTransactionAlert ? ownerAllowed && !ownerOnline : true;
+
   // 1. Deliver to active browser dashboard sessions via Server-Sent Events (SSE)
-  broadcastSsePosAction(cleanTenantId, enrichedPayload);
+  broadcastSsePosAction(cleanTenantId, enrichedPayload, {
+    skipOwnerClients: !deliverOwnerInAppAndPush,
+  });
 
-  // 2. Deliver via Firebase Cloud Messaging (FCM) to all registered mobile and desktop devices
+  // 2. Deliver via Firebase Cloud Messaging (FCM) to registered devices
+  //    (Skip Owner tokens when Owner is Offline for transaction alerts to prevent cross-channel duplicates)
   try {
-    await ensureFcmTokensSchema();
-    const tokensRes = await pgClient.query<{
-      token: string;
-      user_role: string;
-      user_id: number;
-    }>(
-      `SELECT token, user_role, user_id
-       FROM public.fcm_tokens
-       WHERE tenant_id = $1
-         AND (UPPER(user_role) IN ('ADMIN', 'OWNER') OR UPPER(user_role) = ANY($2::text[]))
-         AND tenant_id != 0`,
-      [cleanTenantId, allowedRoles]
-    );
-
-    if (tokensRes.rows.length === 0) {
-      return;
+    let tokenRows: Array<{ token: string; user_role: string; user_id: number }> = [];
+    if (deps?.fetchFcmTokensFn) {
+      tokenRows = await deps.fetchFcmTokensFn(cleanTenantId, allowedRoles);
+    } else {
+      await ensureFcmTokensSchema();
+      const tokensRes = await pgClient.query<{
+        token: string;
+        user_role: string;
+        user_id: number;
+      }>(
+        `SELECT token, user_role, user_id
+         FROM public.fcm_tokens
+         WHERE tenant_id = $1
+           AND (UPPER(user_role) IN ('ADMIN', 'OWNER') OR UPPER(user_role) = ANY($2::text[]))
+           AND tenant_id != 0`,
+        [cleanTenantId, allowedRoles]
+      );
+      tokenRows = tokensRes.rows;
     }
 
     const targetTokens: string[] = [];
-    for (const row of tokensRes.rows) {
+    for (const row of tokenRows) {
       const uRole = String(row.user_role || '').toUpperCase();
-      // Store Owners receive all transactional alerts; cashiers only receive their own
+      if (isOwnerRole(uRole) && !deliverOwnerInAppAndPush) {
+        continue;
+      }
+      // Cashiers only receive their own counter alerts
       if (uRole === 'CASHIER' && enrichedPayload.cashierId && Number(row.user_id) !== Number(enrichedPayload.cashierId)) {
         continue;
       }
-      targetTokens.push(row.token);
+      if (row.token) {
+        targetTokens.push(row.token);
+      }
     }
 
     if (targetTokens.length > 0) {
-      await sendFcmPushToTokens(targetTokens, {
+      const sendFcmImpl = deps?.sendFcmPushToTokensFn || sendFcmPushToTokens;
+      await sendFcmImpl(targetTokens, {
         title: enrichedPayload.title,
         body: enrichedPayload.message,
         deepLinkUrl: enrichedPayload.deepLinkUrl || '/pos',
@@ -671,10 +835,15 @@ export async function notifyPosAction(
     console.error('Error during FCM POS push dispatch:', err);
   }
 
-  // 3. Store owner transactional email alert
-  dispatchPosEmailAlert(cleanTenantId, enrichedPayload).catch((err) => {
-    console.warn('[pushNotificationService] Error in dispatchPosEmailAlert:', err?.message || err);
-  });
+  // 3. Store owner transactional email alert (only sent when Owner is Offline)
+  if (deliverOwnerEmail) {
+    const dispatchEmailImpl = deps?.dispatchPosEmailAlertFn || dispatchPosEmailAlert;
+    try {
+      await dispatchEmailImpl(cleanTenantId, enrichedPayload);
+    } catch (err: any) {
+      console.warn('[pushNotificationService] Error in dispatchPosEmailAlert:', err?.message || err);
+    }
+  }
 }
 
 // ============================================================================
@@ -706,7 +875,7 @@ function broadcastSsePlatformAnnouncement(
     const isTenantMatch = isGlobal ? true : client.tenantId === cleanTenantId;
     if (!isTenantMatch) continue;
 
-    if (targetRole === 'SUPERADMIN' && client.role !== 'SUPERADMIN') continue;
+    if (targetRole === 'SUPERADMIN' && (client.role !== 'SUPERADMIN' || client.authenticated === false)) continue;
     if (targetRole === 'ADMIN' && client.role !== 'ADMIN') continue;
     if (targetRole === 'CASHIER' && client.role !== 'CASHIER') continue;
     if (targetRole === 'ALL' && cleanTenantId !== null && client.role === 'SUPERADMIN') continue;
@@ -722,8 +891,16 @@ function broadcastSsePlatformAnnouncement(
   return deliveredCount;
 }
 
+export interface NotifyPlatformAnnouncementDeps {
+  isSuperAdminOnlineFn?: () => boolean;
+  dispatchSuperAdminEmailAlertFn?: typeof dispatchSuperAdminEmailAlert;
+  sendFcmPushToTokensFn?: typeof sendFcmPushToTokens;
+  fetchFcmTokensFn?: (targetRole: string, cleanTenantId: number | null) => Promise<string[]>;
+}
+
 export async function notifyPlatformAnnouncement(
-  payload: PlatformAnnouncementNotification
+  payload: PlatformAnnouncementNotification,
+  deps?: NotifyPlatformAnnouncementDeps
 ): Promise<void> {
   const isGlobal = payload.tenantId === null || payload.tenantId === undefined || Number(payload.tenantId) === 0;
   const cleanTenantId = isGlobal ? null : (Number(payload.tenantId) || null);
@@ -741,19 +918,19 @@ export async function notifyPlatformAnnouncement(
     const isSecurity = typeUpper === 'SECURITY' || typeUpper === 'SYSTEM' || titleLower.includes('security') || titleLower.includes('backup') || titleLower.includes('critical');
 
     if (isNewTrial && (await getAppSetting('SUPERADMIN_PUSH_ON_NEW_TRIAL', 'true')).toLowerCase() === 'false') {
-      return; // Suppressed by SuperAdmin push event settings
+      return; // Suppressed by SuperAdmin alert settings
     }
     if (isRenewal && (await getAppSetting('SUPERADMIN_PUSH_ON_RENEWAL', 'true')).toLowerCase() === 'false') {
-      return; // Suppressed by SuperAdmin push event settings
+      return; // Suppressed by SuperAdmin alert settings
     }
     if (isExpired && (await getAppSetting('SUPERADMIN_PUSH_ON_EXPIRED_STORE', 'true')).toLowerCase() === 'false') {
-      return; // Suppressed by SuperAdmin push event settings
+      return; // Suppressed by SuperAdmin alert settings
     }
     if (isSale && (await getAppSetting('SUPERADMIN_PUSH_ON_SALES', 'false')).toLowerCase() === 'false') {
-      return; // Suppressed by SuperAdmin push event settings
+      return; // Suppressed by SuperAdmin alert settings
     }
     if (isSecurity && !isRenewal && !isNewTrial && (await getAppSetting('SUPERADMIN_PUSH_ON_SECURITY_ALERT', 'true')).toLowerCase() === 'false') {
-      return; // Suppressed by SuperAdmin push event settings
+      return; // Suppressed by SuperAdmin alert settings
     }
   }
 
@@ -784,41 +961,67 @@ export async function notifyPlatformAnnouncement(
     timestamp: payload.timestamp || new Date().toISOString(),
   };
 
+  // Smart SuperAdmin Delivery:
+  // - SuperAdmin Online  -> In-app (SSE) + FCM push ONLY (do NOT send email)
+  // - SuperAdmin Offline -> Email alert reliably (skip SSE & FCM push to avoid duplicate alerts)
+  if (targetRole === 'SUPERADMIN') {
+    const superAdminOnline = deps?.isSuperAdminOnlineFn
+      ? deps.isSuperAdminOnlineFn()
+      : isSuperAdminOnline();
+
+    if (!superAdminOnline) {
+      const dispatchEmailImpl = deps?.dispatchSuperAdminEmailAlertFn || dispatchSuperAdminEmailAlert;
+      try {
+        await dispatchEmailImpl(eventPayload);
+      } catch (err: any) {
+        console.warn('[pushNotificationService] Error in dispatchSuperAdminEmailAlert:', err?.message || err);
+      }
+      return;
+    }
+  }
+
   // 1. Deliver to active browser sessions via SSE
   broadcastSsePlatformAnnouncement(eventPayload, { isGlobal, cleanTenantId, targetRole });
 
   // 2. Deliver via Firebase Cloud Messaging (FCM)
   try {
-    await ensureFcmTokensSchema();
-    let query = '';
-    let params: any[] = [];
-
-    if (targetRole === 'SUPERADMIN') {
-      query = `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'SUPERADMIN'`;
-      params = [];
-    } else if (targetRole === 'ADMIN') {
-      query = isGlobal
-        ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) IN ('ADMIN', 'OWNER') AND tenant_id != 0`
-        : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER')`;
-      params = isGlobal ? [] : [cleanTenantId];
-    } else if (targetRole === 'CASHIER') {
-      query = isGlobal
-        ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'CASHIER' AND tenant_id != 0`
-        : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) = 'CASHIER'`;
-      params = isGlobal ? [] : [cleanTenantId];
+    let tokens: string[] = [];
+    if (deps?.fetchFcmTokensFn) {
+      tokens = await deps.fetchFcmTokensFn(targetRole, cleanTenantId);
     } else {
-      query = isGlobal
-        ? `SELECT token FROM public.fcm_tokens`
-        : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER', 'CASHIER')`;
-      params = isGlobal ? [] : [cleanTenantId];
+      await ensureFcmTokensSchema();
+      let query = '';
+      let params: any[] = [];
+
+      if (targetRole === 'SUPERADMIN') {
+        query = `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'SUPERADMIN'`;
+        params = [];
+      } else if (targetRole === 'ADMIN') {
+        query = isGlobal
+          ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) IN ('ADMIN', 'OWNER') AND tenant_id != 0`
+          : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER')`;
+        params = isGlobal ? [] : [cleanTenantId];
+      } else if (targetRole === 'CASHIER') {
+        query = isGlobal
+          ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'CASHIER' AND tenant_id != 0`
+          : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) = 'CASHIER'`;
+        params = isGlobal ? [] : [cleanTenantId];
+      } else {
+        query = isGlobal
+          ? `SELECT token FROM public.fcm_tokens`
+          : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER', 'CASHIER')`;
+        params = isGlobal ? [] : [cleanTenantId];
+      }
+
+      const tokensRes = await pgClient.query<{ token: string }>(query, params);
+      tokens = tokensRes.rows.map((r) => r.token);
     }
 
-    const tokensRes = await pgClient.query<{ token: string }>(query, params);
-    if (tokensRes.rows.length === 0) return;
+    if (tokens.length === 0) return;
 
-    const tokens = tokensRes.rows.map((r) => r.token);
     const isAdminAnnouncement = targetRole === 'SUPERADMIN';
-    await sendFcmPushToTokens(tokens, {
+    const sendFcmImpl = deps?.sendFcmPushToTokensFn || sendFcmPushToTokens;
+    await sendFcmImpl(tokens, {
       title: payload.title,
       body: payload.message,
       deepLinkUrl: payload.actionUrl || (isAdminAnnouncement ? '/admin' : '/'),

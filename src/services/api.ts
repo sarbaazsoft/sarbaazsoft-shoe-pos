@@ -223,6 +223,12 @@ export function clearAllSessionState(): void {
 export function revokeSessionOnServer(): void {
   const token = getAuthToken();
   if (!token || typeof fetch === 'undefined') return;
+  let sessionId = '';
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionId = sessionStorage.getItem('pos_owner_presence_session_id') || '';
+    }
+  } catch {}
   try {
     fetch('/api/auth/logout', {
       method: 'POST',
@@ -230,6 +236,7 @@ export function revokeSessionOnServer(): void {
       cache: 'no-store',
       keepalive: true,
       headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
+      body: JSON.stringify(sessionId ? { sessionId } : {}),
     }).catch(() => {});
   } catch {
     // Never let a logout request failure surface to the user.

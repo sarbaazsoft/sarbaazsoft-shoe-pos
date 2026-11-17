@@ -1,4 +1,4 @@
-import { getAuthToken, getActiveTenantId } from './api.ts';
+import { getAuthToken, getActiveTenantId, subscribeSessionClear } from './api.ts';
 import { playAudioFeedback } from '../utils/audio.ts';
 import {
   ANDROID_SYSTEM_DISABLED_KEY,
@@ -717,9 +717,182 @@ let sharedEventSource: EventSource | null = null;
 let sharedStreamSignature = '';
 let sharedReconnectTimeout: any = null;
 
+const OWNER_PRESENCE_SESSION_KEY = 'pos_owner_presence_session_id';
+const OWNER_HEARTBEAT_INTERVAL_MS = 30_000;
+let cachedPresenceSessionId = '';
+let ownerHeartbeatTimer: any = null;
+let ownerPresenceListenersAttached = false;
+let sessionClearUnsubscribe: (() => void) | null = null;
+
+export function getClientPresenceSessionId(): string {
+  if (cachedPresenceSessionId) return cachedPresenceSessionId;
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const existing = sessionStorage.getItem(OWNER_PRESENCE_SESSION_KEY);
+      if (existing && existing.trim()) {
+        cachedPresenceSessionId = existing.trim();
+        return cachedPresenceSessionId;
+      }
+    }
+  } catch {}
+
+  const generated =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? `tab-${crypto.randomUUID()}`
+      : `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  cachedPresenceSessionId = generated;
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(OWNER_PRESENCE_SESSION_KEY, generated);
+    }
+  } catch {}
+  return cachedPresenceSessionId;
+}
+
+function decodeJwtPayloadSafe(token: string | null): any | null {
+  if (!token || token === 'null' || token === 'undefined') return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(json);
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function isAuthenticatedOwnerSession(): boolean {
+  const token = getAuthToken();
+  const payload = decodeJwtPayloadSafe(token);
+  if (!payload) return false;
+  const role = String(payload.role || '').toUpperCase();
+  return role === 'ADMIN' || role === 'OWNER' || role === 'SUPERADMIN';
+}
+
+export function sendOwnerPresenceHeartbeat(): void {
+  if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+  if (!isAuthenticatedOwnerSession()) return;
+  const token = getAuthToken();
+  if (!token) return;
+  const sessionId = getClientPresenceSessionId();
+  try {
+    fetch('/api/notifications/presence/heartbeat', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': token,
+      },
+      body: JSON.stringify({ sessionId }),
+    }).catch(() => {});
+  } catch {}
+}
+
+export function sendOwnerPresenceOffline(): void {
+  if (typeof window === 'undefined') return;
+  if (!isAuthenticatedOwnerSession()) return;
+  const token = getAuthToken();
+  if (!token) return;
+  const sessionId = getClientPresenceSessionId();
+  const offlineUrl = `/api/notifications/presence/offline?__token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sessionId)}`;
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([JSON.stringify({ sessionId })], { type: 'application/json' });
+      if (navigator.sendBeacon(offlineUrl, blob)) {
+        return;
+      }
+    }
+    if (typeof fetch !== 'undefined') {
+      fetch(offlineUrl, {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': token,
+        },
+        body: JSON.stringify({ sessionId }),
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+function handleOwnerVisibilityChange() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    if (activeStreamSubscribers.size > 0 && isAuthenticatedOwnerSession()) {
+      sendOwnerPresenceHeartbeat();
+      ensureSharedStreamConnected();
+    }
+  }
+}
+
+function handleOwnerPageUnload() {
+  sendOwnerPresenceOffline();
+}
+
+function stopOwnerHeartbeatLifecycle() {
+  if (ownerHeartbeatTimer) {
+    clearInterval(ownerHeartbeatTimer);
+    ownerHeartbeatTimer = null;
+  }
+  if (ownerPresenceListenersAttached && typeof window !== 'undefined') {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleOwnerVisibilityChange);
+    }
+    window.removeEventListener('pagehide', handleOwnerPageUnload);
+    window.removeEventListener('beforeunload', handleOwnerPageUnload);
+    ownerPresenceListenersAttached = false;
+  }
+}
+
+function syncOwnerHeartbeatLifecycle() {
+  if (typeof window === 'undefined') return;
+  if (!sessionClearUnsubscribe) {
+    sessionClearUnsubscribe = subscribeSessionClear(() => {
+      stopOwnerHeartbeatLifecycle();
+      closeSharedStream();
+    });
+  }
+
+  if (activeStreamSubscribers.size > 0 && isAuthenticatedOwnerSession()) {
+    if (!ownerPresenceListenersAttached) {
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', handleOwnerVisibilityChange);
+      }
+      window.addEventListener('pagehide', handleOwnerPageUnload);
+      window.addEventListener('beforeunload', handleOwnerPageUnload);
+      ownerPresenceListenersAttached = true;
+    }
+    if (!ownerHeartbeatTimer) {
+      sendOwnerPresenceHeartbeat();
+      ownerHeartbeatTimer = setInterval(() => {
+        if (!isAuthenticatedOwnerSession() || activeStreamSubscribers.size === 0) {
+          stopOwnerHeartbeatLifecycle();
+          return;
+        }
+        sendOwnerPresenceHeartbeat();
+      }, OWNER_HEARTBEAT_INTERVAL_MS);
+    }
+  } else {
+    stopOwnerHeartbeatLifecycle();
+  }
+}
+
 function buildStreamConnectionInfo() {
   const token = getAuthToken() || '';
-  const tenantId = getActiveTenantId() || 1;
+  const sessionId = getClientPresenceSessionId();
   let currentRole = 'ADMIN';
   let currentUserId = 0;
   try {
@@ -730,12 +903,16 @@ function buildStreamConnectionInfo() {
       if (u.id) currentUserId = Number(u.id) || 0;
     }
   } catch {}
+  const jwtPayload = decodeJwtPayloadSafe(token);
+  const resolvedRole = String(jwtPayload?.role || currentRole || 'ADMIN').toUpperCase();
+  const tenantId = resolvedRole === 'SUPERADMIN' ? 0 : (getActiveTenantId() || 1);
 
-  const signature = `${token}|${tenantId}|${currentRole}|${currentUserId}`;
+  const signature = `${token}|${tenantId}|${currentRole}|${currentUserId}|${sessionId}`;
   const params = new URLSearchParams();
   if (token) params.set('__token', token);
-  if (tenantId) params.set('__tenantId', String(tenantId));
+  params.set('__tenantId', String(tenantId));
   params.set('role', currentRole);
+  params.set('sessionId', sessionId);
   if (currentUserId > 0) params.set('userId', String(currentUserId));
   params.set('_t', String(Date.now()));
 
@@ -949,6 +1126,7 @@ function ensureSharedStreamConnected() {
 
 export function refreshRealtimeNotificationStream(): void {
   if (typeof window === 'undefined' || activeStreamSubscribers.size === 0) return;
+  syncOwnerHeartbeatLifecycle();
   ensureSharedStreamConnected();
 }
 
@@ -1047,11 +1225,13 @@ export function connectRealtimeNotificationStream(
   }
 
   activeStreamSubscribers.add(onNotification);
+  syncOwnerHeartbeatLifecycle();
   ensureSharedStreamConnected();
 
   return () => {
     activeStreamSubscribers.delete(onNotification);
     if (activeStreamSubscribers.size === 0) {
+      stopOwnerHeartbeatLifecycle();
       closeSharedStream();
     }
   };

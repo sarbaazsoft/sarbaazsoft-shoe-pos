@@ -10,6 +10,8 @@ import type { AuthenticatedRequest, AuthUser } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { recordTenantMiddlewarePresence, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
 import { sendPasswordResetEmail, sendTrialActivationEmail } from '../utils/email.ts';
+import { isOwnerRole, markOwnerSessionOffline, isSuperAdminRole, markSuperAdminSessionOffline } from '../services/ownerPresenceService.ts';
+import { disconnectOwnerSseClients, disconnectSuperAdminSseClients } from '../pushNotificationService.ts';
 
 const router = Router();
 
@@ -377,8 +379,31 @@ router.all('/login', handleStoreOrPlatformLogin);
 router.all('/logout', (req: Request, res: Response) => {
   const token = extractTokenFromRequest(req);
   if (token) {
-    const decoded = jwt.decode(token) as { exp?: number } | null;
+    const decoded = jwt.decode(token) as {
+      id?: number;
+      userId?: number;
+      tenantId?: number;
+      role?: string;
+      exp?: number;
+    } | null;
     revokeToken(token, decoded?.exp ? decoded.exp * 1000 : undefined);
+
+    const tenantId = Number(decoded?.tenantId || 0);
+    const userId = Number(decoded?.id || decoded?.userId || 0);
+    const role = String(decoded?.role || '').toUpperCase();
+    const rawSession =
+      req.headers['x-session-id'] ||
+      req.body?.sessionId ||
+      req.query?.sessionId;
+    const sessionId = rawSession ? String(rawSession).trim() : undefined;
+
+    if (userId > 0 && isSuperAdminRole(role)) {
+      markSuperAdminSessionOffline({ userId, sessionId });
+      disconnectSuperAdminSseClients(userId, sessionId);
+    } else if (tenantId > 0 && userId > 0 && isOwnerRole(role)) {
+      markOwnerSessionOffline({ tenantId, userId, sessionId });
+      disconnectOwnerSseClients(tenantId, userId, sessionId);
+    }
   }
   clearAuthCookies(res);
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
