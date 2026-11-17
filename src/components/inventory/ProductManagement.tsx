@@ -658,7 +658,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                   if (e.target.checked) setSelectedProductIds(products.map((p) => p.id));
                   else setSelectedProductIds([]);
                 }}
-                className="rounded border-slate-300 dark:border-purple-600 dark:bg-[#0E1628] text-purple-600 focus:ring-0 cursor-pointer"
+                className="rounded-full border-slate-300 dark:border-purple-600 dark:bg-[#0E1628] text-purple-600 focus:ring-0 cursor-pointer"
               />
               <span className="font-semibold text-slate-700 dark:text-slate-300">
                 Select All Products ({products.length})
@@ -700,7 +700,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             setSelectedProductIds([...selectedProductIds, p.id]);
                           }
                         }}
-                        className="rounded border-slate-300 dark:border-slate-600 dark:bg-[#0E1628] text-purple-600 focus:ring-0 cursor-pointer shrink-0"
+                        className="rounded-full border-slate-300 dark:border-slate-600 dark:bg-[#0E1628] text-purple-600 focus:ring-0 cursor-pointer shrink-0"
                       />
                       <BrandLogo logo={p.brandLogo} name={p.brandName || 'Unbranded'} size="xs" />
                       <span className="truncate text-[10px] font-extrabold uppercase tracking-wide text-slate-700 dark:text-slate-300 max-w-[90px]">
@@ -1032,7 +1032,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                         if (e.target.checked) setSelectedProductIds(products.map((p) => p.id));
                         else setSelectedProductIds([]);
                       }}
-                      className="rounded border-slate-300 dark:border-purple-600 dark:bg-[#0E1628] text-blue-600 focus:ring-0 cursor-pointer"
+                      className="rounded-full border-slate-300 dark:border-purple-600 dark:bg-[#0E1628] text-blue-600 focus:ring-0 cursor-pointer"
                       title="Select all products"
                     />
                   </th>
@@ -1080,7 +1080,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                               setSelectedProductIds([...selectedProductIds, p.id]);
                             }
                           }}
-                          className="rounded border-slate-300 dark:border-slate-600 dark:bg-[#0E1628] text-blue-600 focus:ring-0 cursor-pointer"
+                          className="rounded-full border-slate-300 dark:border-slate-600 dark:bg-[#0E1628] text-blue-600 focus:ring-0 cursor-pointer"
                         />
                       </td>
 

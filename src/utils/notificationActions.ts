@@ -159,13 +159,18 @@ export function resolveNotificationActions(
 
   const isInvoice =
     !isLowStock &&
-    !isReturn &&
     (type === 'INVOICE' ||
       type === 'SALE' ||
+      type === 'RETURN' ||
       type === 'EXCHANGE' ||
+      type === 'SALE_RETURN' ||
+      type === 'SALE_EXCHANGE' ||
       itemType === 'INVOICE' ||
       itemType === 'SALE' ||
+      itemType === 'RETURN' ||
       itemType === 'EXCHANGE' ||
+      itemType === 'SALE_RETURN' ||
+      itemType === 'SALE_EXCHANGE' ||
       combinedUrl.includes('/invoices/') ||
       combinedUrl.includes('viewinvoice=') ||
       combinedUrl.includes('invoice='));

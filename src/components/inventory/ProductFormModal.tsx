@@ -1395,7 +1395,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                             setTotalStock(pairsPerCarton);
                                           }
                                         }}
-                                        className="w-3.5 h-3.5 rounded border-gray-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                                        className="w-3.5 h-3.5 rounded-full border-gray-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
                                       />
                                       <span className="text-[9px] font-bold text-indigo-900 dark:text-indigo-200 tracking-tight leading-tight">
                                         Allow Half (0.5)

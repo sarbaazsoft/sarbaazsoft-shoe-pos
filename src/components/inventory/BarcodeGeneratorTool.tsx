@@ -598,7 +598,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                               if (e.target.checked) handleSelectAllFiltered();
                               else handleDeselectAll();
                             }}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-0 cursor-pointer"
+                            className="rounded-full border-gray-300 text-indigo-600 focus:ring-0 cursor-pointer"
                           />
                         </th>
                         <th className="py-2.5 px-3">Article</th>
@@ -633,7 +633,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                                   type="checkbox"
                                   checked={isSelected}
                                   onChange={() => handleToggleProduct(p.id)}
-                                  className="rounded border-gray-300 text-indigo-600 focus:ring-0 cursor-pointer"
+                                  className="rounded-full border-gray-300 text-indigo-600 focus:ring-0 cursor-pointer"
                                 />
                               </td>
 
@@ -976,7 +976,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                       type="checkbox"
                       checked={showStore}
                       onChange={(e) => setShowStore(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-0"
+                      className="rounded-full border-gray-300 text-blue-600 focus:ring-0"
                     />
                     <span>Store Name</span>
                   </label>
@@ -986,7 +986,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                       type="checkbox"
                       checked={showBrand}
                       onChange={(e) => setShowBrand(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-0"
+                      className="rounded-full border-gray-300 text-blue-600 focus:ring-0"
                     />
                     <span>Brand Name</span>
                   </label>
@@ -996,7 +996,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                       type="checkbox"
                       checked={showArticle}
                       onChange={(e) => setShowArticle(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-0"
+                      className="rounded-full border-gray-300 text-blue-600 focus:ring-0"
                     />
                     <span>Article Title</span>
                   </label>
@@ -1006,7 +1006,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                       type="checkbox"
                       checked={showPrice}
                       onChange={(e) => setShowPrice(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-0"
+                      className="rounded-full border-gray-300 text-blue-600 focus:ring-0"
                     />
                     <span>{isFixedPolicy ? 'Fixed Price' : 'Price'}</span>
                   </label>
@@ -1016,7 +1016,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                       type="checkbox"
                       checked={showBarcodeText}
                       onChange={(e) => setShowBarcodeText(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-0"
+                      className="rounded-full border-gray-300 text-blue-600 focus:ring-0"
                     />
                     <span>Barcode Text</span>
                   </label>

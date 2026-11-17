@@ -892,18 +892,26 @@ export const Header: React.FC<HeaderProps> = ({
     }
 
     const invoiceMatch = raw.message?.match(/#([A-Z0-9-]+)/i) || raw.title?.match(/#([A-Z0-9-]+)/i);
-    const invNumber = invoiceMatch ? invoiceMatch[1] : null;
+    const invNumber = raw.invoiceNumber || (invoiceMatch ? invoiceMatch[1] : null);
+    const rawType = String(raw.type || raw.itemType || '').toUpperCase();
 
     if (
       invNumber &&
-      (raw.title.toLowerCase().includes('invoice') ||
+      (rawType === 'SALE' ||
+        rawType === 'EXCHANGE' ||
+        rawType === 'SALE_RETURN' ||
+        rawType === 'SALE_EXCHANGE' ||
+        raw.title.toLowerCase().includes('invoice') ||
         raw.title.toLowerCase().includes('sale') ||
         raw.title.toLowerCase().includes('exchange') ||
         raw.actionTab === 'pos' ||
         raw.actionTab === 'reports')
     ) {
       window.dispatchEvent(new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invNumber } }));
-    } else if (invNumber && (raw.title.toLowerCase().includes('return') || raw.actionTab === 'returns')) {
+    } else if (
+      invNumber &&
+      (rawType === 'RETURN' || raw.title.toLowerCase().includes('return') || raw.actionTab === 'returns')
+    ) {
       onTabChange?.('returns');
       window.dispatchEvent(new CustomEvent('returns:inspect-invoice', { detail: { invoice: invNumber } }));
     } else if (raw.actionTab) {
@@ -922,6 +930,22 @@ export const Header: React.FC<HeaderProps> = ({
     const t = (type || '').toUpperCase();
     const titleLower = (title || '').toLowerCase();
 
+    if (t === 'SALE_RETURN' || titleLower.includes('sale & return')) {
+      return {
+        label: 'Sale & Return',
+        badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700',
+        icon: <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-300" />,
+        actionText: 'View Receipt',
+      };
+    }
+    if (t === 'SALE_EXCHANGE' || titleLower.includes('sale & exchange')) {
+      return {
+        label: 'Sale & Exchange',
+        badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700',
+        icon: <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-300" />,
+        actionText: 'View Receipt',
+      };
+    }
     if (t === 'SALE' || titleLower.includes('sale') || titleLower.includes('invoice')) {
       return {
         label: 'Sale',
@@ -2297,7 +2321,9 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-start gap-3">
               <div
                 className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                  livePushToast.type === 'SALE'
+                  livePushToast.type === 'SALE' ||
+                  livePushToast.type === 'SALE_RETURN' ||
+                  livePushToast.type === 'SALE_EXCHANGE'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                     : livePushToast.type === 'RETURN'
                     ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
@@ -2306,6 +2332,8 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 {livePushToast.type === 'SALE' ? (
                   <ShoppingBag className="w-5 h-5" />
+                ) : livePushToast.type === 'SALE_RETURN' || livePushToast.type === 'SALE_EXCHANGE' ? (
+                  <CheckCircle2 className="w-5 h-5" />
                 ) : livePushToast.type === 'RETURN' ? (
                   <RefreshCw className="w-5 h-5" />
                 ) : (
@@ -2326,7 +2354,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-600 dark:text-purple-200/85 mt-1 line-clamp-2 leading-snug">
+                <p className="text-[11px] text-slate-600 dark:text-purple-200/85 mt-1 whitespace-pre-line leading-snug">
                   {livePushToast.message}
                 </p>
                 <div className="mt-2.5 flex items-center gap-2 flex-wrap">

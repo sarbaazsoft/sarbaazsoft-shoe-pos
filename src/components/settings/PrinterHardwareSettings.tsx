@@ -305,7 +305,7 @@ export const PrinterHardwareSettings: React.FC = () => {
                     type="checkbox"
                     checked={settings.autoCut}
                     onChange={(e) => handleUpdate({ autoCut: e.target.checked })}
-                    className="rounded text-blue-600 focus:ring-blue-500"
+                    className="rounded-full text-blue-600 focus:ring-blue-500"
                   />
                   <div className="flex items-center space-x-1.5">
                     <Scissors className="w-3.5 h-3.5 text-slate-500 dark:text-purple-300" />
@@ -318,7 +318,7 @@ export const PrinterHardwareSettings: React.FC = () => {
                     type="checkbox"
                     checked={settings.openCashDrawer}
                     onChange={(e) => handleUpdate({ openCashDrawer: e.target.checked })}
-                    className="rounded text-blue-600 focus:ring-blue-500"
+                    className="rounded-full text-blue-600 focus:ring-blue-500"
                   />
                   <div className="flex items-center space-x-1.5">
                     <DollarSign className="w-3.5 h-3.5 text-slate-500 dark:text-purple-300" />

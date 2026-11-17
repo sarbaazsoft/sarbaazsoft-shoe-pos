@@ -77,13 +77,15 @@
         e.preventDefault();
         var alreadyInstalled = false;
         try {
-          alreadyInstalled =
-            Boolean(window.__pwaInstalled) ||
+          var inStandaloneMode =
             (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
             (window.matchMedia && window.matchMedia('(display-mode: window-controls-overlay)').matches) ||
             window.navigator.standalone === true ||
-            (document.referrer && document.referrer.indexOf('android-app://') === 0) ||
-            localStorage.getItem('pos_pwa_installed') === '1';
+            (document.referrer && document.referrer.indexOf('android-app://') === 0);
+          if (!inStandaloneMode && localStorage.getItem('pos_pwa_installed') === '1') {
+            localStorage.removeItem('pos_pwa_installed');
+          }
+          alreadyInstalled = Boolean(window.__pwaInstalled) || inStandaloneMode;
         } catch (err) {}
         if (alreadyInstalled) {
           window.__deferredPwaPrompt = null;
@@ -130,7 +132,7 @@
           });
 
           navigator.serviceWorker
-            .register('/sw.js', { scope: '/' })
+            .register('/sw.js', { scope: '/', updateViaCache: 'none' })
             .then(function (registration) {
               if (registration.waiting && navigator.serviceWorker.controller) {
                 activateWaitingWorker(registration.waiting);

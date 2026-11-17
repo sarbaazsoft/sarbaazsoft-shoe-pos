@@ -42,15 +42,20 @@ test('pwaBranding: Store Owner, Cashier, and Public users strictly resolve to Sa
     assert.equal(config.applicationName, STANDARD_PWA_APP_NAME);
     assert.equal(config.appleMobileWebAppTitle, STANDARD_PWA_APP_NAME);
     assert.equal(config.themeColor, '#9333EA');
-    assert.match(config.manifestUrl, /^\/api\/pwa\/manifest\.webmanifest\?role=(PUBLIC|ADMIN|CASHIER)$/);
+    assert.equal(config.manifestUrl, '/manifest.webmanifest');
 
     const manifest = buildPwaManifest(input);
     assert.equal(manifest.name, 'SarbaazSoft ShoePOS');
-    assert.equal(manifest.short_name, 'SarbaazSoft ShoePOS');
+    assert.equal(manifest.short_name, 'ShoePOS');
     assert.equal(manifest.start_url, '/');
+    assert.equal(manifest.scope, '/');
+    assert.equal(manifest.display, 'standalone');
+    assert.equal('related_applications' in manifest, false);
     assert.equal(manifest.theme_color, '#9333EA');
-    assert.ok(manifest.icons.some((i) => i.src === '/pwa-192x192.png' && i.purpose === 'any'));
-    assert.ok(manifest.icons.some((i) => i.src === '/pwa-maskable-512x512.png' && i.purpose === 'maskable'));
+    assert.ok(manifest.icons.some((i) => i.src === '/pwa-192x192.png' && i.sizes === '192x192' && i.purpose === 'any'));
+    assert.ok(manifest.icons.some((i) => i.src === '/pwa-512x512.png' && i.sizes === '512x512' && i.purpose === 'any'));
+    assert.ok(manifest.icons.some((i) => i.src === '/pwa-maskable-192x192.png' && i.sizes === '192x192' && i.purpose === 'maskable'));
+    assert.ok(manifest.icons.some((i) => i.src === '/pwa-maskable-512x512.png' && i.sizes === '512x512' && i.purpose === 'maskable'));
   }
 
   // Document titles follow clean "{StoreName} | [Page Name]", "{platformName} | Login", and Landing convention
@@ -105,16 +110,20 @@ test('pwaBranding: SuperAdmin Control Panel strictly resolves to SarbaazSoft Adm
     assert.equal(config.shortName, SUPERADMIN_PWA_SHORT_NAME);
     assert.equal(config.applicationName, SUPERADMIN_PWA_APP_NAME);
     assert.equal(config.appleMobileWebAppTitle, SUPERADMIN_PWA_APP_NAME);
-    assert.equal(config.manifestUrl, '/api/pwa/manifest.webmanifest?role=SUPERADMIN');
+    assert.equal(config.manifestUrl, '/admin/manifest.webmanifest');
 
     const manifest = buildPwaManifest(input);
     assert.equal(manifest.name, 'SarbaazSoft AdminPOS');
-    assert.equal(manifest.short_name, 'SarbaazSoft AdminPOS');
+    assert.equal(manifest.short_name, 'AdminPOS');
     assert.equal(manifest.id, '/admin/');
     assert.equal(manifest.start_url, '/admin');
+    assert.equal(manifest.scope, '/');
+    assert.equal(manifest.display, 'standalone');
     assert.equal(manifest.theme_color, '#9333EA');
-    assert.ok(manifest.icons.some((i) => i.src === '/admin/pwa-192x192.png' && i.purpose === 'any'));
-    assert.ok(manifest.icons.some((i) => i.src === '/admin/pwa-maskable-512x512.png' && i.purpose === 'maskable'));
+    assert.ok(manifest.icons.some((i) => i.src === '/admin/pwa-192x192.png' && i.sizes === '192x192' && i.purpose === 'any'));
+    assert.ok(manifest.icons.some((i) => i.src === '/admin/pwa-512x512.png' && i.sizes === '512x512' && i.purpose === 'any'));
+    assert.ok(manifest.icons.some((i) => i.src === '/admin/pwa-maskable-192x192.png' && i.sizes === '192x192' && i.purpose === 'maskable'));
+    assert.ok(manifest.icons.some((i) => i.src === '/admin/pwa-maskable-512x512.png' && i.sizes === '512x512' && i.purpose === 'maskable'));
   }
 
   assert.equal(
@@ -204,7 +213,7 @@ test('syncPwaMetadataToDocument: dynamically updates title, meta tags, manifest 
     assert.equal(mockDoc.title, 'POS Terminal — Acme Shoes');
     assert.equal(mockDoc.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content'), 'SarbaazSoft ShoePOS');
     assert.equal(mockDoc.querySelector('meta[name="application-name"]')?.getAttribute('content'), 'SarbaazSoft ShoePOS');
-    assert.equal(mockDoc.querySelector('link[rel="manifest"]')?.getAttribute('href'), '/api/pwa/manifest.webmanifest?role=ADMIN');
+    assert.equal(mockDoc.querySelector('link[rel="manifest"]')?.getAttribute('href'), '/manifest.webmanifest');
     assert.equal(mockDoc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'), '/apple-touch-icon.png');
 
     // 2. SuperAdmin Control Panel - updates PWA shortcut meta/manifest without altering document.title
@@ -212,13 +221,13 @@ test('syncPwaMetadataToDocument: dynamically updates title, meta tags, manifest 
     assert.equal(mockDoc.title, 'POS Terminal — Acme Shoes');
     assert.equal(mockDoc.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content'), 'SarbaazSoft AdminPOS');
     assert.equal(mockDoc.querySelector('meta[name="application-name"]')?.getAttribute('content'), 'SarbaazSoft AdminPOS');
-    assert.equal(mockDoc.querySelector('link[rel="manifest"]')?.getAttribute('href'), '/api/pwa/manifest.webmanifest?role=SUPERADMIN');
+    assert.equal(mockDoc.querySelector('link[rel="manifest"]')?.getAttribute('href'), '/admin/manifest.webmanifest');
     assert.equal(mockDoc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'), '/admin/apple-touch-icon.png');
 
-    // 3. Cashier switch
+    // 3. Cashier switch keeps stable store manifest URL
     syncPwaMetadataToDocument(resolvePwaBranding({ role: 'CASHIER', saasMode: 'TENANT_ACTIVE' }));
     assert.equal(mockDoc.title, 'POS Terminal — Acme Shoes');
-    assert.equal(mockDoc.querySelector('link[rel="manifest"]')?.getAttribute('href'), '/api/pwa/manifest.webmanifest?role=CASHIER');
+    assert.equal(mockDoc.querySelector('link[rel="manifest"]')?.getAttribute('href'), '/manifest.webmanifest');
   } finally {
     if (prevDocument === undefined) {
       delete (globalThis as any).document;
@@ -228,22 +237,52 @@ test('syncPwaMetadataToDocument: dynamically updates title, meta tags, manifest 
   }
 });
 
-test('static manifests and index.html use Landing Page document title while keeping PWA shortcut branding intact', () => {
+test('static manifests and index.html use Landing Page document title and valid 8-bit PNG icons', () => {
   const indexHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
   assert.ok(indexHtml.includes('<title>SarbaazSoft Shoe POS</title>'));
   assert.ok(indexHtml.includes('<meta name="apple-mobile-web-app-title" content="SarbaazSoft ShoePOS" />'));
   assert.ok(indexHtml.includes('<meta name="application-name" content="SarbaazSoft ShoePOS" />'));
+  assert.ok(indexHtml.includes("register('/sw.js', { scope: '/', updateViaCache: 'none' })"));
+
+  const verifyManifestIconsOnDisk = (manifest: { icons: Array<{ src: string; sizes: string; purpose: string }> }) => {
+    assert.ok(manifest.icons.some((i) => i.sizes === '192x192' && i.purpose === 'any'));
+    assert.ok(manifest.icons.some((i) => i.sizes === '512x512' && i.purpose === 'any'));
+    assert.ok(manifest.icons.some((i) => i.sizes === '192x192' && i.purpose === 'maskable'));
+    assert.ok(manifest.icons.some((i) => i.sizes === '512x512' && i.purpose === 'maskable'));
+
+    for (const icon of manifest.icons) {
+      const diskPath = path.join(process.cwd(), 'public', icon.src.replace(/^\//, ''));
+      assert.ok(fs.existsSync(diskPath), `Missing icon file: ${diskPath}`);
+      const buf = fs.readFileSync(diskPath);
+      assert.equal(buf.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `Not a PNG: ${icon.src}`);
+      assert.equal(buf.subarray(12, 16).toString('ascii'), 'IHDR', `Invalid PNG IHDR: ${icon.src}`);
+      const width = buf.readUInt32BE(16);
+      const height = buf.readUInt32BE(20);
+      const bitDepth = buf[24];
+      assert.equal(`${width}x${height}`, icon.sizes, `Dimension mismatch for ${icon.src}`);
+      assert.equal(bitDepth, 8, `Expected 8-bit PNG for ${icon.src}, got ${bitDepth}-bit`);
+    }
+  };
 
   for (const file of ['public/manifest.json', 'public/manifest.webmanifest']) {
     const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), file), 'utf8'));
     assert.equal(manifest.name, 'SarbaazSoft ShoePOS');
-    assert.equal(manifest.short_name, 'SarbaazSoft ShoePOS');
+    assert.equal(manifest.short_name, 'ShoePOS');
+    assert.equal(manifest.display, 'standalone');
+    assert.equal(manifest.start_url, '/');
+    assert.equal(manifest.scope, '/');
+    assert.equal('related_applications' in manifest, false);
+    verifyManifestIconsOnDisk(manifest);
   }
 
   for (const file of ['public/admin/manifest.json', 'public/admin/manifest.webmanifest']) {
     const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), file), 'utf8'));
     assert.equal(manifest.name, 'SarbaazSoft AdminPOS');
-    assert.equal(manifest.short_name, 'SarbaazSoft AdminPOS');
+    assert.equal(manifest.short_name, 'AdminPOS');
+    assert.equal(manifest.display, 'standalone');
+    assert.equal(manifest.start_url, '/admin');
+    assert.equal(manifest.scope, '/');
+    verifyManifestIconsOnDisk(manifest);
   }
 });
 
@@ -308,8 +347,9 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
       assert.ok((res.headers.get('content-type') || '').includes('application/manifest+json'));
       const json = (await res.json()) as Record<string, unknown> & { name: string; short_name: string; start_url: string };
       assert.equal(json.name, 'SarbaazSoft ShoePOS');
-      assert.equal(json.short_name, 'SarbaazSoft ShoePOS');
+      assert.equal(json.short_name, 'ShoePOS');
       assert.equal(json.start_url, '/');
+      assert.equal('related_applications' in json, false);
       assertCleanManifestShape(json);
     }
 
@@ -318,7 +358,7 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
     assert.ok((saRes.headers.get('content-type') || '').includes('application/manifest+json'));
     const saJson = (await saRes.json()) as Record<string, unknown> & { name: string; short_name: string; start_url: string };
     assert.equal(saJson.name, 'SarbaazSoft AdminPOS');
-    assert.equal(saJson.short_name, 'SarbaazSoft AdminPOS');
+    assert.equal(saJson.short_name, 'AdminPOS');
     assert.equal(saJson.start_url, '/admin');
     assertCleanManifestShape(saJson);
 
@@ -327,7 +367,8 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
     assert.ok((rootRes.headers.get('content-type') || '').includes('application/manifest+json'));
     const rootJson = (await rootRes.json()) as Record<string, unknown> & { name: string; short_name: string };
     assert.equal(rootJson.name, 'SarbaazSoft ShoePOS');
-    assert.equal(rootJson.short_name, 'SarbaazSoft ShoePOS');
+    assert.equal(rootJson.short_name, 'ShoePOS');
+    assert.equal('related_applications' in rootJson, false);
     assertCleanManifestShape(rootJson);
 
     const adminRes = await fetch(`${baseUrl}/admin/manifest.webmanifest?role=CASHIER&store=ShouldBeIgnored`);
@@ -335,7 +376,7 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
     assert.ok((adminRes.headers.get('content-type') || '').includes('application/manifest+json'));
     const adminJson = (await adminRes.json()) as Record<string, unknown> & { name: string; short_name: string };
     assert.equal(adminJson.name, 'SarbaazSoft AdminPOS');
-    assert.equal(adminJson.short_name, 'SarbaazSoft AdminPOS');
+    assert.equal(adminJson.short_name, 'AdminPOS');
     assertCleanManifestShape(adminJson);
 
     const tenantRow = await pgClient.query<{ id: number; name: string }>('SELECT id, name FROM tenants ORDER BY id ASC LIMIT 1');
@@ -346,7 +387,7 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
       assert.ok((tRes.headers.get('content-type') || '').includes('application/manifest+json'));
       const tJson = (await tRes.json()) as Record<string, unknown> & { name: string; short_name: string; start_url: string };
       assert.equal(tJson.name, 'SarbaazSoft ShoePOS');
-      assert.equal(tJson.short_name, 'SarbaazSoft ShoePOS');
+      assert.equal(tJson.short_name, 'ShoePOS');
       assert.equal(tJson.start_url, `/?tenantId=${tid}`);
       assertCleanManifestShape(tJson);
     }

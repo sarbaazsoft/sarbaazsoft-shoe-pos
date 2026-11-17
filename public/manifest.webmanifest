@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "SarbaazSoft ShoePOS",
-  "short_name": "SarbaazSoft ShoePOS",
+  "short_name": "ShoePOS",
   "description": "Multi-tenant dual-engine wholesale shoe shop POS and inventory management system",
   "theme_color": "#9333EA",
   "background_color": "#FFFFFF",
@@ -11,12 +11,6 @@
   "start_url": "/",
   "scope": "/",
   "prefer_related_applications": false,
-  "related_applications": [
-    {
-      "platform": "play",
-      "id": "com.sarbaazsoft.shoepos"
-    }
-  ],
   "categories": ["business", "productivity", "shopping"],
   "icons": [
     {

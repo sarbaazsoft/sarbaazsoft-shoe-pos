@@ -1179,7 +1179,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: [], rowCount: 0 };
   }
 
-  if (upper.includes('POS_NOTIFICATION_DISMISSALS')) {
+  if (upper.includes('POS_NOTIFICATION_DISMISSALS') && !upper.includes('FROM SALES') && !upper.includes('FROM RETURNS')) {
     if (!mockStore.pos_notification_dismissals) mockStore.pos_notification_dismissals = [];
     if (upper.startsWith('INSERT INTO')) {
       const tid = Number(params[0] || 1);
@@ -2264,6 +2264,9 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     const enrichSale = (s: any) => {
       const c = s.customer_id ? mockStore.customers.find((cust) => Number(cust.id) === Number(s.customer_id)) : null;
       const u = s.created_by ? mockStore.users.find((usr) => Number(usr.id) === Number(s.created_by)) : null;
+      const totalQty = (mockStore.sale_items || [])
+        .filter((si) => Number(si.sale_id) === Number(s.id))
+        .reduce((sum, si) => sum + Number(si.quantity || 0), 0);
       return {
         ...s,
         customer_name: c?.name || s.customer_name || null,
@@ -2276,6 +2279,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         customer_outstanding_balance: c ? Number(c.outstanding_balance ?? c.current_balance ?? 0) : 0,
         customer_current_balance: c ? Number(c.current_balance ?? c.outstanding_balance ?? 0) : 0,
         cashier_name: u?.name || s.cashier_name || null,
+        total_quantity: totalQty,
       };
     };
 
@@ -2723,7 +2727,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: [entry as unknown as T], rowCount: 1 };
   }
 
-  if (upper.startsWith('SELECT') && upper.includes('FROM RETURN_ITEMS')) {
+  if (upper.startsWith('SELECT') && upper.includes('FROM RETURN_ITEMS') && !upper.includes('FROM RETURNS')) {
     let riList = [...(mockStore.return_items || [])];
     if (upper.includes('WHERE SALE_ITEM_ID = $1')) {
       const saleItemId = Number(params[0]);
@@ -2849,11 +2853,16 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       const s = mockStore.sales.find((sale) => Number(sale.id) === Number(r.original_sale_id));
       const c = r.customer_id ? mockStore.customers.find((cust) => Number(cust.id) === Number(r.customer_id)) : null;
       const u = r.created_by ? mockStore.users.find((usr) => Number(usr.id) === Number(r.created_by)) : null;
+      const totalQty = (mockStore.return_items || [])
+        .filter((ri) => Number(ri.return_id) === Number(r.id))
+        .reduce((sum, ri) => sum + Number(ri.quantity || 0), 0);
       return {
         ...r,
         invoice_number: s?.invoice_number || null,
+        payment_method: s?.payment_method || r.payment_method || 'CASH',
         customer_name: c?.name || null,
         cashier_name: u?.name || null,
+        total_quantity: totalQty,
       };
     });
     return { rows: enriched as unknown as T[], rowCount: enriched.length };

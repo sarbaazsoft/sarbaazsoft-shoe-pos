@@ -3759,7 +3759,7 @@ setFormErrors(errors);
                           SUPERADMIN_PUSH_ON_NEW_TRIAL: e.target.checked ? 'true' : 'false',
                         }))
                       }
-                      className="w-4.5 h-4.5 rounded text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
                     />
                   </label>
                 </div>
@@ -3810,7 +3810,7 @@ setFormErrors(errors);
                           SUPERADMIN_PUSH_ON_RENEWAL: e.target.checked ? 'true' : 'false',
                         }))
                       }
-                      className="w-4.5 h-4.5 rounded text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
                     />
                   </label>
                 </div>
@@ -3861,7 +3861,7 @@ setFormErrors(errors);
                           SUPERADMIN_PUSH_ON_EXPIRED_STORE: e.target.checked ? 'true' : 'false',
                         }))
                       }
-                      className="w-4.5 h-4.5 rounded text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
                     />
                   </label>
                 </div>
@@ -3912,7 +3912,7 @@ setFormErrors(errors);
                           SUPERADMIN_PUSH_ON_SECURITY_ALERT: e.target.checked ? 'true' : 'false',
                         }))
                       }
-                      className="w-4.5 h-4.5 rounded text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
                     />
                   </label>
                 </div>
@@ -3963,7 +3963,7 @@ setFormErrors(errors);
                           SUPERADMIN_PUSH_ON_SALES: e.target.checked ? 'true' : 'false',
                         }))
                       }
-                      className="w-4.5 h-4.5 rounded text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
                     />
                   </label>
                 </div>
@@ -4039,7 +4039,7 @@ setFormErrors(errors);
                           DISABLE_HMR: e.target.checked ? 'true' : 'false',
                         }))
                       }
-                      className="w-4.5 h-4.5 rounded text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
                     />
                     <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-md ${
                       String(appSettingsForm.DISABLE_HMR || 'false').toLowerCase() === 'true'
@@ -4713,7 +4713,7 @@ setFormErrors(errors);
                       type="checkbox"
                       checked={dropTablesOnUnlock}
                       onChange={(e) => setDropTablesOnUnlock(e.target.checked)}
-                      className="w-4 h-4 rounded text-rose-600 border-slate-300 dark:border-slate-700 focus:ring-0 cursor-pointer"
+                      className="w-4 h-4 rounded-full text-rose-600 border-slate-300 dark:border-slate-700 focus:ring-0 cursor-pointer"
                     />
                     <span className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1 font-medium">
                       <Trash2 className="w-3.5 h-3.5 text-rose-500" />

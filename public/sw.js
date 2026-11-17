@@ -83,7 +83,7 @@ self.addEventListener('fetch', (event) => {
         () =>
           new Response(
             '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline - SarbaazSoft Shoe POS</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#FFFFFF;color:#0F172A;text-align:center;padding:20px;}</style></head><body><div><h2>SarbaazSoft Shoe POS</h2><p>Unable to reach the server. Please check your connection and try again.</p></div></body></html>',
-            { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
           )
       )
     );
@@ -265,13 +265,18 @@ function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
 
   const isInvoice =
     !isLowStock &&
-    !isReturn &&
     (type === 'INVOICE' ||
       type === 'SALE' ||
+      type === 'RETURN' ||
       type === 'EXCHANGE' ||
+      type === 'SALE_RETURN' ||
+      type === 'SALE_EXCHANGE' ||
       itemType === 'INVOICE' ||
       itemType === 'SALE' ||
+      itemType === 'RETURN' ||
       itemType === 'EXCHANGE' ||
+      itemType === 'SALE_RETURN' ||
+      itemType === 'SALE_EXCHANGE' ||
       combinedUrl.includes('/invoices/') ||
       combinedUrl.includes('viewinvoice=') ||
       combinedUrl.includes('invoice='));

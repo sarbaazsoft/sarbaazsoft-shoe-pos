@@ -423,6 +423,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
                       customerId: verifiedSale.customerId ?? verifiedSale.customer_id ?? null,
                       customerName: verifiedSale.customerName || verifiedSale.customer_name,
                       customerPhone: verifiedSale.customerPhone || verifiedSale.customer_phone,
+                      mode: 'EXCHANGE',
                       reason: reason.trim() || 'Direct Shoe Exchange at POS',
                       items: exchangeItems,
                     });

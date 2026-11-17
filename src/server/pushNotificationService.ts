@@ -491,7 +491,7 @@ export async function sendFcmPushToTokens(
 
 export interface PosActionNotification {
   eventId?: string;
-  type: 'SALE' | 'RETURN' | 'EXCHANGE' | 'STOCK' | 'PURCHASE';
+  type: 'SALE' | 'RETURN' | 'EXCHANGE' | 'SALE_RETURN' | 'SALE_EXCHANGE' | 'STOCK' | 'PURCHASE';
   title: string;
   message: string;
   invoiceNumber: string;

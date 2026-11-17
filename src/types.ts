@@ -411,6 +411,7 @@ export interface ActiveExchange {
   customerId?: number | null;
   customerName?: string;
   customerPhone?: string;
+  mode?: 'RETURN' | 'EXCHANGE' | 'EXCHANGE_ONLY';
   reason: string;
   items: ExchangeItem[];
 }

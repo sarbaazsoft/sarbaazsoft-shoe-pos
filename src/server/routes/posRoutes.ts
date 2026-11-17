@@ -16,6 +16,12 @@ import {
   shouldResetLowStockAlert,
   type LowStockBatchItem,
 } from '../services/lowStockNotificationService.ts';
+import {
+  formatExchangeNotification,
+  formatSaleExchangeNotification,
+  formatSaleNotification,
+  formatSaleReturnNotification,
+} from '../../utils/notificationFormatters.ts';
 
 const router = Router();
 
@@ -265,10 +271,15 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       newStock: number;
     }> = [];
 
+    const rawExchangeMode = String(exchange?.mode || exchange?.type || exchange?.transactionType || '').trim().toUpperCase();
+    const exchangeReasonLower = String(exchange?.reason || '').trim().toLowerCase();
+    const isStandaloneExchangeMode =
+      rawExchangeMode === 'EXCHANGE_ONLY' || Boolean(exchange?.isStandaloneExchange);
+
     let origSale: any = null;
     if (isWholesaleStore && exchange && Array.isArray(exchange.items) && exchange.items.length > 0) {
       // -----------------------------------------------------------------------
-      // Wholesale Direct Return Flow (NO INVOICE NUMBER REQUIRED)
+      // Wholesale Direct Return / Combined Exchange Flow
       // Returned pairs directly restocked into inventory and credited to current invoice
       // -----------------------------------------------------------------------
       if (exchange.originalSaleId && Number(exchange.originalSaleId) > 0) {
@@ -341,7 +352,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
             origSale ? origSale.id : null,
             customerId ? parseInt(customerId, 10) : (origSale ? origSale.customer_id : null),
             totalExchangeCredit,
-            (exchange.reason || 'Direct Wholesale Shoe Return').trim(),
+            (exchange.reason || 'Direct Shoe Return').trim(),
             user.id,
           ]
         );
@@ -366,7 +377,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               v.newStock,
               generatedReturnNumber,
               user.id,
-              `Wholesale Shoe Return (${generatedReturnNumber}): ${v.quantity} pairs returned at Rs. ${v.unitRefundPrice}/pair (${exchange.reason || 'Restocked into inventory'})`,
+              `Shoe Return (${generatedReturnNumber}): ${v.quantity} pairs returned at Rs. ${v.unitRefundPrice}/pair (${exchange.reason || 'Restocked into inventory'})`,
             ]
           );
         }
@@ -601,11 +612,29 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     }
 
     const netDifference = Math.round((calculatedSubtotal - calculatedTotalDiscount - totalExchangeCredit) * 100) / 100;
+    const isExplicitWholesaleExchange =
+      isWholesaleStore &&
+      (isStandaloneExchangeMode ||
+        rawExchangeMode === 'EXCHANGE' ||
+        rawExchangeMode === 'SALE_EXCHANGE' ||
+        Boolean(exchange?.isExchange) ||
+        (Boolean(origSale) && !exchangeReasonLower.includes('return')) ||
+        (!rawExchangeMode &&
+          (exchangeReasonLower.includes('exchange') ||
+            exchangeReasonLower.includes('size replacement') ||
+            exchangeReasonLower.includes('swap'))));
 
     let exchangeNote: string | null = null;
     if (validatedReturnItems.length > 0) {
       if (isWholesaleStore) {
-        exchangeNote = `Wholesale Shoe Return (Return #${generatedReturnNumber}). Returned Credit: Rs. ${Math.round(totalExchangeCredit)} deducted directly from invoice balance.`;
+        const totalReturnedPairs = validatedReturnItems.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+        if (isStandaloneExchangeMode) {
+          exchangeNote = `[Standalone: EXCHANGE] Shoe Exchange (Return #${generatedReturnNumber}, RetPairs: ${totalReturnedPairs}). Returned Credit: Rs. ${Math.round(totalExchangeCredit)}. Net Difference: Rs. ${Math.round(netDifference)}`;
+        } else if (isExplicitWholesaleExchange) {
+          exchangeNote = `[Combined: SALE_EXCHANGE] Sale & Exchange (Return #${generatedReturnNumber}, RetPairs: ${totalReturnedPairs}). Returned Credit: Rs. ${Math.round(totalExchangeCredit)}. Net Difference: Rs. ${Math.round(netDifference)}`;
+        } else {
+          exchangeNote = `[Combined: SALE_RETURN] Sale & Return (Return #${generatedReturnNumber}, RetPairs: ${totalReturnedPairs}). Returned Credit: Rs. ${Math.round(totalExchangeCredit)}. Net Difference: Rs. ${Math.round(netDifference)}`;
+        }
       } else {
         exchangeNote = `Direct Shoe Exchange against ${origSale?.invoice_number || exchange.originalInvoiceNumber} (Return ${generatedReturnNumber}). Returned Credit: Rs. ${Math.round(totalExchangeCredit)}. Net Difference: Rs. ${Math.round(netDifference)}`;
       }
@@ -840,17 +869,167 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       const isExchangeAction = validatedReturnItems.length > 0;
       const cashierDisplayName = user.name || 'Counter Staff';
       const customerDisplayName = fullSale.rows[0]?.customer_name || 'Walk-in Customer';
+      const soldQuantity = validatedItems.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+      const returnedQuantity = validatedReturnItems.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+      const actualSaleAmount = Math.max(0, Math.round((calculatedSubtotal - calculatedTotalDiscount) * 100) / 100);
 
-      if (isExchangeAction) {
+      if (isWholesaleStore) {
+        if (!isExchangeAction) {
+          const formattedSale = formatSaleNotification({
+            invoiceNo: invoiceNumber,
+            totalAmount: actualSaleAmount,
+            paymentMethod,
+            totalQuantity: soldQuantity,
+            customerName: customerDisplayName,
+            cashierName: cashierDisplayName,
+          });
+          notifyPosAction(tenantId, {
+            eventId: `pos-sale-${tenantId}-sale-${saleId}`,
+            type: 'SALE',
+            title: formattedSale.title,
+            message: formattedSale.message,
+            invoiceNumber,
+            orderId: saleId,
+            saleId,
+            totalAmount: actualSaleAmount,
+            customerName: customerDisplayName,
+            cashierName: cashierDisplayName,
+            cashierId: user.id,
+            itemsSummary: formattedSale.itemsSummary,
+            deepLinkUrl: `/?tab=reports&viewInvoice=${encodeURIComponent(invoiceNumber)}`,
+            timestamp: new Date().toISOString(),
+            triggeredBy: cashierDisplayName,
+            targetRole: 'ALL',
+            targetRoles: ['ADMIN', 'CASHIER'],
+          }).catch((err) => console.warn('Push notification delivery notice:', err));
+        } else {
+          const oldItemsStr = validatedReturnItems.map((r) => `${r.quantity}x ${r.productName}`).join(', ');
+          const newItemsStr = validatedItems.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
+
+          if (isStandaloneExchangeMode) {
+            const formattedExchange = formatExchangeNotification({
+              invoiceNo: invoiceNumber,
+              amount: netDifference,
+              paymentMethod,
+              totalQuantity: returnedQuantity || soldQuantity,
+              customerName: customerDisplayName,
+              cashierName: cashierDisplayName,
+            });
+            notifyPosAction(tenantId, {
+              eventId: `pos-exchange-${tenantId}-sale-${saleId}`,
+              type: 'EXCHANGE',
+              title: formattedExchange.title,
+              message: formattedExchange.message,
+              invoiceNumber,
+              orderId: saleId,
+              saleId,
+              totalAmount: actualSaleAmount,
+              netDifference,
+              customerName: customerDisplayName,
+              cashierName: cashierDisplayName,
+              cashierId: user.id,
+              itemsSummary: formattedExchange.itemsSummary,
+              exchangeDetails: {
+                oldItems: oldItemsStr,
+                newItems: newItemsStr,
+                netDifference,
+              },
+              deepLinkUrl: `/?tab=reports&viewInvoice=${encodeURIComponent(invoiceNumber)}`,
+              timestamp: new Date().toISOString(),
+              triggeredBy: cashierDisplayName,
+              targetRole: 'ALL',
+              targetRoles: ['ADMIN', 'CASHIER'],
+            }).catch((err) => console.warn('Push notification delivery notice:', err));
+          } else if (isExplicitWholesaleExchange) {
+            const formattedSaleExchange = formatSaleExchangeNotification({
+              invoiceNo: invoiceNumber,
+              amount: netDifference,
+              paymentMethod,
+              soldQuantity,
+              exchangedQuantity: returnedQuantity,
+              customerName: customerDisplayName,
+              cashierName: cashierDisplayName,
+            });
+            notifyPosAction(tenantId, {
+              eventId: `pos-sale-exchange-${tenantId}-sale-${saleId}`,
+              type: 'SALE_EXCHANGE',
+              title: formattedSaleExchange.title,
+              message: formattedSaleExchange.message,
+              invoiceNumber,
+              orderId: saleId,
+              saleId,
+              totalAmount: netDifference,
+              netDifference,
+              customerName: customerDisplayName,
+              cashierName: cashierDisplayName,
+              cashierId: user.id,
+              itemsSummary: formattedSaleExchange.itemsSummary,
+              exchangeDetails: {
+                oldItems: oldItemsStr,
+                newItems: newItemsStr,
+                netDifference,
+              },
+              deepLinkUrl: `/?tab=reports&viewInvoice=${encodeURIComponent(invoiceNumber)}`,
+              timestamp: new Date().toISOString(),
+              triggeredBy: cashierDisplayName,
+              targetRole: 'ALL',
+              targetRoles: ['ADMIN', 'CASHIER'],
+            }).catch((err) => console.warn('Push notification delivery notice:', err));
+          } else {
+            const formattedSaleReturn = formatSaleReturnNotification({
+              invoiceNo: invoiceNumber,
+              amount: netDifference,
+              paymentMethod,
+              soldQuantity,
+              returnedQuantity,
+              customerName: customerDisplayName,
+              cashierName: cashierDisplayName,
+            });
+            notifyPosAction(tenantId, {
+              eventId: `pos-sale-return-${tenantId}-sale-${saleId}`,
+              type: 'SALE_RETURN',
+              title: formattedSaleReturn.title,
+              message: formattedSaleReturn.message,
+              invoiceNumber,
+              orderId: saleId,
+              saleId,
+              totalAmount: netDifference,
+              netDifference,
+              customerName: customerDisplayName,
+              cashierName: cashierDisplayName,
+              cashierId: user.id,
+              itemsSummary: formattedSaleReturn.itemsSummary,
+              exchangeDetails: {
+                oldItems: oldItemsStr,
+                newItems: newItemsStr,
+                netDifference,
+              },
+              deepLinkUrl: `/?tab=reports&viewInvoice=${encodeURIComponent(invoiceNumber)}`,
+              timestamp: new Date().toISOString(),
+              triggeredBy: cashierDisplayName,
+              targetRole: 'ALL',
+              targetRoles: ['ADMIN', 'CASHIER'],
+            }).catch((err) => console.warn('Push notification delivery notice:', err));
+          }
+        }
+      } else if (isExchangeAction) {
         const oldItemsStr = validatedReturnItems.map((r) => `${r.quantity}x ${r.productName}`).join(', ');
         const newItemsStr = validatedItems.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
+        const exchangedQuantity =
+          returnedQuantity || soldQuantity;
+        const formattedExchange = formatExchangeNotification({
+          invoiceNo: invoiceNumber,
+          amount: netDifference,
+          paymentMethod,
+          totalQuantity: exchangedQuantity,
+          customerName: customerDisplayName,
+          cashierName: cashierDisplayName,
+        });
         notifyPosAction(tenantId, {
           eventId: `pos-exchange-${tenantId}-sale-${saleId}`,
           type: 'EXCHANGE',
-          title: isWholesaleStore ? `Wholesale Shoe Return #${invoiceNumber}` : `Shoe Exchange #${invoiceNumber}`,
-          message: isWholesaleStore
-            ? `Shoe Return against Inv #${invoiceNumber}. Returned: [${oldItemsStr}]. Credit: Rs. ${Math.round(totalExchangeCredit)}. Remaining Balance: Rs. ${Math.round(remainingBalance)}. Handled by ${cashierDisplayName}.`
-            : `Exchange against Inv #${origSale?.invoice_number || exchange?.originalInvoiceNumber}. Old: [${oldItemsStr}] ➔ New: [${newItemsStr}]. Net: Rs. ${Math.round(netDifference)}. Handled by ${cashierDisplayName}.`,
+          title: formattedExchange.title,
+          message: formattedExchange.message,
           invoiceNumber,
           orderId: saleId,
           saleId,
@@ -859,7 +1038,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           customerName: customerDisplayName,
           cashierName: cashierDisplayName,
           cashierId: user.id,
-          itemsSummary: isWholesaleStore ? `Returned: ${oldItemsStr}` : `Old: ${oldItemsStr} ➔ New: ${newItemsStr}`,
+          itemsSummary: formattedExchange.itemsSummary,
           exchangeDetails: {
             oldItems: oldItemsStr,
             newItems: newItemsStr,
@@ -872,14 +1051,19 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           targetRoles: ['ADMIN', 'CASHIER'],
         }).catch((err) => console.warn('Push notification delivery notice:', err));
       } else {
-        const itemNamesStr = validatedItems.slice(0, 3).map((i) => `${i.quantity}x ${i.productName}`).join(', ');
-        const extraCount = validatedItems.length > 3 ? ` +${validatedItems.length - 3} more` : '';
-        const itemsSummary = `${itemNamesStr}${extraCount}`;
+        const formattedSale = formatSaleNotification({
+          invoiceNo: invoiceNumber,
+          totalAmount: totalAmountDue,
+          paymentMethod,
+          totalQuantity: soldQuantity,
+          customerName: customerDisplayName,
+          cashierName: cashierDisplayName,
+        });
         notifyPosAction(tenantId, {
           eventId: `pos-sale-${tenantId}-sale-${saleId}`,
           type: 'SALE',
-          title: `New Sale #${invoiceNumber}`,
-          message: `Order #${invoiceNumber} for Rs. ${Math.round(totalAmountDue)} (${paymentMethod}). Items: ${itemsSummary}. Customer: ${customerDisplayName}. Processed by ${cashierDisplayName}.`,
+          title: formattedSale.title,
+          message: formattedSale.message,
           invoiceNumber,
           orderId: saleId,
           saleId,
@@ -887,7 +1071,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           customerName: customerDisplayName,
           cashierName: cashierDisplayName,
           cashierId: user.id,
-          itemsSummary,
+          itemsSummary: formattedSale.itemsSummary,
           deepLinkUrl: `/?tab=reports&viewInvoice=${encodeURIComponent(invoiceNumber)}`,
           timestamp: new Date().toISOString(),
           triggeredBy: cashierDisplayName,

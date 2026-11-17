@@ -192,21 +192,31 @@ test('resolveNotificationActions produces dynamic primary + persistent Open POS 
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
+  // 1b. Return resolves View Invoice + Open POS
+  const returnBtns = resolveNotificationActions(
+    { type: 'RETURN', invoiceNumber: 'INV-4201', returnNumber: 'RET-10' },
+    'CASHIER'
+  );
+  assert.deepEqual(returnBtns, [
+    { action: 'view_invoice', label: 'View Invoice', url: '/invoices/INV-4201' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
   // 4a. Fallback for OWNER / ADMIN -> Dashboard + Open POS
-  const adminFallback = resolveNotificationActions({ type: 'RETURN', returnNumber: 'RET-10' }, 'ADMIN');
+  const adminFallback = resolveNotificationActions({ type: 'TEST_PUSH' }, 'ADMIN');
   assert.deepEqual(adminFallback, [
     { action: 'open_dashboard', label: 'Dashboard', url: '/dashboard' },
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
-  const ownerFallback = resolveNotificationActions({ type: 'TEST_PUSH' }, 'OWNER');
+  const ownerFallback = resolveNotificationActions({ type: 'SYSTEM' }, 'OWNER');
   assert.deepEqual(ownerFallback, [
     { action: 'open_dashboard', label: 'Dashboard', url: '/dashboard' },
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
   // 4b. Fallback for CASHIER -> Omit Button 1, render only Open POS
-  const cashierFallback = resolveNotificationActions({ type: 'RETURN', returnNumber: 'RET-10' }, 'CASHIER');
+  const cashierFallback = resolveNotificationActions({ type: 'TEST_PUSH' }, 'CASHIER');
   assert.deepEqual(cashierFallback, [
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
@@ -294,36 +304,50 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
   await harness.dispatchClick(stockNotif, 'view_stock');
   assert.equal(harness.openWindows.pop(), '/inventory?filter=low-stock');
 
+  // Return push resolves View Invoice + Open POS
+  await harness.dispatchPush({
+    title: 'Return Completed 🔄',
+    body: '#INV-555 · Refund: Rs. 1,200 (Cash)\n1 Pair Returned · Walk-in Customer\nProcessed by: Ali',
+    data: { type: 'RETURN', invoiceNumber: 'INV-555', returnNumber: 'RET-10', tag: 'notif-ret-inv' },
+  });
+  const retInvNotif = harness.activeNotifications.get('notif-ret-inv');
+  assert.deepEqual(toPlain(retInvNotif.actions), [
+    { action: 'view_invoice', title: 'View Invoice' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(retInvNotif, 'view_invoice');
+  assert.equal(harness.openWindows.pop(), '/invoices/INV-555');
+
   // Fallback for OWNER/ADMIN
   harness.syncUserRole('ADMIN');
   await harness.dispatchPush({
-    title: 'Return Alert #RET-1',
-    body: 'Refund issued.',
-    data: { type: 'RETURN', returnNumber: 'RET-1', tag: 'notif-ret-admin' },
+    title: 'POS Test Alert',
+    body: 'Diagnostics OK.',
+    data: { type: 'TEST_PUSH', tag: 'notif-test-admin' },
   });
-  const adminRet = harness.activeNotifications.get('notif-ret-admin');
-  assert.deepEqual(toPlain(adminRet.actions), [
+  const adminFallback = harness.activeNotifications.get('notif-test-admin');
+  assert.deepEqual(toPlain(adminFallback.actions), [
     { action: 'open_dashboard', title: 'Dashboard' },
     { action: 'open_pos', title: 'Open POS' },
   ]);
-  await harness.dispatchClick(adminRet, 'open_dashboard');
+  await harness.dispatchClick(adminFallback, 'open_dashboard');
   assert.equal(harness.openWindows.pop(), '/dashboard');
 
   // Fallback for CASHIER omits Dashboard button
   harness.syncUserRole('CASHIER');
   await harness.dispatchPush({
-    title: 'Return Alert #RET-2',
-    body: 'Refund issued.',
-    data: { type: 'RETURN', returnNumber: 'RET-2', tag: 'notif-ret-cashier' },
+    title: 'POS Test Alert',
+    body: 'Diagnostics OK.',
+    data: { type: 'TEST_PUSH', tag: 'notif-test-cashier' },
   });
-  const cashierRet = harness.activeNotifications.get('notif-ret-cashier');
-  assert.deepEqual(toPlain(cashierRet.actions), [
+  const cashierFallback = harness.activeNotifications.get('notif-test-cashier');
+  assert.deepEqual(toPlain(cashierFallback.actions), [
     { action: 'open_pos', title: 'Open POS' },
   ]);
 
   // Open POS action focuses open window and sends POS_DEEP_LINK_NOTIFICATION
   harness.setOpenWindowClient();
-  await harness.dispatchClick(cashierRet, 'open_pos');
+  await harness.dispatchClick(cashierFallback, 'open_pos');
   assert.equal(harness.postedMessages[0].type, 'POS_DEEP_LINK_NOTIFICATION');
   assert.equal(harness.postedMessages[0].action, 'open_pos');
   assert.equal(harness.postedMessages[0].targetUrl, '/pos');

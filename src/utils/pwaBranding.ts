@@ -1,9 +1,9 @@
 export type PwaRoleMode = 'SUPERADMIN' | 'ADMIN' | 'CASHIER' | 'PUBLIC';
 
 export const STANDARD_PWA_APP_NAME = 'SarbaazSoft ShoePOS';
-export const STANDARD_PWA_SHORT_NAME = 'SarbaazSoft ShoePOS';
+export const STANDARD_PWA_SHORT_NAME = 'ShoePOS';
 export const SUPERADMIN_PWA_APP_NAME = 'SarbaazSoft AdminPOS';
-export const SUPERADMIN_PWA_SHORT_NAME = 'SarbaazSoft AdminPOS';
+export const SUPERADMIN_PWA_SHORT_NAME = 'AdminPOS';
 
 export const PWA_THEME_COLOR = '#9333EA';
 export const PWA_BACKGROUND_COLOR = '#FFFFFF';
@@ -64,7 +64,7 @@ export interface WebAppManifest {
   theme_color: string;
   background_color: string;
   prefer_related_applications: boolean;
-  related_applications?: Array<{ platform: string; id: string }>;
+  related_applications?: Array<{ platform: string; id: string; url?: string }>;
   categories: string[];
   icons: WebAppManifestIcon[];
   shortcuts: WebAppManifestShortcut[];
@@ -113,8 +113,8 @@ export function resolvePwaRoleMode(input?: PwaBrandingInput | string | null): Pw
 
 /**
  * Returns the strict role-based PWA branding configuration.
- * - SUPERADMIN / Control Panel: "SarbaazSoft AdminPOS"
- * - ADMIN, CASHIER, and PUBLIC: "SarbaazSoft ShoePOS"
+ * - SUPERADMIN / Control Panel: "SarbaazSoft AdminPOS" (short: "AdminPOS")
+ * - ADMIN, CASHIER, and PUBLIC: "SarbaazSoft ShoePOS" (short: "ShoePOS")
  */
 export function resolvePwaBranding(input?: PwaBrandingInput | string | null): PwaBrandingConfig {
   const mode = resolvePwaRoleMode(input);
@@ -130,7 +130,7 @@ export function resolvePwaBranding(input?: PwaBrandingInput | string | null): Pw
       appleMobileWebAppTitle: SUPERADMIN_PWA_APP_NAME,
       description:
         'Dedicated SuperAdmin Control Plane for Multi-Tenant Dual-Engine Wholesale POS Provisioning, Store Suspension & SaaS Analytics',
-      manifestUrl: '/api/pwa/manifest.webmanifest?role=SUPERADMIN',
+      manifestUrl: '/admin/manifest.webmanifest',
       staticManifestUrl: '/admin/manifest.webmanifest',
       startUrl: '/admin',
       id: '/admin/',
@@ -152,7 +152,7 @@ export function resolvePwaBranding(input?: PwaBrandingInput | string | null): Pw
     appleMobileWebAppTitle: STANDARD_PWA_APP_NAME,
     description:
       'Multi-tenant dual-engine wholesale shoe shop POS and inventory management system',
-    manifestUrl: `/api/pwa/manifest.webmanifest?role=${encodeURIComponent(mode)}`,
+    manifestUrl: '/manifest.webmanifest',
     staticManifestUrl: '/manifest.webmanifest',
     startUrl: '/',
     id: '/',
@@ -245,12 +245,6 @@ export function buildPwaManifest(
     theme_color: branding.themeColor,
     background_color: branding.backgroundColor,
     prefer_related_applications: false,
-    related_applications: [
-      {
-        platform: 'play',
-        id: 'com.sarbaazsoft.shoepos',
-      },
-    ],
     categories: ['business', 'productivity', 'shopping'],
     icons: [
       { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

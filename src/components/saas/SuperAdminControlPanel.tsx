@@ -1544,7 +1544,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           type="checkbox"
                           checked={rememberMe}
                           onChange={(e) => setRememberMe(e.target.checked)}
-                          className="w-4 h-4 rounded border-purple-300 dark:border-purple-600 dark:bg-[#0E1628] text-purple-600 accent-purple-600 focus:ring-0 cursor-pointer"
+                          className="w-4 h-4 rounded-full border-purple-300 dark:border-purple-600 dark:bg-[#0E1628] text-purple-600 accent-purple-600 focus:ring-0 cursor-pointer"
                         />
                         <span>Keep logged in</span>
                       </label>

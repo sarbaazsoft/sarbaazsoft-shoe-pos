@@ -293,7 +293,8 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
       originalSaleId: 0,
       originalInvoiceNumber: wholesaleInvoiceInput.trim() || 'Direct Return',
       originalSaleDate: new Date().toISOString().slice(0, 10),
-      reason: wholesaleReason.trim() || 'Wholesale Dealer Shoe Return',
+      mode: 'RETURN',
+      reason: wholesaleReason.trim() || 'Direct Shoe Return',
       items: exchangeItems,
     };
 

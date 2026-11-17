@@ -13,6 +13,277 @@ import { getAppSetting } from '../services/appSettingsService.ts';
 import { extractTokenFromRequest, getJwtSecret } from '../auth.ts';
 import { pgClient } from '../../db/index.ts';
 import { ensureNotificationsSchema, ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
+import {
+  formatExchangeNotification,
+  formatReturnNotification,
+  formatSaleExchangeNotification,
+  formatSaleNotification,
+  formatSaleReturnNotification,
+} from '../../utils/notificationFormatters.ts';
+
+async function resolveStoreNotificationContext(cleanTenantId: number): Promise<{
+  isWholesaleTenant: boolean;
+  linkedWholesaleReturnNumbers: Set<string>;
+}> {
+  const [csRes, combinedSalesRes] = await Promise.all([
+    pgClient
+      .query<{ business_type: string }>(
+        'SELECT business_type FROM company_settings WHERE tenant_id = $1 LIMIT 1',
+        [cleanTenantId]
+      )
+      .catch(() => ({ rows: [] as Array<{ business_type?: string }> })),
+    pgClient
+      .query<{ notes: string | null; sale_type?: string | null }>(
+        `SELECT notes, sale_type FROM sales WHERE tenant_id = $1 AND notes LIKE $2`,
+        [cleanTenantId, '%(Return %']
+      )
+      .catch(() => ({ rows: [] as Array<{ notes: string | null; sale_type?: string | null }> })),
+  ]);
+
+  const isWholesaleTenant =
+    String(csRes.rows[0]?.business_type || 'RETAIL').toUpperCase() === 'WHOLESALE';
+
+  const linkedWholesaleReturnNumbers = new Set<string>();
+  for (const sRow of combinedSalesRes.rows) {
+    const rowIsWholesale =
+      isWholesaleTenant || String(sRow.sale_type || '').toUpperCase() === 'WHOLESALE';
+    if (!rowIsWholesale) continue;
+    const notesStr = String(sRow.notes || '');
+    const matches = notesStr.matchAll(/(?:Return\s+#?)([A-Z0-9-]+)/gi);
+    for (const m of matches) {
+      if (m[1]) {
+        linkedWholesaleReturnNumbers.add(m[1].trim().toUpperCase());
+      }
+    }
+  }
+
+  return { isWholesaleTenant, linkedWholesaleReturnNumbers };
+}
+
+function mapSaleNotificationRow(
+  row: any,
+  options: {
+    isWholesaleTenant: boolean;
+    returnByNumber: Map<string, any>;
+    includeHistoryFields?: boolean;
+  }
+) {
+  const notesStr = String(row.notes || '');
+  const invoiceNo = row.invoice_number || String(row.id);
+  const isWholesaleRow =
+    options.isWholesaleTenant || String(row.sale_type || '').toUpperCase() === 'WHOLESALE';
+  const createdAt = row.created_at || row.sale_date || new Date().toISOString();
+
+  if (!isWholesaleRow) {
+    // Existing retail notification mapping preserved completely unchanged
+    const isExchangeRow =
+      notesStr.includes('Direct Shoe Exchange') || notesStr.includes('Wholesale Shoe Return');
+
+    if (isExchangeRow) {
+      const netMatch = notesStr.match(/Net Difference:\s*Rs\.\s*(-?\d+)/i);
+      const adjustmentAmt = netMatch ? Number(netMatch[1]) : Number(row.total_amount || 0);
+      const formatted = formatExchangeNotification({
+        invoiceNo,
+        amount: adjustmentAmt,
+        paymentMethod: row.payment_method || 'Cash',
+        totalQuantity: Number(row.total_quantity || 0),
+        customerName: row.customer_name || 'Walk-in Customer',
+        cashierName: row.cashier_name || 'Counter Staff',
+      });
+      return {
+        id: `sale-${row.id}`,
+        rawId: row.id,
+        ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+        itemType: 'EXCHANGE',
+        type: 'EXCHANGE',
+        title: formatted.title,
+        message: formatted.message,
+        itemsSummary: formatted.itemsSummary,
+        totalAmount: Number(row.total_amount || 0),
+        invoiceNumber: invoiceNo,
+        deepLinkUrl: '/reports',
+        ...(options.includeHistoryFields
+          ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+          : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+        createdAt,
+      };
+    }
+
+    const formatted = formatSaleNotification({
+      invoiceNo,
+      totalAmount: Number(row.total_amount || 0),
+      paymentMethod: row.payment_method || 'Cash',
+      totalQuantity: Number(row.total_quantity || 0),
+      customerName: row.customer_name || 'Walk-in Customer',
+      cashierName: row.cashier_name || 'Counter Staff',
+    });
+    return {
+      id: `sale-${row.id}`,
+      rawId: row.id,
+      ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+      itemType: 'SALE',
+      type: 'SALE',
+      title: formatted.title,
+      message: formatted.message,
+      itemsSummary: formatted.itemsSummary,
+      totalAmount: Number(row.total_amount || 0),
+      invoiceNumber: invoiceNo,
+      deepLinkUrl: '/reports',
+      ...(options.includeHistoryFields
+        ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+        : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+      createdAt,
+    };
+  }
+
+  // Wholesale store mapping: clean standard titles without "Wholesale" or "B2B"
+  const returnRefMatch = notesStr.match(/(?:Return\s+#?)([A-Z0-9-]+)/i);
+  const matchedReturn = returnRefMatch
+    ? options.returnByNumber.get(returnRefMatch[1].trim().toUpperCase())
+    : undefined;
+  const hasLinkedReturn =
+    Boolean(returnRefMatch) ||
+    notesStr.includes('[Combined: SALE_RETURN]') ||
+    notesStr.includes('[Combined: SALE_EXCHANGE]') ||
+    notesStr.includes('[Standalone: EXCHANGE]') ||
+    notesStr.includes('Direct Shoe Exchange') ||
+    notesStr.includes('Wholesale Shoe Return');
+
+  const rawSubtotal = Number(row.subtotal ?? 0);
+  const rawDiscount = Number(row.discount ?? 0);
+  const rawPrevBal = Number(row.previous_balance ?? 0);
+  const saleNetSubtotal =
+    rawSubtotal > 0
+      ? Math.max(0, rawSubtotal - rawDiscount)
+      : Math.max(0, Number(row.total_amount || 0) - rawPrevBal);
+  const soldQty = Number(row.total_quantity || 0);
+
+  if (!hasLinkedReturn) {
+    const formatted = formatSaleNotification({
+      invoiceNo,
+      totalAmount: saleNetSubtotal,
+      paymentMethod: row.payment_method || 'Cash',
+      totalQuantity: soldQty,
+      customerName: row.customer_name || 'Walk-in Customer',
+      cashierName: row.cashier_name || 'Counter Staff',
+    });
+    return {
+      id: `sale-${row.id}`,
+      rawId: row.id,
+      ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+      itemType: 'SALE',
+      type: 'SALE',
+      title: formatted.title,
+      message: formatted.message,
+      itemsSummary: formatted.itemsSummary,
+      totalAmount: saleNetSubtotal,
+      invoiceNumber: invoiceNo,
+      deepLinkUrl: '/reports',
+      ...(options.includeHistoryFields
+        ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+        : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+      createdAt,
+    };
+  }
+
+  const creditMatch = notesStr.match(/Returned Credit:\s*Rs\.\s*(-?\d+(?:\.\d+)?)/i);
+  const returnCredit = creditMatch
+    ? Number(creditMatch[1])
+    : Number(matchedReturn?.total_refund_amount || 0);
+  const netMatch = notesStr.match(/Net Difference:\s*Rs\.\s*(-?\d+(?:\.\d+)?)/i);
+  const netAmount = netMatch ? Number(netMatch[1]) : saleNetSubtotal - returnCredit;
+  const retPairsMatch = notesStr.match(/RetPairs:\s*(\d+)/i);
+  const returnedQty = Number(
+    matchedReturn?.total_quantity || (retPairsMatch ? Number(retPairsMatch[1]) : 0)
+  );
+
+  if (notesStr.includes('[Standalone: EXCHANGE]')) {
+    const formatted = formatExchangeNotification({
+      invoiceNo,
+      amount: netAmount,
+      paymentMethod: row.payment_method || 'Cash',
+      totalQuantity: returnedQty || soldQty,
+      customerName: row.customer_name || 'Walk-in Customer',
+      cashierName: row.cashier_name || 'Counter Staff',
+    });
+    return {
+      id: `sale-${row.id}`,
+      rawId: row.id,
+      ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+      itemType: 'EXCHANGE',
+      type: 'EXCHANGE',
+      title: formatted.title,
+      message: formatted.message,
+      itemsSummary: formatted.itemsSummary,
+      totalAmount: netAmount,
+      invoiceNumber: invoiceNo,
+      returnNumber: matchedReturn?.return_number || returnRefMatch?.[1],
+      deepLinkUrl: '/reports',
+      ...(options.includeHistoryFields
+        ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+        : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+      createdAt,
+    };
+  }
+
+  if (notesStr.includes('[Combined: SALE_EXCHANGE]') || notesStr.includes('Direct Shoe Exchange')) {
+    const formatted = formatSaleExchangeNotification({
+      invoiceNo,
+      amount: netAmount,
+      paymentMethod: row.payment_method || 'Cash',
+      soldQuantity: soldQty,
+      exchangedQuantity: returnedQty,
+      customerName: row.customer_name || 'Walk-in Customer',
+      cashierName: row.cashier_name || 'Counter Staff',
+    });
+    return {
+      id: `sale-${row.id}`,
+      rawId: row.id,
+      ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+      itemType: 'SALE_EXCHANGE',
+      type: 'SALE_EXCHANGE',
+      title: formatted.title,
+      message: formatted.message,
+      itemsSummary: formatted.itemsSummary,
+      totalAmount: netAmount,
+      invoiceNumber: invoiceNo,
+      returnNumber: matchedReturn?.return_number || returnRefMatch?.[1],
+      deepLinkUrl: '/reports',
+      ...(options.includeHistoryFields
+        ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+        : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+      createdAt,
+    };
+  }
+
+  const formatted = formatSaleReturnNotification({
+    invoiceNo,
+    amount: netAmount,
+    paymentMethod: row.payment_method || 'Cash',
+    soldQuantity: soldQty,
+    returnedQuantity: returnedQty,
+    customerName: row.customer_name || 'Walk-in Customer',
+    cashierName: row.cashier_name || 'Counter Staff',
+  });
+  return {
+    id: `sale-${row.id}`,
+    rawId: row.id,
+    ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+    itemType: 'SALE_RETURN',
+    type: 'SALE_RETURN',
+    title: formatted.title,
+    message: formatted.message,
+    itemsSummary: formatted.itemsSummary,
+    totalAmount: netAmount,
+    invoiceNumber: invoiceNo,
+    returnNumber: matchedReturn?.return_number || returnRefMatch?.[1],
+    deepLinkUrl: '/reports',
+    ...(options.includeHistoryFields
+      ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+      : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+    createdAt,
+  };
+}
 
 const router = Router();
 
@@ -200,15 +471,29 @@ router.get('/grouped', async (req: Request, res: Response) => {
     // Cashiers ONLY receive notifications for their own operations
     let operationalNotifications: any[] = [];
     if (role !== 'SUPERADMIN') {
+      const { isWholesaleTenant, linkedWholesaleReturnNumbers } =
+        await resolveStoreNotificationContext(cleanTenantId);
+
       const salesRes = await pgClient.query(
         `SELECT
            s.id,
            s.invoice_number,
+           s.sale_type,
+           COALESCE(s.subtotal, 0) AS subtotal,
+           COALESCE(s.discount, 0) AS discount,
+           COALESCE(s.previous_balance, 0) AS previous_balance,
            s.total_amount,
+           s.payment_method,
+           s.notes,
            s.sale_date,
            s.created_at,
+           COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+           COALESCE(u.name, 'Counter Staff') AS cashier_name,
+           COALESCE((SELECT SUM(si.quantity) FROM sale_items si WHERE si.sale_id = s.id), 0) AS total_quantity,
            'SALE' AS item_type
          FROM sales s
+         LEFT JOIN customers c ON s.customer_id = c.id
+         LEFT JOIN users u ON s.created_by = u.id
          WHERE s.tenant_id = $1
            AND s.created_at >= NOW() - INTERVAL '48 HOURS'
            AND (CASE WHEN $4 = 'CASHIER' THEN s.created_by = $2 ELSE TRUE END)
@@ -232,8 +517,16 @@ router.get('/grouped', async (req: Request, res: Response) => {
            r.reason,
            r.return_date,
            r.created_at,
+           s.invoice_number,
+           s.payment_method,
+           COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+           COALESCE(u.name, 'Authorized Staff') AS cashier_name,
+           COALESCE((SELECT SUM(ri.quantity) FROM return_items ri WHERE ri.return_id = r.id), 0) AS total_quantity,
            'RETURN' AS item_type
          FROM returns r
+         LEFT JOIN sales s ON r.original_sale_id = s.id
+         LEFT JOIN customers c ON r.customer_id = c.id
+         LEFT JOIN users u ON r.created_by = u.id
          WHERE r.tenant_id = $1
            AND r.created_at >= NOW() - INTERVAL '48 HOURS'
            AND (CASE WHEN $4 = 'CASHIER' THEN r.created_by = $2 ELSE TRUE END)
@@ -246,40 +539,58 @@ router.get('/grouped', async (req: Request, res: Response) => {
            )
          ORDER BY r.created_at DESC
          LIMIT $3`,
-        [cleanTenantId, userId, limit, role]
+        [cleanTenantId, userId, Math.max(limit * 5, 50), role]
       ).catch(() => ({ rows: [] }));
 
-      const mappedSales = salesRes.rows.map((row: any) => ({
-        id: `sale-${row.id}`,
-        rawId: row.id,
-        itemType: 'SALE',
-        type: 'SALE',
-        title: `Sale Confirmed #${row.invoice_number || row.id}`,
-        message: `Invoice for Rs. ${Number(row.total_amount || 0).toLocaleString()} completed at counter.`,
-        totalAmount: Number(row.total_amount || 0),
-        invoiceNumber: row.invoice_number || String(row.id),
-        deepLinkUrl: '/reports',
-        actionTab: 'reports',
-        createdAt: row.created_at || row.sale_date || new Date().toISOString(),
-        timestamp: row.created_at || row.sale_date || new Date().toISOString(),
-        isRead: false,
-      }));
+      const returnByNumber = new Map<string, any>();
+      for (const rRow of returnsRes.rows) {
+        if (rRow.return_number) {
+          returnByNumber.set(String(rRow.return_number).trim().toUpperCase(), rRow);
+        }
+      }
 
-      const mappedReturns = returnsRes.rows.map((row: any) => ({
-        id: `return-${row.id}`,
-        rawId: row.id,
-        itemType: 'RETURN',
-        type: 'RETURN',
-        title: `Customer Return #${row.return_number || row.id}`,
-        message: `Refund of Rs. ${Number(row.total_refund_amount || 0).toLocaleString()} processed (${row.reason || 'Customer refund'}).`,
-        totalAmount: Number(row.total_refund_amount || 0),
-        returnNumber: row.return_number || String(row.id),
-        deepLinkUrl: '/returns',
-        actionTab: 'returns',
-        createdAt: row.created_at || row.return_date || new Date().toISOString(),
-        timestamp: row.created_at || row.return_date || new Date().toISOString(),
-        isRead: false,
-      }));
+      const mappedSales = salesRes.rows.map((row: any) =>
+        mapSaleNotificationRow(row, {
+          isWholesaleTenant,
+          returnByNumber,
+          includeHistoryFields: false,
+        })
+      );
+
+      const mappedReturns = returnsRes.rows
+        .filter((row: any) => {
+          const retNo = String(row.return_number || '').trim().toUpperCase();
+          return !retNo || !linkedWholesaleReturnNumbers.has(retNo);
+        })
+        .slice(0, limit)
+        .map((row: any) => {
+          const invoiceNo = row.invoice_number || row.return_number || String(row.id);
+          const formatted = formatReturnNotification({
+            invoiceNo,
+            amount: Number(row.total_refund_amount || 0),
+            paymentMethod: row.payment_method || 'Cash',
+            totalQuantity: Number(row.total_quantity || 0),
+            customerName: row.customer_name || 'Walk-in Customer',
+            cashierName: row.cashier_name || 'Authorized Staff',
+          });
+          return {
+            id: `return-${row.id}`,
+            rawId: row.id,
+            itemType: 'RETURN',
+            type: 'RETURN',
+            title: formatted.title,
+            message: formatted.message,
+            itemsSummary: formatted.itemsSummary,
+            totalAmount: Number(row.total_refund_amount || 0),
+            invoiceNumber: invoiceNo,
+            returnNumber: row.return_number || String(row.id),
+            deepLinkUrl: '/returns',
+            actionTab: 'returns',
+            createdAt: row.created_at || row.return_date || new Date().toISOString(),
+            timestamp: row.created_at || row.return_date || new Date().toISOString(),
+            isRead: false,
+          };
+        });
 
       let mappedLowStock: any[] = [];
       if (role === 'ADMIN' || role === 'OWNER') {
@@ -483,13 +794,25 @@ router.get('/all', async (req: Request, res: Response) => {
         tabFilter === 'stock' ||
         tabFilter === 'low_stock')
     ) {
+      const { isWholesaleTenant, linkedWholesaleReturnNumbers } =
+        await resolveStoreNotificationContext(cleanTenantId);
+
       const salesRes = await pgClient.query(
         `SELECT
            s.id,
            s.invoice_number,
+           s.sale_type,
+           COALESCE(s.subtotal, 0) AS subtotal,
+           COALESCE(s.discount, 0) AS discount,
+           COALESCE(s.previous_balance, 0) AS previous_balance,
            s.total_amount,
+           s.payment_method,
+           s.notes,
            s.sale_date,
            s.created_at,
+           COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+           COALESCE(u.name, 'Counter Staff') AS cashier_name,
+           COALESCE((SELECT SUM(si.quantity) FROM sale_items si WHERE si.sale_id = s.id), 0) AS total_quantity,
            EXISTS (
              SELECT 1 FROM pos_notification_dismissals pnd
              WHERE pnd.tenant_id = $1
@@ -498,6 +821,8 @@ router.get('/all', async (req: Request, res: Response) => {
                AND pnd.item_id = s.id
            ) AS is_dismissed
          FROM sales s
+         LEFT JOIN customers c ON s.customer_id = c.id
+         LEFT JOIN users u ON s.created_by = u.id
          WHERE s.tenant_id = $1
            AND (CASE WHEN $3 = 'CASHIER' THEN s.created_by = $2 ELSE TRUE END)
          ORDER BY s.created_at DESC
@@ -513,6 +838,11 @@ router.get('/all', async (req: Request, res: Response) => {
            r.reason,
            r.return_date,
            r.created_at,
+           s.invoice_number,
+           s.payment_method,
+           COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+           COALESCE(u.name, 'Authorized Staff') AS cashier_name,
+           COALESCE((SELECT SUM(ri.quantity) FROM return_items ri WHERE ri.return_id = r.id), 0) AS total_quantity,
            EXISTS (
              SELECT 1 FROM pos_notification_dismissals pnd
              WHERE pnd.tenant_id = $1
@@ -521,6 +851,9 @@ router.get('/all', async (req: Request, res: Response) => {
                AND pnd.item_id = r.id
            ) AS is_dismissed
          FROM returns r
+         LEFT JOIN sales s ON r.original_sale_id = s.id
+         LEFT JOIN customers c ON r.customer_id = c.id
+         LEFT JOIN users u ON r.created_by = u.id
          WHERE r.tenant_id = $1
            AND (CASE WHEN $3 = 'CASHIER' THEN r.created_by = $2 ELSE TRUE END)
          ORDER BY r.created_at DESC
@@ -528,37 +861,54 @@ router.get('/all', async (req: Request, res: Response) => {
         [cleanTenantId, userId, role]
       ).catch(() => ({ rows: [] }));
 
-      const mappedSales = salesRes.rows.map((row: any) => ({
-        id: `sale-${row.id}`,
-        rawId: row.id,
-        kind: 'OPERATIONAL',
-        itemType: 'SALE',
-        type: 'SALE',
-        title: `Sale Confirmed #${row.invoice_number || row.id}`,
-        message: `Invoice for Rs. ${Number(row.total_amount || 0).toLocaleString()} recorded at checkout.`,
-        totalAmount: Number(row.total_amount || 0),
-        invoiceNumber: row.invoice_number || String(row.id),
-        deepLinkUrl: '/reports',
-        createdAt: row.created_at || row.sale_date || new Date().toISOString(),
-        expiresAt: null,
-        isRead: Boolean(row.is_dismissed),
-      }));
+      const returnByNumber = new Map<string, any>();
+      for (const rRow of returnsRes.rows) {
+        if (rRow.return_number) {
+          returnByNumber.set(String(rRow.return_number).trim().toUpperCase(), rRow);
+        }
+      }
 
-      const mappedReturns = returnsRes.rows.map((row: any) => ({
-        id: `return-${row.id}`,
-        rawId: row.id,
-        kind: 'OPERATIONAL',
-        itemType: 'RETURN',
-        type: 'RETURN',
-        title: `Customer Return #${row.return_number || row.id}`,
-        message: `Refund of Rs. ${Number(row.total_refund_amount || 0).toLocaleString()} completed (${row.reason || 'Customer Return'}).`,
-        totalAmount: Number(row.total_refund_amount || 0),
-        returnNumber: row.return_number || String(row.id),
-        deepLinkUrl: '/returns',
-        createdAt: row.created_at || row.return_date || new Date().toISOString(),
-        expiresAt: null,
-        isRead: Boolean(row.is_dismissed),
-      }));
+      const mappedSales = salesRes.rows.map((row: any) =>
+        mapSaleNotificationRow(row, {
+          isWholesaleTenant,
+          returnByNumber,
+          includeHistoryFields: true,
+        })
+      );
+
+      const mappedReturns = returnsRes.rows
+        .filter((row: any) => {
+          const retNo = String(row.return_number || '').trim().toUpperCase();
+          return !retNo || !linkedWholesaleReturnNumbers.has(retNo);
+        })
+        .map((row: any) => {
+          const invoiceNo = row.invoice_number || row.return_number || String(row.id);
+          const formatted = formatReturnNotification({
+            invoiceNo,
+            amount: Number(row.total_refund_amount || 0),
+            paymentMethod: row.payment_method || 'Cash',
+            totalQuantity: Number(row.total_quantity || 0),
+            customerName: row.customer_name || 'Walk-in Customer',
+            cashierName: row.cashier_name || 'Authorized Staff',
+          });
+          return {
+            id: `return-${row.id}`,
+            rawId: row.id,
+            kind: 'OPERATIONAL',
+            itemType: 'RETURN',
+            type: 'RETURN',
+            title: formatted.title,
+            message: formatted.message,
+            itemsSummary: formatted.itemsSummary,
+            totalAmount: Number(row.total_refund_amount || 0),
+            invoiceNumber: invoiceNo,
+            returnNumber: row.return_number || String(row.id),
+            deepLinkUrl: '/returns',
+            createdAt: row.created_at || row.return_date || new Date().toISOString(),
+            expiresAt: null,
+            isRead: Boolean(row.is_dismissed),
+          };
+        });
 
       let mappedLowStock: any[] = [];
       if (role === 'ADMIN' || role === 'OWNER') {
@@ -605,7 +955,12 @@ router.get('/all', async (req: Request, res: Response) => {
       if (tabFilter === 'sales') {
         operationalItems = mappedSales;
       } else if (tabFilter === 'returns') {
-        operationalItems = mappedReturns;
+        operationalItems = [
+          ...mappedSales.filter((s: any) =>
+            ['SALE_RETURN', 'SALE_EXCHANGE', 'EXCHANGE'].includes(String(s.type || '').toUpperCase())
+          ),
+          ...mappedReturns,
+        ];
       } else if (tabFilter === 'stock' || tabFilter === 'low_stock') {
         operationalItems = mappedLowStock;
       } else {

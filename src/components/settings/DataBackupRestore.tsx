@@ -788,7 +788,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
                       type="checkbox"
                       checked={confirmRestore}
                       onChange={(e) => setConfirmRestore(e.target.checked)}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                      className="w-4 h-4 rounded-full text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
                     />
                     <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                       I confirm and want to restore this data into active store records.

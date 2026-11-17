@@ -7,6 +7,7 @@ import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { notifyPosAction } from '../pushNotificationService.ts';
 import { calculateReturnNetUnitPrice } from '../../utils/posCalculations.ts';
 import { shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
+import { formatPairSummary, formatReturnNotification } from '../../utils/notificationFormatters.ts';
 
 const router = Router();
 
@@ -153,8 +154,14 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   await pgClient.query('BEGIN');
 
   try {
-    // Check original sale scoped to tenant
-    const saleRes = await pgClient.query('SELECT * FROM sales WHERE id = $1 AND tenant_id = $2', [originalSaleId, tenantId]);
+    // Check original sale scoped to tenant (include customer name for return notification)
+    const saleRes = await pgClient.query(
+      `SELECT s.*, c.name AS customer_name
+       FROM sales s
+       LEFT JOIN customers c ON s.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
+       WHERE s.id = $1 AND COALESCE(s.tenant_id, 1) = $2`,
+      [originalSaleId, tenantId]
+    );
     if (saleRes.rows.length === 0) {
       throw new Error('Original sale record does not exist in this store.');
     }
@@ -312,16 +319,23 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 
     // Instant Real-Time Push Notification Trigger for Return
     try {
-      const returnItemNames = validatedItems.slice(0, 3).map((v) => `${v.quantity}x ${v.productName}`).join(', ');
-      const moreReturnCount = validatedItems.length > 3 ? ` +${validatedItems.length - 3} more` : '';
+      const returnedQuantity = validatedItems.reduce((sum, v) => sum + Number(v.quantity || 0), 0);
       const cashierDisplayName = req.user?.name || 'Authorized Staff';
-      const itemsSummary = `${returnItemNames}${moreReturnCount}`;
+      const customerDisplayName = sale.customer_name || 'Walk-in Customer';
+      const formattedReturn = formatReturnNotification({
+        invoiceNo: sale.invoice_number || returnNumber,
+        amount: totalRefundAmount,
+        paymentMethod: sale.payment_method || 'Cash',
+        totalQuantity: returnedQuantity,
+        customerName: customerDisplayName,
+        cashierName: cashierDisplayName,
+      });
 
       notifyPosAction(tenantId, {
         eventId: `pos-return-${tenantId}-ret-${returnId}`,
         type: 'RETURN',
-        title: `Return Logged #${returnNumber}`,
-        message: `Return #${returnNumber} (Refund: Rs. ${Math.round(totalRefundAmount)}) for Inv #${sale.invoice_number}. Items: ${itemsSummary}. Reason: ${reason.trim()}. Processed by ${cashierDisplayName}.`,
+        title: formattedReturn.title,
+        message: formattedReturn.message,
         invoiceNumber: sale.invoice_number,
         orderId: originalSaleId,
         saleId: originalSaleId,
@@ -329,11 +343,13 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         returnId,
         refundAmount: totalRefundAmount,
         totalAmount: totalRefundAmount,
-        customerName: sale.customer_name || 'Walk-in Customer',
+        customerName: customerDisplayName,
         cashierName: cashierDisplayName,
         cashierId: req.user!.id,
-        itemsSummary,
-        deepLinkUrl: `/?tab=returns&viewReturn=${encodeURIComponent(returnNumber)}&invoice=${encodeURIComponent(sale.invoice_number)}`,
+        itemsSummary: formatPairSummary(returnedQuantity, 'Returned'),
+        deepLinkUrl: sale.invoice_number
+          ? `/?tab=reports&viewInvoice=${encodeURIComponent(sale.invoice_number)}`
+          : `/?tab=returns&viewReturn=${encodeURIComponent(returnNumber)}`,
         timestamp: new Date().toISOString(),
         triggeredBy: cashierDisplayName,
         targetRole: 'ALL',

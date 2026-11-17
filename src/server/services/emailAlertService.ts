@@ -80,11 +80,17 @@ export async function dispatchPosEmailAlert(
     const formattedAmount = Number(amountVal).toLocaleString();
 
     const isSale = payload.type === 'SALE';
+    const isSaleReturn = payload.type === 'SALE_RETURN';
+    const isSaleExchange = payload.type === 'SALE_EXCHANGE';
     const isExchange = payload.type === 'EXCHANGE';
     const isReturn = payload.type === 'RETURN';
 
     const actionTitle = isSale
       ? `🛍️ New Sale #${invoiceNum} (Rs. ${formattedAmount})`
+      : isSaleExchange
+      ? `🔁 Sale & Exchange #${invoiceNum} (Rs. ${formattedAmount})`
+      : isSaleReturn
+      ? `🛍️ Sale & Return #${invoiceNum} (Rs. ${formattedAmount})`
       : isExchange
       ? `🔁 Shoe Exchange #${invoiceNum}`
       : isReturn
@@ -119,7 +125,7 @@ export async function dispatchPosEmailAlert(
     <tr>
       <td style="padding: 24px;">
         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${isReturn ? 'Total Refund' : isExchange ? 'Net Difference' : 'Total Amount Received'}</div>
+          <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${isReturn ? 'Total Refund' : isExchange ? 'Net Difference' : (isSaleReturn || isSaleExchange) ? 'Net Amount' : 'Total Amount Received'}</div>
           <div style="font-size: 32px; font-weight: 800; color: ${isReturn ? '#dc2626' : '#16a34a'}; margin: 4px 0;">Rs. ${formattedAmount}</div>
           <div style="font-size: 12px; color: #64748b;">Invoice <strong>#${escapeHtml(invoiceNum)}</strong> • ${escapeHtml(dateFormatted)}</div>
         </div>

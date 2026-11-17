@@ -255,7 +255,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                     type="checkbox"
                     checked={leaveBlankForMarker}
                     onChange={(e) => setLeaveBlankForMarker(e.target.checked)}
-                    className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 cursor-pointer"
+                    className="rounded-full text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 cursor-pointer"
                   />
                   <span>Blank Marker Lines</span>
                 </label>

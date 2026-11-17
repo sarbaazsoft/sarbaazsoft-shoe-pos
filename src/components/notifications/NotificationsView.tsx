@@ -551,6 +551,22 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           icon: <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />,
         };
       }
+      if (item.itemType === 'SALE_RETURN' || t === 'SALE_RETURN') {
+        return {
+          label: 'Sale & Return',
+          badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
+          cardBg: 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/10',
+          icon: <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />,
+        };
+      }
+      if (item.itemType === 'SALE_EXCHANGE' || t === 'SALE_EXCHANGE') {
+        return {
+          label: 'Sale & Exchange',
+          badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
+          cardBg: 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/10',
+          icon: <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />,
+        };
+      }
       if (item.itemType === 'SALE') {
         return {
           label: 'POS Sale',
