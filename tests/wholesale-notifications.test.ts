@@ -35,7 +35,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(wholesaleSale.title, 'Sale Completed');
   assert.equal(
     wholesaleSale.message,
-    'Invoice: #INV-1025\n\nTotal Sold: 120 pairs\n\nSold to: Al-Madina Footwear\n\nPayment: Bank Transfer\n\nProcessed by: Hassan'
+    'Invoice: #INV-1025\nTotal Sold: 120 pairs\nSold to: Al-Madina Footwear\nPayment: Bank Transfer\nProcessed by: Hassan'
   );
   assert.equal(wholesaleSale.message.includes('Returned:'), false);
   assert.equal(wholesaleSale.message.includes('Net Sold:'), false);
@@ -54,7 +54,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(wholesaleSaleWithReturn.title, 'Sale Completed');
   assert.equal(
     wholesaleSaleWithReturn.message,
-    'Invoice: #INV-1026\n\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\n\nSold to: Al-Madina Footwear\n\nPayment: Bank Transfer\n\nProcessed by: Hassan'
+    'Invoice: #INV-1026\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\nSold to: Al-Madina Footwear\nPayment: Bank Transfer\nProcessed by: Hassan'
   );
 
   const purchase = formatPurchaseNotification({
@@ -68,7 +68,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(purchase.title, 'Purchase Completed');
   assert.equal(
     purchase.message,
-    'Purchase #: #PUR-000025\n\n25 cartons purchased from Beacon Suppliers.\n\nPayment: Cash\n\nProcessed by: Hassan'
+    'Purchase #: #PUR-000025\n25 cartons purchased from Beacon Suppliers.\nPayment: Cash\nProcessed by: Hassan'
   );
 
   const ret = formatReturnNotification({
@@ -82,7 +82,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(ret.title, 'Return Completed');
   assert.equal(
     ret.message,
-    'Return #: #RET-000012\n\n3 pairs returned by Al-Madina Footwear.\n\nRefund: Rs. 6,000 (Cash)\n\nProcessed by: Hassan'
+    'Return #: #RET-000012\n3 pairs returned by Al-Madina Footwear.\nRefund: Rs. 6,000 (Cash)\nProcessed by: Hassan'
   );
 
   const exch = formatExchangeNotification({
@@ -96,7 +96,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(exch.title, 'Exchange Completed');
   assert.equal(
     exch.message,
-    'Exchange #: #EXC-000008\n\n2 pairs exchanged by Al-Madina Footwear.\n\nAdditional Payment: Rs. 1,500 (Online)\n\nProcessed by: Hassan'
+    'Exchange #: #EXC-000008\n2 pairs exchanged by Al-Madina Footwear.\nAdditional Payment: Rs. 1,500 (Online)\nProcessed by: Hassan'
   );
 
   const saleExchange = formatSaleExchangeNotification({
@@ -111,7 +111,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(saleExchange.title, 'Exchange Completed');
   assert.equal(
     saleExchange.message,
-    'Exchange #: #EXC-000009\n\n4 pairs exchanged by Al-Madina Footwear.\n\nRefund: Rs. 500 (Cash)\n\nProcessed by: Hassan'
+    'Exchange #: #EXC-000009\n4 pairs exchanged by Al-Madina Footwear.\nRefund: Rs. 500 (Cash)\nProcessed by: Hassan'
   );
 
   const saleReturn = formatSaleReturnNotification({
@@ -127,7 +127,7 @@ test('Wholesale notification formatters match standardized structure for Sale, S
   assert.equal(saleReturn.title, 'Sale Completed');
   assert.equal(
     saleReturn.message,
-    'Invoice: #INV-1027\n\nTotal Sold: 12 pairs\nReturned: 6 pairs\nNet Sold: 6 pairs\n\nSold to: Al-Madina Footwear\n\nPayment: Khata\n\nProcessed by: Hassan'
+    'Invoice: #INV-1027\nTotal Sold: 12 pairs\nReturned: 6 pairs\nNet Sold: 6 pairs\nSold to: Al-Madina Footwear\nPayment: Khata\nProcessed by: Hassan'
   );
 });
 
@@ -270,7 +270,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     assert.equal(saleEvt!.data.title, 'Sale Completed');
     assert.equal(
       saleEvt!.data.message,
-      `Invoice: #${saleInv}\n\nTotal Sold: 120 pairs\n\nSold to: Madina Shoes Dealer\n\nPayment: Bank Transfer\n\nProcessed by: Kamran Staff`
+      `Invoice: #${saleInv}\nTotal Sold: 120 pairs\nSold to: Madina Shoes Dealer\nPayment: Bank Transfer\nProcessed by: Kamran Staff`
     );
 
     // 2. Return against same Wholesale invoice: 20 pairs returned -> updates Sale Completed, NEVER emits Return Completed
@@ -306,7 +306,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     assert.equal(updatedSaleEvt!.data.title, 'Sale Completed');
     assert.equal(
       updatedSaleEvt!.data.message,
-      `Invoice: #${saleInv}\n\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\n\nSold to: Madina Shoes Dealer\n\nPayment: Bank Transfer\n\nProcessed by: Kamran Staff`
+      `Invoice: #${saleInv}\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\nSold to: Madina Shoes Dealer\nPayment: Bank Transfer\nProcessed by: Kamran Staff`
     );
 
     // 3. Combined Sale & Return (direct return checkout: 12 pairs sold, 6 pairs returned)
@@ -337,7 +337,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     assert.equal(saleRetEvents[0].data.title, 'Sale Completed');
     assert.equal(
       saleRetEvents[0].data.message,
-      `Invoice: #${saleRetInv}\n\nTotal Sold: 12 pairs\nReturned: 6 pairs\nNet Sold: 6 pairs\n\nSold to: Madina Shoes Dealer\n\nPayment: Cash\n\nProcessed by: Kamran Staff`
+      `Invoice: #${saleRetInv}\nTotal Sold: 12 pairs\nReturned: 6 pairs\nNet Sold: 6 pairs\nSold to: Madina Shoes Dealer\nPayment: Cash\nProcessed by: Kamran Staff`
     );
 
     // 4. Standalone Exchange (EXCHANGE_ONLY: 6 pairs swapped with +1200 additional payment)
@@ -425,7 +425,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     assert.equal(gSale.title, 'Sale Completed');
     assert.equal(
       gSale.message,
-      `Invoice: #${saleInv}\n\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\n\nSold to: Madina Shoes Dealer\n\nPayment: Bank Transfer\n\nProcessed by: Kamran Staff`
+      `Invoice: #${saleInv}\nTotal Sold: 120 pairs\nReturned: 20 pairs\nNet Sold: 100 pairs\nSold to: Madina Shoes Dealer\nPayment: Bank Transfer\nProcessed by: Kamran Staff`
     );
     assert.ok(gSaleRet);
     assert.equal(gSaleRet.title, 'Sale Completed');

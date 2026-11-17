@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import {
   resolveNotificationActions,
   buildPushNotificationActions,
+  navigateToNotificationUrl,
 } from '../src/utils/notificationActions.ts';
 import { showSingleNotificationWithRegistration } from '../src/utils/notificationShade.ts';
 
@@ -327,7 +328,7 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
   // Return push resolves View Invoice + Open POS
   await harness.dispatchPush({
     title: 'Return Completed',
-    body: 'Return #: #RET-10\n\n1 pair returned by Walk-in Customer.\n\nRefund: Rs. 1,200 (Cash)\n\nProcessed by: Ali',
+    body: 'Return #: #RET-10\n1 pair returned by Walk-in Customer.\nRefund: Rs. 1,200 (Cash)\nProcessed by: Ali',
     data: { type: 'RETURN', invoiceNumber: 'INV-555', returnNumber: 'RET-10', tag: 'notif-ret-inv' },
   });
   const retInvNotif = harness.activeNotifications.get('notif-ret-inv');
@@ -341,7 +342,7 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
   // Purchase push resolves View Purchase + Open POS
   await harness.dispatchPush({
     title: 'Purchase Completed',
-    body: 'Purchase #: #PUR-000025\n\n25 cartons purchased from Metro Supplier.\n\nPayment: Cash\n\nProcessed by: Ali',
+    body: 'Purchase #: #PUR-000025\n25 cartons purchased from Metro Supplier.\nPayment: Cash\nProcessed by: Ali',
     data: { type: 'PURCHASE', purchaseNumber: 'PUR-000025', tag: 'notif-pur-25' },
   });
   const purNotif = harness.activeNotifications.get('notif-pur-25');
@@ -379,12 +380,21 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
     { action: 'open_pos', title: 'Open POS' },
   ]);
 
-  // Open POS action focuses open window and sends POS_DEEP_LINK_NOTIFICATION
+  // Open POS action focuses open window and sends POS_DEEP_LINK_NOTIFICATION WITHOUT reloading via targetClient.navigate
   harness.setOpenWindowClient();
+  const prevOpenCount = harness.openWindows.length;
   await harness.dispatchClick(cashierFallback, 'open_pos');
   assert.equal(harness.postedMessages[0].type, 'POS_DEEP_LINK_NOTIFICATION');
   assert.equal(harness.postedMessages[0].action, 'open_pos');
   assert.equal(harness.postedMessages[0].targetUrl, '/pos');
+  assert.equal(harness.openWindows.length, prevOpenCount, 'Must NOT call targetClient.navigate or openWindow when app is already open');
+
+  // View Invoice action on open window also posts deep-link without calling targetClient.navigate
+  await harness.dispatchClick(invNotif, 'view_invoice');
+  assert.equal(harness.postedMessages[1].type, 'POS_DEEP_LINK_NOTIFICATION');
+  assert.equal(harness.postedMessages[1].action, 'view_invoice');
+  assert.equal(harness.postedMessages[1].targetUrl, '/invoices/INV-555');
+  assert.equal(harness.openWindows.length, prevOpenCount, 'Must NOT reload existing client window on View Invoice click');
 });
 
 test('UI notification footers have removed custom Dismiss and Unsubscribe buttons', () => {
@@ -409,4 +419,97 @@ test('UI notification footers have removed custom Dismiss and Unsubscribe button
   assert.equal(headerSrc.includes('resolveNotificationActions'), true);
   assert.equal(headerSrc.includes('<span>Dismiss</span>'), false);
   assert.equal(headerSrc.includes('>Dismiss<'), false);
+});
+
+test('navigateToNotificationUrl routes client-side when authenticated and falls back to full navigation when unauthenticated or external', () => {
+  const prevWindow = (globalThis as any).window;
+  const prevLocalStorage = (globalThis as any).localStorage;
+  const prevCustomEvent = (globalThis as any).CustomEvent;
+
+  const dispatched: any[] = [];
+  const assigned: string[] = [];
+  const storageMap = new Map<string, string>();
+
+  (globalThis as any).CustomEvent = class MockCustomEvent {
+    type: string;
+    detail: any;
+    constructor(type: string, init?: { detail?: any }) {
+      this.type = type;
+      this.detail = init?.detail;
+    }
+  };
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => storageMap.get(k) ?? null,
+    setItem: (k: string, v: string) => storageMap.set(k, v),
+    removeItem: (k: string) => storageMap.delete(k),
+  };
+  (globalThis as any).window = {
+    location: {
+      origin: 'https://sarbaazsoft.cloud.run',
+      assign: (url: string) => {
+        assigned.push(url);
+      },
+    },
+    dispatchEvent: (ev: any) => {
+      dispatched.push(ev);
+      return true;
+    },
+  };
+
+  try {
+    // 1. Unauthenticated -> preserves standard document navigation
+    navigateToNotificationUrl('/invoices/INV-100');
+    assert.deepEqual(assigned, ['/invoices/INV-100']);
+    assert.equal(dispatched.length, 0);
+
+    // Build valid unexpired JWT token
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const payloadB64 = Buffer.from(JSON.stringify({ sub: 1, exp: futureExp })).toString('base64url');
+    storageMap.set('pos_auth_token', `header.${payloadB64}.sig`);
+
+    // 2. Authenticated relative path -> client-side event, zero location.assign
+    navigateToNotificationUrl('/invoices/INV-101', { invoiceId: 'INV-101' });
+    navigateToNotificationUrl('https://sarbaazsoft.cloud.run/inventory?filter=low-stock');
+    navigateToNotificationUrl('/dashboard');
+    navigateToNotificationUrl('/pos');
+    assert.equal(assigned.length, 1);
+    assert.deepEqual(
+      dispatched.map((e) => e.detail.url),
+      ['/invoices/INV-101', '/inventory?filter=low-stock', '/dashboard', '/pos']
+    );
+
+    // 3. External URL -> location.assign even when authenticated
+    navigateToNotificationUrl('https://example.com/release-notes');
+    assert.deepEqual(assigned, ['/invoices/INV-100', 'https://example.com/release-notes']);
+  } finally {
+    (globalThis as any).window = prevWindow;
+    (globalThis as any).localStorage = prevLocalStorage;
+    (globalThis as any).CustomEvent = prevCustomEvent;
+  }
+});
+
+test('Notification footer links, push clients, and destination views enforce no-reload SPA routing with skeletons', () => {
+  const appSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
+  const headerSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'common', 'Header.tsx'), 'utf8');
+  const bannerSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'pos', 'PosNotificationBanner.tsx'), 'utf8');
+  const firebaseSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'services', 'firebaseConfig.ts'), 'utf8');
+  const pushClientSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'services', 'pushNotificationClient.ts'), 'utf8');
+  const reportsSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'reports', 'ReportsDashboard.tsx'), 'utf8');
+  const notificationsViewSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'notifications', 'NotificationsView.tsx'), 'utf8');
+
+  // App.tsx listens for Service Worker messages on navigator.serviceWorker as well as window
+  assert.equal(appSrc.includes('navigator.serviceWorker'), true);
+  assert.equal(appSrc.includes("swContainer?.addEventListener('message'"), true);
+
+  // Notification handlers avoid window.location.href / window.open reloads
+  assert.equal(headerSrc.includes('window.location.href'), false);
+  assert.equal(headerSrc.includes("window.open(actionUrl"), false);
+  assert.equal(bannerSrc.includes('window.location.href'), false);
+  assert.equal(firebaseSrc.includes('window.location.href'), false);
+  assert.equal(pushClientSrc.includes('window.location.href'), false);
+
+  // Destination receipt and announcement modals include skeleton loading states
+  assert.equal(reportsSrc.includes('isLoadingReceiptModal'), true);
+  assert.equal(reportsSrc.includes('aria-label="Loading invoice receipt"'), true);
+  assert.equal(notificationsViewSrc.includes('aria-label="Loading announcement"'), true);
 });

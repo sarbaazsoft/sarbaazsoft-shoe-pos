@@ -34,7 +34,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   });
 
   const [selectedSaleForPrint, setSelectedSaleForPrint] = useState<any | null>(null);
+  const [isLoadingReceiptModal, setIsLoadingReceiptModal] = useState(false);
+  const [receiptModalError, setReceiptModalError] = useState<string | null>(null);
+  const [receiptModalTargetRef, setReceiptModalTargetRef] = useState<string | null>(null);
   const [isPrintSummaryOpen, setIsPrintSummaryOpen] = useState(false);
+  const receiptFetchSeqRef = useRef(0);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,32 +136,57 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     }
   }, [isLoading, dashboardData, profitLossData]);
 
+  const loadInvoiceReceiptByNumber = useRef<(inv: string) => Promise<void>>(async () => {});
+  loadInvoiceReceiptByNumber.current = async (inv: string) => {
+    const cleanInv = String(inv || '').trim();
+    if (!cleanInv) return;
+    const seq = ++receiptFetchSeqRef.current;
+    setSelectedSaleForPrint(null);
+    setReceiptModalError(null);
+    setReceiptModalTargetRef(cleanInv);
+    setIsLoadingReceiptModal(true);
+    try {
+      const verifyRes = await api.returns.verifyInvoice(cleanInv);
+      if (receiptFetchSeqRef.current !== seq) return;
+      if (verifyRes?.sale) {
+        setSelectedSaleForPrint({
+          ...verifyRes.sale,
+          items: verifyRes.items || verifyRes.sale.items || [],
+        });
+      } else {
+        setReceiptModalError(`Invoice #${cleanInv} could not be found.`);
+      }
+    } catch (err: any) {
+      if (receiptFetchSeqRef.current !== seq) return;
+      console.warn('Could not open deep-link invoice receipt:', err);
+      setReceiptModalError(err?.message || `Failed to load invoice #${cleanInv}.`);
+    } finally {
+      if (receiptFetchSeqRef.current === seq) {
+        setIsLoadingReceiptModal(false);
+      }
+    }
+  };
+
   useEffect(() => {
-    const checkDeepLinkInvoice = async (invoiceNum?: string) => {
-      const pathMatch = window.location.pathname.match(/^\/invoices\/([^/?#]+)/i);
-      const pathInv = pathMatch && pathMatch[1] ? decodeURIComponent(pathMatch[1]) : '';
-      const inv = invoiceNum || pathInv || new URLSearchParams(window.location.search).get('viewInvoice');
-      if (inv) {
-        try {
-          const verifyRes = await api.returns.verifyInvoice(inv);
-          if (verifyRes?.sale) {
-            setSelectedSaleForPrint({
-              ...verifyRes.sale,
-              items: verifyRes.items || verifyRes.sale.items || [],
-            });
-          }
-        } catch (err) {
-          console.warn('Could not auto-open deep link invoice receipt:', err);
-        }
+    const extractUrlInvoice = (): string => {
+      try {
+        const pathMatch = window.location.pathname.match(/^\/invoices\/([^/?#]+)/i);
+        const pathInv = pathMatch && pathMatch[1] ? decodeURIComponent(pathMatch[1]) : '';
+        return pathInv || new URLSearchParams(window.location.search).get('viewInvoice') || '';
+      } catch {
+        return '';
       }
     };
 
-    checkDeepLinkInvoice();
+    const initialInv = extractUrlInvoice();
+    if (initialInv) {
+      void loadInvoiceReceiptByNumber.current(initialInv);
+    }
 
     const handleOpenReceipt = (e: any) => {
-      const inv = e.detail?.invoiceNumber || e.detail?.invoice;
+      const inv = e.detail?.invoiceNumber || e.detail?.invoice || extractUrlInvoice();
       if (inv) {
-        checkDeepLinkInvoice(inv);
+        void loadInvoiceReceiptByNumber.current(String(inv));
       }
     };
 
@@ -166,6 +195,18 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       window.removeEventListener('pos:open-receipt', handleOpenReceipt);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isActive) return;
+    try {
+      const pathMatch = window.location.pathname.match(/^\/invoices\/([^/?#]+)/i);
+      const pathInv = pathMatch && pathMatch[1] ? decodeURIComponent(pathMatch[1]) : '';
+      const inv = pathInv || new URLSearchParams(window.location.search).get('viewInvoice') || '';
+      if (inv && !selectedSaleForPrint && !isLoadingReceiptModal && !receiptModalError) {
+        void loadInvoiceReceiptByNumber.current(inv);
+      }
+    } catch {}
+  }, [isActive]);
 
   const handleRefresh = async () => {
     const refetches: Promise<unknown>[] = [
@@ -180,12 +221,44 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     triggerStatRecount();
   };
 
+  const handleCloseReceiptModal = () => {
+    receiptFetchSeqRef.current += 1;
+    setSelectedSaleForPrint(null);
+    setIsLoadingReceiptModal(false);
+    setReceiptModalError(null);
+    setReceiptModalTargetRef(null);
+    try {
+      if (
+        window.location.pathname.startsWith('/invoices/') ||
+        new URLSearchParams(window.location.search).has('viewInvoice')
+      ) {
+        window.history.replaceState({}, '', '/reports');
+      }
+    } catch {}
+  };
+
   const handlePrintPastSale = async (saleId: number) => {
+    const seq = ++receiptFetchSeqRef.current;
+    setSelectedSaleForPrint(null);
+    setReceiptModalError(null);
+    setReceiptModalTargetRef(String(saleId));
+    setIsLoadingReceiptModal(true);
     try {
       const res = await api.pos.getSale(saleId);
-      setSelectedSaleForPrint(res.sale);
-    } catch (e) {
+      if (receiptFetchSeqRef.current !== seq) return;
+      if (res?.sale) {
+        setSelectedSaleForPrint(res.sale);
+      } else {
+        setReceiptModalError('Invoice details not found.');
+      }
+    } catch (e: any) {
+      if (receiptFetchSeqRef.current !== seq) return;
       console.error('Failed to fetch sale details:', e);
+      setReceiptModalError(e?.message || 'Failed to load invoice receipt.');
+    } finally {
+      if (receiptFetchSeqRef.current === seq) {
+        setIsLoadingReceiptModal(false);
+      }
     }
   };
 
@@ -1352,12 +1425,108 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         </motion.div>
       )}
 
-      {/* Invoice Print Modal for Past Receipts */}
+      {/* Invoice Print Modal / Skeleton Loader for Deep-Linked & Past Receipts */}
+      {isLoadingReceiptModal && !selectedSaleForPrint && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Loading invoice receipt"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-purple-900/40 flex items-center justify-between">
+              <div className="space-y-1.5">
+                <div className="h-4 w-40 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                <div className="h-3 w-28 rounded bg-slate-200/80 dark:bg-slate-800/70 animate-pulse" />
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseReceiptModal}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer"
+                aria-label="Close loading invoice"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0E1628] border border-slate-200/80 dark:border-purple-900/40 space-y-3">
+                <div className="flex justify-between">
+                  <div className="h-4 w-28 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  <div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                </div>
+                <div className="space-y-2 pt-2 border-t border-slate-200/70 dark:border-slate-800">
+                  {[0, 1, 2].map((idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3">
+                      <div className="h-3.5 w-44 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                      <div className="h-3.5 w-16 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between pt-3 border-t border-slate-200/70 dark:border-slate-800">
+                  <div className="h-5 w-24 rounded bg-slate-200 dark:bg-purple-900/50 animate-pulse" />
+                  <div className="h-5 w-24 rounded bg-slate-200 dark:bg-purple-900/50 animate-pulse" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <div className="h-9 w-24 rounded-xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                <div className="h-9 w-28 rounded-xl bg-purple-200/80 dark:bg-purple-900/50 animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isLoadingReceiptModal && receiptModalError && !selectedSaleForPrint && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#120726] border border-rose-200 dark:border-rose-900/50 shadow-2xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <h3 className="text-sm font-bold">Unable to Load Invoice</h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseReceiptModal}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                aria-label="Close error modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {receiptModalError}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCloseReceiptModal}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+              {receiptModalTargetRef && (
+                <button
+                  type="button"
+                  onClick={() => void loadInvoiceReceiptByNumber.current(receiptModalTargetRef)}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold cursor-pointer"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedSaleForPrint && (
         <InvoicePrintModal
           sale={selectedSaleForPrint}
           companySettings={companySettings}
-          onClose={() => setSelectedSaleForPrint(null)}
+          onClose={handleCloseReceiptModal}
         />
       )}
 

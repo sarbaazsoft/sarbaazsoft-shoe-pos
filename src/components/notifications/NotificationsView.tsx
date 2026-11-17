@@ -244,7 +244,7 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
 export const NotificationsView: React.FC<NotificationsViewProps> = ({
   currentUser,
   companySettings: _companySettings,
-  onNavigateTab,
+  onNavigateTab: _onNavigateTab,
 }) => {
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
@@ -365,17 +365,32 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     }
   };
 
-  // Listen for /announcements/:id deep-links
+  // Listen for /announcements/:id deep-links and sync URL on tab activation
   useEffect(() => {
+    const extractAnnouncementPathId = () => {
+      try {
+        const m = window.location.pathname.match(/^\/announcements\/([^/?#]+)/i);
+        return m && m[1] ? decodeURIComponent(m[1]) : '';
+      } catch {
+        return '';
+      }
+    };
+
     const handleOpenAnnouncement = (event: any) => {
-      const targetId = String(event?.detail?.announcementId || '').trim();
+      const targetId = String(event?.detail?.announcementId || extractAnnouncementPathId() || '').trim();
       if (targetId) {
+        setSelectedAnnouncement(null);
         setPendingAnnouncementId(targetId);
       }
     };
+
     window.addEventListener('pos:open-announcement', handleOpenAnnouncement);
+    const pathId = extractAnnouncementPathId();
+    if (isActive && pathId && !selectedAnnouncement) {
+      setPendingAnnouncementId(pathId);
+    }
     return () => window.removeEventListener('pos:open-announcement', handleOpenAnnouncement);
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
     if (!pendingAnnouncementId) return;
@@ -452,14 +467,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   ) => {
     void markItemReadSilently(item);
 
-    if (btn.action === 'open_pos') {
-      onNavigateTab('pos');
-      return;
-    }
-    if (btn.action === 'open_dashboard') {
-      onNavigateTab('dashboard');
-      return;
-    }
     if (btn.action === 'read_more') {
       setSelectedAnnouncement(item);
       if (btn.url.startsWith('/announcements/')) {
@@ -472,6 +479,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
     navigateToNotificationUrl(btn.url, {
       ...item,
+      action: btn.action,
       invoiceId: item.invoiceNumber || (item.itemType === 'SALE' ? item.rawId : undefined),
     });
   };
@@ -913,7 +921,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       </div>
 
       {/* ANNOUNCEMENT DETAIL MODAL (/announcements/:id) */}
-      {selectedAnnouncement && (
+      {(selectedAnnouncement || pendingAnnouncementId) && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
           role="dialog"
@@ -921,66 +929,101 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
         >
           <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
             <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600" />
-            <div className="p-5 sm:p-6 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-purple-900/60 dark:text-purple-200 border border-indigo-200 dark:border-purple-700">
-                    <Globe className="w-3 h-3" />
-                    <span>{selectedAnnouncement.tenantId ? 'Direct Store Alert' : 'Platform Announcement'}</span>
-                  </span>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
-                    {selectedAnnouncement.title}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedAnnouncement(null);
-                    if (window.location.pathname.startsWith('/announcements/')) {
-                      window.history.replaceState({}, '', '/notifications');
-                    }
-                  }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer"
-                  aria-label="Close announcement"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
-                <ClickableMessage text={selectedAnnouncement.message} />
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-purple-900/40 gap-2">
-                <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{formatFullDate(selectedAnnouncement.createdAt)}</span>
-                </span>
-                <div className="flex items-center gap-2">
-                  {selectedAnnouncement.actionUrl && /^https?:\/\//i.test(selectedAnnouncement.actionUrl) && (
-                    <a
-                      href={selectedAnnouncement.actionUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
-                    >
-                      <span>{selectedAnnouncement.actionLabel || 'Open Link'}</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
+            {selectedAnnouncement ? (
+              <div className="p-5 sm:p-6 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-purple-900/60 dark:text-purple-200 border border-indigo-200 dark:border-purple-700">
+                      <Globe className="w-3 h-3" />
+                      <span>{selectedAnnouncement.tenantId ? 'Direct Store Alert' : 'Platform Announcement'}</span>
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                      {selectedAnnouncement.title}
+                    </h3>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedAnnouncement(null);
-                      onNavigateTab('pos');
+                      setPendingAnnouncementId(null);
+                      if (window.location.pathname.startsWith('/announcements/')) {
+                        window.history.replaceState({}, '', '/notifications');
+                      }
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-purple-900/50 hover:bg-slate-200 dark:hover:bg-purple-800/60 text-slate-800 dark:text-purple-100 text-xs font-semibold cursor-pointer"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer"
+                    aria-label="Close announcement"
                   >
-                    Open POS
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                <div className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
+                  <ClickableMessage text={selectedAnnouncement.message} />
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-purple-900/40 gap-2">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{formatFullDate(selectedAnnouncement.createdAt)}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {selectedAnnouncement.actionUrl && /^https?:\/\//i.test(selectedAnnouncement.actionUrl) && (
+                      <a
+                        href={selectedAnnouncement.actionUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
+                      >
+                        <span>{selectedAnnouncement.actionLabel || 'Open Link'}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAnnouncement(null);
+                        setPendingAnnouncementId(null);
+                        navigateToNotificationUrl('/pos');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-purple-900/50 hover:bg-slate-200 dark:hover:bg-purple-800/60 text-slate-800 dark:text-purple-100 text-xs font-semibold cursor-pointer"
+                    >
+                      Open POS
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-5 sm:p-6 space-y-4" role="status" aria-label="Loading announcement">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2 flex-1">
+                    <div className="h-5 w-32 rounded-full bg-slate-200 dark:bg-purple-900/60 animate-pulse" />
+                    <div className="h-6 w-3/4 rounded-lg bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingAnnouncementId(null);
+                      if (window.location.pathname.startsWith('/announcements/')) {
+                        window.history.replaceState({}, '', '/notifications');
+                      }
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer"
+                    aria-label="Close loading announcement"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-2.5 py-2">
+                  <div className="h-4 w-full rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  <div className="h-4 w-5/6 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-purple-900/40">
+                  <div className="h-4 w-28 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  <div className="h-7 w-24 rounded-xl bg-slate-200 dark:bg-purple-900/60 animate-pulse" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

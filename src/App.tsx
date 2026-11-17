@@ -66,6 +66,7 @@ function appPathForTab(tab: string): string {
 interface ParsedSubRoute {
   tab: string;
   invoiceId?: string;
+  returnInspectInvoice?: string;
   announcementId?: string;
   lowStockOnly?: boolean;
   canonicalPath?: string;
@@ -106,7 +107,25 @@ function parseAppSubRoute(pathname: string, search: string = ''): ParsedSubRoute
     pathTab = 'notifications';
   }
   const queryTab = sp.get('tab')?.toLowerCase() || '';
+  const viewInvoiceParam = (sp.get('viewInvoice') || '').trim();
+  const returnInvoiceParam = (sp.get('invoice') || '').trim();
   const lowStockOnly = sp.get('filter') === 'low-stock' || sp.get('lowStockOnly') === 'true';
+
+  if (viewInvoiceParam) {
+    return {
+      tab: 'reports',
+      invoiceId: viewInvoiceParam,
+      canonicalPath: `/invoices/${encodeURIComponent(viewInvoiceParam)}`,
+    };
+  }
+
+  if (pathTab === 'returns' && returnInvoiceParam) {
+    return {
+      tab: 'returns',
+      returnInspectInvoice: returnInvoiceParam,
+      canonicalPath: `/returns?invoice=${encodeURIComponent(returnInvoiceParam)}`,
+    };
+  }
 
   if (pathTab === 'inventory' && lowStockOnly) {
     return {
@@ -125,7 +144,10 @@ function parseAppSubRoute(pathname: string, search: string = ''): ParsedSubRoute
         canonicalPath: '/inventory?filter=low-stock',
       };
     }
-    return { tab: candidateTab };
+    return {
+      tab: candidateTab,
+      canonicalPath: appPathForTab(candidateTab),
+    };
   }
 
   return null;
@@ -1028,6 +1050,10 @@ export default function App() {
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: popSubRoute.invoiceId } }));
             }, 150);
+          } else if (popSubRoute.returnInspectInvoice) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('returns:inspect-invoice', { detail: { invoice: popSubRoute.returnInspectInvoice } }));
+            }, 150);
           } else if (popSubRoute.announcementId) {
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent('pos:open-announcement', { detail: { announcementId: popSubRoute.announcementId } }));
@@ -1316,42 +1342,74 @@ export default function App() {
     }
   }, [currentUser, currentTab, companySettings]);
 
-  // Deep-link event listener from Web Push notifications & Service Worker
+  // Deep-link event listener from Web Push notifications, Service Worker, and UI notification footers
   useEffect(() => {
+    const pushClientPathIfChanged = (targetPath: string) => {
+      if (!targetPath) return;
+      const currentFull = `${window.location.pathname}${window.location.search}`;
+      if (currentFull !== targetPath) {
+        window.history.pushState({}, '', targetPath);
+      }
+    };
+
+    const dispatchSubRouteEvents = (sub: ParsedSubRoute, delayMs = 120) => {
+      if (sub.invoiceId) {
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: sub.invoiceId } })
+          );
+        }, delayMs);
+      } else if (sub.returnInspectInvoice) {
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('returns:inspect-invoice', { detail: { invoice: sub.returnInspectInvoice } })
+          );
+        }, delayMs);
+      } else if (sub.announcementId) {
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('pos:open-announcement', { detail: { announcementId: sub.announcementId } })
+          );
+        }, delayMs);
+      } else if (sub.lowStockOnly) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+        }, delayMs);
+      }
+    };
+
     const navigateToParsedRoute = (rawUrl: string) => {
       try {
         const parsed = new URL(rawUrl, window.location.origin);
+        if (parsed.origin !== window.location.origin) {
+          window.location.assign(rawUrl);
+          return true;
+        }
+
+        if (parsed.pathname === '/admin' || parsed.pathname.startsWith('/admin/')) {
+          const roleUpper = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
+          if (roleUpper === 'SUPERADMIN') {
+            setSaasMode('SUPERADMIN');
+            setIsLoginModalOpen(false);
+            pushClientPathIfChanged(`${parsed.pathname}${parsed.search}` || '/admin');
+            return true;
+          }
+          return false;
+        }
+
         const sub = parseAppSubRoute(parsed.pathname, parsed.search);
         if (!sub) return false;
 
-        if (sub.canonicalPath) {
-          const valid = resolveTargetTab(sub.tab, currentUser, companySettings);
-          setCurrentTab(valid);
-          if (valid === sub.tab) {
-            window.history.pushState({}, '', sub.canonicalPath);
-          } else {
-            window.history.replaceState({}, '', appPathForTab(valid));
-          }
-        } else {
-          handleTabChange(sub.tab);
-        }
+        const valid = resolveTargetTab(sub.tab, currentUser, companySettings);
+        const targetCanonical =
+          valid === sub.tab && sub.canonicalPath ? sub.canonicalPath : appPathForTab(valid);
 
-        if (sub.invoiceId) {
-          setTimeout(() => {
-            window.dispatchEvent(
-              new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: sub.invoiceId } })
-            );
-          }, 150);
-        } else if (sub.announcementId) {
-          setTimeout(() => {
-            window.dispatchEvent(
-              new CustomEvent('pos:open-announcement', { detail: { announcementId: sub.announcementId } })
-            );
-          }, 150);
-        } else if (sub.lowStockOnly) {
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-          }, 150);
+        // Update browser URL cleanly via pushState BEFORE activating/mounting lazy child tab
+        pushClientPathIfChanged(targetCanonical);
+        setCurrentTab(valid);
+
+        if (valid === sub.tab) {
+          dispatchSubRouteEvents(sub, 120);
         }
         return true;
       } catch {
@@ -1362,7 +1420,38 @@ export default function App() {
     const handleDeepLink = (detail: any) => {
       if (!detail) return;
       const rawUrl = String(detail.url || detail.deepLinkUrl || '').trim();
-      if (rawUrl && rawUrl.startsWith('/') && navigateToParsedRoute(rawUrl)) {
+
+      // Unauthenticated or inactive session: preserve existing document navigation / auth flow
+      if (!currentUser || !isStoredTokenValid()) {
+        if (rawUrl) {
+          window.location.assign(rawUrl);
+        } else {
+          const fallbackTarget = getStoredUnauthTenantId()
+            ? `/auth?tenantId=${encodeURIComponent(getStoredUnauthTenantId())}`
+            : '/';
+          window.location.assign(fallbackTarget);
+        }
+        return;
+      }
+
+      const roleUpper = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
+      if (saasMode === 'SUPERADMIN' && roleUpper === 'SUPERADMIN') {
+        if (rawUrl && (rawUrl.startsWith('/admin') || /^https?:\/\/[^/]+\/admin/i.test(rawUrl))) {
+          navigateToParsedRoute(rawUrl);
+          return;
+        }
+        // Keep SuperAdmin portal intact without forcing broken tenant routes
+        return;
+      }
+
+      if (saasMode !== 'TENANT_ACTIVE') {
+        if (rawUrl) {
+          window.location.assign(rawUrl);
+        }
+        return;
+      }
+
+      if (rawUrl && (rawUrl.startsWith('/') || /^https?:\/\//i.test(rawUrl)) && navigateToParsedRoute(rawUrl)) {
         return;
       }
 
@@ -1373,42 +1462,60 @@ export default function App() {
       const announcementId = detail.announcementId || detail.notificationId;
 
       if (type === 'STOCK' || type === 'LOW_STOCK' || itemType === 'LOW_STOCK' || detail.lowStockOnly === 'true' || detail.actionTab === 'inventory') {
+        pushClientPathIfChanged('/inventory?filter=low-stock');
         setCurrentTab('inventory');
-        window.history.pushState({}, '', '/inventory?filter=low-stock');
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-        }, 150);
+        }, 120);
       } else if (announcementId || type === 'ANNOUNCEMENT' || itemType === 'ANNOUNCEMENT') {
+        if (announcementId) {
+          pushClientPathIfChanged(`/announcements/${encodeURIComponent(String(announcementId))}`);
+        } else {
+          pushClientPathIfChanged('/notifications');
+        }
         setCurrentTab('notifications');
         if (announcementId) {
-          window.history.pushState({}, '', `/announcements/${encodeURIComponent(String(announcementId))}`);
           setTimeout(() => {
             window.dispatchEvent(
               new CustomEvent('pos:open-announcement', { detail: { announcementId: String(announcementId) } })
             );
-          }, 150);
-        } else {
-          window.history.replaceState({}, '', '/notifications');
+          }, 120);
         }
       } else if (type === 'RETURN') {
-        handleTabChange('returns');
-        if (invoice) {
+        const valid = resolveTargetTab('returns', currentUser, companySettings);
+        const returnPath =
+          valid === 'returns' && invoice
+            ? `/returns?invoice=${encodeURIComponent(String(invoice))}`
+            : appPathForTab(valid);
+        pushClientPathIfChanged(returnPath);
+        setCurrentTab(valid);
+        if (valid === 'returns' && invoice) {
           setTimeout(() => {
             window.dispatchEvent(
               new CustomEvent('returns:inspect-invoice', { detail: { invoice, returnNumber: returnNum } })
             );
-          }, 150);
+          }, 120);
+        } else if (invoice) {
+          pushClientPathIfChanged(`/invoices/${encodeURIComponent(String(invoice))}`);
+          setCurrentTab('reports');
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invoice } })
+            );
+          }, 120);
         }
       } else if (invoice) {
+        pushClientPathIfChanged(`/invoices/${encodeURIComponent(String(invoice))}`);
         setCurrentTab('reports');
-        window.history.pushState({}, '', `/invoices/${encodeURIComponent(String(invoice))}`);
         setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invoice } })
           );
-        }, 150);
+        }, 120);
       } else if (detail.actionTab) {
-        handleTabChange(detail.actionTab);
+        const valid = resolveTargetTab(detail.actionTab, currentUser, companySettings);
+        pushClientPathIfChanged(appPathForTab(valid));
+        setCurrentTab(valid);
       }
     };
 
@@ -1427,52 +1534,46 @@ export default function App() {
 
     window.addEventListener('pos:navigate-deep-link', onCustomDeepLink);
     window.addEventListener('message', onSwMessage);
+    const swContainer =
+      typeof navigator !== 'undefined' && 'serviceWorker' in navigator
+        ? navigator.serviceWorker
+        : null;
+    swContainer?.addEventListener('message', onSwMessage as EventListener);
 
-    const initialSub = parseAppSubRoute(window.location.pathname, window.location.search);
-    if (initialSub?.invoiceId) {
-      setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: initialSub.invoiceId } })
-        );
-      }, 300);
-    } else if (initialSub?.announcementId) {
-      setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent('pos:open-announcement', { detail: { announcementId: initialSub.announcementId } })
-        );
-      }, 300);
-    } else if (initialSub?.lowStockOnly) {
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-      }, 300);
-    } else {
-      const params = new URLSearchParams(window.location.search);
-      const viewInv = params.get('viewInvoice');
-      const urlTab = params.get('tab');
-      const lowStockOnly = params.get('lowStockOnly') === 'true' || params.get('filter') === 'low-stock';
+    if (currentUser && saasMode === 'TENANT_ACTIVE') {
+      const initialSub = parseAppSubRoute(window.location.pathname, window.location.search);
+      if (initialSub && (initialSub.invoiceId || initialSub.announcementId || initialSub.lowStockOnly || initialSub.returnInspectInvoice)) {
+        dispatchSubRouteEvents(initialSub, 250);
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        const viewInv = params.get('viewInvoice');
+        const urlTab = params.get('tab');
+        const lowStockOnly = params.get('lowStockOnly') === 'true' || params.get('filter') === 'low-stock';
 
-      if (urlTab === 'inventory' || lowStockOnly) {
-        handleTabChange('inventory');
-        if (lowStockOnly) {
+        if (urlTab === 'inventory' || lowStockOnly) {
+          handleTabChange('inventory');
+          if (lowStockOnly) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
+            }, 250);
+          }
+        } else if (viewInv) {
+          handleTabChange('reports');
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-          }, 300);
+            window.dispatchEvent(
+              new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: viewInv } })
+            );
+          }, 250);
         }
-      } else if (viewInv) {
-        handleTabChange('reports');
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: viewInv } })
-          );
-        }, 300);
       }
     }
 
     return () => {
       window.removeEventListener('pos:navigate-deep-link', onCustomDeepLink);
       window.removeEventListener('message', onSwMessage);
+      swContainer?.removeEventListener('message', onSwMessage as EventListener);
     };
-  }, [currentUser, companySettings, handleTabChange]);
+  }, [currentUser, companySettings, saasMode, handleTabChange]);
 
   const handleAuthSuccess = useCallback((user: any) => {
     clearStoredUnauthTenantId();

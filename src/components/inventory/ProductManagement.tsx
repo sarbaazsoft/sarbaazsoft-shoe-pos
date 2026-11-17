@@ -281,6 +281,18 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
     }
   }, [isActive]);
 
+  const toggleLowStockFilter = () => {
+    setLowStockFilter((prev) => {
+      const next = !prev;
+      try {
+        if (!next && window.location.pathname === '/inventory' && window.location.search) {
+          window.history.replaceState({}, '', '/inventory');
+        }
+      } catch {}
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (initialBrand !== undefined) {
       setSelectedBrand(initialBrand || '');
@@ -564,7 +576,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
         <button
           type="button"
-          onClick={() => setLowStockFilter(!lowStockFilter)}
+          onClick={toggleLowStockFilter}
           className={`flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl font-bold border transition cursor-pointer ${
             lowStockFilter
               ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40 shadow-xs'
@@ -631,11 +643,33 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
       {/* Product Content: Dynamic CSS Grid or Table View */}
       {isLoading ? (
-        <div className="app-card p-12 text-center text-slate-400 dark:text-slate-500">
-          <div className="flex flex-col items-center justify-center space-y-2">
-            <RefreshCw className="w-7 h-7 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
-            <p className="font-medium text-xs">Loading inventory...</p>
-          </div>
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5 sm:gap-4"
+          role="status"
+          aria-label="Loading inventory"
+        >
+          {Array.from({ length: 8 }).map((_, idx) => (
+            <div
+              key={idx}
+              className="app-card p-4 rounded-2xl border border-slate-200/90 dark:border-purple-900/40 space-y-3"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-12 w-12 rounded-xl bg-slate-200 dark:bg-slate-800 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-4/5 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                  <div className="h-3 w-1/2 rounded bg-slate-200/80 dark:bg-slate-800/70 animate-pulse" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="h-9 rounded-xl bg-slate-200/80 dark:bg-slate-800/70 animate-pulse" />
+                <div className="h-9 rounded-xl bg-slate-200/80 dark:bg-slate-800/70 animate-pulse" />
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="h-4 w-16 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                <div className="h-7 w-14 rounded-lg bg-slate-200 dark:bg-slate-800 animate-pulse" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : products.length === 0 ? (
         <div className="app-card p-12 text-center text-slate-400 dark:text-slate-500">

@@ -771,16 +771,6 @@ self.addEventListener('notificationclick', (event) => {
           });
         } catch {}
 
-        try {
-          if (
-            targetClient.url &&
-            typeof targetClient.navigate === 'function' &&
-            targetClient !== exactMatchClient
-          ) {
-            await Promise.resolve(targetClient.navigate(targetUrl)).catch(() => {});
-          }
-        } catch {}
-
         return targetClient.focus();
       }
 

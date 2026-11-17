@@ -247,14 +247,44 @@ export function buildPushNotificationActions(
     }));
 }
 
+function hasValidStoredAuthToken(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    const token =
+      localStorage.getItem('pos_auth_token') ||
+      localStorage.getItem('shoe_pos_jwt_token');
+    if (!token || token === 'null' || token === 'undefined') return false;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(json);
+    if (!payload || typeof payload !== 'object') return false;
+    if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Dispatches an in-app SPA navigation event to cleanly route to /invoices/:id,
- * /announcements/:id, /inventory?filter=low-stock, /dashboard, or /pos.
+ * Resolves a notification URL or action path into either an internal SPA path or external URL,
+ * routing via client-side navigation (`pos:navigate-deep-link`) when the app is open and
+ * authenticated, while preserving standard document navigation when unauthenticated or external.
  */
 export function navigateToNotificationUrl(url: string, fallbackPayload?: Record<string, any>): void {
   if (typeof window === 'undefined') return;
   const cleanUrl = String(url || '').trim();
   if (!cleanUrl) return;
+
+  let internalUrl = cleanUrl;
 
   if (/^https?:\/\//i.test(cleanUrl)) {
     try {
@@ -263,18 +293,37 @@ export function navigateToNotificationUrl(url: string, fallbackPayload?: Record<
         window.location.assign(cleanUrl);
         return;
       }
+      internalUrl = `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
     } catch {
       window.location.assign(cleanUrl);
       return;
     }
+  } else if (!internalUrl.startsWith('/')) {
+    internalUrl = `/${internalUrl}`;
+  }
+
+  const pathnameOnly = internalUrl.split(/[?#]/)[0].toLowerCase();
+  const isPortalDocumentRoute =
+    pathnameOnly === '/install' ||
+    pathnameOnly.startsWith('/install/') ||
+    pathnameOnly === '/auth' ||
+    pathnameOnly.startsWith('/auth/') ||
+    pathnameOnly === '/login' ||
+    pathnameOnly.startsWith('/login/') ||
+    pathnameOnly === '/verify-email' ||
+    pathnameOnly.startsWith('/verify-email/');
+
+  if (isPortalDocumentRoute || !hasValidStoredAuthToken()) {
+    window.location.assign(internalUrl);
+    return;
   }
 
   window.dispatchEvent(
     new CustomEvent('pos:navigate-deep-link', {
       detail: {
         ...(fallbackPayload || {}),
-        url: cleanUrl,
-        deepLinkUrl: cleanUrl,
+        url: internalUrl,
+        deepLinkUrl: internalUrl,
       },
     })
   );

@@ -78,7 +78,7 @@ export interface CombinedSaleReturnNotificationInput {
 
 export function cleanOptionalText(val?: string | null): string | null {
   if (val === undefined || val === null) return null;
-  const trimmed = String(val).trim();
+  const trimmed = String(val).replace(/\s+/g, ' ').trim();
   if (!trimmed) return null;
   const lower = trimmed.toLowerCase();
   if (lower === 'null' || lower === 'undefined') return null;
@@ -254,7 +254,7 @@ export function formatSaleNotification(input: SaleNotificationInput): FormattedN
 
   return {
     title: 'Sale Completed',
-    message: blocks.join('\n\n'),
+    message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary,
   };
 }
@@ -285,7 +285,7 @@ export function formatPurchaseNotification(input: PurchaseNotificationInput): Fo
 
   return {
     title: 'Purchase Completed',
-    message: blocks.join('\n\n'),
+    message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary: qtyText,
   };
 }
@@ -322,7 +322,7 @@ export function formatReturnNotification(input: ReturnNotificationInput): Format
 
   return {
     title: 'Return Completed',
-    message: blocks.join('\n\n'),
+    message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary: qtyText,
   };
 }
@@ -360,7 +360,7 @@ export function formatExchangeNotification(input: ExchangeNotificationInput): Fo
 
   return {
     title: 'Exchange Completed',
-    message: blocks.join('\n\n'),
+    message: blocks.map((line) => line.trim()).filter(Boolean).join('\n'),
     itemsSummary: qtyText,
   };
 }

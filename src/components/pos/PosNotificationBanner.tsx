@@ -14,6 +14,7 @@ import { useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
 import type { PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { connectRealtimeNotificationStream } from '../../services/pushNotificationClient.ts';
+import { navigateToNotificationUrl } from '../../utils/notificationActions.ts';
 
 export interface PosNotificationBannerProps {
   currentUser: any;
@@ -38,7 +39,7 @@ interface BannerNoticeItem {
 export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
   currentUser,
   companySettings,
-  onNavigateTab,
+  onNavigateTab: _onNavigateTab,
 }) => {
   const userId = currentUser?.id || currentUser?.userId || 0;
   const userRole = String(currentUser?.role || '').toUpperCase();
@@ -435,25 +436,15 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (currentNotice.rawId && !currentNotice.actionUrl?.startsWith('http')) {
-                    const target = `/announcements/${encodeURIComponent(String(currentNotice.rawId))}`;
-                    window.dispatchEvent(
-                      new CustomEvent('pos:navigate-deep-link', {
-                        detail: { url: target, deepLinkUrl: target, announcementId: currentNotice.rawId },
-                      })
-                    );
-                    return;
-                  }
-                  if (currentNotice.actionUrl?.startsWith('/')) {
-                    const tabMatch = currentNotice.actionUrl.replace(/^\//, '').split('?')[0];
-                    if (onNavigateTab && tabMatch) {
-                      onNavigateTab(tabMatch);
-                      return;
-                    }
-                  }
-                  if (currentNotice.actionUrl) {
-                    window.location.href = currentNotice.actionUrl;
-                  }
+                  const target =
+                    currentNotice.rawId && !currentNotice.actionUrl?.startsWith('http')
+                      ? `/announcements/${encodeURIComponent(String(currentNotice.rawId))}`
+                      : currentNotice.actionUrl || `/announcements/${encodeURIComponent(String(currentNotice.rawId || ''))}`;
+                  navigateToNotificationUrl(target, {
+                    type: 'ANNOUNCEMENT',
+                    announcementId: currentNotice.rawId,
+                    actionUrl: currentNotice.actionUrl,
+                  });
                 }}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-50 dark:hover:bg-purple-800/80 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-600/60 shadow-xs cursor-pointer transition-colors"
               >

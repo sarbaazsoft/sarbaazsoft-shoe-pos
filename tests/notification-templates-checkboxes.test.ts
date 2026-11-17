@@ -53,7 +53,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   assert.equal(retailSale.title, 'Sale Completed');
   assert.equal(
     retailSale.message,
-    'Invoice: #INV-000101\n\n2 pairs sold to Walk-in Customer.\n\nPayment: Cash\n\nProcessed by: Usman Staff'
+    'Invoice: #INV-000101\n2 pairs sold to Walk-in Customer.\nPayment: Cash\nProcessed by: Usman Staff'
   );
   assert.equal(retailSale.message.includes('Returned:'), false);
   assert.equal(retailSale.message.includes('Net Sold:'), false);
@@ -71,7 +71,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   assert.equal(retailWithReturn.title, 'Sale Completed');
   assert.equal(
     retailWithReturn.message,
-    'Invoice: #INV-000102\n\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\n\nSold to: Ahmed Customer\n\nPayment: Cash\n\nProcessed by: Usman Staff'
+    'Invoice: #INV-000102\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\nSold to: Ahmed Customer\nPayment: Cash\nProcessed by: Usman Staff'
   );
 
   // 1C. Wholesale Sale - Without Return
@@ -86,7 +86,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   assert.equal(wholesaleNoReturn.title, 'Sale Completed');
   assert.equal(
     wholesaleNoReturn.message,
-    'Invoice: #INV-000103\n\nTotal Sold: 120 pairs\n\nSold to: National Shoes Wholesale\n\nPayment: Bank Transfer\n\nProcessed by: Usman Staff'
+    'Invoice: #INV-000103\nTotal Sold: 120 pairs\nSold to: National Shoes Wholesale\nPayment: Bank Transfer\nProcessed by: Usman Staff'
   );
 
   // 2. Purchase Completed
@@ -101,7 +101,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   assert.equal(purchase.title, 'Purchase Completed');
   assert.equal(
     purchase.message,
-    'Purchase #: #PUR-000025\n\n25 cartons purchased from Crescent Footwear Co.\n\nPayment: Cash\n\nProcessed by: Usman Staff'
+    'Purchase #: #PUR-000025\n25 cartons purchased from Crescent Footwear Co.\nPayment: Cash\nProcessed by: Usman Staff'
   );
 
   // 3. Independent Return Completed
@@ -116,7 +116,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   assert.equal(independentRet.title, 'Return Completed');
   assert.equal(
     independentRet.message,
-    'Return #: #RET-000012\n\n2 pairs returned by Ahmed Customer.\n\nRefund: Rs. 1,550 (Cash)\n\nProcessed by: Usman Staff'
+    'Return #: #RET-000012\n2 pairs returned by Ahmed Customer.\nRefund: Rs. 1,550 (Cash)\nProcessed by: Usman Staff'
   );
 
   // 4. Exchange Completed (Additional Payment + Refund + Zero Adjustment)
@@ -131,7 +131,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   assert.equal(exchPay.title, 'Exchange Completed');
   assert.equal(
     exchPay.message,
-    'Exchange #: #EXC-000008\n\n2 pairs exchanged by Ahmed Customer.\n\nAdditional Payment: Rs. 500 (Cash)\n\nProcessed by: Usman Staff'
+    'Exchange #: #EXC-000008\n2 pairs exchanged by Ahmed Customer.\nAdditional Payment: Rs. 500 (Cash)\nProcessed by: Usman Staff'
   );
 
   const exchRefund = formatExchangeNotification({
@@ -144,7 +144,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
   });
   assert.equal(
     exchRefund.message,
-    'Exchange #: #EXC-000009\n\n1 pair exchanged by Ahmed Customer.\n\nRefund: Rs. 350 (Online)\n\nProcessed by: Usman Staff'
+    'Exchange #: #EXC-000009\n1 pair exchanged by Ahmed Customer.\nRefund: Rs. 350 (Online)\nProcessed by: Usman Staff'
   );
 
   // Null/undefined/missing optional fields never output 'null', 'undefined', or blank labels
@@ -155,7 +155,7 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     paymentMethod: 'undefined',
     cashierName: '',
   });
-  assert.equal(sparseSale.message, 'Invoice: #INV-000199\n\n1 pair sold.');
+  assert.equal(sparseSale.message, 'Invoice: #INV-000199\n1 pair sold.');
   assert.equal(/null|undefined/i.test(sparseSale.message), false);
 
   const sparseReturn = formatReturnNotification({
@@ -166,8 +166,11 @@ test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters m
     paymentMethod: null,
     cashierName: 'null',
   });
-  assert.equal(sparseReturn.message, 'Return #: #RET-000099\n\n1 pair returned.');
+  assert.equal(sparseReturn.message, 'Return #: #RET-000099\n1 pair returned.');
   assert.equal(/null|undefined|Refund:/i.test(sparseReturn.message), false);
+  assert.equal(/\n\n/.test(retailSale.message), false);
+  assert.equal(/\n\n/.test(independentRet.message), false);
+  assert.equal(/\n\n/.test(exchPay.message), false);
 
   assert.equal(formatPaymentMethodLabel('KHATA'), 'Khata');
   assert.equal(formatPaymentMethodLabel('SPLIT'), 'Split');
@@ -348,7 +351,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.equal(saleEvt!.data.title, 'Sale Completed');
     assert.equal(
       saleEvt!.data.message,
-      `Invoice: #${saleInv}\n\n3 pairs sold to Tariq Footwear.\n\nPayment: Cash\n\nProcessed by: Usman Cashier`
+      `Invoice: #${saleInv}\n3 pairs sold to Tariq Footwear.\nPayment: Cash\nProcessed by: Usman Cashier`
     );
 
     // 2. Retail Sale - With Return against same invoice (1 pair returned) -> updates Sale Completed cleanly, NO Return Completed
@@ -380,7 +383,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.equal(consolidatedEvt!.data.title, 'Sale Completed');
     assert.equal(
       consolidatedEvt!.data.message,
-      `Invoice: #${saleInv}\n\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\n\nSold to: Tariq Footwear\n\nPayment: Cash\n\nProcessed by: Usman Cashier`
+      `Invoice: #${saleInv}\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\nSold to: Tariq Footwear\nPayment: Cash\nProcessed by: Usman Cashier`
     );
 
     // 3. Independent Return Completed (no originalSaleId)
@@ -406,7 +409,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.equal(indepRetEvt!.data.title, 'Return Completed');
     assert.equal(
       indepRetEvt!.data.message,
-      `Return #: #${indepRetNo}\n\n2 pairs returned by Tariq Footwear.\n\nRefund: Rs. 3,100 (Cash)\n\nProcessed by: Usman Cashier`
+      `Return #: #${indepRetNo}\n2 pairs returned by Tariq Footwear.\nRefund: Rs. 3,100 (Cash)\nProcessed by: Usman Cashier`
     );
 
     // 4. Exchange Completed (1 pair exchanged with Rs. 300 Additional Payment)
@@ -497,7 +500,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.equal(cashierIndepRetEvt!.data.title, 'Return Completed');
     assert.equal(
       cashierIndepRetEvt!.data.message,
-      `Return #: #${cashierIndepRetNo}\n\n2 pairs returned by Tariq Footwear.\n\nRefund: Rs. 3,100 (Cash)\n\nProcessed by: Counter Cashier`
+      `Return #: #${cashierIndepRetNo}\n2 pairs returned by Tariq Footwear.\nRefund: Rs. 3,100 (Cash)\nProcessed by: Counter Cashier`
     );
 
     const cashierExchRes = await fetch(`${baseUrl}/api/pos/checkout`, {

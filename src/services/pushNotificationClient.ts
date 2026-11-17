@@ -23,7 +23,7 @@ import {
   NOTIFICATION_BADGE_ICON,
   showSingleShadeNotification,
 } from '../utils/notificationShade.ts';
-import { buildPushNotificationActions } from '../utils/notificationActions.ts';
+import { buildPushNotificationActions, navigateToNotificationUrl } from '../utils/notificationActions.ts';
 
 export function isIOSDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -844,11 +844,7 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
           },
           () => {
             window.focus();
-            if (normalizedPayload.deepLinkUrl) {
-              window.dispatchEvent(
-                new CustomEvent('pos:navigate-deep-link', { detail: normalizedPayload })
-              );
-            }
+            navigateToNotificationUrl(fallbackData.url, fallbackData);
           }
         );
       } catch {}
@@ -1034,9 +1030,7 @@ export async function triggerTestNotificationShadeFallback(params: {
     },
     () => {
       window.focus();
-      if (window.location.pathname !== targetUrl) {
-        window.location.href = targetUrl;
-      }
+      navigateToNotificationUrl(targetUrl, testData);
     }
   );
 }

@@ -9,7 +9,7 @@ import {
   isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
 import { showSingleShadeNotification } from '../utils/notificationShade.ts';
-import { buildPushNotificationActions } from '../utils/notificationActions.ts';
+import { buildPushNotificationActions, navigateToNotificationUrl } from '../utils/notificationActions.ts';
 import { doVapidKeysMatch, normalizeVapidPublicKey } from '../utils/vapid.ts';
 
 let cachedFirebaseApp: FirebaseApp | null = null;
@@ -346,9 +346,7 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
             },
             () => {
               window.focus();
-              if (window.location.pathname !== deepLinkUrl) {
-                window.location.href = deepLinkUrl;
-              }
+              navigateToNotificationUrl(deepLinkUrl, mergedFcmData);
             }
           );
         }

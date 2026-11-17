@@ -624,86 +624,28 @@ export const Header: React.FC<HeaderProps> = ({
     if (meta?.markNoticeId) {
       void api.notifications.dismiss(meta.markNoticeId, 'NOTICE').catch(() => {});
     }
-    if (btn.action === 'open_pos') {
-      onTabChange?.('pos');
-      return;
-    }
-    if (btn.action === 'open_dashboard') {
-      onTabChange?.('dashboard');
-      return;
-    }
-    navigateToNotificationUrl(btn.url, meta);
+    navigateToNotificationUrl(btn.url, { ...meta, action: btn.action });
   };
 
   const handleToastClick = () => {
     if (!livePushToast) return;
-    const { type, invoiceNumber, returnNumber, deepLinkUrl, actionUrl } = livePushToast;
+    const toast = livePushToast;
     setLivePushToast(null);
 
-    const internalCandidate = [actionUrl, deepLinkUrl].find((u) => typeof u === 'string' && u.startsWith('/'));
-    if (internalCandidate) {
-      try {
-        const parsed = new URL(internalCandidate, window.location.origin);
-        const tabFromQuery = parsed.searchParams.get('tab');
-        const tabFromPath = parsed.pathname.replace(/^\/+/, '').split('/')[0];
-        const targetTab = (tabFromQuery || tabFromPath || '').trim();
-        const lowStockOnly = parsed.searchParams.get('lowStockOnly') === 'true';
+    const actions = resolveNotificationActions(toast as any, currentRole);
+    const primaryAction = actions[0];
+    const targetUrl =
+      (toast.deepLinkUrl && String(toast.deepLinkUrl).trim()) ||
+      (toast.actionUrl && String(toast.actionUrl).trim()) ||
+      primaryAction?.url ||
+      '';
 
-        if (targetTab) {
-          onTabChange?.(targetTab);
-          if (targetTab === 'inventory' && (lowStockOnly || String(type || '').toUpperCase() === 'STOCK')) {
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-            }, 150);
-          }
-          return;
-        }
-      } catch {}
-    }
-
-    if (actionUrl) {
-      try {
-        window.open(actionUrl, '_blank');
-      } catch {
-        window.location.href = actionUrl;
-      }
+    if (targetUrl) {
+      navigateToNotificationUrl(targetUrl, toast as Record<string, any>);
       return;
     }
 
-    if (String(type || '').toUpperCase() === 'STOCK') {
-      onTabChange?.('inventory');
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-      }, 150);
-      return;
-    }
-
-    if (String(type || '').toUpperCase() === 'PURCHASE') {
-      onTabChange?.('purchases');
-      return;
-    }
-
-    if (type === 'RETURN') {
-      onTabChange?.('returns');
-      if (invoiceNumber) {
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('returns:inspect-invoice', { detail: { invoice: invoiceNumber, returnNumber } })
-          );
-        }, 150);
-      }
-    } else if (invoiceNumber) {
-      onTabChange?.('reports');
-      setTimeout(() => {
-        window.dispatchEvent(
-          new CustomEvent('pos:open-receipt', { detail: { invoiceNumber } })
-        );
-      }, 150);
-    } else if (deepLinkUrl) {
-      window.location.href = deepLinkUrl;
-    } else {
-      setShowNotifications(true);
-    }
+    setShowNotifications(true);
   };
 
   const fetchLiveNotifications = useCallback(async () => {
@@ -891,49 +833,35 @@ export const Header: React.FC<HeaderProps> = ({
     markAsRead(raw.id);
     setShowNotifications(false);
 
-    if (
-      String(raw.itemType || '').toUpperCase() === 'LOW_STOCK' ||
-      String(raw.type || '').toUpperCase() === 'STOCK' ||
-      raw.actionTab === 'inventory'
-    ) {
-      onTabChange?.('inventory');
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-      }, 150);
+    const actions = resolveNotificationActions(
+      {
+        kind: 'OPERATIONAL',
+        itemType: raw.itemType,
+        type: raw.type,
+        rawId: raw.rawId,
+        id: raw.id,
+        invoiceNumber: raw.invoiceNumber,
+        saleId: raw.saleId || raw.rawId,
+        returnNumber: raw.returnNumber,
+        deepLinkUrl: raw.deepLinkUrl,
+        actionUrl: raw.actionUrl,
+        title: raw.title,
+        message: raw.message,
+      },
+      currentRole
+    );
+
+    const primaryUrl = actions[0]?.url || raw.deepLinkUrl || raw.actionUrl || '';
+    if (primaryUrl) {
+      navigateToNotificationUrl(primaryUrl, {
+        ...raw,
+        invoiceId: raw.invoiceNumber || raw.saleId || raw.rawId,
+      });
       return;
     }
 
-    const invoiceMatch = raw.message?.match(/#([A-Z0-9-]+)/i) || raw.title?.match(/#([A-Z0-9-]+)/i);
-    const extractedRef = invoiceMatch && !/^(?:RET|EXC|PUR)-/i.test(invoiceMatch[1]) ? invoiceMatch[1] : null;
-    const invNumber = raw.invoiceNumber || extractedRef;
-    const rawType = String(raw.type || raw.itemType || '').toUpperCase();
-
-    if (rawType === 'PURCHASE' || raw.actionTab === 'purchases') {
-      onTabChange?.('purchases');
-    } else if (
-      invNumber &&
-      (rawType === 'SALE' ||
-        rawType === 'EXCHANGE' ||
-        rawType === 'SALE_RETURN' ||
-        rawType === 'SALE_EXCHANGE' ||
-        raw.title.toLowerCase().includes('invoice') ||
-        raw.title.toLowerCase().includes('sale') ||
-        raw.title.toLowerCase().includes('exchange') ||
-        raw.actionTab === 'pos' ||
-        raw.actionTab === 'reports')
-    ) {
-      window.dispatchEvent(new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invNumber } }));
-    } else if (
-      rawType === 'RETURN' ||
-      raw.title.toLowerCase().includes('return') ||
-      raw.actionTab === 'returns'
-    ) {
-      onTabChange?.('returns');
-      if (invNumber) {
-        window.dispatchEvent(new CustomEvent('returns:inspect-invoice', { detail: { invoice: invNumber } }));
-      }
-    } else if (raw.actionTab) {
-      onTabChange?.(raw.actionTab);
+    if (raw.actionTab) {
+      navigateToNotificationUrl(`/${String(raw.actionTab).replace(/^\/+/, '')}`, raw);
     }
   };
 
@@ -2022,7 +1950,7 @@ export const Header: React.FC<HeaderProps> = ({
                     type="button"
                     onClick={() => {
                       setShowNotifications(false);
-                      onTabChange?.('notifications');
+                      navigateToNotificationUrl('/notifications');
                     }}
                     className="text-purple-600 dark:text-purple-300 hover:text-purple-800 dark:hover:text-white cursor-pointer font-bold text-[10.5px] flex items-center gap-1 hover:underline"
                   >
