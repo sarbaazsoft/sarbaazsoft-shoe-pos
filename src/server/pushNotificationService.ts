@@ -529,6 +529,10 @@ export function broadcastSsePosAction(
   tenantId: number,
   payload: PosActionNotification & { tag?: string }
 ): number {
+  const actionType = String(payload.type || '').toUpperCase();
+  if (!['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'STOCK'].includes(actionType)) {
+    return 0;
+  }
   const cleanTenantId = Number(tenantId) || 1;
   const allowedRoles = payload.targetRoles || ['ADMIN', 'CASHIER'];
   const sseMessage = `event: pos_action\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -570,6 +574,10 @@ export async function notifyPosAction(
   tenantId: number,
   payload: PosActionNotification
 ): Promise<void> {
+  const actionType = String(payload.type || '').toUpperCase();
+  if (!['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'STOCK'].includes(actionType)) {
+    return;
+  }
   const cleanTenantId = Number(tenantId) || 1;
   const allowedRoles = payload.targetRoles || ['ADMIN', 'CASHIER'];
   const typeLower = payload.type.toLowerCase();

@@ -487,6 +487,10 @@ export const Header: React.FC<HeaderProps> = ({
         msgLower.includes('subscription renewal') ||
         actionUrlLower.includes('/superadmin');
 
+      if (String(payload.type || '').toUpperCase() === 'PURCHASE') {
+        return;
+      }
+
       if (userRole !== 'SUPERADMIN' && isSuperAdminOnlyNotice) {
         return;
       }

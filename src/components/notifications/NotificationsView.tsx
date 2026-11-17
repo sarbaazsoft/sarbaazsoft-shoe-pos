@@ -44,7 +44,7 @@ interface NotificationsViewProps {
   onNavigateTab: (tab: string) => void;
 }
 
-type TabCategory = 'all' | 'announcements' | 'notices' | 'operational' | 'sales' | 'purchases' | 'returns' | 'urgent';
+type TabCategory = 'all' | 'announcements' | 'notices' | 'operational' | 'sales' | 'returns' | 'urgent';
 
 type SlideEnterPhase = 'enter' | 'active' | 'settled';
 
@@ -760,7 +760,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               { key: 'announcements', label: 'Announcements', count: stats.totalNotices },
               { key: 'operational', label: 'POS Activity', count: stats.totalOperational },
               { key: 'sales', label: 'Sales' },
-              ...(currentUserRole !== 'CASHIER' && !isSuperAdmin ? [{ key: 'purchases', label: 'Purchases' } as const] : []),
               { key: 'returns', label: 'Returns' },
               { key: 'urgent', label: 'Urgent Only' },
             ] as ReadonlyArray<{ key: TabCategory; label: string; count?: number }>

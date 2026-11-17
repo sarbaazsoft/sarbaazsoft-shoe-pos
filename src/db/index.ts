@@ -2818,6 +2818,55 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: riList as unknown as T[], rowCount: riList.length };
   }
 
+  // PURCHASE_RETURNS & PURCHASE_RETURN_ITEMS (check before PURCHASES due to JOIN purchases)
+  if (upper.startsWith('INSERT INTO PURCHASE_RETURNS')) {
+    if (!mockStore.purchase_returns) mockStore.purchase_returns = [];
+    const newRet = {
+      id: nextMockId('purchase_returns'),
+      tenant_id: Number(params[0] || 1),
+      return_number: String(params[1] || 'PR-000001'),
+      purchase_id: params[2] ? Number(params[2]) : null,
+      supplier_id: params[3] ? Number(params[3]) : null,
+      supplier_name: String(params[4] || ''),
+      return_date: String(params[5] || new Date().toISOString().slice(0, 10)),
+      total_debit_amount: Number(params[6] || 0),
+      reason: String(params[7] || ''),
+      notes: params[8] ?? null,
+      created_by: Number(params[9] || 1),
+      created_at: new Date().toISOString(),
+    };
+    mockStore.purchase_returns.unshift(newRet);
+    return { rows: [{ id: newRet.id } as unknown as T], rowCount: 1 };
+  }
+
+  if (upper.startsWith('INSERT INTO PURCHASE_RETURN_ITEMS')) {
+    if (!mockStore.purchase_return_items) mockStore.purchase_return_items = [];
+    const newItem = {
+      id: nextMockId('purchase_return_items'),
+      tenant_id: Number(params[0] || 1),
+      purchase_return_id: Number(params[1]),
+      product_id: Number(params[2]),
+      quantity: Number(params[3]),
+      unit_purchase_price: Number(params[4]),
+      subtotal: Number(params[5]),
+      defect_type: String(params[6] || 'MANUFACTURING_DEFECT'),
+    };
+    mockStore.purchase_return_items.push(newItem);
+    return { rows: [newItem as unknown as T], rowCount: 1 };
+  }
+
+  if (upper.startsWith('SELECT') && upper.includes('FROM PURCHASE_RETURNS')) {
+    const tid = params.length > 0 ? Number(params[0] || 1) : 1;
+    let prList = (mockStore.purchase_returns || []).filter((r: any) => Number(r.tenant_id || 1) === tid);
+    if (upper.includes('RETURN_NUMBER LIKE $2')) {
+      const prefix = String(params[1] || '').replace(/%$/, '').toLowerCase();
+      prList = prList
+        .filter((r: any) => String(r.return_number || '').toLowerCase().startsWith(prefix))
+        .sort((a: any, b: any) => Number(b.id) - Number(a.id));
+    }
+    return { rows: prList as unknown as T[], rowCount: prList.length };
+  }
+
   // PURCHASES & PURCHASE_ITEMS
   if (upper.startsWith('INSERT INTO PURCHASES')) {
     if (!mockStore.purchases) mockStore.purchases = [];

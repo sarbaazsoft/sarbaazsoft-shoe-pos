@@ -7,8 +7,6 @@ import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { generateSupplierPaymentNumber } from '../services/ledgerService.ts';
 import { shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
-import { notifyPosAction } from '../pushNotificationService.ts';
-import { cleanOptionalText, formatPurchaseNotification } from '../../utils/notificationFormatters.ts';
 
 const router = Router();
 
@@ -341,45 +339,6 @@ router.post('/', requireAuth, forbidCashier, requireAdmin, async (req: Authentic
     }
 
     await pgClient.query('COMMIT');
-
-    try {
-      const totalQuantity = validatedItems.reduce((sum, v) => sum + Number(v.quantity || 0), 0);
-      const cashierDisplayName = cleanOptionalText(req.user?.name) || 'Authorized Staff';
-      const unit = cleanOptionalText(req.body.unit) || 'pair';
-      const formattedPurchase = formatPurchaseNotification({
-        purchaseNo: purchaseNumber,
-        totalAmount,
-        paymentMethod: chosenPaymentMethod,
-        totalQuantity,
-        unit,
-        supplierName: resolvedSupplierName,
-        cashierName: cashierDisplayName,
-      });
-
-      notifyPosAction(tenantId, {
-        eventId: `pos-purchase-${tenantId}-pur-${purchaseId}`,
-        type: 'PURCHASE',
-        title: formattedPurchase.title,
-        message: formattedPurchase.message,
-        invoiceNumber: '',
-        purchaseNumber,
-        purchaseId,
-        totalAmount,
-        supplierName: resolvedSupplierName,
-        customerName: resolvedSupplierName,
-        cashierName: cashierDisplayName,
-        cashierId: req.user!.id,
-        itemsSummary: formattedPurchase.itemsSummary,
-        deepLinkUrl: '/?tab=purchases',
-        actionTab: 'purchases',
-        timestamp: new Date().toISOString(),
-        triggeredBy: cashierDisplayName,
-        targetRole: 'ADMIN',
-        targetRoles: ['ADMIN'],
-      }).catch((err) => console.warn('Push notification delivery notice:', err));
-    } catch (notifErr) {
-      console.warn('Purchase notification trigger error:', notifErr);
-    }
 
     res.status(201).json({
       message: 'Purchase recorded and stock updated atomically.',

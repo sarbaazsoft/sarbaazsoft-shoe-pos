@@ -20,6 +20,7 @@ import { resolveNotificationActions } from '../src/utils/notificationActions.ts'
 import notificationRoutes from '../src/server/routes/notificationRoutes.ts';
 import posRoutes from '../src/server/routes/posRoutes.ts';
 import purchaseRoutes from '../src/server/routes/purchaseRoutes.ts';
+import purchaseReturnRoutes from '../src/server/routes/purchaseReturnRoutes.ts';
 import returnRoutes from '../src/server/routes/returnRoutes.ts';
 import { pgClient } from '../src/db/index.ts';
 import { ensureNotificationsSchema, ensureSaasControlPlane } from '../src/db/schemaInit.ts';
@@ -286,6 +287,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
   app.use(express.json());
   app.use('/api/pos', posRoutes);
   app.use('/api/purchases', purchaseRoutes);
+  app.use('/api/purchase-returns', purchaseReturnRoutes);
   app.use('/api/returns', returnRoutes);
   app.use('/api/notifications', notificationRoutes);
 
@@ -437,7 +439,8 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.ok(exchEvt!.data.message.includes('Additional Payment: Rs. 300 (Online)'));
     assert.ok(exchEvt!.data.message.includes('Processed by: Usman Cashier'));
 
-    // 5. Purchase Completed
+    // 5. Purchase & Supplier Purchase Return must NOT generate any notification alerts
+    const sseCountBeforeAdminOps = sseEvents.length;
     const purRes = await fetch(`${baseUrl}/api/purchases`, {
       method: 'POST',
       headers,
@@ -453,16 +456,79 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     const purJson = await purRes.json();
     const purNo = purJson.purchaseNumber;
 
+    const purRetRes = await fetch(`${baseUrl}/api/purchase-returns`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        supplierName: 'Metro Wholesalers',
+        purchaseId: purJson.purchaseId,
+        reason: 'Defective sole',
+        items: [{ productId, quantity: 1, unitCost: 1500 }],
+      }),
+    });
+    assert.equal(purRetRes.status, 201);
+
     await new Promise((r) => setTimeout(r, 40));
-    const purEvt = sseEvents.find((e) => e.data?.type === 'PURCHASE');
-    assert.ok(purEvt, 'Expected SSE PURCHASE notification');
-    assert.equal(purEvt!.data.title, 'Purchase Completed');
     assert.equal(
-      purEvt!.data.message,
-      `Purchase #: #${purNo}\n\n10 cartons purchased from Metro Wholesalers.\n\nPayment: Cash\n\nProcessed by: Usman Cashier`
+      sseEvents.slice(sseCountBeforeAdminOps).length,
+      0,
+      'Purchases and supplier purchase returns must emit ZERO SSE notifications'
     );
 
-    // 6. Verify /grouped and /all for ADMIN include Sale (consolidated), Independent Return, Exchange, Purchase
+    // 5b. Cashier-created Independent Return & Exchange emit exact same notification message format as Owner-created
+    const beforeCashierIndepRet = sseEvents.length;
+    const cashierIndepRetRes = await fetch(`${baseUrl}/api/returns`, {
+      method: 'POST',
+      headers: cashierHeaders,
+      body: JSON.stringify({
+        reason: 'Independent return',
+        customerName: 'Tariq Footwear',
+        paymentMethod: 'CASH',
+        items: [{ productId, quantity: 2, unitRefundPrice: 1550 }],
+      }),
+    });
+    assert.equal(cashierIndepRetRes.status, 201);
+    const cashierIndepRetJson = await cashierIndepRetRes.json();
+    const cashierIndepRetNo = cashierIndepRetJson.returnNumber;
+
+    await new Promise((r) => setTimeout(r, 40));
+    const cashierIndepRetEvt = sseEvents.slice(beforeCashierIndepRet).find((e) => e.data?.type === 'RETURN');
+    assert.ok(cashierIndepRetEvt, 'Expected SSE RETURN notification when created by Cashier');
+    assert.equal(cashierIndepRetEvt!.data.title, 'Return Completed');
+    assert.equal(
+      cashierIndepRetEvt!.data.message,
+      `Return #: #${cashierIndepRetNo}\n\n2 pairs returned by Tariq Footwear.\n\nRefund: Rs. 3,100 (Cash)\n\nProcessed by: Counter Cashier`
+    );
+
+    const cashierExchRes = await fetch(`${baseUrl}/api/pos/checkout`, {
+      method: 'POST',
+      headers: cashierHeaders,
+      body: JSON.stringify({
+        items: [{ productId, quantity: 1, unitPrice: 2800, discount: 0 }],
+        customerId,
+        paymentMethod: 'ONLINE',
+        transactionId: `TXN-C-${suffix}`,
+        paidAmount: 300,
+        exchange: {
+          originalSaleId: origSaleId,
+          reason: 'Size swap',
+          items: [{ saleItemId, quantity: 1, unitRefundPrice: 2500 }],
+        },
+      }),
+    });
+    assert.equal(cashierExchRes.status, 201);
+    const cashierExchJson = await cashierExchRes.json();
+    const cashierExchInv = cashierExchJson.invoiceNumber;
+
+    await new Promise((r) => setTimeout(r, 40));
+    const cashierExchEvt = sseEvents.find((e) => e.data?.type === 'EXCHANGE' && e.data?.invoiceNumber === cashierExchInv);
+    assert.ok(cashierExchEvt, 'Expected SSE EXCHANGE notification when created by Cashier');
+    assert.equal(cashierExchEvt!.data.title, 'Exchange Completed');
+    assert.ok(cashierExchEvt!.data.message.includes('1 pair exchanged by Tariq Footwear.'));
+    assert.ok(cashierExchEvt!.data.message.includes('Additional Payment: Rs. 300 (Online)'));
+    assert.ok(cashierExchEvt!.data.message.includes('Processed by: Counter Cashier'));
+
+    // 6. Verify /grouped and /all for ADMIN include Sale (consolidated), Independent Return, Exchange, and ZERO Purchase alerts
     const groupedRes = await fetch(`${baseUrl}/api/notifications/grouped?limit=10`, { headers });
     assert.equal(groupedRes.status, 200);
     const groupedJson = await groupedRes.json();
@@ -472,18 +538,17 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     const groupedSameInvRet = groupedNotifs.find((n) => n.type === 'RETURN' && n.invoiceNumber === saleInv);
     const groupedIndepRet = groupedNotifs.find((n) => n.type === 'RETURN' && n.returnNumber === indepRetNo);
     const groupedExch = groupedNotifs.find((n) => n.type === 'EXCHANGE' && n.invoiceNumber === exchInv);
-    const groupedPur = groupedNotifs.find((n) => n.type === 'PURCHASE' && n.purchaseNumber === purNo);
+    const groupedPur = groupedNotifs.find((n) => n.type === 'PURCHASE' || n.purchaseNumber === purNo);
 
     assert.ok(groupedSale);
     assert.equal(groupedSameInvRet, undefined, 'Same-invoice return must NOT generate Return Completed in /grouped');
     assert.ok(groupedIndepRet);
     assert.ok(groupedExch);
-    assert.ok(groupedPur);
+    assert.equal(groupedPur, undefined, 'Purchases must NEVER appear in /grouped');
     assert.equal(groupedSale.title, 'Sale Completed');
     assert.equal(groupedSale.message.includes('Total Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs'), true);
     assert.equal(groupedIndepRet.title, 'Return Completed');
     assert.equal(groupedExch.title, 'Exchange Completed');
-    assert.equal(groupedPur.title, 'Purchase Completed');
 
     // Verify CASHIER never receives PURCHASE notifications in /grouped or /all
     const cashierGroupedRes = await fetch(`${baseUrl}/api/notifications/grouped?limit=10`, { headers: cashierHeaders });
@@ -499,6 +564,7 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
     assert.ok(allSale);
     assert.equal(allSale.title, 'Sale Completed');
     assert.equal(allSale.message.includes('Total Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs'), true);
+    assert.equal(allItems.some((n) => n.type === 'PURCHASE' || n.purchaseNumber === purNo), false, 'Purchases must NEVER appear in /all');
   } finally {
     unregister();
     resetServerNotificationDedupeCache();

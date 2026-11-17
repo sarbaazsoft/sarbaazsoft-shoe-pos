@@ -19,6 +19,10 @@ export async function dispatchPosEmailAlert(
   tenantId: number,
   payload: PosActionNotification
 ): Promise<boolean> {
+  const actionType = String(payload.type || '').toUpperCase();
+  if (!['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE'].includes(actionType)) {
+    return false;
+  }
   const cleanTenantId = Number(tenantId) || 1;
 
   // 1. Check global master switch

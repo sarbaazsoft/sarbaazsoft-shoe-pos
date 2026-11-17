@@ -16,7 +16,6 @@ import { ensureNotificationsSchema, ensurePlatformNotificationsSchema } from '..
 import {
   cleanOptionalText,
   formatExchangeNotification,
-  formatPurchaseNotification,
   formatReturnNotification,
   formatReturnReferenceToExchange,
   formatSaleExchangeNotification,
@@ -314,46 +313,6 @@ function mapSaleNotificationRow(
     ...(options.includeHistoryFields
       ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
       : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
-    createdAt,
-  };
-}
-
-function mapPurchaseNotificationRow(
-  row: any,
-  options: { includeHistoryFields?: boolean }
-) {
-  const purchaseNo = row.purchase_number || String(row.id);
-  const createdAt = row.created_at || row.purchase_date || new Date().toISOString();
-  const supplierName = cleanOptionalText(row.supplier_official_name || row.supplier_name);
-  const cashierName = cleanOptionalText(row.created_by_name);
-  const paymentMethod = cleanOptionalText(row.payment_method);
-
-  const formatted = formatPurchaseNotification({
-    purchaseNo,
-    totalAmount: Number(row.total_amount || 0),
-    paymentMethod,
-    totalQuantity: Number(row.total_quantity || 0),
-    unit: 'pair',
-    supplierName,
-    cashierName,
-  });
-
-  return {
-    id: `purchase-${row.id}`,
-    rawId: row.id,
-    ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
-    itemType: 'PURCHASE',
-    type: 'PURCHASE',
-    title: formatted.title,
-    message: formatted.message,
-    itemsSummary: formatted.itemsSummary,
-    totalAmount: Number(row.total_amount || 0),
-    purchaseNumber: purchaseNo,
-    invoiceNumber: purchaseNo,
-    deepLinkUrl: '/?tab=purchases',
-    ...(options.includeHistoryFields
-      ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
-      : { actionTab: 'purchases', timestamp: createdAt, isRead: false }),
     createdAt,
   };
 }
@@ -679,64 +638,29 @@ router.get('/grouped', async (req: Request, res: Response) => {
           };
         });
 
-      let mappedPurchases: any[] = [];
       let mappedLowStock: any[] = [];
       if (role === 'ADMIN' || role === 'OWNER') {
-        const [purchasesRes, lowStockRes] = await Promise.all([
-          pgClient.query(
-            `SELECT
-               p.id,
-               p.purchase_number,
-               p.total_amount,
-               p.payment_method,
-               p.supplier_name,
-               p.purchase_date,
-               p.created_at,
-               COALESCE(s.name, p.supplier_name) AS supplier_official_name,
-               u.name AS created_by_name,
-               COALESCE((SELECT SUM(pi.quantity) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0) AS total_quantity
-             FROM purchases p
-             LEFT JOIN suppliers s ON p.supplier_id = s.id
-             LEFT JOIN users u ON p.created_by = u.id
-             WHERE p.tenant_id = $1
-               AND p.created_at >= NOW() - INTERVAL '48 HOURS'
-               AND NOT EXISTS (
-                 SELECT 1 FROM pos_notification_dismissals pnd
-                 WHERE pnd.tenant_id = $1
-                   AND (pnd.user_id = $2 OR pnd.user_id = 0)
-                   AND pnd.item_type = 'PURCHASE'
-                   AND pnd.item_id = p.id
-               )
-             ORDER BY p.created_at DESC
-             LIMIT $3`,
-            [cleanTenantId, userId, limit]
-          ).catch(() => ({ rows: [] })),
-          pgClient.query<{
-            id: number;
-            type: string;
-            title: string;
-            message: string;
-            sale_id: number | null;
-            invoice_number: string | null;
-            action_url: string | null;
-            items_json: any;
-            created_at: string;
-            is_read: boolean;
-          }>(
-            `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
-             FROM public.notifications
-             WHERE tenant_id = $1
-               AND COALESCE(is_read, false) = false
-               AND created_at >= NOW() - INTERVAL '48 HOURS'
-             ORDER BY created_at DESC
-             LIMIT $2`,
-            [cleanTenantId, limit]
-          ).catch(() => ({ rows: [] })),
-        ]);
-
-        mappedPurchases = purchasesRes.rows.map((row: any) =>
-          mapPurchaseNotificationRow(row, { includeHistoryFields: false })
-        );
+        const lowStockRes = await pgClient.query<{
+          id: number;
+          type: string;
+          title: string;
+          message: string;
+          sale_id: number | null;
+          invoice_number: string | null;
+          action_url: string | null;
+          items_json: any;
+          created_at: string;
+          is_read: boolean;
+        }>(
+          `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
+           FROM public.notifications
+           WHERE tenant_id = $1
+             AND COALESCE(is_read, false) = false
+             AND created_at >= NOW() - INTERVAL '48 HOURS'
+           ORDER BY created_at DESC
+           LIMIT $2`,
+          [cleanTenantId, limit]
+        ).catch(() => ({ rows: [] }));
 
         mappedLowStock = lowStockRes.rows.map((row) => ({
           id: `notif-${row.id}`,
@@ -758,7 +682,7 @@ router.get('/grouped', async (req: Request, res: Response) => {
       }
 
       // Combine and cap at limit (max 5)
-      operationalNotifications = [...mappedLowStock, ...mappedPurchases, ...mappedSales, ...mappedReturns]
+      operationalNotifications = [...mappedLowStock, ...mappedSales, ...mappedReturns]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, limit);
     }
@@ -903,8 +827,8 @@ router.get('/all', async (req: Request, res: Response) => {
       }));
     }
 
-    // 2. Fetch historical POS Operational Activity (Sales, Purchases, Returns, & Low Stock)
-    // Cashiers ONLY view historical notifications for their own operations (never PURCHASE or LOW_STOCK)
+    // 2. Fetch historical POS Operational Activity (Sales, Returns, Exchanges, & Low Stock)
+    // Cashiers ONLY view historical notifications for their own operations (never LOW_STOCK)
     let operationalItems: any[] = [];
     if (
       role !== 'SUPERADMIN' &&
@@ -913,7 +837,6 @@ router.get('/all', async (req: Request, res: Response) => {
         tabFilter === 'operational' ||
         tabFilter === 'sales' ||
         tabFilter === 'returns' ||
-        tabFilter === 'purchases' ||
         tabFilter === 'stock' ||
         tabFilter === 'low_stock')
     ) {
@@ -1045,61 +968,27 @@ router.get('/all', async (req: Request, res: Response) => {
           };
         });
 
-      let mappedPurchases: any[] = [];
       let mappedLowStock: any[] = [];
       if (role === 'ADMIN' || role === 'OWNER') {
-        const [purchasesRes, lowStockRes] = await Promise.all([
-          pgClient.query(
-            `SELECT
-               p.id,
-               p.purchase_number,
-               p.total_amount,
-               p.payment_method,
-               p.supplier_name,
-               p.purchase_date,
-               p.created_at,
-               COALESCE(s.name, p.supplier_name) AS supplier_official_name,
-               u.name AS created_by_name,
-               COALESCE((SELECT SUM(pi.quantity) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0) AS total_quantity,
-               EXISTS (
-                 SELECT 1 FROM pos_notification_dismissals pnd
-                 WHERE pnd.tenant_id = $1
-                   AND (pnd.user_id = $2 OR pnd.user_id = 0)
-                   AND pnd.item_type = 'PURCHASE'
-                   AND pnd.item_id = p.id
-               ) AS is_dismissed
-             FROM purchases p
-             LEFT JOIN suppliers s ON p.supplier_id = s.id
-             LEFT JOIN users u ON p.created_by = u.id
-             WHERE p.tenant_id = $1
-             ORDER BY p.created_at DESC
-             LIMIT 200`,
-            [cleanTenantId, userId]
-          ).catch(() => ({ rows: [] })),
-          pgClient.query<{
-            id: number;
-            type: string;
-            title: string;
-            message: string;
-            sale_id: number | null;
-            invoice_number: string | null;
-            action_url: string | null;
-            items_json: any;
-            created_at: string;
-            is_read: boolean;
-          }>(
-            `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
-             FROM public.notifications
-             WHERE tenant_id = $1
-             ORDER BY created_at DESC
-             LIMIT 200`,
-            [cleanTenantId]
-          ).catch(() => ({ rows: [] })),
-        ]);
-
-        mappedPurchases = purchasesRes.rows.map((row: any) =>
-          mapPurchaseNotificationRow(row, { includeHistoryFields: true })
-        );
+        const lowStockRes = await pgClient.query<{
+          id: number;
+          type: string;
+          title: string;
+          message: string;
+          sale_id: number | null;
+          invoice_number: string | null;
+          action_url: string | null;
+          items_json: any;
+          created_at: string;
+          is_read: boolean;
+        }>(
+          `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
+           FROM public.notifications
+           WHERE tenant_id = $1
+           ORDER BY created_at DESC
+           LIMIT 200`,
+          [cleanTenantId]
+        ).catch(() => ({ rows: [] }));
 
         mappedLowStock = lowStockRes.rows.map((row) => ({
           id: `notif-${row.id}`,
@@ -1130,12 +1019,10 @@ router.get('/all', async (req: Request, res: Response) => {
           ),
           ...mappedReturns,
         ];
-      } else if (tabFilter === 'purchases') {
-        operationalItems = mappedPurchases;
       } else if (tabFilter === 'stock' || tabFilter === 'low_stock') {
         operationalItems = mappedLowStock;
       } else {
-        operationalItems = [...mappedLowStock, ...mappedPurchases, ...mappedSales, ...mappedReturns];
+        operationalItems = [...mappedLowStock, ...mappedSales, ...mappedReturns];
       }
     }
 
@@ -1347,7 +1234,7 @@ router.post(['/dismiss-all', '/mark-all-read'], async (req: Request, res: Respon
       [cleanTenantId, userId, role]
     ).catch(() => {});
 
-    // 2. Dismiss/read all recent 48-hour sales, returns, purchases & admin low-stock alerts
+    // 2. Dismiss/read all recent 48-hour sales, returns & admin low-stock alerts
     if (role !== 'SUPERADMIN') {
       if (role === 'ADMIN' || role === 'OWNER') {
         await pgClient.query(
@@ -1355,16 +1242,6 @@ router.post(['/dismiss-all', '/mark-all-read'], async (req: Request, res: Respon
            SET is_read = true, read_at = NOW()
            WHERE tenant_id = $1 AND COALESCE(is_read, false) = false`,
           [cleanTenantId]
-        ).catch(() => {});
-
-        await pgClient.query(
-          `INSERT INTO pos_notification_dismissals (tenant_id, user_id, item_type, item_id, dismissed_at)
-           SELECT $1, $2, 'PURCHASE', p.id, NOW()
-           FROM purchases p
-           WHERE p.tenant_id = $1
-             AND p.created_at >= NOW() - INTERVAL '48 HOURS'
-           ON CONFLICT (tenant_id, user_id, item_type, item_id) DO UPDATE SET dismissed_at = NOW()`,
-          [cleanTenantId, userId]
         ).catch(() => {});
       }
 

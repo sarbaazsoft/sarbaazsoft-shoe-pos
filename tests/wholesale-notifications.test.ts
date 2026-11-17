@@ -15,6 +15,7 @@ import { resolveNotificationActions } from '../src/utils/notificationActions.ts'
 import notificationRoutes from '../src/server/routes/notificationRoutes.ts';
 import posRoutes from '../src/server/routes/posRoutes.ts';
 import purchaseRoutes from '../src/server/routes/purchaseRoutes.ts';
+import purchaseReturnRoutes from '../src/server/routes/purchaseReturnRoutes.ts';
 import returnRoutes from '../src/server/routes/returnRoutes.ts';
 import { pgClient } from '../src/db/index.ts';
 import { ensureNotificationsSchema, ensureSaasControlPlane } from '../src/db/schemaInit.ts';
@@ -221,6 +222,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
   app.use(express.json());
   app.use('/api/pos', posRoutes);
   app.use('/api/purchases', purchaseRoutes);
+  app.use('/api/purchase-returns', purchaseReturnRoutes);
   app.use('/api/returns', returnRoutes);
   app.use('/api/notifications', notificationRoutes);
 
@@ -369,7 +371,8 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     assert.ok(exchOnlyEvents[0].data.message.includes('Additional Payment: Rs. 1,200 (Cash)'));
     assert.ok(exchOnlyEvents[0].data.message.includes('Processed by: Kamran Staff'));
 
-    // 5. Purchase Completed with explicit carton unit
+    // 5. Purchase & Supplier Purchase Return must NOT generate any notification alerts
+    const sseCountBeforeAdminActivity = sseEvents.length;
     const purRes = await fetch(`${baseUrl}/api/purchases`, {
       method: 'POST',
       headers,
@@ -385,16 +388,27 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     const purJson = await purRes.json();
     const purNo = purJson.purchaseNumber;
 
+    const purRetRes = await fetch(`${baseUrl}/api/purchase-returns`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        supplierName: 'Beacon Suppliers',
+        purchaseId: purJson.purchaseId,
+        reason: 'Damaged cartons',
+        items: [{ productId, quantity: 2, unitCost: 1000 }],
+      }),
+    });
+    assert.equal(purRetRes.status, 201);
+
     await new Promise((r) => setTimeout(r, 40));
-    const purEvt = sseEvents.find((e) => e.data?.type === 'PURCHASE');
-    assert.ok(purEvt, 'Expected SSE PURCHASE notification');
-    assert.equal(purEvt!.data.title, 'Purchase Completed');
+    const eventsAfterPurchaseAndSupplierReturn = sseEvents.slice(sseCountBeforeAdminActivity);
     assert.equal(
-      purEvt!.data.message,
-      `Purchase #: #${purNo}\n\n25 cartons purchased from Beacon Suppliers.\n\nPayment: Cash\n\nProcessed by: Kamran Staff`
+      eventsAfterPurchaseAndSupplierReturn.length,
+      0,
+      'Purchases and supplier purchase returns must emit ZERO SSE notifications'
     );
 
-    // 6. Verify /grouped and /all return the consolidated notifications accurately with zero separate Return Completed for same-invoice returns
+    // 6. Verify /grouped and /all return the consolidated sale/return/exchange notifications accurately and omit purchases
     const groupedRes = await fetch(`${baseUrl}/api/notifications/grouped?limit=10`, { headers });
     assert.equal(groupedRes.status, 200);
     const groupedJson = await groupedRes.json();
@@ -404,7 +418,7 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     const gRetForSameInv = groupedNotifs.find((n) => n.invoiceNumber === saleInv && n.type === 'RETURN');
     const gSaleRet = groupedNotifs.find((n) => n.invoiceNumber === saleRetInv);
     const gExch = groupedNotifs.find((n) => n.invoiceNumber === exchOnlyInv);
-    const gPurchase = groupedNotifs.find((n) => n.type === 'PURCHASE' && n.purchaseNumber === purNo);
+    const gPurchase = groupedNotifs.find((n) => n.type === 'PURCHASE' || n.purchaseNumber === purNo);
 
     assert.ok(gSale, 'Expected consolidated Sale Completed in grouped notifications');
     assert.equal(gRetForSameInv, undefined, 'Same-invoice return must NOT appear as separate Return Completed in /grouped');
@@ -417,8 +431,17 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
     assert.equal(gSaleRet.title, 'Sale Completed');
     assert.ok(gExch);
     assert.equal(gExch.title, 'Exchange Completed');
-    assert.ok(gPurchase);
-    assert.equal(gPurchase.title, 'Purchase Completed');
+    assert.equal(gPurchase, undefined, 'Purchases must NOT appear in /api/notifications/grouped');
+
+    const allRes = await fetch(`${baseUrl}/api/notifications/all?limit=25`, { headers });
+    assert.equal(allRes.status, 200);
+    const allJson = await allRes.json();
+    const allItems: any[] = allJson.items || [];
+    assert.equal(
+      allItems.some((n) => n.type === 'PURCHASE' || n.purchaseNumber === purNo),
+      false,
+      'Purchases must NOT appear in /api/notifications/all'
+    );
   } finally {
     unregister();
     resetServerNotificationDedupeCache();
