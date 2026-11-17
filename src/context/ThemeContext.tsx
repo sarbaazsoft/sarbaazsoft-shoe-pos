@@ -1,8 +1,18 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import {
+  type AccentThemeId,
+  type AccentThemePalette,
+  DEFAULT_ACCENT_THEME,
+  applyAccentThemeToDOM,
+  isValidAccentTheme,
+  resolveAccentPalette,
+} from '../utils/themePalettes.ts';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 export type Theme = ResolvedTheme; // backward compatibility
+
+const ACCENT_STORAGE_KEY = 'pos_accent_theme';
 
 interface ThemeContextType {
   theme: ResolvedTheme;
@@ -10,6 +20,9 @@ interface ThemeContextType {
   setThemeMode: (mode: ThemeMode) => void;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
+  accentTheme: AccentThemeId;
+  accentPalette: AccentThemePalette;
+  setAccentTheme: (accent: AccentThemeId) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -18,6 +31,9 @@ const ThemeContext = createContext<ThemeContextType>({
   setThemeMode: () => {},
   setTheme: () => {},
   toggleTheme: () => {},
+  accentTheme: DEFAULT_ACCENT_THEME,
+  accentPalette: resolveAccentPalette(DEFAULT_ACCENT_THEME),
+  setAccentTheme: () => {},
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -56,13 +72,29 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
+  const [accentTheme, setAccentThemeState] = useState<AccentThemeId>(() => {
+    try {
+      const stored = localStorage.getItem(ACCENT_STORAGE_KEY);
+      return isValidAccentTheme(stored) ? stored : DEFAULT_ACCENT_THEME;
+    } catch {
+      return DEFAULT_ACCENT_THEME;
+    }
+  });
+
+  const accentPalette = resolveAccentPalette(accentTheme);
+
   const isFirstMount = useRef(true);
   const transitionTimeoutRef = useRef<number | null>(null);
   const themeModeRef = useRef<ThemeMode>(themeMode);
+  const accentThemeRef = useRef<AccentThemeId>(accentTheme);
 
   useEffect(() => {
     themeModeRef.current = themeMode;
   }, [themeMode]);
+
+  useEffect(() => {
+    accentThemeRef.current = accentTheme;
+  }, [accentTheme]);
 
   const applyThemeToDOM = (resolved: ResolvedTheme, animate = true) => {
     try {
@@ -107,7 +139,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           body.style.colorScheme = 'light';
         }
       }
-      window.dispatchEvent(new CustomEvent('pos:theme-changed', { detail: { theme: resolved } }));
+      window.dispatchEvent(
+        new CustomEvent('pos:theme-changed', { detail: { theme: resolved, accentTheme: accentThemeRef.current } })
+      );
     } catch (e) {
       console.error('Error applying theme:', e);
     }
@@ -133,6 +167,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeMode(nextMode);
   };
 
+  const setAccentTheme = (nextAccent: AccentThemeId) => {
+    const valid = isValidAccentTheme(nextAccent) ? nextAccent : DEFAULT_ACCENT_THEME;
+    setAccentThemeState(valid);
+    try {
+      localStorage.setItem(ACCENT_STORAGE_KEY, valid);
+    } catch (_) {}
+    applyAccentThemeToDOM(valid);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('pos:theme-changed', { detail: { theme, accentTheme: valid } })
+      );
+    }
+  };
+
   // Synchronize on mount and whenever themeMode changes
   useEffect(() => {
     const resolved = themeMode === 'system' ? getSystemPreference() : themeMode;
@@ -142,6 +190,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isFirstMount.current = false;
     }
   }, [themeMode]);
+
+  // Apply accent CSS variables on mount and whenever accentTheme changes
+  useEffect(() => {
+    applyAccentThemeToDOM(accentTheme);
+  }, [accentTheme]);
 
   // Real-time OS theme change listener when "system" is selected
   useEffect(() => {
@@ -165,11 +218,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Synchronize theme changes across tabs/windows
+  // Synchronize theme & accent changes across tabs/windows
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'pos_theme' && (e.newValue === 'dark' || e.newValue === 'light' || e.newValue === 'system')) {
         setThemeModeState(e.newValue as ThemeMode);
+      }
+      if (e.key === ACCENT_STORAGE_KEY && isValidAccentTheme(e.newValue)) {
+        setAccentThemeState(e.newValue);
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -179,7 +235,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, themeMode, setThemeMode, setTheme, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        themeMode,
+        setThemeMode,
+        setTheme,
+        toggleTheme,
+        accentTheme,
+        accentPalette,
+        setAccentTheme,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

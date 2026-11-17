@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sun, Moon, Monitor, ChevronDown, Check } from 'lucide-react';
+import { Sun, Moon, Monitor, ChevronDown, Check, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme, type ThemeMode } from '../../context/ThemeContext.tsx';
+import { ACCENT_THEME_LIST, type AccentThemeId } from '../../utils/themePalettes.ts';
 
 export interface ThemeDropdownProps {
   id?: string;
@@ -13,13 +14,13 @@ export interface ThemeDropdownProps {
   font?: 'courgette' | 'roboto' | 'sans';
   onOpenChange?: (open: boolean) => void;
   onThemeSelect?: (mode: ThemeMode) => void;
+  onAccentSelect?: (accent: AccentThemeId) => void;
 }
 
 /**
  * ThemeDropdown
- * 3-way dropdown theme preference menu (Light, Dark, System).
- * Extracted as a unified sub-component of the top navbar,
- * reused across Header and PublicHeader (Auth, Installation Wizard, and Loading route).
+ * Unified dropdown for appearance preference (Light, Dark, System)
+ * and curated brand gradient color themes.
  */
 export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
   id = 'global-theme-dropdown-trigger',
@@ -31,8 +32,9 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
   font,
   onOpenChange,
   onThemeSelect,
+  onAccentSelect,
 }) => {
-  const { theme, themeMode, setThemeMode } = useTheme();
+  const { theme, themeMode, setThemeMode, accentTheme, accentPalette, setAccentTheme } = useTheme();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -89,6 +91,11 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
     onThemeSelect?.(mode);
   };
 
+  const handleAccentSelect = (nextAccent: AccentThemeId) => {
+    setAccentTheme(nextAccent);
+    onAccentSelect?.(nextAccent);
+  };
+
   return (
     <div
       ref={dropdownRef}
@@ -107,16 +114,16 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
               : `${triggerClassName} ${open ? 'ring-2 ring-indigo-400/40' : ''}`
             : `h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                 open
-                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.4)]'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)]'
+                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),0.4)]'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.2)]'
               }`
         }
-        title={`Theme: ${themeMode.charAt(0).toUpperCase() + themeMode.slice(1)}`}
+        title={`Theme: ${themeMode.charAt(0).toUpperCase() + themeMode.slice(1)} • ${accentPalette.name} (${accentPalette.companionName})`}
         aria-label="Theme selection menu"
         aria-expanded={open}
         aria-haspopup="true"
       >
-        <div className="shrink-0 flex items-center justify-center">
+        <div className="shrink-0 flex items-center justify-center gap-1.5">
           {themeMode === 'light' ? (
             <Sun className={`${triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'} stroke-[2]`} />
           ) : themeMode === 'dark' ? (
@@ -124,6 +131,11 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
           ) : (
             <Monitor className={`${triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'} stroke-[2]`} />
           )}
+          <span
+            aria-hidden="true"
+            className="w-2.5 h-2.5 rounded-full border border-white/70 dark:border-white/50 shadow-2xs shrink-0"
+            style={{ background: accentPalette.buttonGradient }}
+          />
         </div>
         {showLabel && (
           <span
@@ -158,7 +170,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
             }}
             className={`absolute ${
               dropdownAlign === 'right' ? 'right-0 left-auto' : 'left-0 right-auto'
-            } top-full mt-2 w-48 sm:w-52 bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(147,51,234,0.25)] p-1.5 z-50 backdrop-blur-md list-none space-y-0.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+            } top-full mt-2 w-60 sm:w-64 max-w-[calc(100vw-1rem)] bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),0.25)] p-1.5 z-50 backdrop-blur-md list-none space-y-0.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
             role="menu"
             aria-orientation="vertical"
           >
@@ -185,7 +197,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 style={courgetteStyle}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                   themeMode === 'light'
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)]'
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
                     : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
                 }`}
                 role="menuitemradio"
@@ -214,7 +226,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 style={courgetteStyle}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                   themeMode === 'dark'
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)]'
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
                     : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
                 }`}
                 role="menuitemradio"
@@ -243,7 +255,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 style={courgetteStyle}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                   themeMode === 'system'
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)]'
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
                     : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
                 }`}
                 role="menuitemradio"
@@ -274,6 +286,62 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                   )}
                 </div>
               </button>
+            </li>
+
+            {/* Brand Gradient Color Selector */}
+            <li
+              role="separator"
+              className="pt-1.5 mt-1 border-t border-slate-100 dark:border-purple-800/40"
+            >
+              <div className="px-2 pb-1.5 flex items-center justify-between gap-2">
+                <span
+                  style={courgetteStyle}
+                  className={`inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-800 dark:text-purple-100 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+                >
+                  <Palette className="w-3 h-3 text-purple-600 dark:text-purple-300 shrink-0" />
+                  <span>Theme Color</span>
+                </span>
+                <span
+                  className="text-[9.5px] font-semibold text-purple-700 dark:text-purple-200 bg-purple-50 dark:bg-purple-500/20 px-1.5 py-0.2 rounded-full border border-purple-200/80 dark:border-purple-400/40 truncate max-w-[118px]"
+                  title={`${accentPalette.name} + ${accentPalette.companionName}`}
+                >
+                  {accentPalette.name} Mix
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1 px-0.5 max-h-[260px] overflow-y-auto">
+                {ACCENT_THEME_LIST.map((palette) => {
+                  const isSelected = accentTheme === palette.id;
+                  return (
+                    <button
+                      key={palette.id}
+                      id={`theme-color-option-${palette.id}`}
+                      type="button"
+                      onClick={() => handleAccentSelect(palette.id)}
+                      title={`${palette.name} (${palette.baseHex}) + ${palette.companionName}`}
+                      role="menuitemradio"
+                      aria-checked={isSelected}
+                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-[11px] transition-all cursor-pointer border ${
+                        isSelected
+                          ? 'bg-purple-50 dark:bg-purple-500/25 border-purple-400 dark:border-purple-400/70 text-purple-800 dark:text-white font-bold shadow-2xs'
+                          : 'bg-slate-50/70 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.08] border-transparent text-slate-700 dark:text-slate-200 font-medium'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center border border-white/80 dark:border-white/40 shadow-xs"
+                          style={{ background: palette.buttonGradient }}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
+                        </span>
+                        <span style={courgetteStyle} className="truncate">
+                          {palette.name}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </li>
           </motion.ul>
         )}

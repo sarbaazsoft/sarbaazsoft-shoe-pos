@@ -64,6 +64,26 @@
             document.documentElement.style.colorScheme = 'light';
             document.documentElement.setAttribute('data-theme', 'light');
           }
+          const accentMetaColors = {
+            purple: '#9333EA',
+            red: '#F44336',
+            orange: '#F97316',
+            emerald: '#10B981',
+            cyan: '#06B6D4',
+            teal: '#14B8A6',
+            indigo: '#6366F1',
+            violet: '#8B5CF6',
+            pink: '#EC4899',
+            fuchsia: '#D946EF',
+            stone: '#78716C'
+          };
+          const storedAccent = localStorage.getItem('pos_accent_theme');
+          const activeAccent = storedAccent && accentMetaColors[storedAccent] ? storedAccent : 'purple';
+          document.documentElement.setAttribute('data-accent-theme', activeAccent);
+          const metaTheme = document.querySelector('meta[name="theme-color"]');
+          if (metaTheme) {
+            metaTheme.setAttribute('content', accentMetaColors[activeAccent]);
+          }
         } catch (e) {}
       })();
     </script>
