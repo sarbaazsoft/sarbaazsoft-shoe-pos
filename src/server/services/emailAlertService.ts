@@ -2,13 +2,187 @@ import { pgClient } from '../../db/index.ts';
 import { getAppSetting } from './appSettingsService.ts';
 import { sendEmail } from '../utils/email.ts';
 import type { PosActionNotification } from '../pushNotificationService.ts';
+import {
+  buildTransactionReceiptEmailHtml,
+  type TransactionCompanySettings,
+  type TransactionReceiptItem,
+  type TransactionReturnedItem,
+  type TransactionSaleRecord,
+} from './transactionReceiptTemplate.ts';
 
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+export { buildTransactionReceiptEmailHtml };
+
+function parseReturnNumberFromNotes(notes?: string | null): string {
+  if (!notes) return '';
+  const match = String(notes).match(/Return\s+#?(RET-[A-Z0-9-]+)/i);
+  return match ? match[1].trim() : '';
+}
+
+async function hydrateTransactionForEmail(
+  cleanTenantId: number,
+  payload: PosActionNotification
+): Promise<TransactionSaleRecord | null> {
+  const numericSaleId = Number(payload.saleId || payload.orderId || 0);
+  const cleanInvoiceNumber = String(payload.invoiceNumber || '').trim();
+  const numericReturnId = Number(payload.returnId || 0);
+  const cleanReturnNumber = String(payload.returnNumber || '').trim();
+
+  try {
+    if (numericSaleId > 0 || cleanInvoiceNumber) {
+      const saleRes =
+        numericSaleId > 0
+          ? await pgClient.query<any>(
+              `SELECT s.*, u.name AS cashier_name,
+                      c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address,
+                      c.shop_name AS customer_shop_name, c.market_name AS customer_market_name,
+                      c.city AS customer_city, c.customer_type, c.ntn_number AS customer_ntn
+               FROM sales s
+               LEFT JOIN users u ON s.created_by = u.id
+               LEFT JOIN customers c ON s.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
+               WHERE s.id = $1 AND COALESCE(s.tenant_id, 1) = $2
+               LIMIT 1`,
+              [numericSaleId, cleanTenantId]
+            )
+          : await pgClient.query<any>(
+              `SELECT s.*, u.name AS cashier_name,
+                      c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address,
+                      c.shop_name AS customer_shop_name, c.market_name AS customer_market_name,
+                      c.city AS customer_city, c.customer_type, c.ntn_number AS customer_ntn
+               FROM sales s
+               LEFT JOIN users u ON s.created_by = u.id
+               LEFT JOIN customers c ON s.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
+               WHERE UPPER(s.invoice_number) = UPPER($1) AND COALESCE(s.tenant_id, 1) = $2
+               ORDER BY s.id DESC
+               LIMIT 1`,
+              [cleanInvoiceNumber, cleanTenantId]
+            );
+
+      const saleRow = saleRes.rows[0];
+      if (!saleRow) {
+        return null;
+      }
+
+      const resolvedReturnNumber =
+        cleanReturnNumber || parseReturnNumberFromNotes(saleRow.notes);
+
+      const [itemsRes, returnsRes] = await Promise.all([
+        pgClient.query<TransactionReceiptItem>(
+          `SELECT si.*,
+                  COALESCE(p.article, si.product_name) AS article,
+                  COALESCE(p.article, si.product_name) AS product_name,
+                  p.brand AS brand_name,
+                  COALESCE(NULLIF(si.pairs_per_carton, 0), p.pairs_per_carton, 12) AS pairs_per_carton
+           FROM sale_items si
+           LEFT JOIN products p ON si.product_id = p.id
+           WHERE si.sale_id = $1
+           ORDER BY si.id ASC`,
+          [saleRow.id]
+        ),
+        pgClient
+          .query<TransactionReturnedItem & { return_number?: string; reason?: string }>(
+            `SELECT ri.quantity, ri.unit_refund_price, ri.subtotal,
+                    COALESCE(p.article, si.product_name, 'Returned Footwear') AS product_name,
+                    r.return_number, r.reason
+             FROM return_items ri
+             JOIN returns r ON ri.return_id = r.id
+             LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+             LEFT JOIN products p ON ri.product_id = p.id
+             WHERE COALESCE(r.tenant_id, 1) = $1
+               AND (r.original_sale_id = $2 OR ($3 <> '' AND UPPER(r.return_number) = UPPER($3)))
+             ORDER BY ri.id ASC`,
+            [cleanTenantId, saleRow.id, resolvedReturnNumber]
+          )
+          .catch(() => ({ rows: [] as Array<TransactionReturnedItem & { return_number?: string; reason?: string }> })),
+      ]);
+
+      const returnedItems = returnsRes.rows || [];
+      const exchangeCredit = returnedItems.reduce(
+        (sum, r) => sum + (Number(r.subtotal) || 0),
+        0
+      );
+
+      return {
+        ...saleRow,
+        items: itemsRes.rows || [],
+        returned_items: returnedItems,
+        exchange_credit: exchangeCredit > 0 ? exchangeCredit : undefined,
+        return_number: resolvedReturnNumber || returnedItems[0]?.return_number || undefined,
+      };
+    }
+
+    if (numericReturnId > 0 || cleanReturnNumber) {
+      const retRes =
+        numericReturnId > 0
+          ? await pgClient.query<any>(
+              `SELECT r.*, u.name AS cashier_name,
+                      COALESCE(NULLIF(r.customer_name, ''), c.name) AS resolved_customer_name,
+                      c.phone AS customer_phone, c.address AS customer_address,
+                      c.shop_name AS customer_shop_name, c.market_name AS customer_market_name,
+                      c.city AS customer_city, c.customer_type, c.ntn_number AS customer_ntn
+               FROM returns r
+               LEFT JOIN users u ON r.created_by = u.id
+               LEFT JOIN customers c ON r.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
+               WHERE r.id = $1 AND COALESCE(r.tenant_id, 1) = $2
+               LIMIT 1`,
+              [numericReturnId, cleanTenantId]
+            )
+          : await pgClient.query<any>(
+              `SELECT r.*, u.name AS cashier_name,
+                      COALESCE(NULLIF(r.customer_name, ''), c.name) AS resolved_customer_name,
+                      c.phone AS customer_phone, c.address AS customer_address,
+                      c.shop_name AS customer_shop_name, c.market_name AS customer_market_name,
+                      c.city AS customer_city, c.customer_type, c.ntn_number AS customer_ntn
+               FROM returns r
+               LEFT JOIN users u ON r.created_by = u.id
+               LEFT JOIN customers c ON r.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
+               WHERE UPPER(r.return_number) = UPPER($1) AND COALESCE(r.tenant_id, 1) = $2
+               ORDER BY r.id DESC
+               LIMIT 1`,
+              [cleanReturnNumber, cleanTenantId]
+            );
+
+      const retRow = retRes.rows[0];
+      if (!retRow) {
+        return null;
+      }
+
+      const retItemsRes = await pgClient
+        .query<TransactionReturnedItem>(
+          `SELECT ri.quantity, ri.unit_refund_price, ri.subtotal,
+                  COALESCE(p.article, si.product_name, 'Returned Footwear') AS product_name
+           FROM return_items ri
+           LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+           LEFT JOIN products p ON ri.product_id = p.id
+           WHERE ri.return_id = $1
+           ORDER BY ri.id ASC`,
+          [retRow.id]
+        )
+        .catch(() => ({ rows: [] as TransactionReturnedItem[] }));
+
+      return {
+        id: retRow.id,
+        return_number: retRow.return_number,
+        sale_date: retRow.return_date,
+        total_amount: retRow.total_refund_amount,
+        payment_method: retRow.payment_method || 'CASH',
+        cashier_name: retRow.cashier_name || payload.cashierName,
+        customer_name: retRow.resolved_customer_name || payload.customerName,
+        customer_phone: retRow.customer_phone,
+        customer_address: retRow.customer_address,
+        customer_shop_name: retRow.customer_shop_name,
+        customer_market_name: retRow.customer_market_name,
+        customer_city: retRow.customer_city,
+        customer_type: retRow.customer_type,
+        customer_ntn: retRow.customer_ntn,
+        reason: retRow.reason,
+        returned_items: retItemsRes.rows || [],
+      };
+    }
+  } catch (hydrateErr: any) {
+    console.warn('[emailAlertService] Non-blocking invoice hydration notice:', hydrateErr?.message || hydrateErr);
+  }
+
+  return null;
 }
 
 /**
@@ -32,14 +206,14 @@ export async function dispatchPosEmailAlert(
   try {
     // 2. Fetch store settings and store owner email addresses
     const [csRes, usersRes] = await Promise.all([
-      pgClient.query<{
-        company_name: string | null;
-        email: string | null;
-      }>(
-        `SELECT t.name AS company_name, cs.email
+      pgClient.query<TransactionCompanySettings>(
+        `SELECT t.name AS company_name,
+                cs.address, cs.phone, cs.email, cs.strn, cs.tax_id,
+                cs.currency_symbol, cs.invoice_footer, cs.business_type,
+                cs.show_receipt_logo, cs.receipt_logo, cs.logo
          FROM company_settings cs
          LEFT JOIN tenants t ON t.id = cs.tenant_id
-         WHERE cs.tenant_id = $1 LIMIT 1`,
+         WHERE COALESCE(cs.tenant_id, 1) = $1 LIMIT 1`,
         [cleanTenantId]
       ),
       pgClient.query<{ email: string }>(
@@ -49,7 +223,7 @@ export async function dispatchPosEmailAlert(
       ),
     ]);
 
-    const cs = csRes.rows[0];
+    const cs = csRes.rows[0] || null;
     const recipients = new Set<string>();
 
     if (cs?.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cs.email.trim())) {
@@ -75,110 +249,22 @@ export async function dispatchPosEmailAlert(
       return false;
     }
 
-    const recipientList = Array.from(recipients);
-    const storeName = cs?.company_name || 'SarbaazSoft Shoe Store';
-    const refNum = payload.invoiceNumber || payload.purchaseNumber || payload.exchangeNumber || payload.returnNumber || 'N/A';
-    const cashier = payload.cashierName || 'Counter Staff';
-    const party = payload.supplierName || payload.customerName || 'Walk-in Customer';
-    const amountVal = payload.totalAmount ?? payload.refundAmount ?? payload.netDifference ?? 0;
-    const formattedAmount = Number(amountVal).toLocaleString();
+    // 3. Hydrate complete authoritative invoice / return data from PostgreSQL
+    const hydratedSale = await hydrateTransactionForEmail(cleanTenantId, payload);
 
-    const isSale = payload.type === 'SALE';
-    const isPurchase = payload.type === 'PURCHASE';
-    const isSaleReturn = payload.type === 'SALE_RETURN';
-    const isSaleExchange = payload.type === 'SALE_EXCHANGE';
-    const isExchange = payload.type === 'EXCHANGE';
-    const isReturn = payload.type === 'RETURN';
-
-    const actionTitle = isSale
-      ? `New Sale #${refNum} (Rs. ${formattedAmount})`
-      : isPurchase
-      ? `Purchase Completed #${refNum} (Rs. ${formattedAmount})`
-      : isSaleExchange
-      ? `Sale & Exchange #${refNum} (Rs. ${formattedAmount})`
-      : isSaleReturn
-      ? `Sale Completed #${refNum} (Rs. ${formattedAmount})`
-      : isExchange
-      ? `Exchange Completed #${payload.exchangeNumber || refNum}`
-      : isReturn
-      ? `Return Completed #${payload.returnNumber || refNum} (Refund Rs. ${formattedAmount})`
-      : `Inventory Alert #${refNum}`;
-
-    const dateFormatted = new Date().toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
+    // 4. Dynamically render responsive receipt email embedding full in-app invoice preview
+    const emailRender = buildTransactionReceiptEmailHtml({
+      payload,
+      sale: hydratedSale,
+      companySettings: cs,
+      generatedAt: payload.timestamp ? new Date(payload.timestamp) : new Date(),
     });
 
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(actionTitle)}</title>
-</head>
-<body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; color: #1e293b;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-    <!-- Header -->
-    <tr>
-      <td style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 24px; color: #ffffff;">
-        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8; font-weight: 700;">SarbaazSoft Shoe POS</div>
-        <div style="font-size: 20px; font-weight: 800; margin-top: 4px;">${escapeHtml(storeName)}</div>
-        <div style="font-size: 13px; color: #cbd5e1; margin-top: 2px;">Instant Transaction Receipt &amp; Owner Alert</div>
-      </td>
-    </tr>
-
-    <!-- Main Card -->
-    <tr>
-      <td style="padding: 24px;">
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${isReturn ? 'Total Refund' : isExchange ? 'Net Difference' : isPurchase ? 'Total Purchase' : (isSaleReturn || isSaleExchange) ? 'Net Amount' : 'Total Amount Received'}</div>
-          <div style="font-size: 32px; font-weight: 800; color: ${isReturn ? '#dc2626' : '#16a34a'}; margin: 4px 0;">Rs. ${formattedAmount}</div>
-          <div style="font-size: 12px; color: #64748b;">${isPurchase ? 'Purchase' : isExchange ? 'Exchange' : isReturn ? 'Return' : 'Invoice'} <strong>#${escapeHtml(refNum)}</strong> • ${escapeHtml(dateFormatted)}</div>
-        </div>
-
-        <!-- Details Grid -->
-        <table width="100%" border="0" cellspacing="0" cellpadding="6" style="font-size: 13px; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
-          <tr>
-            <td style="color: #64748b; width: 35%;">Processed By:</td>
-            <td style="font-weight: 600; color: #0f172a;">${escapeHtml(cashier)}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">${isPurchase ? 'Supplier:' : 'Customer:'}</td>
-            <td style="font-weight: 600; color: #0f172a;">${escapeHtml(party)}</td>
-          </tr>
-          ${payload.itemsSummary ? `
-          <tr>
-            <td style="color: #64748b; vertical-align: top;">Items:</td>
-            <td style="color: #334155; line-height: 1.4;">${escapeHtml(payload.itemsSummary)}</td>
-          </tr>
-          ` : ''}
-          ${payload.exchangeDetails ? `
-          <tr>
-            <td style="color: #64748b;">Returned Items:</td>
-            <td style="color: #dc2626;">${escapeHtml(payload.exchangeDetails.oldItems)}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">New Issued Items:</td>
-            <td style="color: #16a34a;">${escapeHtml(payload.exchangeDetails.newItems)}</td>
-          </tr>
-          ` : ''}
-        </table>
-
-        <div style="text-align: center; margin-top: 24px;">
-          <p style="font-size: 11px; color: #94a3b8; margin: 0;">This is an automated real-time transaction alert from your SarbaazSoft Point of Sale system.</p>
-        </div>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-    `;
-
+    const recipientList = Array.from(recipients);
     const sendRes = await sendEmail({
       to: recipientList,
-      subject: `[${storeName}] ${actionTitle}`,
-      html: htmlBody,
+      subject: emailRender.subject,
+      html: emailRender.html,
     });
 
     if (sendRes.delivered) {
