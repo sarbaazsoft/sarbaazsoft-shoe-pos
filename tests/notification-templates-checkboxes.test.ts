@@ -7,95 +7,195 @@ import http from 'node:http';
 
 import {
   formatSaleNotification,
+  formatPurchaseNotification,
   formatReturnNotification,
   formatExchangeNotification,
+  formatUnitQuantity,
   formatPairSummary,
   formatPaymentMethodLabel,
+  formatNotificationHeaderTitle,
+  isCompletedTransactionNotification,
 } from '../src/utils/notificationFormatters.ts';
 import { resolveNotificationActions } from '../src/utils/notificationActions.ts';
 import notificationRoutes from '../src/server/routes/notificationRoutes.ts';
 import posRoutes from '../src/server/routes/posRoutes.ts';
+import purchaseRoutes from '../src/server/routes/purchaseRoutes.ts';
 import returnRoutes from '../src/server/routes/returnRoutes.ts';
 import { pgClient } from '../src/db/index.ts';
 import { ensureNotificationsSchema, ensureSaasControlPlane } from '../src/db/schemaInit.ts';
 import { generateToken } from '../src/server/auth.ts';
 import { registerSseClient, resetServerNotificationDedupeCache } from '../src/server/pushNotificationService.ts';
 
-test('formatPairSummary handles singular (1 Pair) and plural (N Pairs) accurately across Sale, Return, and Exchange', () => {
-  assert.equal(formatPairSummary(1, 'Sold'), '1 Pair Sold');
-  assert.equal(formatPairSummary(4, 'Sold'), '4 Pairs Sold');
-  assert.equal(formatPairSummary(1, 'Returned'), '1 Pair Returned');
-  assert.equal(formatPairSummary(3, 'Returned'), '3 Pairs Returned');
-  assert.equal(formatPairSummary(1, 'Exchanged'), '1 Pair Exchanged');
-  assert.equal(formatPairSummary(2, 'Exchanged'), '2 Pairs Exchanged');
-  assert.equal(formatPairSummary(0, 'Sold'), '0 Pairs Sold');
+test('Unit singular/plural formatting handles pairs, cartons, boxes, and dozens without confusing units', () => {
+  assert.equal(formatUnitQuantity(1, 'pair'), '1 pair');
+  assert.equal(formatUnitQuantity(2, 'pair'), '2 pairs');
+  assert.equal(formatUnitQuantity(1, 'carton'), '1 carton');
+  assert.equal(formatUnitQuantity(25, 'carton'), '25 cartons');
+  assert.equal(formatUnitQuantity(1, 'box'), '1 box');
+  assert.equal(formatUnitQuantity(3, 'box'), '3 boxes');
+  assert.equal(formatUnitQuantity(1, 'dozen'), '1 dozen');
+  assert.equal(formatUnitQuantity(4, 'dozen'), '4 dozens');
+  assert.equal(formatPairSummary(1, 'Sold'), '1 pair Sold');
+  assert.equal(formatPairSummary(4, 'Sold'), '4 pairs Sold');
 });
 
-test('formatSaleNotification, formatReturnNotification, and formatExchangeNotification match exact templates without header invoice duplication', () => {
-  const sale = formatSaleNotification({
+test('Retail, Wholesale, Purchase, Independent Return, and Exchange formatters match exact standardized layouts and safely omit missing fields', () => {
+  // 1A. Retail Sale - Without Return
+  const retailSale = formatSaleNotification({
     invoiceNo: 'INV-000101',
-    totalAmount: 4800,
+    totalQuantity: 2,
+    isWholesale: false,
+    customerName: 'Walk-in Customer',
     paymentMethod: 'CASH',
-    totalQuantity: 4,
-    customerName: 'Bilal Traders',
-    cashierName: 'Ali',
+    cashierName: 'Usman Staff',
   });
-  assert.equal(sale.title, 'Sale Completed ✅');
+  assert.equal(retailSale.title, 'Sale Completed');
   assert.equal(
-    sale.message,
-    '#INV-000101 · Rs. 4,800 (Cash)\n4 Pairs Sold · Bilal Traders\nCashier: Ali'
+    retailSale.message,
+    'Invoice: #INV-000101\n\n2 pairs sold to Walk-in Customer.\n\nPayment: Cash\n\nProcessed by: Usman Staff'
   );
-  assert.equal(sale.title.includes('INV-000101'), false);
+  assert.equal(retailSale.message.includes('Returned:'), false);
+  assert.equal(retailSale.message.includes('Net Sold:'), false);
 
-  const singlePairSale = formatSaleNotification({
-    invoiceNo: '#INV-000102',
-    totalAmount: 1500,
+  // 1B. Retail Sale - With Return
+  const retailWithReturn = formatSaleNotification({
+    invoiceNo: 'INV-000102',
+    totalQuantity: 3,
+    returnedQuantity: 1,
+    isWholesale: false,
+    customerName: 'Ahmed Customer',
+    paymentMethod: 'CASH',
+    cashierName: 'Usman Staff',
+  });
+  assert.equal(retailWithReturn.title, 'Sale Completed');
+  assert.equal(
+    retailWithReturn.message,
+    'Invoice: #INV-000102\n\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\n\nSold to: Ahmed Customer\n\nPayment: Cash\n\nProcessed by: Usman Staff'
+  );
+
+  // 1C. Wholesale Sale - Without Return
+  const wholesaleNoReturn = formatSaleNotification({
+    invoiceNo: 'INV-000103',
+    totalQuantity: 120,
+    isWholesale: true,
+    customerName: 'National Shoes Wholesale',
+    paymentMethod: 'BANK_TRANSFER',
+    cashierName: 'Usman Staff',
+  });
+  assert.equal(wholesaleNoReturn.title, 'Sale Completed');
+  assert.equal(
+    wholesaleNoReturn.message,
+    'Invoice: #INV-000103\n\nTotal Sold: 120 pairs\n\nSold to: National Shoes Wholesale\n\nPayment: Bank Transfer\n\nProcessed by: Usman Staff'
+  );
+
+  // 2. Purchase Completed
+  const purchase = formatPurchaseNotification({
+    purchaseNo: 'PUR-000025',
+    totalQuantity: 25,
+    unit: 'carton',
+    supplierName: 'Crescent Footwear Co',
+    paymentMethod: 'CASH',
+    cashierName: 'Usman Staff',
+  });
+  assert.equal(purchase.title, 'Purchase Completed');
+  assert.equal(
+    purchase.message,
+    'Purchase #: #PUR-000025\n\n25 cartons purchased from Crescent Footwear Co.\n\nPayment: Cash\n\nProcessed by: Usman Staff'
+  );
+
+  // 3. Independent Return Completed
+  const independentRet = formatReturnNotification({
+    returnNo: 'RET-000012',
+    amount: 1550,
+    paymentMethod: 'CASH',
+    totalQuantity: 2,
+    customerName: 'Ahmed Customer',
+    cashierName: 'Usman Staff',
+  });
+  assert.equal(independentRet.title, 'Return Completed');
+  assert.equal(
+    independentRet.message,
+    'Return #: #RET-000012\n\n2 pairs returned by Ahmed Customer.\n\nRefund: Rs. 1,550 (Cash)\n\nProcessed by: Usman Staff'
+  );
+
+  // 4. Exchange Completed (Additional Payment + Refund + Zero Adjustment)
+  const exchPay = formatExchangeNotification({
+    exchangeNo: 'EXC-000008',
+    amount: 500,
+    paymentMethod: 'CASH',
+    totalQuantity: 2,
+    customerName: 'Ahmed Customer',
+    cashierName: 'Usman Staff',
+  });
+  assert.equal(exchPay.title, 'Exchange Completed');
+  assert.equal(
+    exchPay.message,
+    'Exchange #: #EXC-000008\n\n2 pairs exchanged by Ahmed Customer.\n\nAdditional Payment: Rs. 500 (Cash)\n\nProcessed by: Usman Staff'
+  );
+
+  const exchRefund = formatExchangeNotification({
+    exchangeNo: 'EXC-000009',
+    amount: -350,
     paymentMethod: 'ONLINE',
     totalQuantity: 1,
-    customerName: 'Walk-in Customer',
-    cashierName: 'Sara',
+    customerName: 'Ahmed Customer',
+    cashierName: 'Usman Staff',
   });
-  assert.equal(singlePairSale.title, 'Sale Completed ✅');
   assert.equal(
-    singlePairSale.message,
-    '#INV-000102 · Rs. 1,500 (Online)\n1 Pair Sold · Walk-in Customer\nCashier: Sara'
+    exchRefund.message,
+    'Exchange #: #EXC-000009\n\n1 pair exchanged by Ahmed Customer.\n\nRefund: Rs. 350 (Online)\n\nProcessed by: Usman Staff'
   );
 
-  const ret = formatReturnNotification({
-    invoiceNo: 'INV-000101',
-    amount: 1200,
-    paymentMethod: 'CASH',
+  // Null/undefined/missing optional fields never output 'null', 'undefined', or blank labels
+  const sparseSale = formatSaleNotification({
+    invoiceNo: 'INV-000199',
     totalQuantity: 1,
-    customerName: 'Bilal Traders',
-    cashierName: 'Ali',
+    customerName: null,
+    paymentMethod: 'undefined',
+    cashierName: '',
   });
-  assert.equal(ret.title, 'Return Completed 🔄');
-  assert.equal(
-    ret.message,
-    '#INV-000101 · Refund: Rs. 1,200 (Cash)\n1 Pair Returned · Bilal Traders\nProcessed by: Ali'
-  );
-  assert.equal(ret.title.includes('INV-000101'), false);
+  assert.equal(sparseSale.message, 'Invoice: #INV-000199\n\n1 pair sold.');
+  assert.equal(/null|undefined/i.test(sparseSale.message), false);
 
-  const exch = formatExchangeNotification({
-    invoiceNo: 'INV-000105',
-    amount: 600,
-    paymentMethod: 'BANK_TRANSFER',
-    totalQuantity: 2,
-    customerName: 'Hamza Khan',
-    cashierName: 'Zain',
+  const sparseReturn = formatReturnNotification({
+    returnNo: 'RET-000099',
+    totalQuantity: 1,
+    amount: 0,
+    customerName: undefined,
+    paymentMethod: null,
+    cashierName: 'null',
   });
-  assert.equal(exch.title, 'Exchange Completed 🔄');
-  assert.equal(
-    exch.message,
-    '#INV-000105 · Adjustment: Rs. 600 (Bank Transfer)\n2 Pairs Exchanged · Hamza Khan\nProcessed by: Zain'
-  );
-  assert.equal(exch.title.includes('INV-000105'), false);
+  assert.equal(sparseReturn.message, 'Return #: #RET-000099\n\n1 pair returned.');
+  assert.equal(/null|undefined|Refund:/i.test(sparseReturn.message), false);
 
   assert.equal(formatPaymentMethodLabel('KHATA'), 'Khata');
   assert.equal(formatPaymentMethodLabel('SPLIT'), 'Split');
 });
 
-test('All POS transaction notifications (Sale, Return, Exchange) resolve View Invoice | Open POS actions', () => {
+test('NotificationHeaderTitle and header helpers render circular green Check icon without plain emojis across all 4 completed transaction types', () => {
+  for (const title of ['Sale Completed', 'Purchase Completed', 'Return Completed', 'Exchange Completed', 'Sale Completed ✅', 'Return Completed 🔄']) {
+    assert.equal(isCompletedTransactionNotification({ title }), true);
+    assert.equal(/[✅🔄✔]/u.test(formatNotificationHeaderTitle(title)), false);
+  }
+  assert.equal(isCompletedTransactionNotification({ kind: 'NOTICE', title: 'Sale Completed', type: 'SUCCESS' }), false);
+
+  const headerTitleComp = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'notifications', 'NotificationHeaderTitle.tsx'),
+    'utf8'
+  );
+  assert.match(headerTitleComp, /inline-flex h-6 w-6[\s\S]*items-center justify-center rounded-full bg-green-100 text-green-600/);
+  assert.match(headerTitleComp, /<Check className="h-4 w-4" \/>/);
+
+  const headerSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'common', 'Header.tsx'), 'utf8');
+  const notificationsViewSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'notifications', 'NotificationsView.tsx'),
+    'utf8'
+  );
+  assert.equal(headerSrc.includes('<NotificationHeaderTitle'), true);
+  assert.equal(notificationsViewSrc.includes('<NotificationHeaderTitle'), true);
+});
+
+test('All POS transaction notifications resolve expected action buttons', () => {
   for (const type of ['SALE', 'RETURN', 'EXCHANGE'] as const) {
     const actions = resolveNotificationActions({ type, invoiceNumber: 'INV-9001' }, 'ADMIN');
     assert.deepEqual(actions, [
@@ -103,9 +203,23 @@ test('All POS transaction notifications (Sale, Return, Exchange) resolve View In
       { action: 'open_pos', label: 'Open POS', url: '/pos' },
     ]);
   }
+  assert.deepEqual(
+    resolveNotificationActions({ type: 'RETURN', returnNumber: 'RET-000012' }, 'ADMIN'),
+    [
+      { action: 'view_invoice', label: 'View Invoice', url: '/returns' },
+      { action: 'open_pos', label: 'Open POS', url: '/pos' },
+    ]
+  );
+  assert.deepEqual(
+    resolveNotificationActions({ type: 'PURCHASE', purchaseNumber: 'PUR-000025' }, 'ADMIN'),
+    [
+      { action: 'view_purchase', label: 'View Purchase', url: '/?tab=purchases' },
+      { action: 'open_pos', label: 'Open POS', url: '/pos' },
+    ]
+  );
 });
 
-test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/notifications/grouped & /all emit standardized templates', async () => {
+test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Independent Return, Exchange, Purchase, and Cashier isolation', async () => {
   await pgClient.waitReady;
   await ensureSaasControlPlane();
   await ensureNotificationsSchema();
@@ -122,6 +236,14 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
   );
   const adminUserId = userRes.rows[0].id;
 
+  const cashierRes = await pgClient.query<{ id: number }>(
+    `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'CASHIER', 'APPROVED')
+     RETURNING id`,
+    [tenantId, 'Counter Cashier', `cashier.${suffix}@shoepos.test`, '+923001112244', 'hash', '1234']
+  );
+  const cashierUserId = cashierRes.rows[0].id;
+
   const custRes = await pgClient.query<{ id: number }>(
     `INSERT INTO customers (tenant_id, name, phone, shop_name, market_name, city, email, address, notes, credit_limit, current_balance, outstanding_balance, ntn_number, customer_type)
      VALUES ($1, $2, $3, '', '', '', '', '', '', 0, 0, 0, '', 'RETAILER')
@@ -135,7 +257,7 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
       tenant_id, tenant_product_no, name, brand, category, article, barcode,
       primary_image_url, description, cost_price, min_price, max_price, selling_price,
       pairs_per_carton, allow_half_carton, total_stock, low_stock_threshold, is_low_stock_alert_sent, active
-    ) VALUES ($1, $2, $3, 'Nike', 'Sneakers', $4, $5, '', '', 1500, 2000, 2500, 2500, 12, true, 50, 5, false, true)
+    ) VALUES ($1, $2, $3, 'Nike', 'Sneakers', $4, $5, '', '', 1500, 2000, 2500, 2500, 12, true, 100, 5, false, true)
     RETURNING id`,
     [tenantId, 9000 + Number(suffix), 'Nike Air Max 90', `NAM-${suffix}`, `BC-${suffix}`]
   );
@@ -163,6 +285,7 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
   const app = express();
   app.use(express.json());
   app.use('/api/pos', posRoutes);
+  app.use('/api/purchases', purchaseRoutes);
   app.use('/api/returns', returnRoutes);
   app.use('/api/notifications', notificationRoutes);
 
@@ -185,8 +308,22 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
     'X-Tenant-Id': String(tenantId),
   };
 
+  const cashierToken = generateToken({
+    id: cashierUserId,
+    email: `cashier.${suffix}@shoepos.test`,
+    name: 'Counter Cashier',
+    role: 'CASHIER',
+    status: 'APPROVED',
+    tenantId,
+  });
+  const cashierHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${cashierToken}`,
+    'X-Tenant-Id': String(tenantId),
+  };
+
   try {
-    // 1. Process a 3-pair Sale
+    // 1. Retail Sale - Without Return (3 pairs)
     const saleRes = await fetch(`${baseUrl}/api/pos/checkout`, {
       method: 'POST',
       headers,
@@ -206,21 +343,21 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
 
     const saleEvt = sseEvents.find((e) => e.data?.type === 'SALE' && e.data?.invoiceNumber === saleInv);
     assert.ok(saleEvt, 'Expected SSE SALE notification');
-    assert.equal(saleEvt!.data.title, 'Sale Completed ✅');
+    assert.equal(saleEvt!.data.title, 'Sale Completed');
     assert.equal(
       saleEvt!.data.message,
-      `#${saleInv} · Rs. 7,500 (Cash)\n3 Pairs Sold · Tariq Footwear\nCashier: Usman Cashier`
+      `Invoice: #${saleInv}\n\n3 pairs sold to Tariq Footwear.\n\nPayment: Cash\n\nProcessed by: Usman Cashier`
     );
-    assert.equal(saleEvt!.data.message.includes(`NAM-${suffix}`), false);
 
-    // 2. Process a 1-pair Return
+    // 2. Retail Sale - With Return against same invoice (1 pair returned) -> updates Sale Completed cleanly, NO Return Completed
     const saleItemsRows = await pgClient.query<{ id: number }>(
       'SELECT id FROM sale_items WHERE sale_id = $1 AND tenant_id = $2',
       [origSaleId, tenantId]
     );
     const saleItemId = saleItemsRows.rows[0].id;
 
-    const retRes = await fetch(`${baseUrl}/api/returns`, {
+    const beforeSameInvoiceReturn = sseEvents.length;
+    const retSameRes = await fetch(`${baseUrl}/api/returns`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -229,18 +366,48 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
         items: [{ saleItemId, quantity: 1, unitRefundPrice: 2500 }],
       }),
     });
-    assert.equal(retRes.status, 201);
+    assert.equal(retSameRes.status, 201);
     await new Promise((r) => setTimeout(r, 40));
 
-    const retEvt = sseEvents.find((e) => e.data?.type === 'RETURN' && e.data?.invoiceNumber === saleInv);
-    assert.ok(retEvt, 'Expected SSE RETURN notification');
-    assert.equal(retEvt!.data.title, 'Return Completed 🔄');
+    const sameInvEvents = sseEvents.slice(beforeSameInvoiceReturn);
+    assert.equal(sameInvEvents.some((e) => e.data?.type === 'RETURN'), false);
+    const consolidatedEvt = sameInvEvents.find(
+      (e) => e.data?.type === 'SALE' && e.data?.invoiceNumber === saleInv
+    );
+    assert.ok(consolidatedEvt);
+    assert.equal(consolidatedEvt!.data.title, 'Sale Completed');
     assert.equal(
-      retEvt!.data.message,
-      `#${saleInv} · Refund: Rs. 2,500 (Cash)\n1 Pair Returned · Tariq Footwear\nProcessed by: Usman Cashier`
+      consolidatedEvt!.data.message,
+      `Invoice: #${saleInv}\n\nTotal Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs\n\nSold to: Tariq Footwear\n\nPayment: Cash\n\nProcessed by: Usman Cashier`
     );
 
-    // 3. Process a 1-pair Exchange
+    // 3. Independent Return Completed (no originalSaleId)
+    const beforeIndepReturn = sseEvents.length;
+    const indepRetRes = await fetch(`${baseUrl}/api/returns`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        reason: 'Independent return',
+        customerName: 'Tariq Footwear',
+        paymentMethod: 'CASH',
+        items: [{ productId, quantity: 2, unitRefundPrice: 1550 }],
+      }),
+    });
+    assert.equal(indepRetRes.status, 201);
+    const indepRetJson = await indepRetRes.json();
+    const indepRetNo = indepRetJson.returnNumber;
+
+    await new Promise((r) => setTimeout(r, 40));
+
+    const indepRetEvt = sseEvents.slice(beforeIndepReturn).find((e) => e.data?.type === 'RETURN');
+    assert.ok(indepRetEvt, 'Expected SSE RETURN notification for independent return');
+    assert.equal(indepRetEvt!.data.title, 'Return Completed');
+    assert.equal(
+      indepRetEvt!.data.message,
+      `Return #: #${indepRetNo}\n\n2 pairs returned by Tariq Footwear.\n\nRefund: Rs. 3,100 (Cash)\n\nProcessed by: Usman Cashier`
+    );
+
+    // 4. Exchange Completed (1 pair exchanged with Rs. 300 Additional Payment)
     const exchRes = await fetch(`${baseUrl}/api/pos/checkout`, {
       method: 'POST',
       headers,
@@ -265,29 +432,64 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
 
     const exchEvt = sseEvents.find((e) => e.data?.type === 'EXCHANGE' && e.data?.invoiceNumber === exchInv);
     assert.ok(exchEvt, 'Expected SSE EXCHANGE notification');
-    assert.equal(exchEvt!.data.title, 'Exchange Completed 🔄');
+    assert.equal(exchEvt!.data.title, 'Exchange Completed');
+    assert.ok(exchEvt!.data.message.includes('1 pair exchanged by Tariq Footwear.'));
+    assert.ok(exchEvt!.data.message.includes('Additional Payment: Rs. 300 (Online)'));
+    assert.ok(exchEvt!.data.message.includes('Processed by: Usman Cashier'));
+
+    // 5. Purchase Completed
+    const purRes = await fetch(`${baseUrl}/api/purchases`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        supplierName: 'Metro Wholesalers',
+        paymentMethod: 'CASH',
+        paidAmount: 15000,
+        unit: 'carton',
+        items: [{ productId, quantity: 10, unitCost: 1500 }],
+      }),
+    });
+    assert.equal(purRes.status, 201);
+    const purJson = await purRes.json();
+    const purNo = purJson.purchaseNumber;
+
+    await new Promise((r) => setTimeout(r, 40));
+    const purEvt = sseEvents.find((e) => e.data?.type === 'PURCHASE');
+    assert.ok(purEvt, 'Expected SSE PURCHASE notification');
+    assert.equal(purEvt!.data.title, 'Purchase Completed');
     assert.equal(
-      exchEvt!.data.message,
-      `#${exchInv} · Adjustment: Rs. 300 (Online)\n1 Pair Exchanged · Tariq Footwear\nProcessed by: Usman Cashier`
+      purEvt!.data.message,
+      `Purchase #: #${purNo}\n\n10 cartons purchased from Metro Wholesalers.\n\nPayment: Cash\n\nProcessed by: Usman Cashier`
     );
 
-    // 4. Verify /grouped and /all return the same standardized templates
+    // 6. Verify /grouped and /all for ADMIN include Sale (consolidated), Independent Return, Exchange, Purchase
     const groupedRes = await fetch(`${baseUrl}/api/notifications/grouped?limit=10`, { headers });
     assert.equal(groupedRes.status, 200);
     const groupedJson = await groupedRes.json();
     const groupedNotifs: any[] = groupedJson.notifications || [];
 
     const groupedSale = groupedNotifs.find((n) => n.type === 'SALE' && n.invoiceNumber === saleInv);
+    const groupedSameInvRet = groupedNotifs.find((n) => n.type === 'RETURN' && n.invoiceNumber === saleInv);
+    const groupedIndepRet = groupedNotifs.find((n) => n.type === 'RETURN' && n.returnNumber === indepRetNo);
     const groupedExch = groupedNotifs.find((n) => n.type === 'EXCHANGE' && n.invoiceNumber === exchInv);
-    const groupedRet = groupedNotifs.find((n) => n.type === 'RETURN' && n.invoiceNumber === saleInv);
+    const groupedPur = groupedNotifs.find((n) => n.type === 'PURCHASE' && n.purchaseNumber === purNo);
 
-    assert.ok(groupedSale && groupedExch && groupedRet);
-    assert.equal(groupedSale.title, 'Sale Completed ✅');
-    assert.equal(groupedExch.title, 'Exchange Completed 🔄');
-    assert.equal(groupedRet.title, 'Return Completed 🔄');
-    assert.equal(groupedSale.message.includes('3 Pairs Sold · Tariq Footwear'), true);
-    assert.equal(groupedRet.message.includes('1 Pair Returned · Tariq Footwear'), true);
-    assert.equal(groupedExch.message.includes('1 Pair Exchanged · Tariq Footwear'), true);
+    assert.ok(groupedSale);
+    assert.equal(groupedSameInvRet, undefined, 'Same-invoice return must NOT generate Return Completed in /grouped');
+    assert.ok(groupedIndepRet);
+    assert.ok(groupedExch);
+    assert.ok(groupedPur);
+    assert.equal(groupedSale.title, 'Sale Completed');
+    assert.equal(groupedSale.message.includes('Total Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs'), true);
+    assert.equal(groupedIndepRet.title, 'Return Completed');
+    assert.equal(groupedExch.title, 'Exchange Completed');
+    assert.equal(groupedPur.title, 'Purchase Completed');
+
+    // Verify CASHIER never receives PURCHASE notifications in /grouped or /all
+    const cashierGroupedRes = await fetch(`${baseUrl}/api/notifications/grouped?limit=10`, { headers: cashierHeaders });
+    assert.equal(cashierGroupedRes.status, 200);
+    const cashierGrouped = await cashierGroupedRes.json();
+    assert.equal((cashierGrouped.notifications || []).some((n: any) => n.type === 'PURCHASE'), false);
 
     const allRes = await fetch(`${baseUrl}/api/notifications/all?limit=20`, { headers });
     assert.equal(allRes.status, 200);
@@ -295,7 +497,8 @@ test('POST /api/pos/checkout (Sale & Exchange), POST /api/returns, GET /api/noti
     const allItems: any[] = allJson.items || [];
     const allSale = allItems.find((n) => n.type === 'SALE' && n.invoiceNumber === saleInv);
     assert.ok(allSale);
-    assert.equal(allSale.title, 'Sale Completed ✅');
+    assert.equal(allSale.title, 'Sale Completed');
+    assert.equal(allSale.message.includes('Total Sold: 3 pairs\nReturned: 1 pair\nNet Sold: 2 pairs'), true);
   } finally {
     unregister();
     resetServerNotificationDedupeCache();

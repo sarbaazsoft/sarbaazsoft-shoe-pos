@@ -195,7 +195,7 @@ function extractSwInvoiceId(data, candidateUrls) {
 
   const titleOrMsg = `${data.notificationTitle || data.title || ''} ${data.notificationBody || data.body || data.message || ''}`;
   const hashMatch = titleOrMsg.match(/#([A-Z0-9][A-Z0-9-]*)/i);
-  if (hashMatch && hashMatch[1] && !hashMatch[1].toUpperCase().startsWith('RET-')) {
+  if (hashMatch && hashMatch[1] && !/^(?:RET|EXC|PUR)-/i.test(hashMatch[1])) {
     return hashMatch[1];
   }
   return '';
@@ -253,6 +253,7 @@ function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
     combinedUrl.includes('lowstockonly=true');
 
   const isReturn = type === 'RETURN' || itemType === 'RETURN';
+  const isPurchase = type === 'PURCHASE' || itemType === 'PURCHASE';
 
   const hasAnnouncementHint =
     type === 'ANNOUNCEMENT' ||
@@ -261,10 +262,11 @@ function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
     kind === 'NOTICE' ||
     combinedUrl.includes('/announcements/') ||
     tag.startsWith('platform-') ||
-    (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn);
+    (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn && !isPurchase);
 
   const isInvoice =
     !isLowStock &&
+    !isPurchase &&
     (type === 'INVOICE' ||
       type === 'SALE' ||
       type === 'RETURN' ||
@@ -285,6 +287,8 @@ function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
 
   if (isLowStock) {
     primaryAction = { action: 'view_stock', title: 'View Stock' };
+  } else if (isPurchase) {
+    primaryAction = { action: 'view_purchase', title: 'View Purchase' };
   } else if (isInvoice) {
     primaryAction = { action: 'view_invoice', title: 'View Invoice' };
   } else if (hasAnnouncementHint) {
@@ -706,7 +710,10 @@ self.addEventListener('notificationclick', (event) => {
   let targetUrl = sanitizePushTargetUrl(notifData.url || '/?tab=reports', isAdminTarget);
   if (event.action === 'view_invoice') {
     const invoiceId = extractSwInvoiceId(notifData, candidateUrls);
-    targetUrl = invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : '/reports';
+    const isRet = String(notifData.type || notifData.itemType || '').toUpperCase() === 'RETURN';
+    targetUrl = invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : isRet ? '/returns' : '/reports';
+  } else if (event.action === 'view_purchase') {
+    targetUrl = '/?tab=purchases';
   } else if (event.action === 'read_more') {
     const announcementId = extractSwAnnouncementId(notifData, candidateUrls);
     targetUrl = announcementId ? `/announcements/${encodeURIComponent(announcementId)}` : '/notifications';

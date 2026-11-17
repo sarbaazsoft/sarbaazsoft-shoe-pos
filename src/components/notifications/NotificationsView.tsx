@@ -21,6 +21,7 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  Truck,
 } from 'lucide-react';
 import { api, getActiveTenantId } from '../../services/api.ts';
 import type { AllNotificationsResponse, HistoricalNotificationItem } from '../../types.ts';
@@ -35,6 +36,7 @@ import {
   navigateToNotificationUrl,
   type NotificationActionDescriptor,
 } from '../../utils/notificationActions.ts';
+import { NotificationHeaderTitle } from './NotificationHeaderTitle.tsx';
 
 interface NotificationsViewProps {
   currentUser?: any;
@@ -42,7 +44,7 @@ interface NotificationsViewProps {
   onNavigateTab: (tab: string) => void;
 }
 
-type TabCategory = 'all' | 'announcements' | 'notices' | 'operational' | 'sales' | 'returns' | 'urgent';
+type TabCategory = 'all' | 'announcements' | 'notices' | 'operational' | 'sales' | 'purchases' | 'returns' | 'urgent';
 
 type SlideEnterPhase = 'enter' | 'active' | 'settled';
 
@@ -184,7 +186,12 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
           </div>
 
           <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug font-heading">
-            {item.title}
+            <NotificationHeaderTitle
+              title={item.title}
+              type={item.type}
+              itemType={item.itemType}
+              kind={item.kind}
+            />
           </h4>
 
           <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
@@ -567,12 +574,28 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           icon: <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />,
         };
       }
+      if (item.itemType === 'PURCHASE' || t === 'PURCHASE') {
+        return {
+          label: 'Purchase',
+          badgeClass: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-300 border-cyan-300 dark:border-cyan-700',
+          cardBg: 'border-cyan-200 dark:border-cyan-900/40 bg-cyan-50/20 dark:bg-cyan-950/10',
+          icon: <Truck className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />,
+        };
+      }
       if (item.itemType === 'SALE') {
         return {
           label: 'POS Sale',
           badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
           cardBg: 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/10',
           icon: <ShoppingBag className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />,
+        };
+      }
+      if (item.itemType === 'EXCHANGE' || t === 'EXCHANGE') {
+        return {
+          label: 'Exchange',
+          badgeClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700',
+          cardBg: 'border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10',
+          icon: <ArrowLeftRight className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />,
         };
       }
       if (item.itemType === 'RETURN') {
@@ -737,9 +760,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               { key: 'announcements', label: 'Announcements', count: stats.totalNotices },
               { key: 'operational', label: 'POS Activity', count: stats.totalOperational },
               { key: 'sales', label: 'Sales' },
+              ...(currentUserRole !== 'CASHIER' && !isSuperAdmin ? [{ key: 'purchases', label: 'Purchases' } as const] : []),
               { key: 'returns', label: 'Returns' },
               { key: 'urgent', label: 'Urgent Only' },
-            ] as const
+            ] as ReadonlyArray<{ key: TabCategory; label: string; count?: number }>
           ).map((tab) => {
             const isTabActive = activeTab === tab.key || (tab.key === 'announcements' && activeTab === 'notices');
             return (

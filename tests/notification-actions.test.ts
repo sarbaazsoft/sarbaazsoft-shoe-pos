@@ -192,13 +192,33 @@ test('resolveNotificationActions produces dynamic primary + persistent Open POS 
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
-  // 1b. Return resolves View Invoice + Open POS
+  // 1b. Return with invoiceNumber resolves View Invoice + Open POS
   const returnBtns = resolveNotificationActions(
     { type: 'RETURN', invoiceNumber: 'INV-4201', returnNumber: 'RET-10' },
     'CASHIER'
   );
   assert.deepEqual(returnBtns, [
     { action: 'view_invoice', label: 'View Invoice', url: '/invoices/INV-4201' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 1c. Independent Return (no invoiceNumber) routes View Invoice fallback to /returns + Open POS
+  const indepReturnBtns = resolveNotificationActions(
+    { type: 'RETURN', returnNumber: 'RET-000012' },
+    'ADMIN'
+  );
+  assert.deepEqual(indepReturnBtns, [
+    { action: 'view_invoice', label: 'View Invoice', url: '/returns' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 1d. Purchase resolves View Purchase + Open POS
+  const purchaseBtns = resolveNotificationActions(
+    { type: 'PURCHASE', purchaseNumber: 'PUR-000025' },
+    'ADMIN'
+  );
+  assert.deepEqual(purchaseBtns, [
+    { action: 'view_purchase', label: 'View Purchase', url: '/?tab=purchases' },
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
@@ -306,8 +326,8 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
 
   // Return push resolves View Invoice + Open POS
   await harness.dispatchPush({
-    title: 'Return Completed 🔄',
-    body: '#INV-555 · Refund: Rs. 1,200 (Cash)\n1 Pair Returned · Walk-in Customer\nProcessed by: Ali',
+    title: 'Return Completed',
+    body: 'Return #: #RET-10\n\n1 pair returned by Walk-in Customer.\n\nRefund: Rs. 1,200 (Cash)\n\nProcessed by: Ali',
     data: { type: 'RETURN', invoiceNumber: 'INV-555', returnNumber: 'RET-10', tag: 'notif-ret-inv' },
   });
   const retInvNotif = harness.activeNotifications.get('notif-ret-inv');
@@ -317,6 +337,20 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
   ]);
   await harness.dispatchClick(retInvNotif, 'view_invoice');
   assert.equal(harness.openWindows.pop(), '/invoices/INV-555');
+
+  // Purchase push resolves View Purchase + Open POS
+  await harness.dispatchPush({
+    title: 'Purchase Completed',
+    body: 'Purchase #: #PUR-000025\n\n25 cartons purchased from Metro Supplier.\n\nPayment: Cash\n\nProcessed by: Ali',
+    data: { type: 'PURCHASE', purchaseNumber: 'PUR-000025', tag: 'notif-pur-25' },
+  });
+  const purNotif = harness.activeNotifications.get('notif-pur-25');
+  assert.deepEqual(toPlain(purNotif.actions), [
+    { action: 'view_purchase', title: 'View Purchase' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(purNotif, 'view_purchase');
+  assert.equal(harness.openWindows.pop(), '/?tab=purchases');
 
   // Fallback for OWNER/ADMIN
   harness.syncUserRole('ADMIN');

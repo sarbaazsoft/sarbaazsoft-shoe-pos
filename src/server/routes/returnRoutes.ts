@@ -7,7 +7,11 @@ import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { notifyPosAction } from '../pushNotificationService.ts';
 import { calculateReturnNetUnitPrice } from '../../utils/posCalculations.ts';
 import { shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
-import { formatPairSummary, formatReturnNotification } from '../../utils/notificationFormatters.ts';
+import {
+  cleanOptionalText,
+  formatReturnNotification,
+  formatSaleNotification,
+} from '../../utils/notificationFormatters.ts';
 
 const router = Router();
 
@@ -136,15 +140,18 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   const {
     originalSaleId: rawOriginalSaleId,
     saleId: rawSaleId,
+    customerId: rawCustomerId,
+    customerName: rawCustomerName,
+    paymentMethod: rawPaymentMethod,
+    unit: rawUnit,
     reason,
-    items = [], // [{ saleItemId, productId, quantity, unitRefundPrice }]
+    items = [], // [{ saleItemId?, productId, quantity, unitRefundPrice }]
   } = req.body;
-  const originalSaleId = rawOriginalSaleId || rawSaleId;
+  const parsedOriginalSaleId = Number(rawOriginalSaleId || rawSaleId || 0);
+  const originalSaleId = Number.isInteger(parsedOriginalSaleId) && parsedOriginalSaleId > 0 ? parsedOriginalSaleId : null;
+  const cleanedReason = String(reason || '').trim() || (originalSaleId ? '' : 'Customer Return');
 
-  if (!originalSaleId) {
-    return res.status(400).json({ error: 'Original sale ID is required.' });
-  }
-  if (!reason || !reason.trim()) {
+  if (originalSaleId && !cleanedReason) {
     return res.status(400).json({ error: 'Return reason is required.' });
   }
   if (!Array.isArray(items) || items.length === 0) {
@@ -154,24 +161,45 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   await pgClient.query('BEGIN');
 
   try {
-    // Check original sale scoped to tenant (include customer name for return notification)
-    const saleRes = await pgClient.query(
-      `SELECT s.*, c.name AS customer_name
-       FROM sales s
-       LEFT JOIN customers c ON s.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
-       WHERE s.id = $1 AND COALESCE(s.tenant_id, 1) = $2`,
-      [originalSaleId, tenantId]
-    );
-    if (saleRes.rows.length === 0) {
-      throw new Error('Original sale record does not exist in this store.');
+    let sale: any = null;
+    let resolvedCustomerId: number | null = null;
+    let resolvedCustomerName: string | null = cleanOptionalText(rawCustomerName);
+    const resolvedPaymentMethod = cleanOptionalText(rawPaymentMethod);
+
+    if (originalSaleId) {
+      const saleRes = await pgClient.query(
+        `SELECT s.*, c.name AS customer_name, u.name AS cashier_name
+         FROM sales s
+         LEFT JOIN customers c ON s.customer_id = c.id AND COALESCE(c.tenant_id, 1) = $2
+         LEFT JOIN users u ON s.created_by = u.id
+         WHERE s.id = $1 AND COALESCE(s.tenant_id, 1) = $2`,
+        [originalSaleId, tenantId]
+      );
+      if (saleRes.rows.length === 0) {
+        throw new Error('Original sale record does not exist in this store.');
+      }
+      sale = saleRes.rows[0];
+      resolvedCustomerId = sale.customer_id ?? null;
+      resolvedCustomerName = cleanOptionalText(sale.customer_name) || resolvedCustomerName || 'Walk-in Customer';
+    } else if (rawCustomerId) {
+      const parsedCustId = parseInt(String(rawCustomerId), 10);
+      if (!isNaN(parsedCustId) && parsedCustId > 0) {
+        resolvedCustomerId = parsedCustId;
+        if (!resolvedCustomerName) {
+          const custRes = await pgClient.query<{ name: string }>(
+            'SELECT name FROM customers WHERE id = $1 AND COALESCE(tenant_id, 1) = $2 LIMIT 1',
+            [parsedCustId, tenantId]
+          );
+          resolvedCustomerName = cleanOptionalText(custRes.rows[0]?.name);
+        }
+      }
     }
-    const sale: any = saleRes.rows[0];
 
     const returnNumber = await generateReturnNumber(tenantId);
     let totalRefundAmount = 0;
 
     const validatedItems: Array<{
-      saleItemId: number;
+      saleItemId: number | null;
       productId: number;
       productName: string;
       quantity: number;
@@ -188,82 +216,134 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         continue; // skip zero items
       }
 
-      // Lock sale item and check returnable qty
-      const siRes = await pgClient.query<{
-        id: number;
-        product_id: number;
-        product_name: string;
-        quantity: number;
-        unit_price: string;
-        discount: string;
-        subtotal: string;
-      }>('SELECT id, product_id, product_name, quantity, unit_price, discount, subtotal FROM sale_items WHERE id = $1 AND sale_id = $2 AND tenant_id = $3', [
-        item.saleItemId,
-        originalSaleId,
-        tenantId,
-      ]);
-
-      if (siRes.rows.length === 0) {
-        throw new Error(`Sale item ${item.saleItemId} does not match original sale.`);
-      }
-
-      const saleItem = siRes.rows[0];
-      const parsedRefundPrice = parseFloat(item.unitRefundPrice);
-      const fallbackUnitPrice = calculateReturnNetUnitPrice({
-        quantity: saleItem.quantity,
-        subtotal: saleItem.subtotal,
-        unitPrice: saleItem.unit_price,
-        discount: saleItem.discount,
-      });
-      const refundPrice = !isNaN(parsedRefundPrice) && parsedRefundPrice >= 0 ? parsedRefundPrice : fallbackUnitPrice;
-
-      // Check already returned qty
-      const prevReturnsRes = await pgClient.query<{ total_returned: string }>(
-        'SELECT COALESCE(SUM(quantity), 0) as total_returned FROM return_items WHERE sale_item_id = $1 AND tenant_id = $2',
-        [saleItem.id, tenantId]
-      );
-      const alreadyReturned = parseInt(prevReturnsRes.rows[0].total_returned, 10);
-      const maxReturnable = saleItem.quantity - alreadyReturned;
-
-      if (returnQty > maxReturnable) {
-        throw new Error(
-          `Cannot return ${returnQty} of "${saleItem.product_name}". Maximum returnable is ${maxReturnable}.`
+      if (originalSaleId) {
+        // Lock sale item and check returnable qty
+        const siRes = await pgClient.query<{
+          id: number;
+          product_id: number;
+          product_name: string;
+          quantity: number;
+          unit_price: string;
+          discount: string;
+          subtotal: string;
+        }>(
+          'SELECT id, product_id, product_name, quantity, unit_price, discount, subtotal FROM sale_items WHERE id = $1 AND sale_id = $2 AND tenant_id = $3',
+          [item.saleItemId, originalSaleId, tenantId]
         );
+
+        if (siRes.rows.length === 0) {
+          throw new Error(`Sale item ${item.saleItemId} does not match original sale.`);
+        }
+
+        const saleItem = siRes.rows[0];
+        const parsedRefundPrice = parseFloat(item.unitRefundPrice);
+        const fallbackUnitPrice = calculateReturnNetUnitPrice({
+          quantity: saleItem.quantity,
+          subtotal: saleItem.subtotal,
+          unitPrice: saleItem.unit_price,
+          discount: saleItem.discount,
+        });
+        const refundPrice = !isNaN(parsedRefundPrice) && parsedRefundPrice >= 0 ? parsedRefundPrice : fallbackUnitPrice;
+
+        // Check already returned qty
+        const prevReturnsRes = await pgClient.query<{ total_returned: string }>(
+          'SELECT COALESCE(SUM(quantity), 0) as total_returned FROM return_items WHERE sale_item_id = $1 AND tenant_id = $2',
+          [saleItem.id, tenantId]
+        );
+        const alreadyReturned = parseInt(prevReturnsRes.rows[0].total_returned, 10);
+        const maxReturnable = saleItem.quantity - alreadyReturned;
+
+        if (returnQty > maxReturnable) {
+          throw new Error(
+            `Cannot return ${returnQty} of "${saleItem.product_name}". Maximum returnable is ${maxReturnable}.`
+          );
+        }
+
+        const prodRes = await pgClient.query<{
+          id: number;
+          total_stock: number;
+          low_stock_threshold: number;
+          is_low_stock_alert_sent: boolean;
+        }>(
+          'SELECT id, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+          [saleItem.product_id, tenantId]
+        );
+        const prevStock = prodRes.rows[0].total_stock;
+        const newStock = prevStock + returnQty;
+        const nextAlertSent = shouldResetLowStockAlert(newStock, prodRes.rows[0].low_stock_threshold)
+          ? false
+          : Boolean(prodRes.rows[0].is_low_stock_alert_sent);
+        const subtotal = returnQty * refundPrice;
+        totalRefundAmount += subtotal;
+
+        await pgClient.query(
+          'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4',
+          [newStock, nextAlertSent, saleItem.product_id, tenantId]
+        );
+
+        validatedItems.push({
+          saleItemId: saleItem.id,
+          productId: saleItem.product_id,
+          productName: saleItem.product_name,
+          quantity: returnQty,
+          unitRefundPrice: refundPrice,
+          subtotal,
+          prevStock,
+          newStock,
+        });
+      } else {
+        const productId = parseInt(String(item.productId), 10);
+        if (isNaN(productId) || productId <= 0) {
+          throw new Error('Invalid product ID in independent return item.');
+        }
+
+        const prodRes = await pgClient.query<{
+          id: number;
+          article: string;
+          name: string;
+          selling_price: string;
+          total_stock: number;
+          low_stock_threshold: number;
+          is_low_stock_alert_sent: boolean;
+        }>(
+          'SELECT id, article, name, COALESCE(selling_price, 0) AS selling_price, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+          [productId, tenantId]
+        );
+        if (prodRes.rows.length === 0) {
+          throw new Error(`Product ${productId} not found in this store.`);
+        }
+
+        const prod = prodRes.rows[0];
+        const parsedRefundPrice = parseFloat(item.unitRefundPrice);
+        const refundPrice =
+          !isNaN(parsedRefundPrice) && parsedRefundPrice >= 0
+            ? parsedRefundPrice
+            : parseFloat(prod.selling_price || '0') || 0;
+
+        const prevStock = prod.total_stock;
+        const newStock = prevStock + returnQty;
+        const nextAlertSent = shouldResetLowStockAlert(newStock, prod.low_stock_threshold)
+          ? false
+          : Boolean(prod.is_low_stock_alert_sent);
+        const subtotal = returnQty * refundPrice;
+        totalRefundAmount += subtotal;
+
+        await pgClient.query(
+          'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4',
+          [newStock, nextAlertSent, prod.id, tenantId]
+        );
+
+        validatedItems.push({
+          saleItemId: null,
+          productId: prod.id,
+          productName: prod.article || prod.name,
+          quantity: returnQty,
+          unitRefundPrice: refundPrice,
+          subtotal,
+          prevStock,
+          newStock,
+        });
       }
-
-      // Lock product row and increment stock
-      const prodRes = await pgClient.query<{
-        id: number;
-        total_stock: number;
-        low_stock_threshold: number;
-        is_low_stock_alert_sent: boolean;
-      }>(
-        'SELECT id, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
-        [saleItem.product_id, tenantId]
-      );
-      const prevStock = prodRes.rows[0].total_stock;
-      const newStock = prevStock + returnQty;
-      const nextAlertSent = shouldResetLowStockAlert(newStock, prodRes.rows[0].low_stock_threshold)
-        ? false
-        : Boolean(prodRes.rows[0].is_low_stock_alert_sent);
-      const subtotal = returnQty * refundPrice;
-      totalRefundAmount += subtotal;
-
-      await pgClient.query(
-        'UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4',
-        [newStock, nextAlertSent, saleItem.product_id, tenantId]
-      );
-
-      validatedItems.push({
-        saleItemId: saleItem.id,
-        productId: saleItem.product_id,
-        productName: saleItem.product_name,
-        quantity: returnQty,
-        unitRefundPrice: refundPrice,
-        subtotal,
-        prevStock,
-        newStock,
-      });
     }
 
     if (validatedItems.length === 0) {
@@ -274,17 +354,19 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     const returnRes = await pgClient.query<{ id: number }>(
       `INSERT INTO returns (
         tenant_id, return_number, original_sale_id, customer_id, return_date, 
-        total_refund_amount, reason, created_by
-      ) VALUES ($1, $2, $3, $4, NOW()::date::text, $5, $6, $7)
+        total_refund_amount, reason, created_by, payment_method, customer_name
+      ) VALUES ($1, $2, $3, $4, NOW()::date::text, $5, $6, $7, $8, $9)
       RETURNING id`,
       [
         tenantId,
         returnNumber,
         originalSaleId,
-        sale.customer_id,
+        resolvedCustomerId,
         totalRefundAmount,
-        reason.trim(),
+        cleanedReason,
         req.user!.id,
+        originalSaleId ? (sale.payment_method || resolvedPaymentMethod || null) : resolvedPaymentMethod,
+        originalSaleId ? resolvedCustomerName : (cleanOptionalText(rawCustomerName) || resolvedCustomerName),
       ]
     );
 
@@ -310,51 +392,128 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           v.newStock,
           returnNumber,
           req.user!.id,
-          `Customer return for Invoice ${sale.invoice_number}: ${reason.trim()}`,
+          sale
+            ? `Customer return for Invoice ${sale.invoice_number}: ${cleanedReason}`
+            : `Independent customer return (${returnNumber}): ${cleanedReason}`,
         ]
       );
     }
 
     await pgClient.query('COMMIT');
 
-    // Instant Real-Time Push Notification Trigger for Return
+    // Real-time push notifications:
+    // - Same-invoice return: update Sale Completed (never emit separate Return Completed)
+    // - Independent return: emit Return Completed
     try {
-      const returnedQuantity = validatedItems.reduce((sum, v) => sum + Number(v.quantity || 0), 0);
-      const cashierDisplayName = req.user?.name || 'Authorized Staff';
-      const customerDisplayName = sale.customer_name || 'Walk-in Customer';
-      const formattedReturn = formatReturnNotification({
-        invoiceNo: sale.invoice_number || returnNumber,
-        amount: totalRefundAmount,
-        paymentMethod: sale.payment_method || 'Cash',
-        totalQuantity: returnedQuantity,
-        customerName: customerDisplayName,
-        cashierName: cashierDisplayName,
-      });
+      const unit = cleanOptionalText(rawUnit) || 'pair';
+      const cashierDisplayName = cleanOptionalText(req.user?.name) || 'Authorized Staff';
 
-      notifyPosAction(tenantId, {
-        eventId: `pos-return-${tenantId}-ret-${returnId}`,
-        type: 'RETURN',
-        title: formattedReturn.title,
-        message: formattedReturn.message,
-        invoiceNumber: sale.invoice_number,
-        orderId: originalSaleId,
-        saleId: originalSaleId,
-        returnNumber,
-        returnId,
-        refundAmount: totalRefundAmount,
-        totalAmount: totalRefundAmount,
-        customerName: customerDisplayName,
-        cashierName: cashierDisplayName,
-        cashierId: req.user!.id,
-        itemsSummary: formatPairSummary(returnedQuantity, 'Returned'),
-        deepLinkUrl: sale.invoice_number
-          ? `/?tab=reports&viewInvoice=${encodeURIComponent(sale.invoice_number)}`
-          : `/?tab=returns&viewReturn=${encodeURIComponent(returnNumber)}`,
-        timestamp: new Date().toISOString(),
-        triggeredBy: cashierDisplayName,
-        targetRole: 'ALL',
-        targetRoles: ['ADMIN', 'CASHIER'],
-      }).catch((err) => console.warn('Push notification delivery notice:', err));
+      if (originalSaleId && sale) {
+        const [refreshedSaleRes, csRes] = await Promise.all([
+          pgClient.query<any>(
+            `SELECT s.*, c.name AS customer_name, u.name AS cashier_name,
+                    COALESCE((SELECT SUM(si.quantity) FROM sale_items si WHERE si.sale_id = s.id), 0) AS total_quantity,
+                    COALESCE((
+                      SELECT SUM(ri.quantity)
+                      FROM return_items ri
+                      LEFT JOIN returns r ON ri.return_id = r.id
+                      LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+                      WHERE r.original_sale_id = s.id OR si.sale_id = s.id
+                    ), 0) AS returned_quantity
+             FROM sales s
+             LEFT JOIN customers c ON s.customer_id = c.id
+             LEFT JOIN users u ON s.created_by = u.id
+             WHERE s.id = $1 AND s.tenant_id = $2`,
+            [originalSaleId, tenantId]
+          ),
+          pgClient
+            .query<{ business_type: string }>(
+              'SELECT business_type FROM company_settings WHERE tenant_id = $1 LIMIT 1',
+              [tenantId]
+            )
+            .catch(() => ({ rows: [] as Array<{ business_type?: string }> })),
+        ]);
+
+        const refreshedSale = refreshedSaleRes.rows[0] || sale;
+        const origTotalSold = Number(refreshedSale.total_quantity || 0);
+        const cumulativeReturned =
+          Number(refreshedSale.returned_quantity || 0) ||
+          validatedItems.reduce((sum, v) => sum + Number(v.quantity || 0), 0);
+        const isWholesale =
+          String(refreshedSale.sale_type || '').toUpperCase() === 'WHOLESALE' ||
+          String(csRes.rows[0]?.business_type || 'RETAIL').toUpperCase() === 'WHOLESALE';
+        const customerName = cleanOptionalText(refreshedSale.customer_name) || resolvedCustomerName || 'Walk-in Customer';
+        const paymentMethod = cleanOptionalText(refreshedSale.payment_method) || 'Cash';
+
+        const formattedSale = formatSaleNotification({
+          invoiceNo: sale.invoice_number,
+          totalAmount: Number(sale.total_amount || 0),
+          paymentMethod,
+          totalQuantity: origTotalSold,
+          returnedQuantity: cumulativeReturned,
+          unit,
+          isWholesale,
+          customerName,
+          cashierName: cashierDisplayName,
+        });
+
+        notifyPosAction(tenantId, {
+          eventId: `pos-sale-${tenantId}-sale-${originalSaleId}-ret-${returnId}`,
+          type: 'SALE',
+          title: formattedSale.title,
+          message: formattedSale.message,
+          invoiceNumber: sale.invoice_number,
+          orderId: originalSaleId,
+          saleId: originalSaleId,
+          returnNumber,
+          returnId,
+          refundAmount: totalRefundAmount,
+          totalAmount: Number(sale.total_amount || 0),
+          customerName,
+          cashierName: cashierDisplayName,
+          cashierId: req.user!.id,
+          itemsSummary: formattedSale.itemsSummary,
+          deepLinkUrl: `/?tab=reports&viewInvoice=${encodeURIComponent(sale.invoice_number)}`,
+          actionTab: 'reports',
+          timestamp: new Date().toISOString(),
+          triggeredBy: cashierDisplayName,
+          targetRole: 'ALL',
+          targetRoles: ['ADMIN', 'CASHIER'],
+        }).catch((err) => console.warn('Push notification delivery notice:', err));
+      } else {
+        const returnedQuantity = validatedItems.reduce((sum, v) => sum + Number(v.quantity || 0), 0);
+        const formattedReturn = formatReturnNotification({
+          returnNo: returnNumber,
+          amount: totalRefundAmount,
+          paymentMethod: resolvedPaymentMethod,
+          totalQuantity: returnedQuantity,
+          unit,
+          customerName: resolvedCustomerName,
+          cashierName: cashierDisplayName,
+        });
+
+        notifyPosAction(tenantId, {
+          eventId: `pos-return-${tenantId}-ret-${returnId}`,
+          type: 'RETURN',
+          title: formattedReturn.title,
+          message: formattedReturn.message,
+          invoiceNumber: '',
+          returnNumber,
+          returnId,
+          refundAmount: totalRefundAmount,
+          totalAmount: totalRefundAmount,
+          customerName: resolvedCustomerName || undefined,
+          cashierName: cashierDisplayName,
+          cashierId: req.user!.id,
+          itemsSummary: formattedReturn.itemsSummary,
+          deepLinkUrl: `/?tab=returns&viewReturn=${encodeURIComponent(returnNumber)}`,
+          actionTab: 'returns',
+          timestamp: new Date().toISOString(),
+          triggeredBy: cashierDisplayName,
+          targetRole: 'ALL',
+          targetRoles: ['ADMIN', 'CASHIER'],
+        }).catch((err) => console.warn('Push notification delivery notice:', err));
+      }
     } catch (notifErr) {
       console.warn('Return notification trigger error:', notifErr);
     }

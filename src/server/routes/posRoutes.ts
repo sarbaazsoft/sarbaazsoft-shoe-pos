@@ -17,7 +17,9 @@ import {
   type LowStockBatchItem,
 } from '../services/lowStockNotificationService.ts';
 import {
+  cleanOptionalText,
   formatExchangeNotification,
+  formatReturnReferenceToExchange,
   formatSaleExchangeNotification,
   formatSaleNotification,
   formatSaleReturnNotification,
@@ -867,11 +869,13 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     // Instant Real-Time Push Notification Trigger for Store Owners/Admins
     try {
       const isExchangeAction = validatedReturnItems.length > 0;
-      const cashierDisplayName = user.name || 'Counter Staff';
-      const customerDisplayName = fullSale.rows[0]?.customer_name || 'Walk-in Customer';
+      const cashierDisplayName = cleanOptionalText(user.name) || 'Counter Staff';
+      const customerDisplayName = cleanOptionalText(fullSale.rows[0]?.customer_name) || 'Walk-in Customer';
       const soldQuantity = validatedItems.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
       const returnedQuantity = validatedReturnItems.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
       const actualSaleAmount = Math.max(0, Math.round((calculatedSubtotal - calculatedTotalDiscount) * 100) / 100);
+      const unit = cleanOptionalText(req.body.unit) || 'pair';
+      const exchangeNumber = formatReturnReferenceToExchange(generatedReturnNumber) || invoiceNumber;
 
       if (isWholesaleStore) {
         if (!isExchangeAction) {
@@ -880,6 +884,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
             totalAmount: actualSaleAmount,
             paymentMethod,
             totalQuantity: soldQuantity,
+            returnedQuantity: 0,
+            unit,
+            isWholesale: true,
             customerName: customerDisplayName,
             cashierName: cashierDisplayName,
           });
@@ -908,10 +915,13 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
 
           if (isStandaloneExchangeMode) {
             const formattedExchange = formatExchangeNotification({
+              exchangeNo: exchangeNumber,
+              returnNo: generatedReturnNumber,
               invoiceNo: invoiceNumber,
               amount: netDifference,
               paymentMethod,
               totalQuantity: returnedQuantity || soldQuantity,
+              unit,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
             });
@@ -921,6 +931,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               title: formattedExchange.title,
               message: formattedExchange.message,
               invoiceNumber,
+              exchangeNumber,
+              returnNumber: generatedReturnNumber || undefined,
               orderId: saleId,
               saleId,
               totalAmount: actualSaleAmount,
@@ -942,11 +954,14 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
             }).catch((err) => console.warn('Push notification delivery notice:', err));
           } else if (isExplicitWholesaleExchange) {
             const formattedSaleExchange = formatSaleExchangeNotification({
+              exchangeNo: exchangeNumber,
+              returnNo: generatedReturnNumber,
               invoiceNo: invoiceNumber,
               amount: netDifference,
               paymentMethod,
               soldQuantity,
               exchangedQuantity: returnedQuantity,
+              unit,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
             });
@@ -956,6 +971,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               title: formattedSaleExchange.title,
               message: formattedSaleExchange.message,
               invoiceNumber,
+              exchangeNumber,
+              returnNumber: generatedReturnNumber || undefined,
               orderId: saleId,
               saleId,
               totalAmount: netDifference,
@@ -982,6 +999,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               paymentMethod,
               soldQuantity,
               returnedQuantity,
+              unit,
+              isWholesale: true,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
             });
@@ -991,6 +1010,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               title: formattedSaleReturn.title,
               message: formattedSaleReturn.message,
               invoiceNumber,
+              returnNumber: generatedReturnNumber || undefined,
               orderId: saleId,
               saleId,
               totalAmount: netDifference,
@@ -1015,13 +1035,15 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       } else if (isExchangeAction) {
         const oldItemsStr = validatedReturnItems.map((r) => `${r.quantity}x ${r.productName}`).join(', ');
         const newItemsStr = validatedItems.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
-        const exchangedQuantity =
-          returnedQuantity || soldQuantity;
+        const exchangedQuantity = returnedQuantity || soldQuantity;
         const formattedExchange = formatExchangeNotification({
+          exchangeNo: exchangeNumber,
+          returnNo: generatedReturnNumber,
           invoiceNo: invoiceNumber,
           amount: netDifference,
           paymentMethod,
           totalQuantity: exchangedQuantity,
+          unit,
           customerName: customerDisplayName,
           cashierName: cashierDisplayName,
         });
@@ -1031,6 +1053,8 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           title: formattedExchange.title,
           message: formattedExchange.message,
           invoiceNumber,
+          exchangeNumber,
+          returnNumber: generatedReturnNumber || undefined,
           orderId: saleId,
           saleId,
           totalAmount: totalAmountDue,
@@ -1056,6 +1080,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           totalAmount: totalAmountDue,
           paymentMethod,
           totalQuantity: soldQuantity,
+          returnedQuantity: 0,
+          unit,
+          isWholesale: false,
           customerName: customerDisplayName,
           cashierName: cashierDisplayName,
         });

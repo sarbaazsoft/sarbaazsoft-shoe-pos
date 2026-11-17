@@ -499,10 +499,14 @@ export interface PosActionNotification {
   saleId?: number;
   returnNumber?: string;
   returnId?: number;
+  purchaseNumber?: string;
+  purchaseId?: number;
+  exchangeNumber?: string;
   totalAmount?: number;
   refundAmount?: number;
   netDifference?: number;
   customerName?: string;
+  supplierName?: string;
   cashierName?: string;
   cashierId?: number;
   itemsSummary?: string;
@@ -572,7 +576,11 @@ export async function notifyPosAction(
   const explicitEventId = typeof payload.eventId === 'string' ? payload.eventId.trim() : '';
   const eventTag =
     explicitEventId ||
-    (payload.returnId
+    (payload.purchaseId
+      ? `pos-${typeLower}-${cleanTenantId}-pur-${payload.purchaseId}`
+      : payload.purchaseNumber
+      ? `pos-${typeLower}-${cleanTenantId}-purno-${payload.purchaseNumber}`
+      : payload.returnId
       ? `pos-${typeLower}-${cleanTenantId}-ret-${payload.returnId}`
       : payload.returnNumber
       ? `pos-${typeLower}-${cleanTenantId}-retno-${payload.returnNumber}`

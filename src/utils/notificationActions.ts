@@ -1,5 +1,6 @@
 export type NotificationActionKey =
   | 'view_invoice'
+  | 'view_purchase'
   | 'read_more'
   | 'view_stock'
   | 'open_dashboard'
@@ -29,6 +30,8 @@ export interface NotificationActionInput {
   saleId?: string | number | null;
   orderId?: string | number | null;
   returnNumber?: string | null;
+  purchaseNumber?: string | null;
+  purchaseId?: string | number | null;
   announcementId?: string | number | null;
   notificationId?: string | number | null;
   actionUrl?: string | null;
@@ -79,7 +82,7 @@ function extractInvoiceId(input: NotificationActionInput, candidateUrls: string[
 
   const titleOrMsg = `${input.title || ''} ${input.message || ''}`;
   const hashMatch = titleOrMsg.match(/#([A-Z0-9][A-Z0-9-]*)/i);
-  if (hashMatch && hashMatch[1] && !hashMatch[1].toUpperCase().startsWith('RET-')) {
+  if (hashMatch && hashMatch[1] && !/^(?:RET|EXC|PUR)-/i.test(hashMatch[1])) {
     return hashMatch[1];
   }
 
@@ -145,6 +148,7 @@ export function resolveNotificationActions(
     combinedUrl.includes('lowstockonly=true');
 
   const isReturn = type === 'RETURN' || itemType === 'RETURN';
+  const isPurchase = type === 'PURCHASE' || itemType === 'PURCHASE';
 
   const tagStr = cleanIdValue(input.tag).toLowerCase();
 
@@ -155,10 +159,11 @@ export function resolveNotificationActions(
     kind === 'NOTICE' ||
     combinedUrl.includes('/announcements/') ||
     tagStr.startsWith('platform-') ||
-    (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn);
+    (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn && !isPurchase);
 
   const isInvoice =
     !isLowStock &&
+    !isPurchase &&
     (type === 'INVOICE' ||
       type === 'SALE' ||
       type === 'RETURN' ||
@@ -181,12 +186,18 @@ export function resolveNotificationActions(
       label: 'View Stock',
       url: '/inventory?filter=low-stock',
     };
+  } else if (isPurchase) {
+    primaryAction = {
+      action: 'view_purchase',
+      label: 'View Purchase',
+      url: '/?tab=purchases',
+    };
   } else if (isInvoice) {
     const invoiceId = extractInvoiceId(input, candidateUrls);
     primaryAction = {
       action: 'view_invoice',
       label: 'View Invoice',
-      url: invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : '/reports',
+      url: invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : isReturn ? '/returns' : '/reports',
     };
   } else if (hasAnnouncementHint) {
     const announcementId = extractAnnouncementId(input, candidateUrls);

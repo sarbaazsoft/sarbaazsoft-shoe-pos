@@ -73,29 +73,32 @@ export async function dispatchPosEmailAlert(
 
     const recipientList = Array.from(recipients);
     const storeName = cs?.company_name || 'SarbaazSoft Shoe Store';
-    const invoiceNum = payload.invoiceNumber || payload.returnNumber || 'N/A';
-    const cashier = payload.cashierName || 'Counter Cashier';
-    const customer = payload.customerName || 'Walk-in Customer';
+    const refNum = payload.invoiceNumber || payload.purchaseNumber || payload.exchangeNumber || payload.returnNumber || 'N/A';
+    const cashier = payload.cashierName || 'Counter Staff';
+    const party = payload.supplierName || payload.customerName || 'Walk-in Customer';
     const amountVal = payload.totalAmount ?? payload.refundAmount ?? payload.netDifference ?? 0;
     const formattedAmount = Number(amountVal).toLocaleString();
 
     const isSale = payload.type === 'SALE';
+    const isPurchase = payload.type === 'PURCHASE';
     const isSaleReturn = payload.type === 'SALE_RETURN';
     const isSaleExchange = payload.type === 'SALE_EXCHANGE';
     const isExchange = payload.type === 'EXCHANGE';
     const isReturn = payload.type === 'RETURN';
 
     const actionTitle = isSale
-      ? `🛍️ New Sale #${invoiceNum} (Rs. ${formattedAmount})`
+      ? `New Sale #${refNum} (Rs. ${formattedAmount})`
+      : isPurchase
+      ? `Purchase Completed #${refNum} (Rs. ${formattedAmount})`
       : isSaleExchange
-      ? `🔁 Sale & Exchange #${invoiceNum} (Rs. ${formattedAmount})`
+      ? `Sale & Exchange #${refNum} (Rs. ${formattedAmount})`
       : isSaleReturn
-      ? `🛍️ Sale & Return #${invoiceNum} (Rs. ${formattedAmount})`
+      ? `Sale Completed #${refNum} (Rs. ${formattedAmount})`
       : isExchange
-      ? `🔁 Shoe Exchange #${invoiceNum}`
+      ? `Exchange Completed #${payload.exchangeNumber || refNum}`
       : isReturn
-      ? `↩️ Customer Return #${invoiceNum} (Refund Rs. ${formattedAmount})`
-      : `📦 Inventory Alert #${invoiceNum}`;
+      ? `Return Completed #${payload.returnNumber || refNum} (Refund Rs. ${formattedAmount})`
+      : `Inventory Alert #${refNum}`;
 
     const dateFormatted = new Date().toLocaleString('en-US', {
       dateStyle: 'medium',
@@ -125,20 +128,20 @@ export async function dispatchPosEmailAlert(
     <tr>
       <td style="padding: 24px;">
         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
-          <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${isReturn ? 'Total Refund' : isExchange ? 'Net Difference' : (isSaleReturn || isSaleExchange) ? 'Net Amount' : 'Total Amount Received'}</div>
+          <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${isReturn ? 'Total Refund' : isExchange ? 'Net Difference' : isPurchase ? 'Total Purchase' : (isSaleReturn || isSaleExchange) ? 'Net Amount' : 'Total Amount Received'}</div>
           <div style="font-size: 32px; font-weight: 800; color: ${isReturn ? '#dc2626' : '#16a34a'}; margin: 4px 0;">Rs. ${formattedAmount}</div>
-          <div style="font-size: 12px; color: #64748b;">Invoice <strong>#${escapeHtml(invoiceNum)}</strong> • ${escapeHtml(dateFormatted)}</div>
+          <div style="font-size: 12px; color: #64748b;">${isPurchase ? 'Purchase' : isExchange ? 'Exchange' : isReturn ? 'Return' : 'Invoice'} <strong>#${escapeHtml(refNum)}</strong> • ${escapeHtml(dateFormatted)}</div>
         </div>
 
         <!-- Details Grid -->
         <table width="100%" border="0" cellspacing="0" cellpadding="6" style="font-size: 13px; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
           <tr>
-            <td style="color: #64748b; width: 35%;">Processed By (Cashier):</td>
+            <td style="color: #64748b; width: 35%;">Processed By:</td>
             <td style="font-weight: 600; color: #0f172a;">${escapeHtml(cashier)}</td>
           </tr>
           <tr>
-            <td style="color: #64748b;">Customer:</td>
-            <td style="font-weight: 600; color: #0f172a;">${escapeHtml(customer)}</td>
+            <td style="color: #64748b;">${isPurchase ? 'Supplier:' : 'Customer:'}</td>
+            <td style="font-weight: 600; color: #0f172a;">${escapeHtml(party)}</td>
           </tr>
           ${payload.itemsSummary ? `
           <tr>

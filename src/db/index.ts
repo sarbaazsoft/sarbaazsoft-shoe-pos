@@ -379,12 +379,12 @@ const mockStore: Record<string, any[]> = {
 };
 
 let mockIdCounters: Record<string, number> = {
-  tenants: 2,
-  users: 3,
-  company_settings: 2,
-  categories: 4,
-  products: 2,
-  customers: 2,
+  tenants: 5,
+  users: 6,
+  company_settings: 5,
+  categories: 5,
+  products: 3,
+  customers: 3,
   customer_ledger: 1,
   supplier_ledger: 1,
   suppliers: 1,
@@ -408,7 +408,11 @@ let mockIdCounters: Record<string, number> = {
 };
 
 function nextMockId(table: string): number {
-  const current = mockIdCounters[table] || (mockStore[table]?.length || 0) + 1;
+  const rows = mockStore[table];
+  const maxExisting = Array.isArray(rows)
+    ? rows.reduce((max, r) => Math.max(max, Number(r?.id) || 0), 0)
+    : 0;
+  const current = Math.max(mockIdCounters[table] || 1, maxExisting + 1);
   mockIdCounters[table] = current + 1;
   return current;
 }
@@ -1179,7 +1183,12 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: [], rowCount: 0 };
   }
 
-  if (upper.includes('POS_NOTIFICATION_DISMISSALS') && !upper.includes('FROM SALES') && !upper.includes('FROM RETURNS')) {
+  if (
+    upper.includes('POS_NOTIFICATION_DISMISSALS') &&
+    !upper.includes('FROM SALES') &&
+    !upper.includes('FROM RETURNS') &&
+    !upper.includes('FROM PURCHASES')
+  ) {
     if (!mockStore.pos_notification_dismissals) mockStore.pos_notification_dismissals = [];
     if (upper.startsWith('INSERT INTO')) {
       const tid = Number(params[0] || 1);
@@ -2264,9 +2273,54 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     const enrichSale = (s: any) => {
       const c = s.customer_id ? mockStore.customers.find((cust) => Number(cust.id) === Number(s.customer_id)) : null;
       const u = s.created_by ? mockStore.users.find((usr) => Number(usr.id) === Number(s.created_by)) : null;
-      const totalQty = (mockStore.sale_items || [])
-        .filter((si) => Number(si.sale_id) === Number(s.id))
-        .reduce((sum, si) => sum + Number(si.quantity || 0), 0);
+      const saleItemsForSale = (mockStore.sale_items || []).filter((si) => Number(si.sale_id) === Number(s.id));
+      const totalQty = saleItemsForSale.reduce((sum, si) => sum + Number(si.quantity || 0), 0);
+      const saleItemIdSet = new Set(saleItemsForSale.map((si) => Number(si.id)));
+      const exchangeLinkedReturnNumbers = new Set<string>();
+      for (const otherSale of mockStore.sales || []) {
+        const otherNotes = String(otherSale.notes || '');
+        if (
+          otherNotes.includes('Direct Shoe Exchange') ||
+          otherNotes.includes('[Standalone: EXCHANGE]') ||
+          otherNotes.includes('[Combined: SALE_EXCHANGE]')
+        ) {
+          const matches = otherNotes.matchAll(/(?:Return\s+#?)([A-Z0-9-]+)/gi);
+          for (const m of matches) {
+            if (m[1]) exchangeLinkedReturnNumbers.add(m[1].trim().toUpperCase());
+          }
+        }
+      }
+      const pureReturnIdsForSale = new Set(
+        (mockStore.returns || [])
+          .filter((r) => {
+            if (Number(r.original_sale_id) !== Number(s.id)) return false;
+            const retNo = String(r.return_number || '').trim().toUpperCase();
+            return !retNo || !exchangeLinkedReturnNumbers.has(retNo);
+          })
+          .map((r) => Number(r.id))
+      );
+      const exchangeReturnIdSet = new Set(
+        (mockStore.returns || [])
+          .filter((r) => {
+            const retNo = String(r.return_number || '').trim().toUpperCase();
+            return Boolean(retNo && exchangeLinkedReturnNumbers.has(retNo));
+          })
+          .map((r) => Number(r.id))
+      );
+      const returnedQty = (mockStore.return_items || [])
+        .filter((ri) => {
+          if (exchangeReturnIdSet.has(Number(ri.return_id))) return false;
+          return pureReturnIdsForSale.has(Number(ri.return_id)) || saleItemIdSet.has(Number(ri.sale_item_id));
+        })
+        .reduce((sum, ri) => sum + Number(ri.quantity || 0), 0);
+      const dismissals = mockStore.pos_notification_dismissals || [];
+      const uid = params.length >= 2 ? Number(params[1]) : 0;
+      const isDismissed = dismissals.some(
+        (d: any) =>
+          d.item_type === 'SALE' &&
+          Number(d.item_id) === Number(s.id) &&
+          (Number(d.user_id) === uid || Number(d.user_id) === 0)
+      );
       return {
         ...s,
         customer_name: c?.name || s.customer_name || null,
@@ -2280,6 +2334,8 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         customer_current_balance: c ? Number(c.current_balance ?? c.outstanding_balance ?? 0) : 0,
         cashier_name: u?.name || s.cashier_name || null,
         total_quantity: totalQty,
+        returned_quantity: returnedQty,
+        is_dismissed: isDismissed,
       };
     };
 
@@ -2695,6 +2751,8 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       total_refund_amount: Number(params[4] || 0),
       reason: String(params[5] || ''),
       created_by: Number(params[6] || 1),
+      payment_method: params[7] !== undefined && params[7] !== null ? String(params[7]) : null,
+      customer_name: params[8] !== undefined && params[8] !== null ? String(params[8]) : null,
       created_at: new Date().toISOString(),
     };
     mockStore.returns.unshift(newRet);
@@ -2798,18 +2856,71 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
   }
 
   if (upper.startsWith('SELECT') && upper.includes('FROM PURCHASES')) {
-    if (upper.includes('COUNT(*)')) {
+    if (upper.includes('COUNT(*)') && !upper.includes('PURCHASE_ITEMS')) {
       return { rows: [{ count: String(mockStore.purchases.length), total: '0' } as unknown as T], rowCount: 1 };
     }
     const tid = params.length > 0 ? Number(params[0] || 1) : 1;
     let pList = mockStore.purchases.filter((p: any) => Number(p.tenant_id || 1) === tid);
-    if (upper.includes('PURCHASE_NUMBER LIKE $2')) {
+    if (upper.includes('WHERE P.ID = $1') || upper.includes('WHERE ID = $1')) {
+      const pid = Number(params[0]);
+      const pTid = params.length >= 2 ? Number(params[1]) : null;
+      pList = mockStore.purchases.filter(
+        (p: any) => Number(p.id) === pid && (!pTid || Number(p.tenant_id || 1) === pTid)
+      );
+    } else if (upper.includes('PURCHASE_NUMBER LIKE $2')) {
       const prefix = String(params[1] || '').replace(/%$/, '').toLowerCase();
       pList = pList
         .filter((p: any) => String(p.purchase_number || '').toLowerCase().startsWith(prefix))
         .sort((a: any, b: any) => Number(b.id) - Number(a.id));
+    } else {
+      if (upper.includes("INTERVAL '48 HOURS'")) {
+        const cutoff = Date.now() - 48 * 3600 * 1000;
+        pList = pList.filter((p: any) => new Date(p.created_at || p.purchase_date).getTime() >= cutoff);
+      }
+      if (upper.includes('NOT EXISTS') && upper.includes('POS_NOTIFICATION_DISMISSALS')) {
+        const dismissals = mockStore.pos_notification_dismissals || [];
+        const uid = params.length >= 2 ? Number(params[1]) : 0;
+        pList = pList.filter(
+          (p: any) =>
+            !dismissals.some(
+              (d: any) =>
+                d.item_type === 'PURCHASE' &&
+                Number(d.item_id) === Number(p.id) &&
+                (Number(d.user_id) === uid || Number(d.user_id) === 0)
+            )
+        );
+      }
     }
-    return { rows: pList as unknown as T[], rowCount: pList.length };
+    const uid = params.length >= 2 ? Number(params[1]) : 0;
+    const dismissals = mockStore.pos_notification_dismissals || [];
+    const enrichedPurchases = pList.map((p: any) => {
+      const sup = p.supplier_id
+        ? (mockStore.suppliers || []).find((s: any) => Number(s.id) === Number(p.supplier_id))
+        : null;
+      const usr = p.created_by
+        ? (mockStore.users || []).find((u: any) => Number(u.id) === Number(p.created_by))
+        : null;
+      const pItems = (mockStore.purchase_items || []).filter((pi: any) => Number(pi.purchase_id) === Number(p.id));
+      const totalQty = pItems.reduce((sum: number, pi: any) => sum + Number(pi.quantity || 0), 0);
+      const isDismissed = dismissals.some(
+        (d: any) =>
+          d.item_type === 'PURCHASE' &&
+          Number(d.item_id) === Number(p.id) &&
+          (Number(d.user_id) === uid || Number(d.user_id) === 0)
+      );
+      return {
+        ...p,
+        supplier_official_name: sup?.name || p.supplier_name || null,
+        supplier_phone: sup?.phone || null,
+        supplier_email: sup?.email || null,
+        created_by_name: usr?.name || 'Admin',
+        item_count: pItems.length,
+        total_quantity: totalQty,
+        balance_due: Math.max(0, Number(p.total_amount || 0) - Number(p.paid_amount || 0)),
+        is_dismissed: isDismissed,
+      };
+    });
+    return { rows: enrichedPurchases as unknown as T[], rowCount: enrichedPurchases.length };
   }
 
   if (upper.startsWith('SELECT') && upper.includes('FROM CATEGORIES')) {
@@ -2818,7 +2929,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
 
   if (upper.startsWith('SELECT') && upper.includes('FROM RETURNS')) {
     let rList = [...(mockStore.returns || [])];
-    if (upper.includes('WHERE R.ID = $1')) {
+    if (upper.includes('WHERE R.ORIGINAL_SALE_ID = $1') || upper.includes('WHERE ORIGINAL_SALE_ID = $1')) {
+      const origSaleId = Number(params[0]);
+      const tid = params.length >= 2 ? Number(params[1]) : null;
+      rList = rList.filter(
+        (r: any) => Number(r.original_sale_id) === origSaleId && (!tid || Number(r.tenant_id || 1) === tid)
+      );
+    } else if (upper.includes('WHERE R.ID = $1')) {
       const rid = Number(params[0]);
       const tid = params.length >= 2 ? Number(params[1]) : null;
       rList = rList.filter((r: any) => Number(r.id) === rid && (!tid || Number(r.tenant_id || 1) === tid));
@@ -2849,20 +2966,31 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         rList = rList.filter((r: any) => !dismissals.some((d: any) => d.item_type === 'RETURN' && Number(d.item_id) === Number(r.id) && (Number(d.user_id) === uid || Number(d.user_id) === 0)));
       }
     }
+    const uid = params.length >= 2 ? Number(params[1]) : 0;
+    const dismissals = mockStore.pos_notification_dismissals || [];
     const enriched = rList.map((r: any) => {
-      const s = mockStore.sales.find((sale) => Number(sale.id) === Number(r.original_sale_id));
+      const s = r.original_sale_id
+        ? mockStore.sales.find((sale) => Number(sale.id) === Number(r.original_sale_id))
+        : null;
       const c = r.customer_id ? mockStore.customers.find((cust) => Number(cust.id) === Number(r.customer_id)) : null;
       const u = r.created_by ? mockStore.users.find((usr) => Number(usr.id) === Number(r.created_by)) : null;
       const totalQty = (mockStore.return_items || [])
         .filter((ri) => Number(ri.return_id) === Number(r.id))
         .reduce((sum, ri) => sum + Number(ri.quantity || 0), 0);
+      const isDismissed = dismissals.some(
+        (d: any) =>
+          d.item_type === 'RETURN' &&
+          Number(d.item_id) === Number(r.id) &&
+          (Number(d.user_id) === uid || Number(d.user_id) === 0)
+      );
       return {
         ...r,
         invoice_number: s?.invoice_number || null,
-        payment_method: s?.payment_method || r.payment_method || 'CASH',
-        customer_name: c?.name || null,
+        payment_method: s?.payment_method || r.payment_method || null,
+        customer_name: c?.name || r.customer_name || null,
         cashier_name: u?.name || null,
         total_quantity: totalQty,
+        is_dismissed: isDismissed,
       };
     });
     return { rows: enriched as unknown as T[], rowCount: enriched.length };

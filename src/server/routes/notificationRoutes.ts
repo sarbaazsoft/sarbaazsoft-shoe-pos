@@ -14,8 +14,11 @@ import { extractTokenFromRequest, getJwtSecret } from '../auth.ts';
 import { pgClient } from '../../db/index.ts';
 import { ensureNotificationsSchema, ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
 import {
+  cleanOptionalText,
   formatExchangeNotification,
+  formatPurchaseNotification,
   formatReturnNotification,
+  formatReturnReferenceToExchange,
   formatSaleExchangeNotification,
   formatSaleNotification,
   formatSaleReturnNotification,
@@ -23,7 +26,8 @@ import {
 
 async function resolveStoreNotificationContext(cleanTenantId: number): Promise<{
   isWholesaleTenant: boolean;
-  linkedWholesaleReturnNumbers: Set<string>;
+  linkedSaleReturnNumbers: Set<string>;
+  exchangeLinkedReturnNumbers: Set<string>;
 }> {
   const [csRes, combinedSalesRes] = await Promise.all([
     pgClient
@@ -43,21 +47,28 @@ async function resolveStoreNotificationContext(cleanTenantId: number): Promise<{
   const isWholesaleTenant =
     String(csRes.rows[0]?.business_type || 'RETAIL').toUpperCase() === 'WHOLESALE';
 
-  const linkedWholesaleReturnNumbers = new Set<string>();
+  const linkedSaleReturnNumbers = new Set<string>();
+  const exchangeLinkedReturnNumbers = new Set<string>();
+
   for (const sRow of combinedSalesRes.rows) {
-    const rowIsWholesale =
-      isWholesaleTenant || String(sRow.sale_type || '').toUpperCase() === 'WHOLESALE';
-    if (!rowIsWholesale) continue;
     const notesStr = String(sRow.notes || '');
+    const isExchangeSaleNote =
+      notesStr.includes('Direct Shoe Exchange') ||
+      notesStr.includes('[Standalone: EXCHANGE]') ||
+      notesStr.includes('[Combined: SALE_EXCHANGE]');
     const matches = notesStr.matchAll(/(?:Return\s+#?)([A-Z0-9-]+)/gi);
     for (const m of matches) {
       if (m[1]) {
-        linkedWholesaleReturnNumbers.add(m[1].trim().toUpperCase());
+        const cleanRef = m[1].trim().toUpperCase();
+        linkedSaleReturnNumbers.add(cleanRef);
+        if (isExchangeSaleNote) {
+          exchangeLinkedReturnNumbers.add(cleanRef);
+        }
       }
     }
   }
 
-  return { isWholesaleTenant, linkedWholesaleReturnNumbers };
+  return { isWholesaleTenant, linkedSaleReturnNumbers, exchangeLinkedReturnNumbers };
 }
 
 function mapSaleNotificationRow(
@@ -73,22 +84,34 @@ function mapSaleNotificationRow(
   const isWholesaleRow =
     options.isWholesaleTenant || String(row.sale_type || '').toUpperCase() === 'WHOLESALE';
   const createdAt = row.created_at || row.sale_date || new Date().toISOString();
+  const customerName = cleanOptionalText(row.customer_name) || 'Walk-in Customer';
+  const cashierName = cleanOptionalText(row.cashier_name) || 'Counter Staff';
+  const paymentMethod = cleanOptionalText(row.payment_method) || 'Cash';
+
+  const returnRefMatch = notesStr.match(/(?:Return\s+#?)([A-Z0-9-]+)/i);
+  const matchedReturn = returnRefMatch
+    ? options.returnByNumber.get(returnRefMatch[1].trim().toUpperCase())
+    : undefined;
+  const rawReturnRef = matchedReturn?.return_number || returnRefMatch?.[1] || null;
+  const exchangeRef = formatReturnReferenceToExchange(rawReturnRef) || invoiceNo;
 
   if (!isWholesaleRow) {
-    // Existing retail notification mapping preserved completely unchanged
     const isExchangeRow =
       notesStr.includes('Direct Shoe Exchange') || notesStr.includes('Wholesale Shoe Return');
 
     if (isExchangeRow) {
       const netMatch = notesStr.match(/Net Difference:\s*Rs\.\s*(-?\d+)/i);
       const adjustmentAmt = netMatch ? Number(netMatch[1]) : Number(row.total_amount || 0);
+      const exchangeQty = Number(matchedReturn?.total_quantity || row.total_quantity || 0);
       const formatted = formatExchangeNotification({
+        exchangeNo: exchangeRef,
+        returnNo: rawReturnRef,
         invoiceNo,
         amount: adjustmentAmt,
-        paymentMethod: row.payment_method || 'Cash',
-        totalQuantity: Number(row.total_quantity || 0),
-        customerName: row.customer_name || 'Walk-in Customer',
-        cashierName: row.cashier_name || 'Counter Staff',
+        paymentMethod,
+        totalQuantity: exchangeQty,
+        customerName,
+        cashierName,
       });
       return {
         id: `sale-${row.id}`,
@@ -101,6 +124,8 @@ function mapSaleNotificationRow(
         itemsSummary: formatted.itemsSummary,
         totalAmount: Number(row.total_amount || 0),
         invoiceNumber: invoiceNo,
+        exchangeNumber: exchangeRef,
+        ...(rawReturnRef ? { returnNumber: rawReturnRef } : {}),
         deepLinkUrl: '/reports',
         ...(options.includeHistoryFields
           ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
@@ -109,13 +134,16 @@ function mapSaleNotificationRow(
       };
     }
 
+    const returnedQty = Number(row.returned_quantity || 0);
     const formatted = formatSaleNotification({
       invoiceNo,
       totalAmount: Number(row.total_amount || 0),
-      paymentMethod: row.payment_method || 'Cash',
+      paymentMethod,
       totalQuantity: Number(row.total_quantity || 0),
-      customerName: row.customer_name || 'Walk-in Customer',
-      cashierName: row.cashier_name || 'Counter Staff',
+      returnedQuantity: returnedQty,
+      isWholesale: false,
+      customerName,
+      cashierName,
     });
     return {
       id: `sale-${row.id}`,
@@ -136,12 +164,7 @@ function mapSaleNotificationRow(
     };
   }
 
-  // Wholesale store mapping: clean standard titles without "Wholesale" or "B2B"
-  const returnRefMatch = notesStr.match(/(?:Return\s+#?)([A-Z0-9-]+)/i);
-  const matchedReturn = returnRefMatch
-    ? options.returnByNumber.get(returnRefMatch[1].trim().toUpperCase())
-    : undefined;
-  const hasLinkedReturn =
+  const hasLinkedNoteAction =
     Boolean(returnRefMatch) ||
     notesStr.includes('[Combined: SALE_RETURN]') ||
     notesStr.includes('[Combined: SALE_EXCHANGE]') ||
@@ -158,14 +181,17 @@ function mapSaleNotificationRow(
       : Math.max(0, Number(row.total_amount || 0) - rawPrevBal);
   const soldQty = Number(row.total_quantity || 0);
 
-  if (!hasLinkedReturn) {
+  if (!hasLinkedNoteAction) {
+    const returnedQty = Number(row.returned_quantity || 0);
     const formatted = formatSaleNotification({
       invoiceNo,
       totalAmount: saleNetSubtotal,
-      paymentMethod: row.payment_method || 'Cash',
+      paymentMethod,
       totalQuantity: soldQty,
-      customerName: row.customer_name || 'Walk-in Customer',
-      cashierName: row.cashier_name || 'Counter Staff',
+      returnedQuantity: returnedQty,
+      isWholesale: true,
+      customerName,
+      cashierName,
     });
     return {
       id: `sale-${row.id}`,
@@ -194,17 +220,19 @@ function mapSaleNotificationRow(
   const netAmount = netMatch ? Number(netMatch[1]) : saleNetSubtotal - returnCredit;
   const retPairsMatch = notesStr.match(/RetPairs:\s*(\d+)/i);
   const returnedQty = Number(
-    matchedReturn?.total_quantity || (retPairsMatch ? Number(retPairsMatch[1]) : 0)
+    matchedReturn?.total_quantity || (retPairsMatch ? Number(retPairsMatch[1]) : 0) || row.returned_quantity || 0
   );
 
   if (notesStr.includes('[Standalone: EXCHANGE]')) {
     const formatted = formatExchangeNotification({
+      exchangeNo: exchangeRef,
+      returnNo: rawReturnRef,
       invoiceNo,
       amount: netAmount,
-      paymentMethod: row.payment_method || 'Cash',
+      paymentMethod,
       totalQuantity: returnedQty || soldQty,
-      customerName: row.customer_name || 'Walk-in Customer',
-      cashierName: row.cashier_name || 'Counter Staff',
+      customerName,
+      cashierName,
     });
     return {
       id: `sale-${row.id}`,
@@ -217,6 +245,7 @@ function mapSaleNotificationRow(
       itemsSummary: formatted.itemsSummary,
       totalAmount: netAmount,
       invoiceNumber: invoiceNo,
+      exchangeNumber: exchangeRef,
       returnNumber: matchedReturn?.return_number || returnRefMatch?.[1],
       deepLinkUrl: '/reports',
       ...(options.includeHistoryFields
@@ -228,13 +257,15 @@ function mapSaleNotificationRow(
 
   if (notesStr.includes('[Combined: SALE_EXCHANGE]') || notesStr.includes('Direct Shoe Exchange')) {
     const formatted = formatSaleExchangeNotification({
+      exchangeNo: exchangeRef,
+      returnNo: rawReturnRef,
       invoiceNo,
       amount: netAmount,
-      paymentMethod: row.payment_method || 'Cash',
+      paymentMethod,
       soldQuantity: soldQty,
       exchangedQuantity: returnedQty,
-      customerName: row.customer_name || 'Walk-in Customer',
-      cashierName: row.cashier_name || 'Counter Staff',
+      customerName,
+      cashierName,
     });
     return {
       id: `sale-${row.id}`,
@@ -247,6 +278,7 @@ function mapSaleNotificationRow(
       itemsSummary: formatted.itemsSummary,
       totalAmount: netAmount,
       invoiceNumber: invoiceNo,
+      exchangeNumber: exchangeRef,
       returnNumber: matchedReturn?.return_number || returnRefMatch?.[1],
       deepLinkUrl: '/reports',
       ...(options.includeHistoryFields
@@ -259,11 +291,12 @@ function mapSaleNotificationRow(
   const formatted = formatSaleReturnNotification({
     invoiceNo,
     amount: netAmount,
-    paymentMethod: row.payment_method || 'Cash',
+    paymentMethod,
     soldQuantity: soldQty,
     returnedQuantity: returnedQty,
-    customerName: row.customer_name || 'Walk-in Customer',
-    cashierName: row.cashier_name || 'Counter Staff',
+    isWholesale: true,
+    customerName,
+    cashierName,
   });
   return {
     id: `sale-${row.id}`,
@@ -281,6 +314,46 @@ function mapSaleNotificationRow(
     ...(options.includeHistoryFields
       ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
       : { actionTab: 'reports', timestamp: createdAt, isRead: false }),
+    createdAt,
+  };
+}
+
+function mapPurchaseNotificationRow(
+  row: any,
+  options: { includeHistoryFields?: boolean }
+) {
+  const purchaseNo = row.purchase_number || String(row.id);
+  const createdAt = row.created_at || row.purchase_date || new Date().toISOString();
+  const supplierName = cleanOptionalText(row.supplier_official_name || row.supplier_name);
+  const cashierName = cleanOptionalText(row.created_by_name);
+  const paymentMethod = cleanOptionalText(row.payment_method);
+
+  const formatted = formatPurchaseNotification({
+    purchaseNo,
+    totalAmount: Number(row.total_amount || 0),
+    paymentMethod,
+    totalQuantity: Number(row.total_quantity || 0),
+    unit: 'pair',
+    supplierName,
+    cashierName,
+  });
+
+  return {
+    id: `purchase-${row.id}`,
+    rawId: row.id,
+    ...(options.includeHistoryFields ? { kind: 'OPERATIONAL' as const } : {}),
+    itemType: 'PURCHASE',
+    type: 'PURCHASE',
+    title: formatted.title,
+    message: formatted.message,
+    itemsSummary: formatted.itemsSummary,
+    totalAmount: Number(row.total_amount || 0),
+    purchaseNumber: purchaseNo,
+    invoiceNumber: purchaseNo,
+    deepLinkUrl: '/?tab=purchases',
+    ...(options.includeHistoryFields
+      ? { expiresAt: null, isRead: Boolean(row.is_dismissed) }
+      : { actionTab: 'purchases', timestamp: createdAt, isRead: false }),
     createdAt,
   };
 }
@@ -465,14 +538,16 @@ router.get('/grouped', async (req: Request, res: Response) => {
       isRead: Boolean(r.is_read),
     }));
 
-    // 2. Fetch active POS Operational Notifications (Sales & Returns)
+    // 2. Fetch active POS Operational Notifications (Sales, Purchases, Returns, Low Stock)
     // Strictly enforces a 48-hour sliding window (created_at >= NOW() - INTERVAL '48 HOURS')
     // Excludes records present in pos_notification_dismissals
-    // Cashiers ONLY receive notifications for their own operations
+    // Cashiers ONLY receive notifications for their own operations (never PURCHASE or LOW_STOCK)
     let operationalNotifications: any[] = [];
     if (role !== 'SUPERADMIN') {
-      const { isWholesaleTenant, linkedWholesaleReturnNumbers } =
+      const { isWholesaleTenant, linkedSaleReturnNumbers, exchangeLinkedReturnNumbers } =
         await resolveStoreNotificationContext(cleanTenantId);
+
+      const exchangeExcludedList = Array.from(exchangeLinkedReturnNumbers);
 
       const salesRes = await pgClient.query(
         `SELECT
@@ -490,6 +565,14 @@ router.get('/grouped', async (req: Request, res: Response) => {
            COALESCE(c.name, 'Walk-in Customer') AS customer_name,
            COALESCE(u.name, 'Counter Staff') AS cashier_name,
            COALESCE((SELECT SUM(si.quantity) FROM sale_items si WHERE si.sale_id = s.id), 0) AS total_quantity,
+           COALESCE((
+             SELECT SUM(ri.quantity)
+             FROM return_items ri
+             LEFT JOIN returns r ON ri.return_id = r.id
+             LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+             WHERE (r.original_sale_id = s.id OR si.sale_id = s.id)
+               AND (r.return_number IS NULL OR NOT (UPPER(r.return_number) = ANY($5::text[])))
+           ), 0) AS returned_quantity,
            'SALE' AS item_type
          FROM sales s
          LEFT JOIN customers c ON s.customer_id = c.id
@@ -506,20 +589,21 @@ router.get('/grouped', async (req: Request, res: Response) => {
            )
          ORDER BY s.created_at DESC
          LIMIT $3`,
-        [cleanTenantId, userId, limit, role]
+        [cleanTenantId, userId, limit, role, exchangeExcludedList]
       ).catch(() => ({ rows: [] }));
 
       const returnsRes = await pgClient.query(
         `SELECT
            r.id,
            r.return_number,
+           r.original_sale_id,
            r.total_refund_amount,
            r.reason,
            r.return_date,
            r.created_at,
            s.invoice_number,
-           s.payment_method,
-           COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+           COALESCE(s.payment_method, r.payment_method) AS payment_method,
+           COALESCE(c.name, r.customer_name) AS customer_name,
            COALESCE(u.name, 'Authorized Staff') AS cashier_name,
            COALESCE((SELECT SUM(ri.quantity) FROM return_items ri WHERE ri.return_id = r.id), 0) AS total_quantity,
            'RETURN' AS item_type
@@ -557,21 +641,24 @@ router.get('/grouped', async (req: Request, res: Response) => {
         })
       );
 
+      // Returns linked to an existing sale invoice are consolidated inside Sale Completed;
+      // only independent returns (without original_sale_id or linked sale note) emit Return Completed.
       const mappedReturns = returnsRes.rows
         .filter((row: any) => {
+          if (Number(row.original_sale_id) > 0) return false;
           const retNo = String(row.return_number || '').trim().toUpperCase();
-          return !retNo || !linkedWholesaleReturnNumbers.has(retNo);
+          return !retNo || !linkedSaleReturnNumbers.has(retNo);
         })
         .slice(0, limit)
         .map((row: any) => {
-          const invoiceNo = row.invoice_number || row.return_number || String(row.id);
+          const returnNo = row.return_number || String(row.id);
           const formatted = formatReturnNotification({
-            invoiceNo,
+            returnNo,
             amount: Number(row.total_refund_amount || 0),
-            paymentMethod: row.payment_method || 'Cash',
+            paymentMethod: row.payment_method,
             totalQuantity: Number(row.total_quantity || 0),
-            customerName: row.customer_name || 'Walk-in Customer',
-            cashierName: row.cashier_name || 'Authorized Staff',
+            customerName: row.customer_name,
+            cashierName: row.cashier_name,
           });
           return {
             id: `return-${row.id}`,
@@ -582,8 +669,8 @@ router.get('/grouped', async (req: Request, res: Response) => {
             message: formatted.message,
             itemsSummary: formatted.itemsSummary,
             totalAmount: Number(row.total_refund_amount || 0),
-            invoiceNumber: invoiceNo,
-            returnNumber: row.return_number || String(row.id),
+            invoiceNumber: '',
+            returnNumber: returnNo,
             deepLinkUrl: '/returns',
             actionTab: 'returns',
             createdAt: row.created_at || row.return_date || new Date().toISOString(),
@@ -592,29 +679,64 @@ router.get('/grouped', async (req: Request, res: Response) => {
           };
         });
 
+      let mappedPurchases: any[] = [];
       let mappedLowStock: any[] = [];
       if (role === 'ADMIN' || role === 'OWNER') {
-        const lowStockRes = await pgClient.query<{
-          id: number;
-          type: string;
-          title: string;
-          message: string;
-          sale_id: number | null;
-          invoice_number: string | null;
-          action_url: string | null;
-          items_json: any;
-          created_at: string;
-          is_read: boolean;
-        }>(
-          `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
-           FROM public.notifications
-           WHERE tenant_id = $1
-             AND COALESCE(is_read, false) = false
-             AND created_at >= NOW() - INTERVAL '48 HOURS'
-           ORDER BY created_at DESC
-           LIMIT $2`,
-          [cleanTenantId, limit]
-        ).catch(() => ({ rows: [] }));
+        const [purchasesRes, lowStockRes] = await Promise.all([
+          pgClient.query(
+            `SELECT
+               p.id,
+               p.purchase_number,
+               p.total_amount,
+               p.payment_method,
+               p.supplier_name,
+               p.purchase_date,
+               p.created_at,
+               COALESCE(s.name, p.supplier_name) AS supplier_official_name,
+               u.name AS created_by_name,
+               COALESCE((SELECT SUM(pi.quantity) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0) AS total_quantity
+             FROM purchases p
+             LEFT JOIN suppliers s ON p.supplier_id = s.id
+             LEFT JOIN users u ON p.created_by = u.id
+             WHERE p.tenant_id = $1
+               AND p.created_at >= NOW() - INTERVAL '48 HOURS'
+               AND NOT EXISTS (
+                 SELECT 1 FROM pos_notification_dismissals pnd
+                 WHERE pnd.tenant_id = $1
+                   AND (pnd.user_id = $2 OR pnd.user_id = 0)
+                   AND pnd.item_type = 'PURCHASE'
+                   AND pnd.item_id = p.id
+               )
+             ORDER BY p.created_at DESC
+             LIMIT $3`,
+            [cleanTenantId, userId, limit]
+          ).catch(() => ({ rows: [] })),
+          pgClient.query<{
+            id: number;
+            type: string;
+            title: string;
+            message: string;
+            sale_id: number | null;
+            invoice_number: string | null;
+            action_url: string | null;
+            items_json: any;
+            created_at: string;
+            is_read: boolean;
+          }>(
+            `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
+             FROM public.notifications
+             WHERE tenant_id = $1
+               AND COALESCE(is_read, false) = false
+               AND created_at >= NOW() - INTERVAL '48 HOURS'
+             ORDER BY created_at DESC
+             LIMIT $2`,
+            [cleanTenantId, limit]
+          ).catch(() => ({ rows: [] })),
+        ]);
+
+        mappedPurchases = purchasesRes.rows.map((row: any) =>
+          mapPurchaseNotificationRow(row, { includeHistoryFields: false })
+        );
 
         mappedLowStock = lowStockRes.rows.map((row) => ({
           id: `notif-${row.id}`,
@@ -636,7 +758,7 @@ router.get('/grouped', async (req: Request, res: Response) => {
       }
 
       // Combine and cap at limit (max 5)
-      operationalNotifications = [...mappedLowStock, ...mappedSales, ...mappedReturns]
+      operationalNotifications = [...mappedLowStock, ...mappedPurchases, ...mappedSales, ...mappedReturns]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, limit);
     }
@@ -781,8 +903,8 @@ router.get('/all', async (req: Request, res: Response) => {
       }));
     }
 
-    // 2. Fetch historical POS Operational Activity (Sales, Returns, & Low Stock)
-    // Cashiers ONLY view historical notifications for their own operations (never LOW_STOCK)
+    // 2. Fetch historical POS Operational Activity (Sales, Purchases, Returns, & Low Stock)
+    // Cashiers ONLY view historical notifications for their own operations (never PURCHASE or LOW_STOCK)
     let operationalItems: any[] = [];
     if (
       role !== 'SUPERADMIN' &&
@@ -791,11 +913,14 @@ router.get('/all', async (req: Request, res: Response) => {
         tabFilter === 'operational' ||
         tabFilter === 'sales' ||
         tabFilter === 'returns' ||
+        tabFilter === 'purchases' ||
         tabFilter === 'stock' ||
         tabFilter === 'low_stock')
     ) {
-      const { isWholesaleTenant, linkedWholesaleReturnNumbers } =
+      const { isWholesaleTenant, linkedSaleReturnNumbers, exchangeLinkedReturnNumbers } =
         await resolveStoreNotificationContext(cleanTenantId);
+
+      const exchangeExcludedList = Array.from(exchangeLinkedReturnNumbers);
 
       const salesRes = await pgClient.query(
         `SELECT
@@ -813,6 +938,14 @@ router.get('/all', async (req: Request, res: Response) => {
            COALESCE(c.name, 'Walk-in Customer') AS customer_name,
            COALESCE(u.name, 'Counter Staff') AS cashier_name,
            COALESCE((SELECT SUM(si.quantity) FROM sale_items si WHERE si.sale_id = s.id), 0) AS total_quantity,
+           COALESCE((
+             SELECT SUM(ri.quantity)
+             FROM return_items ri
+             LEFT JOIN returns r ON ri.return_id = r.id
+             LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+             WHERE (r.original_sale_id = s.id OR si.sale_id = s.id)
+               AND (r.return_number IS NULL OR NOT (UPPER(r.return_number) = ANY($4::text[])))
+           ), 0) AS returned_quantity,
            EXISTS (
              SELECT 1 FROM pos_notification_dismissals pnd
              WHERE pnd.tenant_id = $1
@@ -827,20 +960,21 @@ router.get('/all', async (req: Request, res: Response) => {
            AND (CASE WHEN $3 = 'CASHIER' THEN s.created_by = $2 ELSE TRUE END)
          ORDER BY s.created_at DESC
          LIMIT 200`,
-        [cleanTenantId, userId, role]
+        [cleanTenantId, userId, role, exchangeExcludedList]
       ).catch(() => ({ rows: [] }));
 
       const returnsRes = await pgClient.query(
         `SELECT
            r.id,
            r.return_number,
+           r.original_sale_id,
            r.total_refund_amount,
            r.reason,
            r.return_date,
            r.created_at,
            s.invoice_number,
-           s.payment_method,
-           COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+           COALESCE(s.payment_method, r.payment_method) AS payment_method,
+           COALESCE(c.name, r.customer_name) AS customer_name,
            COALESCE(u.name, 'Authorized Staff') AS cashier_name,
            COALESCE((SELECT SUM(ri.quantity) FROM return_items ri WHERE ri.return_id = r.id), 0) AS total_quantity,
            EXISTS (
@@ -878,18 +1012,19 @@ router.get('/all', async (req: Request, res: Response) => {
 
       const mappedReturns = returnsRes.rows
         .filter((row: any) => {
+          if (Number(row.original_sale_id) > 0) return false;
           const retNo = String(row.return_number || '').trim().toUpperCase();
-          return !retNo || !linkedWholesaleReturnNumbers.has(retNo);
+          return !retNo || !linkedSaleReturnNumbers.has(retNo);
         })
         .map((row: any) => {
-          const invoiceNo = row.invoice_number || row.return_number || String(row.id);
+          const returnNo = row.return_number || String(row.id);
           const formatted = formatReturnNotification({
-            invoiceNo,
+            returnNo,
             amount: Number(row.total_refund_amount || 0),
-            paymentMethod: row.payment_method || 'Cash',
+            paymentMethod: row.payment_method,
             totalQuantity: Number(row.total_quantity || 0),
-            customerName: row.customer_name || 'Walk-in Customer',
-            cashierName: row.cashier_name || 'Authorized Staff',
+            customerName: row.customer_name,
+            cashierName: row.cashier_name,
           });
           return {
             id: `return-${row.id}`,
@@ -901,8 +1036,8 @@ router.get('/all', async (req: Request, res: Response) => {
             message: formatted.message,
             itemsSummary: formatted.itemsSummary,
             totalAmount: Number(row.total_refund_amount || 0),
-            invoiceNumber: invoiceNo,
-            returnNumber: row.return_number || String(row.id),
+            invoiceNumber: '',
+            returnNumber: returnNo,
             deepLinkUrl: '/returns',
             createdAt: row.created_at || row.return_date || new Date().toISOString(),
             expiresAt: null,
@@ -910,27 +1045,61 @@ router.get('/all', async (req: Request, res: Response) => {
           };
         });
 
+      let mappedPurchases: any[] = [];
       let mappedLowStock: any[] = [];
       if (role === 'ADMIN' || role === 'OWNER') {
-        const lowStockRes = await pgClient.query<{
-          id: number;
-          type: string;
-          title: string;
-          message: string;
-          sale_id: number | null;
-          invoice_number: string | null;
-          action_url: string | null;
-          items_json: any;
-          created_at: string;
-          is_read: boolean;
-        }>(
-          `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
-           FROM public.notifications
-           WHERE tenant_id = $1
-           ORDER BY created_at DESC
-           LIMIT 200`,
-          [cleanTenantId]
-        ).catch(() => ({ rows: [] }));
+        const [purchasesRes, lowStockRes] = await Promise.all([
+          pgClient.query(
+            `SELECT
+               p.id,
+               p.purchase_number,
+               p.total_amount,
+               p.payment_method,
+               p.supplier_name,
+               p.purchase_date,
+               p.created_at,
+               COALESCE(s.name, p.supplier_name) AS supplier_official_name,
+               u.name AS created_by_name,
+               COALESCE((SELECT SUM(pi.quantity) FROM purchase_items pi WHERE pi.purchase_id = p.id), 0) AS total_quantity,
+               EXISTS (
+                 SELECT 1 FROM pos_notification_dismissals pnd
+                 WHERE pnd.tenant_id = $1
+                   AND (pnd.user_id = $2 OR pnd.user_id = 0)
+                   AND pnd.item_type = 'PURCHASE'
+                   AND pnd.item_id = p.id
+               ) AS is_dismissed
+             FROM purchases p
+             LEFT JOIN suppliers s ON p.supplier_id = s.id
+             LEFT JOIN users u ON p.created_by = u.id
+             WHERE p.tenant_id = $1
+             ORDER BY p.created_at DESC
+             LIMIT 200`,
+            [cleanTenantId, userId]
+          ).catch(() => ({ rows: [] })),
+          pgClient.query<{
+            id: number;
+            type: string;
+            title: string;
+            message: string;
+            sale_id: number | null;
+            invoice_number: string | null;
+            action_url: string | null;
+            items_json: any;
+            created_at: string;
+            is_read: boolean;
+          }>(
+            `SELECT id, type, title, message, sale_id, invoice_number, action_url, items_json, created_at, COALESCE(is_read, false) AS is_read
+             FROM public.notifications
+             WHERE tenant_id = $1
+             ORDER BY created_at DESC
+             LIMIT 200`,
+            [cleanTenantId]
+          ).catch(() => ({ rows: [] })),
+        ]);
+
+        mappedPurchases = purchasesRes.rows.map((row: any) =>
+          mapPurchaseNotificationRow(row, { includeHistoryFields: true })
+        );
 
         mappedLowStock = lowStockRes.rows.map((row) => ({
           id: `notif-${row.id}`,
@@ -961,10 +1130,12 @@ router.get('/all', async (req: Request, res: Response) => {
           ),
           ...mappedReturns,
         ];
+      } else if (tabFilter === 'purchases') {
+        operationalItems = mappedPurchases;
       } else if (tabFilter === 'stock' || tabFilter === 'low_stock') {
         operationalItems = mappedLowStock;
       } else {
-        operationalItems = [...mappedLowStock, ...mappedSales, ...mappedReturns];
+        operationalItems = [...mappedLowStock, ...mappedPurchases, ...mappedSales, ...mappedReturns];
       }
     }
 
@@ -988,6 +1159,7 @@ router.get('/all', async (req: Request, res: Response) => {
           (i.title || '').toLowerCase().includes(search) ||
           (i.message || '').toLowerCase().includes(search) ||
           (i.invoiceNumber || '').toLowerCase().includes(search) ||
+          (i.purchaseNumber || '').toLowerCase().includes(search) ||
           (i.returnNumber || '').toLowerCase().includes(search)
       );
     }
@@ -1130,6 +1302,16 @@ router.post(['/:id/dismiss', '/dismiss'], async (req: Request, res: Response) =>
           [cleanTenantId, userId, returnId]
         );
       }
+    } else if (cleanIdStr.startsWith('purchase-') || itemType === 'PURCHASE') {
+      const purchaseId = parseInt(cleanIdStr.replace(/^purchase-/, ''), 10);
+      if (Number.isInteger(purchaseId) && purchaseId > 0) {
+        await pgClient.query(
+          `INSERT INTO pos_notification_dismissals (tenant_id, user_id, item_type, item_id, dismissed_at)
+           VALUES ($1, $2, 'PURCHASE', $3, NOW())
+           ON CONFLICT (tenant_id, user_id, item_type, item_id) DO UPDATE SET dismissed_at = NOW()`,
+          [cleanTenantId, userId, purchaseId]
+        );
+      }
     }
 
     return res.json({ success: true, message: 'Notification dismissed successfully.' });
@@ -1165,7 +1347,7 @@ router.post(['/dismiss-all', '/mark-all-read'], async (req: Request, res: Respon
       [cleanTenantId, userId, role]
     ).catch(() => {});
 
-    // 2. Dismiss/read all recent 48-hour sales, returns & admin low-stock alerts
+    // 2. Dismiss/read all recent 48-hour sales, returns, purchases & admin low-stock alerts
     if (role !== 'SUPERADMIN') {
       if (role === 'ADMIN' || role === 'OWNER') {
         await pgClient.query(
@@ -1173,6 +1355,16 @@ router.post(['/dismiss-all', '/mark-all-read'], async (req: Request, res: Respon
            SET is_read = true, read_at = NOW()
            WHERE tenant_id = $1 AND COALESCE(is_read, false) = false`,
           [cleanTenantId]
+        ).catch(() => {});
+
+        await pgClient.query(
+          `INSERT INTO pos_notification_dismissals (tenant_id, user_id, item_type, item_id, dismissed_at)
+           SELECT $1, $2, 'PURCHASE', p.id, NOW()
+           FROM purchases p
+           WHERE p.tenant_id = $1
+             AND p.created_at >= NOW() - INTERVAL '48 HOURS'
+           ON CONFLICT (tenant_id, user_id, item_type, item_id) DO UPDATE SET dismissed_at = NOW()`,
+          [cleanTenantId, userId]
         ).catch(() => {});
       }
 

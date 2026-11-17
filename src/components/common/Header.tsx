@@ -31,6 +31,7 @@ import {
   navigateToNotificationUrl,
   type NotificationActionDescriptor,
 } from '../../utils/notificationActions.ts';
+import { NotificationHeaderTitle } from '../notifications/NotificationHeaderTitle.tsx';
 
 interface HeaderProps {
   currentTab: string;
@@ -401,10 +402,11 @@ export const Header: React.FC<HeaderProps> = ({
   const [notificationModalData, setNotificationModalData] = useState<NotificationModalData | null>(null);
   const [livePushToast, setLivePushToast] = useState<{
     id: string;
-    type: 'SALE' | 'RETURN' | 'EXCHANGE' | 'PLATFORM_ANNOUNCEMENT' | 'ANNOUNCEMENT' | string;
+    type: 'SALE' | 'PURCHASE' | 'RETURN' | 'EXCHANGE' | 'SALE_RETURN' | 'SALE_EXCHANGE' | 'PLATFORM_ANNOUNCEMENT' | 'ANNOUNCEMENT' | string;
     title: string;
     message: string;
     invoiceNumber?: string;
+    purchaseNumber?: string;
     saleId?: string | number;
     announcementId?: string | number;
     returnNumber?: string;
@@ -490,8 +492,8 @@ export const Header: React.FC<HeaderProps> = ({
       }
 
       if (userRole === 'SUPERADMIN') {
-        // SuperAdmin NEVER receives store POS events (SALE, RETURN, EXCHANGE, PURCHASE, STOCK)
-        if (['SALE', 'RETURN', 'EXCHANGE', 'PURCHASE', 'STOCK'].includes(payload.type)) {
+        // SuperAdmin NEVER receives store POS events (SALE, RETURN, EXCHANGE, SALE_RETURN, SALE_EXCHANGE, PURCHASE, STOCK)
+        if (['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'PURCHASE', 'STOCK'].includes(payload.type)) {
           return;
         }
         if (targetRole && !['ALL', 'SUPERADMIN'].includes(targetRole)) {
@@ -550,6 +552,7 @@ export const Header: React.FC<HeaderProps> = ({
         title: payload.title || 'POS Alert',
         message: payload.message || 'Transaction confirmed.',
         invoiceNumber: payload.invoiceNumber,
+        purchaseNumber: payload.purchaseNumber,
         saleId: payload.saleId || payload.orderId,
         announcementId: payload.announcementId || (payload.type === 'ANNOUNCEMENT' ? payload.id : undefined),
         returnNumber: payload.returnNumber,
@@ -668,6 +671,11 @@ export const Header: React.FC<HeaderProps> = ({
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
       }, 150);
+      return;
+    }
+
+    if (String(type || '').toUpperCase() === 'PURCHASE') {
+      onTabChange?.('purchases');
       return;
     }
 
@@ -892,10 +900,13 @@ export const Header: React.FC<HeaderProps> = ({
     }
 
     const invoiceMatch = raw.message?.match(/#([A-Z0-9-]+)/i) || raw.title?.match(/#([A-Z0-9-]+)/i);
-    const invNumber = raw.invoiceNumber || (invoiceMatch ? invoiceMatch[1] : null);
+    const extractedRef = invoiceMatch && !/^(?:RET|EXC|PUR)-/i.test(invoiceMatch[1]) ? invoiceMatch[1] : null;
+    const invNumber = raw.invoiceNumber || extractedRef;
     const rawType = String(raw.type || raw.itemType || '').toUpperCase();
 
-    if (
+    if (rawType === 'PURCHASE' || raw.actionTab === 'purchases') {
+      onTabChange?.('purchases');
+    } else if (
       invNumber &&
       (rawType === 'SALE' ||
         rawType === 'EXCHANGE' ||
@@ -909,11 +920,14 @@ export const Header: React.FC<HeaderProps> = ({
     ) {
       window.dispatchEvent(new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invNumber } }));
     } else if (
-      invNumber &&
-      (rawType === 'RETURN' || raw.title.toLowerCase().includes('return') || raw.actionTab === 'returns')
+      rawType === 'RETURN' ||
+      raw.title.toLowerCase().includes('return') ||
+      raw.actionTab === 'returns'
     ) {
       onTabChange?.('returns');
-      window.dispatchEvent(new CustomEvent('returns:inspect-invoice', { detail: { invoice: invNumber } }));
+      if (invNumber) {
+        window.dispatchEvent(new CustomEvent('returns:inspect-invoice', { detail: { invoice: invNumber } }));
+      }
     } else if (raw.actionTab) {
       onTabChange?.(raw.actionTab);
     }
@@ -1937,7 +1951,11 @@ export const Header: React.FC<HeaderProps> = ({
                           </div>
 
                           <div className="font-bold text-xs text-slate-900 dark:text-purple-100 leading-snug">
-                            {n.title}
+                            <NotificationHeaderTitle
+                              title={n.title}
+                              type={n.type}
+                              itemType={n.itemType}
+                            />
                           </div>
 
                           <div className="text-[11px] text-slate-600 dark:text-purple-200/90 mt-1 whitespace-pre-line leading-relaxed">
@@ -2325,6 +2343,8 @@ export const Header: React.FC<HeaderProps> = ({
                   livePushToast.type === 'SALE_RETURN' ||
                   livePushToast.type === 'SALE_EXCHANGE'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                    : livePushToast.type === 'PURCHASE'
+                    ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30'
                     : livePushToast.type === 'RETURN'
                     ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                     : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
@@ -2332,6 +2352,8 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 {livePushToast.type === 'SALE' ? (
                   <ShoppingBag className="w-5 h-5" />
+                ) : livePushToast.type === 'PURCHASE' ? (
+                  <Truck className="w-5 h-5" />
                 ) : livePushToast.type === 'SALE_RETURN' || livePushToast.type === 'SALE_EXCHANGE' ? (
                   <CheckCircle2 className="w-5 h-5" />
                 ) : livePushToast.type === 'RETURN' ? (
@@ -2342,8 +2364,12 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-purple-100 truncate">
-                    {livePushToast.title}
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-purple-100 min-w-0">
+                    <NotificationHeaderTitle
+                      title={livePushToast.title}
+                      type={livePushToast.type}
+                      titleClassName="truncate"
+                    />
                   </h4>
                   <button
                     type="button"

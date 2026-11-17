@@ -562,6 +562,8 @@ const DATABASE_TABLE_DDL: string[] = [
     return_date TEXT NOT NULL,
     total_refund_amount NUMERIC(12, 2) NOT NULL,
     reason TEXT NOT NULL,
+    payment_method TEXT,
+    customer_name TEXT,
     created_by INTEGER NOT NULL REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
@@ -861,6 +863,8 @@ export function ensureNotificationsSchema(): Promise<void> {
       await pgClient.exec(`
         ALTER TABLE IF EXISTS public.products ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;
         ALTER TABLE IF EXISTS public.products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false;
+        ALTER TABLE IF EXISTS public.returns ADD COLUMN IF NOT EXISTS payment_method TEXT;
+        ALTER TABLE IF EXISTS public.returns ADD COLUMN IF NOT EXISTS customer_name TEXT;
 
         CREATE TABLE IF NOT EXISTS public.notifications (
           id SERIAL PRIMARY KEY,
