@@ -3,7 +3,7 @@ import type { QueuedSale, QueuedSaleItem } from '../services/offline/offlineType
 export type { QueuedSale, QueuedSaleItem };
 
 const DB_NAME = 'ShoePosOfflineDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_SALES = 'offline_sales_queue';
 const STORE_CATALOG_LEGACY = 'cached_products';
 const STORE_CATALOG = 'cached_products_by_store';
@@ -294,8 +294,79 @@ function readCatalogMirrorFromLocalStorage(tenantId: number): any[] {
   }
 }
 
+function getLocalStorageQueueKey(tenantId: number | null): string {
+  return `pos_offline_sales_queue:${tenantId || 'default'}`;
+}
+
+function readSalesMirrorFromLocalStorage(tenantId: number | null): QueuedSale[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(getLocalStorageQueueKey(tenantId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSalesMirrorToLocalStorage(tenantId: number | null, sales: QueuedSale[]): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(getLocalStorageQueueKey(tenantId), JSON.stringify(sales.slice(0, 300)));
+  } catch {
+    // Ignore storage quota warnings
+  }
+}
+
+function getLocalStorageCustomersKey(tenantId: number): string {
+  return `pos_offline_customers_tenant:${tenantId}`;
+}
+
+export function cacheCustomersOffline(
+  customers: any[],
+  explicitTenantId?: number | string | null
+): void {
+  if (!Array.isArray(customers) || typeof localStorage === 'undefined') return;
+  let tenantId: number;
+  try {
+    tenantId = verifyOfflineTenantId(explicitTenantId);
+  } catch {
+    return;
+  }
+  try {
+    localStorage.setItem(getLocalStorageCustomersKey(tenantId), JSON.stringify(customers.slice(0, 600)));
+  } catch {
+    // Ignore storage quota warnings
+  }
+}
+
+export function getCachedCustomersOffline(
+  explicitTenantId?: number | string | null
+): any[] {
+  if (typeof localStorage === 'undefined') return [];
+  let tenantId: number;
+  try {
+    tenantId = verifyOfflineTenantId(explicitTenantId);
+  } catch {
+    return [];
+  }
+  try {
+    const raw = localStorage.getItem(getLocalStorageCustomersKey(tenantId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is unavailable'));
+      return;
+    }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
@@ -309,8 +380,8 @@ function openDB(): Promise<IDBDatabase> {
       if (db.objectStoreNames.contains(STORE_CATALOG_LEGACY)) {
         db.deleteObjectStore(STORE_CATALOG_LEGACY);
       }
-      // On upgrade to v3 (tenantId-scoped product cache), recreate STORE_CATALOG
-      if (event.oldVersion < 3 && db.objectStoreNames.contains(STORE_CATALOG)) {
+      // On upgrade to v3+ (tenantId-scoped product cache), recreate STORE_CATALOG if migrating from <3
+      if (event.oldVersion > 0 && event.oldVersion < 3 && db.objectStoreNames.contains(STORE_CATALOG)) {
         db.deleteObjectStore(STORE_CATALOG);
       }
       if (!db.objectStoreNames.contains(STORE_CATALOG)) {
@@ -326,7 +397,7 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 /**
- * Save an offline sale to IndexedDB
+ * Save an offline sale to IndexedDB (with LocalStorage fallback mirror)
  */
 export async function queueOfflineSale(sale: QueuedSale, explicitTenantId?: number | null): Promise<void> {
   const resolvedTenantId = resolveActiveTenantId(sale.tenantId ?? explicitTenantId);
@@ -334,15 +405,29 @@ export async function queueOfflineSale(sale: QueuedSale, explicitTenantId?: numb
     ...sale,
     ...(resolvedTenantId ? { tenantId: resolvedTenantId } : {}),
   };
-  const db = await openDB();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_SALES, 'readwrite');
-    const store = tx.objectStore(STORE_SALES);
-    const req = store.put(scopedSale);
 
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  // Always mirror in localStorage so offline billing succeeds even if IndexedDB is blocked
+  const mirror = readSalesMirrorFromLocalStorage(resolvedTenantId);
+  const filteredMirror = mirror.filter((s) => s.clientTxId !== scopedSale.clientTxId);
+  filteredMirror.unshift(scopedSale);
+  writeSalesMirrorToLocalStorage(resolvedTenantId, filteredMirror);
+
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_SALES, 'readwrite');
+      const store = tx.objectStore(STORE_SALES);
+      const req = store.put(scopedSale);
+
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    // Only fail if neither IndexedDB nor localStorage could hold the record
+    if (typeof localStorage === 'undefined') {
+      throw err;
+    }
+  }
 
   // Also deduct local cached stock for this tenant so subsequent offline bills have accurate stock
   if (Array.isArray(sale.items) && sale.items.length > 0 && resolvedTenantId) {
@@ -355,26 +440,48 @@ export async function queueOfflineSale(sale: QueuedSale, explicitTenantId?: numb
  */
 export async function getOfflineSales(explicitTenantId?: number | null): Promise<QueuedSale[]> {
   const activeTenantId = resolveActiveTenantId(explicitTenantId);
+  const byTxId = new Map<string, QueuedSale>();
 
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_SALES, 'readonly');
-    const store = tx.objectStore(STORE_SALES);
-    const req = store.getAll();
+  for (const s of readSalesMirrorFromLocalStorage(activeTenantId)) {
+    if (s && s.clientTxId) {
+      if ((activeTenantId && s.tenantId && Number(s.tenantId) === activeTenantId) || !s.tenantId) {
+        byTxId.set(s.clientTxId, s);
+      }
+    }
+  }
 
-    req.onsuccess = () => {
-      const allResults = (req.result as QueuedSale[]) || [];
-      const results = allResults.filter((s) => {
-        if (activeTenantId && s.tenantId) {
-          return Number(s.tenantId) === activeTenantId;
-        }
-        return !s.tenantId;
-      });
-      results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      resolve(results);
-    };
-    req.onerror = () => reject(req.error);
-  });
+  try {
+    const db = await openDB();
+    const idbResults = await new Promise<QueuedSale[]>((resolve, reject) => {
+      const tx = db.transaction(STORE_SALES, 'readonly');
+      const store = tx.objectStore(STORE_SALES);
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const allResults = (req.result as QueuedSale[]) || [];
+        resolve(
+          allResults.filter((s) => {
+            if (activeTenantId && s.tenantId) {
+              return Number(s.tenantId) === activeTenantId;
+            }
+            return !s.tenantId;
+          })
+        );
+      };
+      req.onerror = () => reject(req.error);
+    });
+    for (const s of idbResults) {
+      if (s && s.clientTxId) {
+        byTxId.set(s.clientTxId, s);
+      }
+    }
+  } catch {
+    // Serve localStorage mirror when IndexedDB is unavailable
+  }
+
+  const results = Array.from(byTxId.values());
+  results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return results;
 }
 
 /**
@@ -393,44 +500,75 @@ export async function updateOfflineSaleStatus(
   status: QueuedSale['status'],
   extra?: { syncedInvoiceNumber?: string; errorMessage?: string; syncedAt?: string }
 ): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_SALES, 'readwrite');
-    const store = tx.objectStore(STORE_SALES);
-    const getReq = store.get(clientTxId);
-
-    getReq.onsuccess = () => {
-      const item: QueuedSale = getReq.result;
-      if (!item) {
-        resolve();
-        return;
-      }
-      item.status = status;
-      if (extra?.syncedInvoiceNumber) item.syncedInvoiceNumber = extra.syncedInvoiceNumber;
-      if (extra?.errorMessage !== undefined) item.errorMessage = extra.errorMessage;
-      if (extra?.syncedAt) item.syncedAt = extra.syncedAt;
-
-      const putReq = store.put(item);
-      putReq.onsuccess = () => resolve();
-      putReq.onerror = () => reject(putReq.error);
-    };
-    getReq.onerror = () => reject(getReq.error);
+  const activeTenantId = resolveActiveTenantId();
+  const mirror = readSalesMirrorFromLocalStorage(activeTenantId);
+  let mirrorUpdated = false;
+  const nextMirror = mirror.map((item) => {
+    if (item.clientTxId !== clientTxId) return item;
+    mirrorUpdated = true;
+    const nextItem: QueuedSale = { ...item, status };
+    if (extra?.syncedInvoiceNumber) nextItem.syncedInvoiceNumber = extra.syncedInvoiceNumber;
+    if (extra?.errorMessage !== undefined) nextItem.errorMessage = extra.errorMessage;
+    if (extra?.syncedAt) nextItem.syncedAt = extra.syncedAt;
+    return nextItem;
   });
+  if (mirrorUpdated) {
+    writeSalesMirrorToLocalStorage(activeTenantId, nextMirror);
+  }
+
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_SALES, 'readwrite');
+      const store = tx.objectStore(STORE_SALES);
+      const getReq = store.get(clientTxId);
+
+      getReq.onsuccess = () => {
+        const item: QueuedSale = getReq.result;
+        if (!item) {
+          resolve();
+          return;
+        }
+        item.status = status;
+        if (extra?.syncedInvoiceNumber) item.syncedInvoiceNumber = extra.syncedInvoiceNumber;
+        if (extra?.errorMessage !== undefined) item.errorMessage = extra.errorMessage;
+        if (extra?.syncedAt) item.syncedAt = extra.syncedAt;
+
+        const putReq = store.put(item);
+        putReq.onsuccess = () => resolve();
+        putReq.onerror = () => reject(putReq.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  } catch {
+    // Mirror already updated
+  }
 }
 
 /**
  * Delete a synced or rejected offline sale from IndexedDB
  */
 export async function deleteOfflineSale(clientTxId: string): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_SALES, 'readwrite');
-    const store = tx.objectStore(STORE_SALES);
-    const req = store.delete(clientTxId);
+  const activeTenantId = resolveActiveTenantId();
+  const mirror = readSalesMirrorFromLocalStorage(activeTenantId);
+  writeSalesMirrorToLocalStorage(
+    activeTenantId,
+    mirror.filter((s) => s.clientTxId !== clientTxId)
+  );
 
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_SALES, 'readwrite');
+      const store = tx.objectStore(STORE_SALES);
+      const req = store.delete(clientTxId);
+
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // Mirror already updated
+  }
 }
 
 /**

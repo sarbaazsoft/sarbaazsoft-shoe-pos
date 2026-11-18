@@ -1,3 +1,5 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -7,6 +9,7 @@ import {
   ACCENT_THEME_PALETTES,
   ACCENT_THEME_STORAGE_KEY,
   DEFAULT_ACCENT_THEME,
+  THEME_MODE_STORAGE_KEY,
   applyAccentThemeToDOM,
   getActivePwaThemeColor,
   getStoredAccentTheme,
@@ -18,6 +21,8 @@ import {
 } from '../src/utils/themePalettes.ts';
 import { resolvePwaBranding } from '../src/utils/pwaBranding.ts';
 import { syncPwaMetadataToDocument } from '../src/hooks/usePwaManifest.ts';
+import { ThemeProvider } from '../src/context/ThemeContext.tsx';
+import { ThemeDropdown } from '../src/components/common/ThemeDropdown.tsx';
 
 const HEX_RE = /^#[0-9A-F]{6}$/i;
 const SHADES: Array<keyof ShadeScale> = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
@@ -296,4 +301,107 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       assert.ok(htmlSource.includes(hex), `index.html accent map should include ${hex}`);
     }
   });
+
+  it('renders restyled ThemeDropdown with primary-colored mode icon and no circular primary-color dot', () => {
+    const renderDropdown = (opts: {
+      mode: 'light' | 'dark' | 'system';
+      accent: AccentThemeId;
+      isOpen: boolean;
+      systemDark?: boolean;
+    }): string => {
+      const storage = new Map<string, string>([
+        [THEME_MODE_STORAGE_KEY, opts.mode],
+        [ACCENT_THEME_STORAGE_KEY, opts.accent],
+      ]);
+      const originalWin = (globalThis as { window?: unknown }).window;
+      const originalStorage = (globalThis as { localStorage?: unknown }).localStorage;
+
+      const mockStorage = {
+        getItem: (k: string) => storage.get(k) ?? null,
+        setItem: (k: string, v: string) => {
+          storage.set(k, v);
+        },
+      };
+
+      (globalThis as { localStorage?: unknown }).localStorage = mockStorage;
+      (globalThis as { window?: unknown }).window = {
+        localStorage: mockStorage,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        matchMedia: () => ({
+          matches: Boolean(opts.systemDark),
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }),
+      };
+
+      try {
+        return renderToStaticMarkup(
+          React.createElement(
+            ThemeProvider,
+            null,
+            React.createElement(ThemeDropdown, { isOpen: opts.isOpen })
+          )
+        );
+      } finally {
+        if (originalWin === undefined) {
+          delete (globalThis as { window?: unknown }).window;
+        } else {
+          (globalThis as { window?: unknown }).window = originalWin;
+        }
+        if (originalStorage === undefined) {
+          delete (globalThis as { localStorage?: unknown }).localStorage;
+        } else {
+          (globalThis as { localStorage?: unknown }).localStorage = originalStorage;
+        }
+      }
+    };
+
+    // 1. Closed trigger in Light mode with Emerald accent: Sun icon uses emerald[600], no rounded-full dot
+    const lightClosed = renderDropdown({ mode: 'light', accent: 'emerald', isOpen: false });
+    assert.equal(lightClosed.includes('rounded-full'), false, 'Trigger should not render any circular dot');
+    assert.ok(lightClosed.includes('lucide-sun'), 'Light mode trigger renders Sun icon');
+    assert.ok(
+      lightClosed.includes(`color:${ACCENT_THEME_PALETTES.emerald.primaryScale[600]}`),
+      'Light mode trigger Sun icon should be colored with selected primaryScale[600]'
+    );
+
+    // 2. Closed trigger in Dark mode with Red accent: Moon icon uses red[400]
+    const darkClosed = renderDropdown({ mode: 'dark', accent: 'red', isOpen: false });
+    assert.equal(darkClosed.includes('rounded-full'), false);
+    assert.ok(darkClosed.includes('lucide-moon'), 'Dark mode trigger renders Moon icon');
+    assert.ok(
+      darkClosed.includes(`color:${ACCENT_THEME_PALETTES.red.primaryScale[400]}`),
+      'Dark mode trigger Moon icon should be colored with selected primaryScale[400]'
+    );
+
+    // 3. Open dropdown in System mode (dark OS) with Cyan accent:
+    //    - 3-way segmented switcher has Light, Dark, System with Monitor icon tinted in cyan[400]
+    //    - Primary Color selector renders all 11 color buttons with rectangular swatches and no circular dots
+    const systemOpen = renderDropdown({
+      mode: 'system',
+      accent: 'cyan',
+      isOpen: true,
+      systemDark: true,
+    });
+    assert.equal(systemOpen.includes('rounded-full'), false, 'Open dropdown should contain zero circular dots');
+    assert.ok(systemOpen.includes('Appearance'));
+    assert.ok(systemOpen.includes('Primary Color'));
+    assert.ok(systemOpen.includes('System · Dark'));
+    assert.ok(
+      systemOpen.includes(`color:${ACCENT_THEME_PALETTES.cyan.primaryScale[400]}`),
+      'Active System Monitor icon in dropdown should use cyan primaryScale[400]'
+    );
+    assert.ok(
+      systemOpen.includes(`background:${ACCENT_THEME_PALETTES.cyan.buttonGradient}`),
+      'Selected accent option should render with its full buttonGradient background'
+    );
+    for (const palette of ACCENT_THEME_LIST) {
+      assert.ok(
+        systemOpen.includes(`id="theme-color-option-${palette.id}"`),
+        `Open dropdown should include option button for ${palette.id}`
+      );
+    }
+  });
 });
+

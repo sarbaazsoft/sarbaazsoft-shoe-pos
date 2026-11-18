@@ -96,6 +96,46 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
     onAccentSelect?.(nextAccent);
   };
 
+  const primaryIconColor =
+    theme === 'dark' ? accentPalette.primaryScale[400] : accentPalette.primaryScale[600];
+
+  const renderModeIcon = (mode: ThemeMode, sizeClass: string, isSelected: boolean, forceWhite = false) => {
+    const colorStyle = forceWhite
+      ? undefined
+      : isSelected
+      ? { color: primaryIconColor }
+      : undefined;
+
+    if (mode === 'light') {
+      return (
+        <Sun
+          className={`${sizeClass} stroke-[2.1] shrink-0 transition-colors`}
+          style={colorStyle}
+        />
+      );
+    }
+    if (mode === 'dark') {
+      return (
+        <Moon
+          className={`${sizeClass} stroke-[2.1] shrink-0 transition-colors`}
+          style={colorStyle}
+        />
+      );
+    }
+    return (
+      <Monitor
+        className={`${sizeClass} stroke-[2.1] shrink-0 transition-colors`}
+        style={colorStyle}
+      />
+    );
+  };
+
+  const themeOptions: Array<{ mode: ThemeMode; label: string; hint?: string }> = [
+    { mode: 'light', label: 'Light' },
+    { mode: 'dark', label: 'Dark' },
+    { mode: 'system', label: 'System', hint: theme === 'dark' ? 'Dark' : 'Light' },
+  ];
+
   return (
     <div
       ref={dropdownRef}
@@ -123,20 +163,14 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
         aria-expanded={open}
         aria-haspopup="true"
       >
-        <div className="shrink-0 flex items-center justify-center gap-1.5">
-          {themeMode === 'light' ? (
-            <Sun className={`${triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'} stroke-[2]`} />
-          ) : themeMode === 'dark' ? (
-            <Moon className={`${triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'} stroke-[2]`} />
-          ) : (
-            <Monitor className={`${triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'} stroke-[2]`} />
+        <span className="shrink-0 flex items-center justify-center">
+          {renderModeIcon(
+            themeMode,
+            triggerClassName ? 'w-4 h-4' : 'w-4 h-4 sm:w-3.5 sm:h-3.5',
+            true,
+            open
           )}
-          <span
-            aria-hidden="true"
-            className="w-2.5 h-2.5 rounded-full border border-white/70 dark:border-white/50 shadow-2xs shrink-0"
-            style={{ background: accentPalette.buttonGradient }}
-          />
-        </div>
+        </span>
         {showLabel && (
           <span
             style={courgetteStyle}
@@ -160,156 +194,102 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
       <AnimatePresence>
         {open && (
           <motion.ul
-            initial={{ opacity: 0, scale: 0.94, y: -8 }}
+            initial={{ opacity: 0, scale: 0.95, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: -8 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             style={{
               transformOrigin: dropdownAlign === 'right' ? 'top right' : 'top left',
               ...(courgetteStyle || {}),
             }}
             className={`absolute ${
               dropdownAlign === 'right' ? 'right-0 left-auto' : 'left-0 right-auto'
-            } top-full mt-2 w-60 sm:w-64 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),0.25)] p-1.5 z-50 backdrop-blur-md list-none space-y-0.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+            } top-full mt-2 w-64 sm:w-72 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white/95 dark:bg-[var(--brand-dark-surface,#120726)]/95 border border-slate-200/90 dark:border-purple-400/35 rounded-2xl shadow-xl shadow-slate-900/10 dark:shadow-[0_14px_34px_rgba(var(--primary-rgb,147,51,234),0.28)] p-2.5 z-50 backdrop-blur-xl list-none space-y-2.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
             role="menu"
             aria-orientation="vertical"
           >
-            <li className="px-2.5 py-1 border-b border-slate-100 dark:border-purple-800/40 mb-0.5 flex items-center justify-between">
-              <span
-                style={courgetteStyle}
-                className={`text-xs font-bold text-slate-900 dark:text-purple-100 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
-              >
-                Theme Preference
-              </span>
-              <span
-                style={courgetteStyle}
-                className={`text-[10px] font-semibold text-purple-600 dark:text-purple-200 bg-purple-50 dark:bg-purple-500/20 px-1.5 py-0.2 rounded-full border border-purple-200 dark:border-purple-400/40 capitalize ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
-              >
-                {themeMode}
-              </span>
+            {/* Section 1: Three-Theme Segmented Switcher */}
+            <li role="none" className="space-y-1.5">
+              <div className="px-1 flex items-center justify-between gap-2">
+                <span
+                  style={courgetteStyle}
+                  className={`text-[11px] font-bold text-slate-800 dark:text-purple-100 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+                >
+                  Appearance
+                </span>
+                <span
+                  style={{
+                    ...(courgetteStyle || {}),
+                    color: primaryIconColor,
+                  }}
+                  className={`text-[11px] font-semibold capitalize ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+                >
+                  {themeMode === 'system'
+                    ? `System · ${theme === 'dark' ? 'Dark' : 'Light'}`
+                    : themeMode}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/10">
+                {themeOptions.map((option) => {
+                  const isActiveMode = themeMode === option.mode;
+                  return (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      onClick={() => handleSelect(option.mode)}
+                      style={{
+                        ...(courgetteStyle || {}),
+                        ...(isActiveMode
+                          ? {
+                              borderColor: `rgba(${accentPalette.primaryRgb}, 0.45)`,
+                            }
+                          : undefined),
+                      }}
+                      className={`min-h-[38px] flex flex-col items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] transition-all cursor-pointer border ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
+                        isActiveMode
+                          ? 'bg-white dark:bg-white/[0.12] text-slate-900 dark:text-white font-bold shadow-xs'
+                          : 'border-transparent text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.06] font-medium'
+                      }`}
+                      role="menuitemradio"
+                      aria-checked={isActiveMode}
+                    >
+                      {renderModeIcon(option.mode, 'w-4 h-4', isActiveMode)}
+                      <span
+                        style={courgetteStyle}
+                        className={`leading-none ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+                      >
+                        {option.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </li>
 
-            {/* Light Option */}
-            <li role="none">
-              <button
-                type="button"
-                onClick={() => handleSelect('light')}
-                style={courgetteStyle}
-                className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
-                  themeMode === 'light'
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
-                    : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
-                }`}
-                role="menuitemradio"
-                aria-checked={themeMode === 'light'}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Sun className="w-3.5 h-3.5 stroke-[2] transition-colors shrink-0 text-current opacity-80 group-hover:opacity-100" />
-                  <span
-                    style={courgetteStyle}
-                    className={`truncate text-xs ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
-                  >
-                    Light
-                  </span>
-                </div>
-                {themeMode === 'light' && (
-                  <Check className="w-3.5 h-3.5 text-white stroke-[2.5] shrink-0" />
-                )}
-              </button>
-            </li>
-
-            {/* Dark Option */}
-            <li role="none">
-              <button
-                type="button"
-                onClick={() => handleSelect('dark')}
-                style={courgetteStyle}
-                className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
-                  themeMode === 'dark'
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
-                    : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
-                }`}
-                role="menuitemradio"
-                aria-checked={themeMode === 'dark'}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Moon className="w-3.5 h-3.5 stroke-[2] transition-colors shrink-0 text-current opacity-80 group-hover:opacity-100" />
-                  <span
-                    style={courgetteStyle}
-                    className={`truncate text-xs ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
-                  >
-                    Dark
-                  </span>
-                </div>
-                {themeMode === 'dark' && (
-                  <Check className="w-3.5 h-3.5 text-white stroke-[2.5] shrink-0" />
-                )}
-              </button>
-            </li>
-
-            {/* System Option */}
-            <li role="none">
-              <button
-                type="button"
-                onClick={() => handleSelect('system')}
-                style={courgetteStyle}
-                className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
-                  themeMode === 'system'
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
-                    : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
-                }`}
-                role="menuitemradio"
-                aria-checked={themeMode === 'system'}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Monitor className="w-3.5 h-3.5 stroke-[2] transition-colors shrink-0 text-current opacity-80 group-hover:opacity-100" />
-                  <span
-                    style={courgetteStyle}
-                    className={`truncate text-xs ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
-                  >
-                    System
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span
-                    style={courgetteStyle}
-                    className={`text-[10px] font-normal transition-colors ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
-                      themeMode === 'system'
-                        ? 'text-white/80'
-                        : 'text-slate-400 dark:text-purple-300/70 group-hover:text-white/80'
-                    }`}
-                  >
-                    {theme === 'dark' ? 'Dark' : 'Light'}
-                  </span>
-                  {themeMode === 'system' && (
-                    <Check className="w-3.5 h-3.5 text-white stroke-[2.5] shrink-0" />
-                  )}
-                </div>
-              </button>
-            </li>
-
-            {/* Brand Gradient Color Selector */}
+            {/* Section 2: Primary Color Selector */}
             <li
               role="separator"
-              className="pt-1.5 mt-1 border-t border-slate-100 dark:border-purple-800/40"
+              className="pt-2 border-t border-slate-200/80 dark:border-white/10 space-y-1.5"
             >
-              <div className="px-2 pb-1.5 flex items-center justify-between gap-2">
+              <div className="px-1 flex items-center justify-between gap-2">
                 <span
                   style={courgetteStyle}
                   className={`inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-800 dark:text-purple-100 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
                 >
-                  <Palette className="w-3 h-3 text-purple-600 dark:text-purple-300 shrink-0" />
-                  <span>Theme Color</span>
+                  <Palette className="w-3.5 h-3.5 shrink-0" style={{ color: primaryIconColor }} />
+                  <span>Primary Color</span>
                 </span>
                 <span
-                  className="text-[9.5px] font-semibold text-purple-700 dark:text-purple-200 bg-purple-50 dark:bg-purple-500/20 px-1.5 py-0.2 rounded-full border border-purple-200/80 dark:border-purple-400/40 truncate max-w-[118px]"
+                  style={{ color: primaryIconColor }}
+                  className="text-[11px] font-semibold truncate max-w-[132px]"
                   title={`${accentPalette.name} + ${accentPalette.companionName}`}
                 >
-                  {accentPalette.name} Mix
+                  {accentPalette.name} · {accentPalette.companionName}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-1 px-0.5 max-h-[260px] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-1.5 max-h-[260px] overflow-y-auto pr-0.5">
                 {ACCENT_THEME_LIST.map((palette) => {
                   const isSelected = accentTheme === palette.id;
                   return (
@@ -321,23 +301,26 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                       title={`${palette.name} (${palette.baseHex}) + ${palette.companionName}`}
                       role="menuitemradio"
                       aria-checked={isSelected}
-                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-2 sm:py-1.5 rounded-lg text-[11px] transition-all cursor-pointer border ${
+                      style={isSelected ? { background: palette.buttonGradient } : undefined}
+                      className={`last:col-span-2 w-full flex items-center justify-between gap-2 px-2.5 py-2 sm:py-1.5 rounded-xl text-[11px] transition-all cursor-pointer border ${
                         isSelected
-                          ? 'bg-purple-50 dark:bg-purple-500/25 border-purple-400 dark:border-purple-400/70 text-purple-800 dark:text-white font-bold shadow-2xs'
-                          : 'bg-slate-50/70 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.08] border-transparent text-slate-700 dark:text-slate-200 font-medium'
+                          ? 'text-white border-white/30 font-bold shadow-sm'
+                          : 'bg-slate-50/90 hover:bg-slate-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] border-slate-200/70 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium'
                       }`}
                     >
-                      <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="flex items-center gap-2 min-w-0">
                         <span
-                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center border border-white/80 dark:border-white/40 shadow-xs"
+                          aria-hidden="true"
+                          className={`w-4 h-3 rounded-[4px] shrink-0 border shadow-2xs ${
+                            isSelected ? 'border-white/70' : 'border-black/10 dark:border-white/20'
+                          }`}
                           style={{ background: palette.buttonGradient }}
-                        >
-                          {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
-                        </span>
+                        />
                         <span style={courgetteStyle} className="truncate">
                           {palette.name}
                         </span>
                       </span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[2.75] shrink-0" />}
                     </button>
                   );
                 })}

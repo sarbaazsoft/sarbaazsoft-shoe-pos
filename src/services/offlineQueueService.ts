@@ -94,18 +94,22 @@ class OfflineQueueService {
    * Wire up two-way communication with the PWA Service Worker background sync module
    */
   private setupServiceWorkerBridge() {
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    if (typeof window === 'undefined') return;
 
-    navigator.serviceWorker.addEventListener('message', async (event) => {
-      const data = event.data;
+    const handleWorkerMessage = async (data: any) => {
       if (!data || typeof data !== 'object') return;
 
-      if (data.type === 'SW_BACKGROUND_SYNC_STARTED') {
+      if (data.type === 'SW_TRIGGER_OFFLINE_SYNC') {
+        await this.syncPendingSales();
+      } else if (data.type === 'SW_BACKGROUND_SYNC_STARTED') {
         this.isSyncingState = true;
         this.notify();
       } else if (data.type === 'SW_BACKGROUND_SYNC_PROGRESS') {
         this.notify();
-      } else if (data.type === 'SW_BACKGROUND_SYNC_COMPLETED') {
+      } else if (
+        data.type === 'SW_BACKGROUND_SYNC_COMPLETED' ||
+        data.type === 'SW_OFFLINE_SYNC_COMPLETE'
+      ) {
         this.isSyncingState = false;
         const syncedCount = Number(data.synced || 0);
         if (syncedCount > 0) {
@@ -132,14 +136,31 @@ class OfflineQueueService {
         }
       } else if (data.type === 'SW_REQUEST_AUTH_TOKEN') {
         const token = getAuthToken();
-        if (token && navigator.serviceWorker.controller) {
+        if (token && typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
           navigator.serviceWorker.controller.postMessage({
             type: 'TRIGGER_BACKGROUND_SYNC',
             authToken: token,
           });
         }
       }
-    });
+    };
+
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        void handleWorkerMessage(event.data);
+      });
+    }
+
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('pos_background_sync_channel');
+        channel.addEventListener('message', (event) => {
+          void handleWorkerMessage(event.data);
+        });
+      }
+    } catch {
+      // Ignore BroadcastChannel unavailability in restricted contexts
+    }
   }
 
   /**

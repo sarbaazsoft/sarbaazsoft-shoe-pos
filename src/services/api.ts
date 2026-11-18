@@ -1,5 +1,13 @@
-// Central API service with JWT token injection, tenant isolation, and offline catalog fallback
-import { cacheCatalogOffline, deleteCachedProductOffline, lookupCachedProductOffline, searchCachedProductsOffline } from '../utils/offlineDb.ts';
+// Central API service with JWT token injection, tenant isolation, and offline POS fallback
+import {
+  cacheCatalogOffline,
+  cacheCustomersOffline,
+  deleteCachedProductOffline,
+  getCachedCustomersOffline,
+  lookupCachedProductOffline,
+  searchCachedProductsOffline,
+} from '../utils/offlineDb.ts';
+import { isTransientNetworkError } from './offline/syncEngine.ts';
 import { transformKeysToCamelCase } from '../utils/caseTransformer.ts';
 import type { ProductFormValues, TrialActivation, PlatformNotification, PlatformNotificationType, GroupedNotificationsResponse, AllNotificationsResponse } from '../types.ts';
 import type {
@@ -481,10 +489,12 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
   }
 
   if (!response) {
+    const rawMsg = String(lastNetworkError?.message || '');
+    const isConnectivityFailure = isBrowserOffline || !rawMsg || isTransientNetworkError(lastNetworkError);
     throw new Error(
-      lastNetworkError?.message && !String(lastNetworkError.message).includes('Failed to fetch')
-        ? lastNetworkError.message
-        : 'Server is temporarily reconnecting. Please try again in a moment.'
+      isConnectivityFailure
+        ? 'Server is temporarily reconnecting. Please try again in a moment.'
+        : rawMsg
     );
   }
 
@@ -1111,9 +1121,42 @@ export const api = {
     get: (id: number) => apiFetch(`/purchase-returns/${id}`),
   },
   customers: {
-    list: (search?: string, reqOptions?: { signal?: AbortSignal }) => {
+    list: async (search?: string, reqOptions?: { signal?: AbortSignal }) => {
+      const activeTenantId = getActiveTenantId();
       const query = search ? `?search=${encodeURIComponent(search)}` : '';
-      return apiFetch(`/customers${query}`, { signal: reqOptions?.signal });
+      const fallbackFromOfflineCustomers = () => {
+        let cached = getCachedCustomersOffline(activeTenantId);
+        if (search && search.trim()) {
+          const q = search.trim().toLowerCase();
+          cached = cached.filter(
+            (c: any) =>
+              String(c.name || '').toLowerCase().includes(q) ||
+              String(c.phone || '').toLowerCase().includes(q) ||
+              String(c.shopName || c.shop_name || '').toLowerCase().includes(q)
+          );
+        }
+        return { customers: cached, offline: true };
+      };
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return fallbackFromOfflineCustomers();
+      }
+
+      try {
+        const res = await apiFetch<any>(`/customers${query}`, { signal: reqOptions?.signal });
+        if (!search && res && Array.isArray(res.customers)) {
+          cacheCustomersOffline(res.customers, activeTenantId);
+        }
+        return res;
+      } catch (err: any) {
+        if (isAbortError(err) || reqOptions?.signal?.aborted) {
+          throw err;
+        }
+        if (isTransientNetworkError(err)) {
+          return fallbackFromOfflineCustomers();
+        }
+        throw err;
+      }
     },
     get: (id: number) => apiFetch(`/customers/${id}`),
     recordPayment: (id: number, data: { amount: number; paymentMethod?: string; notes?: string; paymentDate?: string }) =>

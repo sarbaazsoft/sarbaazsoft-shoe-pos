@@ -47,13 +47,31 @@ export function buildCheckoutRequestPayload(sale: QueuedSale): any {
 }
 
 export function isTransientNetworkError(err: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return true;
+  }
+  const status = Number((err as any)?.status || 0);
+  if (status === 502 || status === 503 || status === 504 || status === 0) {
+    if (status === 502 || status === 503 || status === 504) {
+      return true;
+    }
+  }
   const rawMsg = String((err as any)?.message || err || '');
+  const lower = rawMsg.toLowerCase();
   return (
     rawMsg.includes('Failed to fetch') ||
     rawMsg.includes('NetworkError') ||
     rawMsg.includes('Network request failed') ||
     rawMsg.includes('Load failed') ||
     rawMsg.includes('ERR_CONNECTION') ||
+    lower.includes('temporarily reconnecting') ||
+    lower.includes('internet connection appears to be offline') ||
+    lower.includes('network error') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('unable to reach') ||
+    rawMsg.includes('502') ||
+    rawMsg.includes('503') ||
+    rawMsg.includes('504') ||
     rawMsg.includes('abort')
   );
 }

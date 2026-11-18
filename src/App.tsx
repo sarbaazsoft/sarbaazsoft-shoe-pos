@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, lazy, Suspense } from 'react';
-import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
+import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, getAuthToken, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
 import { Header } from './components/common/Header.tsx';
 import { Sidebar } from './components/common/Sidebar.tsx';
 import { AuthModal } from './components/auth/AuthModal.tsx';
@@ -804,13 +804,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Warm up Firebase client foreground listener and sync role to SW (never calls Notification.requestPermission() or getToken() automatically)
+  // Warm up Firebase client foreground listener, sync auth context to SW, and preload POS terminal in memory
   useEffect(() => {
     if (currentUser?.role) {
+      if (saasMode === 'TENANT_ACTIVE' && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+        void import('./components/pos/PosTerminal.tsx').catch(() => {});
+      }
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
         try {
           navigator.serviceWorker.controller.postMessage({
             type: 'SYNC_AUTH_CONTEXT',
+            token: getAuthToken(),
             tenantId: currentUser.tenantId,
             userRole: String(currentUser.role).toUpperCase(),
           });
@@ -819,7 +823,7 @@ export default function App() {
       const cleanup = initNativeNotificationPrompt(currentUser.role);
       return cleanup;
     }
-  }, [currentUser?.role, currentUser?.tenantId]);
+  }, [currentUser?.role, currentUser?.tenantId, saasMode]);
 
   // PWA launch URLs use /?tenantId=<tenant id>. Resolve the id against the
   // public tenant directory before presenting a tenant-scoped sign-in.
@@ -2273,7 +2277,16 @@ export default function App() {
             subtitle="Loading platform telemetry, tenant directory, and security controls..."
           />
         ) : !isInitializing && isCurrentUserSuperAdmin ? (
-          <Suspense fallback={<PortalRouteFallback label="Loading SuperAdmin Control Plane..." />}>
+          <Suspense
+            fallback={
+              <LoadingWindow
+                isAdmin={true}
+                storeName="POS SaaS C-Panel"
+                statusMessage="Loading SuperAdmin Control Plane..."
+                subtitle="Loading platform telemetry, tenant directory, and security controls..."
+              />
+            }
+          >
             <SuperAdminControlPanel
               layoutMeta={activeRouteLayoutMeta}
               currentUser={currentUser}

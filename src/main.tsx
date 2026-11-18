@@ -15,14 +15,30 @@ if (typeof window !== 'undefined') {
       .then((keys) => Promise.all(keys.map((k) => window.caches.delete(k))))
       .catch(() => {});
   }
-  if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistration === 'function') {
-    navigator.serviceWorker
-      .getRegistration('/')
+  if ('serviceWorker' in navigator) {
+    const swPromise =
+      typeof navigator.serviceWorker.getRegistration === 'function'
+        ? navigator.serviceWorker
+            .getRegistration('/')
+            .then(
+              (existing) =>
+                existing ||
+                navigator.serviceWorker.register('/sw.js', {
+                  scope: '/',
+                  updateViaCache: 'none',
+                })
+            )
+        : navigator.serviceWorker.register('/sw.js', {
+            scope: '/',
+            updateViaCache: 'none',
+          });
+
+    swPromise
       .then((reg) => {
         if (reg?.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
-        return reg?.update().catch(() => {});
+        return reg?.update?.().catch(() => {});
       })
       .catch(() => {});
   }

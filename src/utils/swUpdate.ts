@@ -68,11 +68,19 @@ export function registerViteChunkErrorRecovery(): void {
   window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault();
 
+    // Never reload the app while offline; reloading would destroy the live offline POS session
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return;
+    }
+
     if (!canTriggerSafeReload(CHUNK_RELOAD_GUARD_KEY)) {
       return;
     }
 
     const triggerReload = () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return;
+      }
       window.location.reload();
     };
 

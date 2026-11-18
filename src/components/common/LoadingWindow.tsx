@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { ShowroomBackground } from './ShowroomBackground.tsx';
 import { PublicHeader } from './PublicHeader.tsx';
 import { PublicFooter } from './PublicFooter.tsx';
@@ -19,9 +19,9 @@ export interface LoadingWindowProps {
  * LoadingWindow
  *
  * Polished post-login and state-transition loading window rendered against the
- * high-fidelity Showroom Background (`shoeStoreBg`). Aligned cleanly for both:
- * 1. Store Owner & Cashier loading (ShoeIcon, store name, POS workspace status)
- * 2. SuperAdmin loading (Shield emblem, POS SaaS C-Panel, platform control plane status)
+ * high-fidelity Showroom Background (`shoeStoreBg`). Visually unified across:
+ * 1. Store Owner & Cashier loading
+ * 2. SuperAdmin loading
  */
 export const LoadingWindow: React.FC<LoadingWindowProps> = ({
   storeName,
@@ -88,29 +88,19 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
           <div className="absolute -top-16 -right-16 w-36 h-36 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
 
-          {/* Brand Icon: SuperAdmin Shield vs Store ShoeIcon */}
+          {/* Brand Icon (aligned across Store & SuperAdmin) */}
           <div className="relative mb-4 mt-1 flex justify-center">
-            {isSuperAdminView ? (
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 border border-purple-400/40 relative">
-                <Shield className="w-8 h-8 text-white" />
-                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-[#131B2E]"></span>
-                </span>
-              </div>
-            ) : (
-              <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-lg border border-purple-500/25 overflow-hidden relative">
-                <ShoeIcon
-                  src={logoSrc || '/pwa-192x192.png'}
-                  alt={`${effectiveTitle} Logo`}
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-[#131B2E]"></span>
-                </span>
-              </div>
-            )}
+            <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-lg border border-purple-500/25 overflow-hidden relative">
+              <ShoeIcon
+                src={logoSrc || (isSuperAdminView ? '/admin/pwa-192x192.png' : '/pwa-192x192.png')}
+                alt={`${effectiveTitle} Logo`}
+                className="w-full h-full object-cover rounded-2xl"
+              />
+              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-[#131B2E]"></span>
+              </span>
+            </div>
           </div>
 
           {/* Title & Badge */}
@@ -119,28 +109,17 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
           </h2>
 
           <div className="mb-4">
-            {isSuperAdminView ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/15 dark:bg-purple-900/40 border border-purple-400/30 text-purple-700 dark:text-purple-300">
-                <Shield className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                <span>Multi-Tenant Platform Control Plane</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 dark:bg-indigo-900/40 border border-indigo-400/30 text-indigo-700 dark:text-indigo-300">
-                <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                <span>Wholesale &amp; Retail POS Suite</span>
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 dark:bg-indigo-900/40 border border-indigo-400/30 text-indigo-700 dark:text-indigo-300">
+              <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+              <span>{isSuperAdminView ? 'Multi-Tenant Platform Control Plane' : 'Wholesale & Retail POS Suite'}</span>
+            </span>
           </div>
 
           {/* Animated Spinner with Radiant Ring */}
           <div className="relative w-12 h-12 mx-auto my-4 flex items-center justify-center">
             <div className="absolute inset-0 rounded-full border-3 border-purple-500/20 dark:border-purple-400/20" />
             <div className="absolute inset-0 rounded-full border-3 border-transparent border-t-purple-600 border-r-indigo-600 animate-spin" />
-            {isSuperAdminView ? (
-              <Shield className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
-            ) : (
-              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
-            )}
+            <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />
           </div>
 
           {/* Status Text & Explanatory Subtitle */}

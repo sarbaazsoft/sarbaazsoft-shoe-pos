@@ -19,6 +19,11 @@ import { StatCard, triggerStatRecount } from '../common/StatCard';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics';
 import { SuperAdminReportsView } from './SuperAdminReportsView';
 import { SettingsView } from '../settings/SettingsView';
+import {
+  AnalyticsOverviewSkeleton,
+  DirectoryCrudSkeleton,
+  FeedLedgerSkeleton,
+} from '../common/RouteSkeletons';
 import { useTheme } from '../../context/ThemeContext';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils/textFormat';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
@@ -210,7 +215,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   }, []);
 
   // Control panel state
-  const [loading, setLoading] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
+  const hasLoadedNotificationsOnceRef = useRef(false);
+  const [loading, setLoading] = useState(() => isSuperAdmin);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState({
     totalStores: 0,
@@ -293,7 +300,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   // Platform Custom Notifications & Broadcasts State
   const [notificationsList, setNotificationsList] = useState<PlatformNotification[]>([]);
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [loadingNotifications, setLoadingNotifications] = useState(() => isSuperAdmin);
   const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const [notifTargetTenantId, setNotifTargetTenantId] = useState<string>('ALL');
   const [notifTargetRole, setNotifTargetRole] = useState<'ALL' | 'ADMIN' | 'CASHIER' | 'SUPERADMIN'>('ALL');
@@ -322,6 +329,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     } catch (err: any) {
       console.warn('Failed to load notifications:', err);
     } finally {
+      hasLoadedNotificationsOnceRef.current = true;
       setLoadingNotifications(false);
     }
   }, [isSuperAdmin]);
@@ -743,6 +751,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     } catch (err: any) {
       setError(err.message || 'Failed to load SuperAdmin overview.');
     } finally {
+      hasLoadedOnceRef.current = true;
       setLoading(false);
       triggerStatRecount();
     }
@@ -957,6 +966,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   useEffect(() => {
     if (isSuperAdmin) {
       loadOverview();
+    } else {
+      hasLoadedOnceRef.current = false;
+      hasLoadedNotificationsOnceRef.current = false;
     }
   }, [isSuperAdmin, loadOverview]);
 
@@ -2897,6 +2909,29 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     </header>
   );
 
+  const shouldShowRouteSkeleton =
+    activeTab === 'notifications'
+      ? !hasLoadedNotificationsOnceRef.current && (loadingNotifications || loading)
+      : activeTab !== 'settings' && !hasLoadedOnceRef.current && loading;
+
+  const renderSuperAdminRouteSkeleton = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <AnalyticsOverviewSkeleton />;
+      case 'reports':
+        return <AnalyticsOverviewSkeleton showFilterBar={true} />;
+      case 'notifications':
+        return <FeedLedgerSkeleton />;
+      case 'manifests':
+        return <DirectoryCrudSkeleton variant="grid" statCount={0} />;
+      case 'stores':
+      case 'trials':
+      case 'requests':
+      default:
+        return <DirectoryCrudSkeleton variant="table" statCount={3} />;
+    }
+  };
+
   return (
     <BodyLayoutWrapper
       layoutMeta={authLayoutMeta}
@@ -2913,6 +2948,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         onClose={() => setNotificationModalData(null)}
       />
 
+      {shouldShowRouteSkeleton ? (
+        renderSuperAdminRouteSkeleton()
+      ) : (
       <div
         ref={superAdminWorkspaceRef}
         className="p-3 sm:p-6 lg:p-7 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full select-none"
@@ -4431,7 +4469,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 >
                   {/* Mobile Stacked Cards (< sm) */}
                   <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
-                    {loading ? (
+                    {loading && stores.length === 0 ? (
                       <div className="py-10 text-center text-slate-400 dark:text-slate-500">
                         <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto mb-2" />
                         <p className="font-medium text-xs">Loading deployed stores...</p>
@@ -4595,7 +4633,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                        {loading ? (
+                        {loading && stores.length === 0 ? (
                           <tr>
                             <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
                               <div className="flex flex-col items-center justify-center space-y-2">
@@ -4990,7 +5028,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 >
                   {/* Mobile Stacked Cards (< sm) */}
                   <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
-                    {loading ? (
+                    {loading && filteredTrials.length === 0 ? (
                       <div className="py-10 text-center text-slate-400 dark:text-slate-500">
                         <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto mb-2" />
                         <p className="font-medium text-xs">Loading trial activations...</p>
@@ -5102,7 +5140,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                        {loading ? (
+                        {loading && filteredTrials.length === 0 ? (
                           <tr>
                             <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
                               <div className="flex flex-col items-center justify-center space-y-2">
@@ -5714,7 +5752,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 </div>
 
                 {/* Notifications Cards / Table */}
-                {loadingNotifications ? (
+                {loadingNotifications && notificationsList.length === 0 ? (
                   <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20">
                     <RefreshCw className="w-8 h-8 animate-spin mx-auto text-purple-600 dark:text-purple-400 mb-3" />
                     <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -5908,6 +5946,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
             )}
       </div>
+      )}
 
       {/* Add New Store Modal (Aligned with ProductFormModal Header, Cards & Footer) */}
       {createModalOpen && (

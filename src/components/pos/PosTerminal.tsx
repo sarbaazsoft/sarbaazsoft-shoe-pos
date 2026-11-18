@@ -11,6 +11,7 @@ import { isHalfCartonAllowed } from '../../utils/footwear.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
 import type { ActiveExchange } from '../../types.ts';
 import { offlineQueueService } from '../../services/offlineQueueService.ts';
+import { isTransientNetworkError } from '../../services/offline/syncEngine.ts';
 import { cacheCatalogOffline, lookupCachedProductOffline, searchCachedProductsOffline, resolveActiveTenantId } from '../../utils/offlineDb.ts';
 import { useOfflineSync } from '../../utils/useOfflineSync.ts';
 import { OfflineSyncModal } from './OfflineSyncModal.tsx';
@@ -448,7 +449,9 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       const res = await api.customers.list(undefined);
       setCustomers(res.customers || []);
     } catch (err) {
-      console.error('Failed to load customers:', err);
+      if (!isTransientNetworkError(err)) {
+        console.error('Failed to load customers:', err);
+      }
     }
   };
 
@@ -1522,17 +1525,8 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       loadCustomers();
       emitDataSync(['sales', 'inventory', 'customers', 'notifications'], { source: 'pos-terminal' });
     } catch (err: any) {
-      // If server unreachable or connection dropped mid-call, gracefully offer offline queuing
-      const isNetError =
-        (typeof navigator !== 'undefined' && !navigator.onLine) ||
-        (err?.message &&
-          (err.message.includes('Failed to fetch') ||
-            err.message.includes('temporarily reconnecting') ||
-            err.message.includes('NetworkError') ||
-            err.message.includes('Network request failed') ||
-            err.message.includes('502') ||
-            err.message.includes('503') ||
-            err.message.includes('504')));
+      // If server unreachable or connection dropped mid-call, seamlessly queue offline without any UI error
+      const isNetError = isTransientNetworkError(err);
 
       if (isNetError) {
         try {
