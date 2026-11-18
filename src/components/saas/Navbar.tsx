@@ -43,7 +43,7 @@ const renderBrandName = (name: string) => {
 
 export const Navbar: React.FC<NavbarProps> = ({
   storeName = 'SarbaazSoft Shoe POS',
-  subtitle = 'Dual-Engine Wholesale & Retail',
+  subtitle = 'Retail & Wholesale Footwear POS',
   activeNav = 'home',
   navItems = DEFAULT_NAV_ITEMS,
   onNavigate,

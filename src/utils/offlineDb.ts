@@ -361,38 +361,101 @@ export function getCachedCustomersOffline(
   }
 }
 
+function applyOfflineSchema(db: IDBDatabase, oldVersion: number): void {
+  if (!db.objectStoreNames.contains(STORE_SALES)) {
+    const salesStore = db.createObjectStore(STORE_SALES, { keyPath: 'clientTxId' });
+    salesStore.createIndex('status', 'status', { unique: false });
+    salesStore.createIndex('createdAt', 'createdAt', { unique: false });
+  }
+  // Remove legacy unscoped product store if present
+  if (db.objectStoreNames.contains(STORE_CATALOG_LEGACY)) {
+    db.deleteObjectStore(STORE_CATALOG_LEGACY);
+  }
+  // On upgrade to v3+ (tenantId-scoped product cache), recreate STORE_CATALOG if migrating from <3
+  if (oldVersion > 0 && oldVersion < 3 && db.objectStoreNames.contains(STORE_CATALOG)) {
+    db.deleteObjectStore(STORE_CATALOG);
+  }
+  if (!db.objectStoreNames.contains(STORE_CATALOG)) {
+    const catalogStore = db.createObjectStore(STORE_CATALOG, { keyPath: 'cacheKey' });
+    catalogStore.createIndex('tenantId', 'tenantId', { unique: false });
+    catalogStore.createIndex('barcode', 'barcode', { unique: false });
+  }
+}
+
+function attachVersionChangeCleanup(db: IDBDatabase): IDBDatabase {
+  db.onversionchange = () => {
+    try {
+      db.close();
+    } catch {
+      // ignore close errors during concurrent version upgrades
+    }
+  };
+  return db;
+}
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB is unavailable'));
       return;
     }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_SALES)) {
-        const salesStore = db.createObjectStore(STORE_SALES, { keyPath: 'clientTxId' });
-        salesStore.createIndex('status', 'status', { unique: false });
-        salesStore.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-      // Remove legacy unscoped product store if present
-      if (db.objectStoreNames.contains(STORE_CATALOG_LEGACY)) {
-        db.deleteObjectStore(STORE_CATALOG_LEGACY);
-      }
-      // On upgrade to v3+ (tenantId-scoped product cache), recreate STORE_CATALOG if migrating from <3
-      if (event.oldVersion > 0 && event.oldVersion < 3 && db.objectStoreNames.contains(STORE_CATALOG)) {
-        db.deleteObjectStore(STORE_CATALOG);
-      }
-      if (!db.objectStoreNames.contains(STORE_CATALOG)) {
-        const catalogStore = db.createObjectStore(STORE_CATALOG, { keyPath: 'cacheKey' });
-        catalogStore.createIndex('tenantId', 'tenantId', { unique: false });
-        catalogStore.createIndex('barcode', 'barcode', { unique: false });
+    const openCurrentVersion = () => {
+      try {
+        const fallbackReq = indexedDB.open(DB_NAME);
+        fallbackReq.onupgradeneeded = (event) => {
+          applyOfflineSchema((event.target as IDBOpenDBRequest).result, event.oldVersion || 0);
+        };
+        fallbackReq.onsuccess = () => {
+          const db = attachVersionChangeCleanup(fallbackReq.result);
+          if (
+            !db.objectStoreNames.contains(STORE_SALES) ||
+            !db.objectStoreNames.contains(STORE_CATALOG)
+          ) {
+            const nextVersion = db.version + 1;
+            db.close();
+            const upgradeReq = indexedDB.open(DB_NAME, nextVersion);
+            upgradeReq.onupgradeneeded = (event) => {
+              applyOfflineSchema((event.target as IDBOpenDBRequest).result, event.oldVersion || 0);
+            };
+            upgradeReq.onsuccess = () => resolve(attachVersionChangeCleanup(upgradeReq.result));
+            upgradeReq.onerror = () => reject(upgradeReq.error);
+            return;
+          }
+          resolve(db);
+        };
+        fallbackReq.onerror = () => reject(fallbackReq.error);
+      } catch (err) {
+        reject(err);
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        applyOfflineSchema(db, event.oldVersion || 0);
+      };
+
+      request.onsuccess = () => resolve(attachVersionChangeCleanup(request.result));
+      request.onerror = () => {
+        const err = request.error;
+        const msg = String(err?.message || '');
+        if (err?.name === 'VersionError' || msg.includes('less than the existing version')) {
+          openCurrentVersion();
+          return;
+        }
+        reject(err);
+      };
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (err?.name === 'VersionError' || msg.includes('less than the existing version')) {
+        openCurrentVersion();
+        return;
+      }
+      reject(err);
+    }
   });
 }
 

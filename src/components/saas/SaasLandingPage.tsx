@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, Headphones, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, WifiOff, Layers, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight, Bell, Smartphone } from 'lucide-react';
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
 import { api } from '../../services/api';
 import { useSaasDirectoryQuery } from '../../hooks/useLiveData';
@@ -88,19 +88,19 @@ const DashboardMockup: React.FC = () => {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div className="relative" role="img" aria-label="Sample SarbaazSoft POS dashboard with sales, orders, products, a sales chart and popular products">
+    <div className="relative" role="img" aria-label="Interactive preview of the SarbaazSoft Shoe POS dashboard showing daily sales, orders, inventory KPIs, a 7-day sales chart, and top-selling footwear">
       <div className="absolute -inset-4 rounded-[2rem] bg-purple-600/25 blur-3xl pointer-events-none" aria-hidden="true" />
       <div className="relative overflow-hidden rounded-[20px] border-2 border-indigo-400/50 bg-[#0A0C2E] shadow-[0_0_0_1px_rgba(var(--primary-rgb,147,51,234),0.22),0_30px_90px_-20px_rgba(var(--brand-companion-rgb,79,70,229),0.65)]" aria-hidden="true">
         {/* top bar */}
         <div className="flex items-center gap-3 border-b border-white/5 px-4 py-2.5">
           <span className="flex items-center gap-1.5 text-[11px] font-bold text-white">
             <svg viewBox="0 0 64 42" className="h-4 w-6"><path d="M6 31c0-3 2-5 5-6l12-5c3-1.5 6-4.5 8-8 1-1.5 2.8-1.5 3.8 0 1.8 2.8 4.5 5 8.2 5.8l11 2.4c3.5.8 6 3.8 6 7.3 0 2.5-2 4.5-4.5 4.5H10.5C8 37 6 34.5 6 31z" fill="var(--primary-400, #C084FC)" /></svg>
-            SarbaazSoft
+            SarbaazSoft Shoe POS
           </span>
-          <span className="hidden sm:flex flex-1 max-w-[260px] items-center gap-1.5 rounded-md bg-white/5 px-2.5 py-1 text-[9px] text-slate-500"><Search className="h-2.5 w-2.5" />Search products, customers…</span>
+          <span className="hidden sm:flex flex-1 max-w-[260px] items-center gap-1.5 rounded-md bg-white/5 px-2.5 py-1 text-[9px] text-slate-500"><Search className="h-2.5 w-2.5" />Search article, barcode, customer…</span>
           <span className="ml-auto flex items-center gap-2 text-[9px] text-slate-300">
             <span className="h-4 w-4 rounded-full bg-purple-500/40 ring-1 ring-purple-300/40" />
-            <span className="leading-tight">Demo store<br /><span className="text-slate-500">Owner</span></span>
+            <span className="leading-tight">Flagship Store<br /><span className="text-slate-500">Store Owner</span></span>
           </span>
         </div>
         <div className="flex">
@@ -589,67 +589,78 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
 
   const featureItems = [
     {
-      title: 'POS & Sales Operations',
-      desc: 'Fast billing, offline support, barcode scanning, returns and exchanges.',
+      title: 'High-Speed POS & Offline Billing',
+      desc: 'Scan barcodes continuously or search by article and brand. Accept cash, card, bank transfer, or khata split payments with instant change math—and keep billing offline with automatic IndexedDB background sync.',
       icon: ShoppingCart,
-      iconBg: 'bg-[#EBF3FF]',
-      iconColor: 'text-purple-300',
     },
     {
-      title: 'Inventory Management',
-      desc: 'Set prices, check stock levels and record changes to your products.',
+      title: 'Footwear Catalog & Stock Ledger',
+      desc: 'Track individual pairs and wholesale cartons (12/16-pair packs, half-carton rules, and minimum quantities). Bulk-import via CSV, protect margins with floor-price guards, and audit every movement in the Stock Ledger.',
       icon: Package,
-      iconBg: 'bg-[#E6F8EF]',
-      iconColor: 'text-[#10B981]',
     },
     {
-      title: 'Purchases & Suppliers',
-      desc: 'Supplier khata, purchase orders and supplier returns.',
+      title: 'Purchases & Supplier Khata',
+      desc: 'Receive incoming footwear stock rapidly with Quick Receive chips, log supplier bills and partial payments, monitor outstanding payables, and process supplier returns cleanly.',
       icon: Truck,
-      iconBg: 'bg-[#FFEBEB]',
-      iconColor: 'text-[#EF4444]',
     },
     {
-      title: 'Hardware & Printing',
-      desc: 'Thermal receipts, barcode labels and direct hardware control.',
+      title: 'Direct Thermal & Barcode Printing',
+      desc: 'Pair ESC/POS thermal receipt printers (50/58/80mm) and TSPL label printers via WebUSB or local print agent. Generate Code-128 stickers, A4 24-up sheets, and 3"×4" box rack labels.',
       icon: Printer,
-      iconBg: 'bg-[#F3E8FF]',
-      iconColor: 'text-purple-500',
     },
     {
-      title: 'Customers & Returns',
-      desc: 'Customer profiles, sales returns and POS exchanges.',
+      title: 'Customer Khata, Returns & Exchanges',
+      desc: 'Maintain customer profiles, credit limits, and running khata balances. Process standalone sales returns or instant in-POS shoe size and article exchanges with automatic balance reconciliation.',
       icon: Users,
-      iconBg: 'bg-[#E6F8EF]',
-      iconColor: 'text-[#10B981]',
     },
     {
-      title: 'Sales & Stock Reports',
-      desc: 'Sales, profit, inventory valuation and low-stock alerts.',
+      title: 'Sales, Profit & Low-Stock Reports',
+      desc: 'Monitor daily revenue, gross Profit & Loss across custom date ranges, top-selling articles, and live inventory valuation—complete with printable Financial Summaries and automated low-stock alerts.',
       icon: BarChart3,
-      iconBg: 'bg-[#FFF4E5]',
-      iconColor: 'text-[#F59E0B]',
     },
     {
-      title: 'Security & User Management',
-      desc: 'Role-based access, secure accounts and automated backups.',
+      title: 'Multi-Role Security & Backups',
+      desc: 'Protect multi-tenant store workspaces with Owner and Cashier role permissions, idle cashier lock prompts, verified account onboarding, and one-click JSON/SQL store backup and restore.',
       icon: ShieldCheck,
-      iconBg: 'bg-[#EBF3FF]',
-      iconColor: 'text-purple-300',
     },
     {
-      title: 'Store Settings & Branding',
-      desc: 'Set up your shop, customize receipts and manage your team.',
+      title: 'Store Branding, Receipts & 11 Themes',
+      desc: 'Customize shop logos, invoice layouts, and 50/58/80mm thermal receipt templates. Switch effortlessly between Light, Dark, and System modes with 11 curated brand color palettes.',
       icon: Settings,
-      iconBg: 'bg-[#F1F5F9]',
-      iconColor: 'text-[#475569]',
     },
     {
-      title: 'AI Store Assistant',
-      desc: 'Get help with store operations and POS questions, plus AI suggestions when adding products.',
+      title: 'Push Notifications & Email Alerts',
+      desc: 'Receive live Web Push alerts on desktop or mobile PWA plus formatted owner emails with smart fallback when offline. Monitor sales, returns, exchanges, low-stock thresholds, and trial renewals with Recommended or Custom presets.',
+      icon: Bell,
+    },
+    {
+      title: 'Sammi AI Assistant & Smart Catalog',
+      desc: 'Get real-time answers on store stock, footwear care, and retail trends from the built-in Sammi AI Assistant, plus AI-assisted catalog suggestions when adding new footwear articles.',
       icon: Sparkles,
-      iconBg: 'bg-[#F3E8FF]',
-      iconColor: 'text-purple-500',
+    },
+    {
+      title: 'Installable PWA for Android, iOS & Windows',
+      desc: 'Install SarbaazSoft Shoe POS as a standalone app with offline caching and dedicated icons—supporting Android Chrome WebAPK & signed .APK/.AAB, Apple iOS & iPadOS Safari Add to Home Screen, and Windows 64-bit Desktop PWA, .EXE, and MSIX/APPX packages.',
+      icon: Smartphone,
+    },
+  ];
+
+  const operationalBenefits = [
+    {
+      title: 'Faster Counter Workflows',
+      desc: 'Continuous scanner mode, audio feedback chimes, and zero-lag offline checkout keep queues moving even during peak rushes.',
+    },
+    {
+      title: 'Complete Financial & Khata Clarity',
+      desc: 'Reconcile cash, card, bank transfers, customer khata dues, and supplier payables in real time with zero manual spreadsheets.',
+    },
+    {
+      title: 'Live Owner Alerts & Stock Protection',
+      desc: 'Floor-price guards protect margins, the Stock Ledger audits every pair, and Web Push + Email alerts keep owners notified on every sale, return, and low-stock item.',
+    },
+    {
+      title: 'Android, iOS & Windows App Ready',
+      desc: 'Install seamlessly as a standalone PWA or native launcher on Android (WebAPK & APK), Apple iPhone/iPad (Safari), and Windows PC (.EXE & MSIX) with isolated multi-store data.',
     },
   ];
 
@@ -662,11 +673,11 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   ] as const;
 
   const planFeatures = [
-    'Full access to all features',
-    'Multi-role staff access',
-    'Built-in AI assistant',
-    'Free updates & support',
-    'Secure data backup',
+    'Full Retail & Wholesale Dual-Engine POS',
+    'Unlimited Products, Cartons & Customer Khata',
+    'Offline Billing Sync & Direct WebUSB Printing',
+    'Web Push Notifications & Owner Email Alerts',
+    'Android, iOS & Windows PWA + Sammi AI Assistant',
   ];
 
   const primaryBtn =
@@ -800,23 +811,23 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 style={{ fontFamily: "'Roboto', system-ui, -apple-system, sans-serif" }}
               >
                 <Zap className="w-3.5 h-3.5 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
-                Dual-Engine Wholesale & Retail POS Solution for Shoe Stores
+                Retail &amp; Wholesale Footwear POS &middot; Offline-First &amp; WebUSB Ready
               </div>
-              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.05] text-white lt:text-slate-900">
-                Grow your shoe<br />
-                business <span className="font-courgette font-normal tracking-normal text-purple-400 lt:text-purple-600" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>smarter</span> &amp;<br />
+              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.06] text-white lt:text-slate-900">
+                Run every shoe<br />
+                counter <span className="font-courgette font-normal tracking-normal text-purple-400 lt:text-purple-600" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>smarter</span> &amp;<br />
                 <span className="font-courgette font-normal tracking-normal bg-gradient-to-r from-purple-400 lt:from-purple-600 to-indigo-300 lt:to-indigo-500 bg-clip-text text-transparent" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>faster</span>
               </h1>
-              <p className="mt-6 max-w-md text-[15px] leading-relaxed text-slate-200 lt:text-slate-700">
-                SarbaazSoft POS gives you everything you need to manage sales, track inventory, and grow your footwear business — all in one powerful, easy-to-use platform.
+              <p className="mt-6 max-w-lg text-[15px] sm:text-base leading-relaxed text-slate-200 lt:text-slate-700">
+                SarbaazSoft Shoe POS brings high-speed barcode checkout, carton-and-pair stock control, customer &amp; supplier khata ledgers, direct thermal receipt &amp; label printing, real-time push &amp; email alerts, and resilient offline billing—installable across Android, Apple iOS, and Windows.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-4">
+              <div className="mt-8 flex flex-wrap items-center gap-3.5 sm:gap-4">
                 <button
                   type="button"
                   onClick={() => openGetStartedWithPlan('TRIAL')}
                   className={`${primaryBtn} h-11 sm:h-12 px-6 sm:px-7 text-sm sm:text-base font-semibold tracking-normal`}
                 >
-                  <span>Start Free Trial</span>
+                  <span>Start 30-Day Free Trial</span>
                   <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
                 </button>
                 <button
@@ -825,20 +836,20 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   className={`${outlineBtn} h-11 sm:h-12 px-6 sm:px-7 text-sm sm:text-base font-semibold tracking-normal`}
                 >
                   <LogIn className="w-4 h-4 shrink-0" aria-hidden="true" />
-                  <span>Login</span>
+                  <span>Store Login</span>
                 </button>
               </div>
               <ul className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-5">
                 {[
-                  { icon: Sparkles, title: 'Easy Setup', desc: 'Get started in minutes' },
-                  { icon: ShieldCheck, title: 'Secure & Reliable', desc: 'Your data is safe' },
-                  { icon: Headphones, title: '24/7 Support', desc: "We're always here" },
+                  { icon: WifiOff, title: 'Offline-First Billing', desc: 'Queue sales offline; auto-sync online' },
+                  { icon: Layers, title: 'Carton & Pair Engine', desc: 'Retail pairs, 12/16-pair packs & floor prices' },
+                  { icon: Printer, title: 'Direct USB Printing', desc: 'ESC/POS receipts & TSPL barcode labels' },
                 ].map(({ icon: Icon, title, desc }) => (
                   <li key={title} className="flex items-start gap-2.5">
                     <Icon className="w-5 h-5 mt-0.5 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
                     <span>
                       <span className="block text-xs font-semibold text-purple-300 lt:text-purple-600">{title}</span>
-                      <span className="block text-[11px] text-slate-400 lt:text-slate-500">{desc}</span>
+                      <span className="block text-[11px] leading-snug text-slate-400 lt:text-slate-600">{desc}</span>
                     </span>
                   </li>
                 ))}
@@ -851,7 +862,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         </div>
       </section>
 
-      {/* 3. FEATURES */}
+      {/* 3. FEATURES & OPERATIONAL BENEFITS */}
       <section id="features" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           <div className="lg:col-span-5">
@@ -859,17 +870,35 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               className="font-courgette inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3.5 py-1.5 text-xs text-violet-200 lt:text-indigo-700"
               style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
             >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> Features
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> Built for Footwear Operations
             </div>
             <h2 className="mt-5 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] text-white lt:text-slate-900">
-              Everything you need to run your shoe store
+              Complete control over sales, stock, khata, and store profit
             </h2>
-            <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300 lt:text-slate-600">
-              From sales to inventory, suppliers to reports — SarbaazSoft POS helps you manage your complete wholesale business in one powerful platform.
+            <p className="mt-4 max-w-md text-sm sm:text-base leading-relaxed text-slate-300 lt:text-slate-600">
+              Whether you run a single-pair retail showroom, a carton wholesale warehouse, or a hybrid footwear business, every counter bill, return, supplier payment, and profit report stays synchronized automatically.
             </p>
 
+            {/* Operational Benefits Highlights */}
+            <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
+              {operationalBenefits.map((benefit) => (
+                <li
+                  key={benefit.title}
+                  className="flex items-start gap-2.5 rounded-xl border border-indigo-400/20 lt:border-indigo-200/90 bg-white/[0.03] lt:bg-white/80 px-3.5 py-2.5"
+                >
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs">
+                    <Check className="w-3 h-3 stroke-[3]" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white lt:text-slate-900">{benefit.title}</div>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400 lt:text-slate-600">{benefit.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
             {/* keep-dark:start */}
-            <div className="mt-8 grid grid-cols-3 gap-3" aria-hidden="true">
+            <div className="mt-7 grid grid-cols-3 gap-3" aria-hidden="true">
               {/* Executive dashboard */}
               <div className="text-center">
                 <div className="flex h-28 flex-col justify-between rounded-xl border border-indigo-400/25 bg-gradient-to-b from-[#12154A]/70 to-[#0A0C2E]/80 p-2 text-left">
@@ -892,7 +921,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                     {['h-2 bg-purple-300/70', 'h-3 bg-purple-300', 'h-4 bg-purple-400', 'h-5 bg-purple-500', 'h-6 bg-indigo-500', 'h-7 bg-purple-600'].map((c) => <span key={c} className={`flex-1 rounded-t ${c}`} />)}
                   </div>
                 </div>
-                <div className="mt-2 text-xs font-semibold text-white lt:text-slate-800">Executive dashboard</div>
+                <div className="mt-2 text-xs font-semibold text-white lt:text-slate-800">Executive analytics</div>
               </div>
 
               {/* POS counter */}
@@ -958,20 +987,20 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               className="font-courgette inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3.5 py-1.5 text-xs text-violet-200 lt:text-indigo-700"
               style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
             >
-              <Store className="w-3.5 h-3.5" aria-hidden="true" /> Trusted by shoe businesses
+              <Store className="w-3.5 h-3.5" aria-hidden="true" /> Trusted by Footwear Retailers &amp; Wholesalers
             </div>
             <h2 className="mt-5 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-tight text-white lt:text-slate-900">
-              Join the shoe stores already running on SarbaazSoft POS
+              Powering live shoe stores across retail and wholesale
             </h2>
-            <p className="mt-4 max-w-xl text-sm sm:text-base leading-relaxed text-slate-300 lt:text-slate-600">
-              From small boutiques to growing chains, shop owners use SarbaazSoft POS to streamline operations and grow their business.
+            <p className="mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-300 lt:text-slate-600">
+              Boutique footwear counters, wholesale carton distributors, and hybrid showrooms rely on SarbaazSoft Shoe POS to bill faster, eliminate stock discrepancies, and keep every ledger up to date.
             </p>
             <dl className="mt-8 sm:mt-9 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-5 sm:gap-x-0 sm:gap-y-6 px-2 sm:px-0">
               {[
                 { label: 'Active stores', value: publicStats?.stores, prefix: '', suffix: '+' },
-                { label: 'Products tracked', value: publicStats?.products, prefix: '', suffix: '+' },
+                { label: 'Footwear SKUs tracked', value: publicStats?.products, prefix: '', suffix: '+' },
                 { label: 'Invoices today', value: publicStats?.invoicesToday, prefix: '', suffix: '+' },
-                { label: 'Platform revenue', value: publicStats?.platformRevenue, prefix: 'Rs. ', suffix: '' },
+                { label: 'Platform volume', value: publicStats?.platformRevenue, prefix: 'Rs. ', suffix: '' },
               ].map(({ label, value, prefix, suffix }, i) => (
                 <div key={label} className={`sm:pr-4 ${i > 0 ? 'sm:pl-5 sm:border-l sm:border-white/10 lt:sm:border-slate-200' : ''}`}>
                   <dd className="order-1 text-xl sm:text-2xl font-extrabold tabular-nums text-purple-300 lt:text-purple-600">
@@ -987,7 +1016,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         </div>
       </section>
 
-      {/* 4b. SHOPS USING SARBAAZSOFT POS */}
+      {/* 4b. SHOPS USING SARBAAZSOFT SHOE POS */}
       <section id="shops" className="bg-[#0B0D38] lt:bg-[#EEF0FF] border-y border-white/10 lt:border-slate-200 py-10 sm:py-12 lg:py-14 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-7 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -996,19 +1025,19 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 className="font-courgette inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3 py-1 text-xs text-violet-200 lt:text-indigo-700 font-semibold mb-2"
                 style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
               >
-                <Store className="w-3.5 h-3.5" aria-hidden="true" /> Live Wholesale Network
+                <Store className="w-3.5 h-3.5" aria-hidden="true" /> Live Store Directory
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white lt:text-slate-900">
-                Shops using SarbaazSoft POS
+                Footwear stores running on SarbaazSoft Shoe POS
               </h2>
               <p className="mt-1 text-sm text-slate-300 lt:text-slate-600">
-                Browse the wholesale stores currently registered and running on SarbaazSoft POS.
+                Select any registered retail or wholesale store below to open its dedicated counter sign-in portal.
               </p>
             </div>
 
             {/* JS Slider Navigation Buttons */}
             {storesForSlider.length > 0 && (
-              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                 <button
                   id="prevBtn"
                   type="button"
@@ -1103,17 +1132,17 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               className="font-courgette inline-flex rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3.5 py-1.5 text-xs text-violet-200 lt:text-indigo-700"
               style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
             >
-              Simple, transparent pricing
+              Simple, Transparent Pricing
             </div>
-            <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white lt:text-slate-900">Choose the plan that fits your business</h2>
-            <p className="mt-2 text-sm sm:text-base text-slate-300 lt:text-slate-600">No hidden fees. Full access to every feature on both plans.</p>
+            <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white lt:text-slate-900">Choose the plan that fits your shoe store</h2>
+            <p className="mt-2 max-w-2xl mx-auto text-sm sm:text-base text-slate-300 lt:text-slate-600">Start with a full-featured 30-day free trial—no credit card required. Every plan includes full POS, inventory, khata, printing, and reporting access.</p>
           </div>
 
           <div className="mx-auto mt-8 sm:mt-12 grid max-w-5xl grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 items-stretch">
             {[
-              { id: 'TRIAL', name: '30-Day Free Trial', price: 'Free', note: 'Instant 30-day access. No credit card required.', popular: true },
-              { id: '6_MONTHS_RS_10000', name: '6 months', price: 'Rs. 10,000', note: 'Perfect for established stores or short-term needs.', popular: false },
-              { id: '1_YEAR_RS_18000', name: '1 year', price: 'Rs. 18,000', note: 'Save more. Grow faster.', popular: false },
+              { id: 'TRIAL', name: '30-Day Free Trial', price: 'Free', cta: 'Start 30-Day Free Trial', note: 'Instant store setup with full features for 30 days. No credit card required.', popular: true },
+              { id: '6_MONTHS_RS_10000', name: '6-Month Plan', price: 'Rs. 10,000', cta: 'Start 6-Month Plan', note: 'Flexible semi-annual billing for seasonal stores and growing counters.', popular: false },
+              { id: '1_YEAR_RS_18000', name: 'Annual Plan', price: 'Rs. 18,000', cta: 'Start Annual Plan', note: 'Best value—save Rs. 2,000 per year with uninterrupted store operations.', popular: false },
             ].map((p) => (
               <div
                 key={p.id}
@@ -1123,10 +1152,10 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               >
                 {p.popular && (
                   <span
-                    className="font-courgette absolute -top-3 left-1/2 -translate-x-1/2 rounded-md bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-3 py-0.5 text-[11px] font-bold text-white shadow-xs border border-purple-400/30"
+                    className="font-courgette absolute -top-3 left-1/2 -translate-x-1/2 rounded-md bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-3 py-0.5 text-[11px] font-bold text-white shadow-xs border border-purple-400/30 whitespace-nowrap"
                     style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
                   >
-                    Free 30-Day Access
+                    30 Days Free Access
                   </span>
                 )}
                 <h3 className="flex items-center gap-2 text-lg font-bold text-white lt:text-slate-900">
@@ -1137,9 +1166,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 </div>
                 <ul className="mt-6 space-y-3 text-sm text-slate-200 lt:text-slate-700">
                   {planFeatures.map((f) => (
-                    <li key={f} className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs"><Check className="w-3 h-3 stroke-[3]" aria-hidden="true" /></span>
-                      {f}
+                    <li key={f} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs"><Check className="w-3 h-3 stroke-[3]" aria-hidden="true" /></span>
+                      <span>{f}</span>
                     </li>
                   ))}
                 </ul>
@@ -1149,9 +1178,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                     onClick={() => openGetStartedWithPlan(p.id)}
                     className={`${p.popular ? primaryBtn : outlineBtn} w-full py-3 text-sm`}
                   >
-                    {p.id === 'TRIAL' ? 'Start Free Trial' : 'Get started'}
+                    {p.cta}
                   </button>
-                  <p className="mt-3 text-center text-xs text-slate-400 lt:text-slate-500">{p.note}</p>
+                  <p className="mt-3 text-center text-xs leading-relaxed text-slate-400 lt:text-slate-500">{p.note}</p>
                 </div>
               </div>
             ))}
@@ -1177,15 +1206,15 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(var(--primary-rgb,147,51,234),0.12),transparent_60%)] lt:opacity-40" aria-hidden="true" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="text-center md:text-left">
+          <div className="text-center md:text-left max-w-2xl">
             <h2
               className="font-courgette text-xl sm:text-2xl lg:text-[28px] lt:text-2xl lt:sm:text-3xl lt:lg:text-4xl font-extrabold tracking-tight text-purple-400 lt:text-purple-600 dark:text-purple-400 [text-shadow:0_1px_14px_rgba(8,10,42,0.9)] lt:[text-shadow:none]"
               style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
             >
-              Ready to Take Your Shoe Business to the Next Level?
+              Modernize your shoe counter, stockroom, and khata today
             </h2>
-            <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-200 lt:text-slate-600 [text-shadow:0_1px_10px_rgba(8,10,42,0.9)] lt:[text-shadow:none]">
-              Join our growing community of store owners and start managing your business smarter today.
+            <p className="mt-2 text-xs sm:text-sm font-medium leading-relaxed text-slate-200 lt:text-slate-600 [text-shadow:0_1px_10px_rgba(8,10,42,0.9)] lt:[text-shadow:none]">
+              Create your dedicated store workspace in minutes—install on Android, Apple iOS, or Windows, bill offline or online, print barcode labels and thermal receipts, and track every pair, carton, and rupee in real time.
             </p>
           </div>
           <button
@@ -1193,7 +1222,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
             onClick={() => openGetStartedWithPlan('TRIAL')}
             className={`${primaryBtn} px-7 py-3.5 text-sm shrink-0`}
           >
-            Start Free Trial Now <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            Start Your 30-Day Free Trial <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </section>

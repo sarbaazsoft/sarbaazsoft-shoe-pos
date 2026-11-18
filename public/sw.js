@@ -82,7 +82,7 @@ self.addEventListener('fetch', (event) => {
       fetch(request, { cache: 'no-store' }).catch(
         () =>
           new Response(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline Node - SarbaazSoft Shoe POS</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;padding:20px}.card{max-width:420px;width:100%;background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:24px;box-shadow:0 10px 25px rgba(15,23,42,.06);text-align:center}.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#FEF3C7;color:#B45309;margin-bottom:12px}h2{margin:0 0 8px;font-size:18px}p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5}.queue{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;font-size:12px;color:#334155;margin-bottom:16px}button{border:0;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#9333EA,#4F46E5);cursor:pointer}</style></head><body><div class="card"><div class="badge">OFFLINE WORKER READY</div><h2>SarbaazSoft Shoe POS</h2><p>Internet connection is currently offline. Your locally queued sales remain safely stored and will sync automatically when reconnected.</p><div id="q" class="queue">Checking local offline queue...</div><button type="button" onclick="window.location.reload()">Reconnect Now</button></div><script>(function(){function show(n){var el=document.getElementById("q");if(el)el.textContent="Pending offline sales queued locally: "+n;}try{var req=indexedDB.open("ShoePosOfflineDB",4);req.onsuccess=function(){var db=req.result;if(!db.objectStoreNames.contains("offline_sales_queue")){show(0);return;}var tx=db.transaction("offline_sales_queue","readonly");var all=tx.objectStore("offline_sales_queue").getAll();all.onsuccess=function(){var rows=all.result||[];show(rows.filter(function(r){return r&&(r.status==="PENDING"||r.status==="FAILED");}).length);};all.onerror=function(){show(0);};};req.onerror=function(){show(0);};}catch(e){show(0);}window.addEventListener("online",function(){window.location.reload();});})();</script></body></html>',
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline Node - SarbaazSoft Shoe POS</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;padding:20px}.card{max-width:420px;width:100%;background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:24px;box-shadow:0 10px 25px rgba(15,23,42,.06);text-align:center}.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#FEF3C7;color:#B45309;margin-bottom:12px}h2{margin:0 0 8px;font-size:18px}p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5}.queue{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;font-size:12px;color:#334155;margin-bottom:16px}button{border:0;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#9333EA,#4F46E5);cursor:pointer}</style></head><body><div class="card"><div class="badge">OFFLINE WORKER READY</div><h2>SarbaazSoft Shoe POS</h2><p>Internet connection is currently offline. Your locally queued sales remain safely stored and will sync automatically when reconnected.</p><div id="q" class="queue">Checking local offline queue...</div><button type="button" onclick="window.location.reload()">Reconnect Now</button></div><script>(function(){function show(n){var el=document.getElementById("q");if(el)el.textContent="Pending offline sales queued locally: "+n;}try{var req=indexedDB.open("ShoePosOfflineDB");req.onsuccess=function(){var db=req.result;if(!db.objectStoreNames.contains("offline_sales_queue")){show(0);return;}var tx=db.transaction("offline_sales_queue","readonly");var all=tx.objectStore("offline_sales_queue").getAll();all.onsuccess=function(){var rows=all.result||[];show(rows.filter(function(r){return r&&(r.status==="PENDING"||r.status==="FAILED");}).length);};all.onerror=function(){show(0);};};req.onerror=function(){show(0);};}catch(e){show(0);}window.addEventListener("online",function(){window.location.reload();});})();</script></body></html>',
             { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
           )
       )
@@ -947,28 +947,71 @@ function broadcastSyncEvent(payload) {
     .catch(() => {});
 }
 
+function applySwOfflineSchema(db) {
+  if (!db.objectStoreNames.contains(STORE_SALES)) {
+    const salesStore = db.createObjectStore(STORE_SALES, { keyPath: 'clientTxId' });
+    salesStore.createIndex('status', 'status', { unique: false });
+    salesStore.createIndex('createdAt', 'createdAt', { unique: false });
+  }
+  if (!db.objectStoreNames.contains('cached_products_by_store')) {
+    const catalogStore = db.createObjectStore('cached_products_by_store', { keyPath: 'cacheKey' });
+    catalogStore.createIndex('tenantId', 'tenantId', { unique: false });
+    catalogStore.createIndex('barcode', 'barcode', { unique: false });
+  }
+}
+
+function attachSwDbVersionChange(db) {
+  db.onversionchange = () => {
+    try {
+      db.close();
+    } catch {}
+  };
+  return db;
+}
+
 function openOfflineDB() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB is not available in Service Worker'));
       return;
     }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_SALES)) {
-        const salesStore = db.createObjectStore(STORE_SALES, { keyPath: 'clientTxId' });
-        salesStore.createIndex('status', 'status', { unique: false });
-        salesStore.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-      if (!db.objectStoreNames.contains('cached_products_by_store')) {
-        const catalogStore = db.createObjectStore('cached_products_by_store', { keyPath: 'cacheKey' });
-        catalogStore.createIndex('tenantId', 'tenantId', { unique: false });
-        catalogStore.createIndex('barcode', 'barcode', { unique: false });
+
+    const openExisting = () => {
+      try {
+        const fallbackReq = indexedDB.open(DB_NAME);
+        fallbackReq.onupgradeneeded = (event) => {
+          applySwOfflineSchema(event.target.result);
+        };
+        fallbackReq.onsuccess = () => resolve(attachSwDbVersionChange(fallbackReq.result));
+        fallbackReq.onerror = () => reject(fallbackReq.error);
+      } catch (err) {
+        reject(err);
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = (event) => {
+        applySwOfflineSchema(event.target.result);
+      };
+      request.onsuccess = () => resolve(attachSwDbVersionChange(request.result));
+      request.onerror = () => {
+        const err = request.error;
+        const msg = String((err && err.message) || '');
+        if ((err && err.name === 'VersionError') || msg.includes('less than the existing version')) {
+          openExisting();
+          return;
+        }
+        reject(err);
+      };
+    } catch (err) {
+      const msg = String((err && err.message) || '');
+      if ((err && err.name === 'VersionError') || msg.includes('less than the existing version')) {
+        openExisting();
+        return;
+      }
+      reject(err);
+    }
   });
 }
 
@@ -1178,13 +1221,13 @@ async function processOfflineQueueFromSW(triggerSource) {
 
 self.addEventListener('sync', (event) => {
   if (event.tag === SW_SYNC_TAG) {
-    event.waitUntil(processOfflineQueueFromSW('sync-event'));
+    event.waitUntil(processOfflineQueueFromSW('sync-event').catch(() => {}));
   }
 });
 
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === SW_PERIODIC_SYNC_TAG || event.tag === SW_SYNC_TAG) {
-    event.waitUntil(processOfflineQueueFromSW('periodicsync-event'));
+    event.waitUntil(processOfflineQueueFromSW('periodicsync-event').catch(() => {}));
   }
 });
 

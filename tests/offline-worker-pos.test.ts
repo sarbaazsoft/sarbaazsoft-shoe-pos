@@ -173,4 +173,91 @@ test('offline worker integration wires SW registration, SW_TRIGGER_OFFLINE_SYNC,
   assert.equal(/caches\.open\s*\(/.test(swSrc), false);
   assert.equal(/caches\.put\s*\(/.test(swSrc), false);
   assert.ok(swSrc.includes('OFFLINE WORKER READY'));
+  assert.ok(swSrc.includes('VersionError'));
+});
+
+test('offlineDb recovers from IndexedDB VersionError by falling back to existing database version without rejecting', async () => {
+  const prevIndexedDB = (globalThis as any).indexedDB;
+  const prevLocal = (globalThis as any).localStorage;
+
+  const mockStorage = createMockStorage();
+  const token = makeFakeJwt({ id: 1, tenantId: 9, role: 'CASHIER', exp: Math.floor(Date.now() / 1000) + 3600 });
+  mockStorage.setItem('pos_auth_token', token);
+  mockStorage.setItem('pos_current_user', JSON.stringify({ id: 1, tenantId: 9, role: 'CASHIER' }));
+  (globalThis as any).localStorage = mockStorage;
+
+  const openCalls: Array<number | undefined> = [];
+  const fakeSales = [
+    {
+      clientTxId: 'OFFLINE-T9-1',
+      tenantId: 9,
+      createdAt: '2026-11-18T12:00:00.000Z',
+      items: [],
+      status: 'PENDING',
+    },
+  ];
+
+  (globalThis as any).indexedDB = {
+    open(_name: string, version?: number) {
+      openCalls.push(version);
+      const req: any = {
+        result: null,
+        error: null,
+        onsuccess: null,
+        onerror: null,
+        onupgradeneeded: null,
+      };
+      queueMicrotask(() => {
+        if (version !== undefined) {
+          req.error = Object.assign(new Error('The requested version (3) is less than the existing version (4).'), {
+            name: 'VersionError',
+          });
+          req.onerror?.({ target: req });
+          return;
+        }
+        req.result = {
+          version: 5,
+          onversionchange: null,
+          close() {},
+          objectStoreNames: {
+            contains: (storeName: string) =>
+              storeName === 'offline_sales_queue' || storeName === 'cached_products_by_store',
+          },
+          transaction() {
+            return {
+              objectStore() {
+                return {
+                  getAll() {
+                    const getReq: any = { result: fakeSales, onsuccess: null, onerror: null };
+                    queueMicrotask(() => getReq.onsuccess?.());
+                    return getReq;
+                  },
+                };
+              },
+            };
+          },
+        };
+        req.onsuccess?.({ target: req });
+      });
+      return req;
+    },
+  };
+
+  try {
+    const sales = await getOfflineSales(9);
+    assert.deepEqual(openCalls, [4, undefined]);
+    assert.equal(sales.length, 1);
+    assert.equal(sales[0].clientTxId, 'OFFLINE-T9-1');
+  } finally {
+    if (prevIndexedDB === undefined) {
+      delete (globalThis as any).indexedDB;
+    } else {
+      (globalThis as any).indexedDB = prevIndexedDB;
+    }
+    if (prevLocal === undefined) {
+      delete (globalThis as any).localStorage;
+    } else {
+      (globalThis as any).localStorage = prevLocal;
+    }
+  }
 });

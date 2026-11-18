@@ -16,24 +16,7 @@ if (typeof window !== 'undefined') {
       .catch(() => {});
   }
   if ('serviceWorker' in navigator) {
-    const swPromise =
-      typeof navigator.serviceWorker.getRegistration === 'function'
-        ? navigator.serviceWorker
-            .getRegistration('/')
-            .then(
-              (existing) =>
-                existing ||
-                navigator.serviceWorker.register('/sw.js', {
-                  scope: '/',
-                  updateViaCache: 'none',
-                })
-            )
-        : navigator.serviceWorker.register('/sw.js', {
-            scope: '/',
-            updateViaCache: 'none',
-          });
-
-    swPromise
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
       .then((reg) => {
         if (reg?.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
