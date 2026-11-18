@@ -3,6 +3,7 @@ import { Shield, Sparkles } from 'lucide-react';
 import { ShowroomBackground } from './ShowroomBackground.tsx';
 import { PublicHeader } from './PublicHeader.tsx';
 import { PublicFooter } from './PublicFooter.tsx';
+import { BodyLayoutWrapper } from './BodyLayoutWrapper.tsx';
 import { ShoeIcon } from './ShoeIcon.tsx';
 
 export interface LoadingWindowProps {
@@ -55,28 +56,30 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
   );
 
   return (
-    <div
+    <BodyLayoutWrapper
       id="showroom-loading-viewport"
-      className="min-h-screen w-full flex flex-col justify-between relative overflow-x-hidden bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
       role="status"
       aria-live="polite"
+      showHeader={true}
+      showSidebar={false}
+      showFooter={true}
+      centerMain={true}
+      backdrop={<ShowroomBackground />}
+      header={
+        <PublicHeader
+          storeName={effectiveTitle}
+          badgeText="Connecting..."
+          badgeVariant="connecting"
+          subtitle={isSuperAdminView ? 'Multi-Tenant POS Cloud • SuperAdmin' : 'Dual-engine wholesale shoe shop POS'}
+          dbText={isSuperAdminView ? 'Platform Online' : 'Tenant Scoped'}
+          isSuperAdmin={isSuperAdminView}
+          logoSrc={logoSrc}
+        />
+      }
+      footer={<PublicFooter storeName={effectiveTitle} subtitle={effectiveSubtitle} />}
+      className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
+      mainClassName="relative z-10 px-4 py-8 sm:px-6"
     >
-      {/* 1. Showroom Background Image Layer (70% Opacity) */}
-      <ShowroomBackground />
-
-      {/* 2. Public Header Aligned with Store & Admin Bar */}
-      <PublicHeader
-        storeName={effectiveTitle}
-        badgeText="Connecting..."
-        badgeVariant="connecting"
-        subtitle={isSuperAdminView ? 'Multi-Tenant POS Cloud • SuperAdmin' : 'Dual-engine wholesale shoe shop POS'}
-        dbText={isSuperAdminView ? 'Platform Online' : 'Tenant Scoped'}
-        isSuperAdmin={isSuperAdminView}
-        logoSrc={logoSrc}
-      />
-
-      {/* 3. Centered Loading Window */}
-      <main className="relative z-10 flex-1 flex flex-col justify-center items-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-md mx-auto bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl border border-white/50 dark:border-purple-800/70 text-center relative overflow-hidden transition-all duration-300">
           {/* Top Decorative Gradient Accent Bar */}
           <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-emerald-500" />
@@ -165,10 +168,6 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
             <span>Encrypted</span>
           </div>
         </div>
-      </main>
-
-      {/* 4. Global Public Footer with Bold Credit */}
-      <PublicFooter storeName={effectiveTitle} subtitle={effectiveSubtitle} />
-    </div>
+    </BodyLayoutWrapper>
   );
 };

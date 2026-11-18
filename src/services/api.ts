@@ -2,6 +2,13 @@
 import { cacheCatalogOffline, deleteCachedProductOffline, lookupCachedProductOffline, searchCachedProductsOffline } from '../utils/offlineDb.ts';
 import { transformKeysToCamelCase } from '../utils/caseTransformer.ts';
 import type { ProductFormValues, TrialActivation, PlatformNotification, PlatformNotificationType, GroupedNotificationsResponse, AllNotificationsResponse } from '../types.ts';
+import type {
+  NotificationPresetId,
+  StoreNotificationChannelId,
+  StoreNotificationDeliveryStatus,
+  StoreNotificationEventId,
+  StoreNotificationPreferences,
+} from '../utils/notificationPreferences.ts';
 
 const TOKEN_KEY = 'pos_auth_token';
 const ALT_TOKEN_KEY = 'shoe_pos_jwt_token';
@@ -1311,6 +1318,35 @@ export const api = {
       apiFetch<{ success: boolean; message: string }>('/notifications/dismiss-welcome', {
         method: 'POST',
       }),
+    getPreferences: (tenantId?: number) => {
+      const qs = tenantId ? `?tenantId=${encodeURIComponent(String(tenantId))}` : '';
+      return apiFetch<{
+        success: boolean;
+        tenantId: number;
+        preferences: StoreNotificationPreferences;
+        deliveryStatus: StoreNotificationDeliveryStatus;
+      }>(`/notifications/preferences${qs}`);
+    },
+    updatePreferences: (
+      payload:
+        | Partial<StoreNotificationPreferences>
+        | { preset: NotificationPresetId }
+        | { eventId: StoreNotificationEventId; enabled: boolean }
+        | { channelId: StoreNotificationChannelId; enabled: boolean }
+        | { resetToDefault: true },
+      tenantId?: number
+    ) => {
+      const qs = tenantId ? `?tenantId=${encodeURIComponent(String(tenantId))}` : '';
+      return apiFetch<{
+        success: boolean;
+        tenantId: number;
+        preferences: StoreNotificationPreferences;
+        deliveryStatus: StoreNotificationDeliveryStatus;
+      }>(`/notifications/preferences${qs}`, {
+        method: 'PUT',
+        body: payload,
+      });
+    },
   },
   chat: {
     send: (payload: any, history?: any) =>

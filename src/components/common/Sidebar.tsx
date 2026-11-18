@@ -16,6 +16,12 @@ interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onOpenProfile?: () => void;
+  /** Configurable expanded sidebar width in px (defaults to 256) */
+  expandedWidth?: number;
+  /** Configurable collapsed sidebar width in px (defaults to 72) */
+  collapsedWidth?: number;
+  /** Dock cleanly below the top header inside BodyLayoutWrapper */
+  embeddedInBodyLayout?: boolean;
 }
 
 interface NavItem {
@@ -39,6 +45,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onCloseMobile,
   onOpenProfile,
+  expandedWidth = 256,
+  collapsedWidth = 72,
+  embeddedInBodyLayout = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -167,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     return (
       <div
-        className={`w-full h-full max-h-screen flex flex-col bg-white/95 dark:bg-[#0D1322] backdrop-blur-lg text-slate-700 dark:text-slate-100 select-none border-r border-indigo-500/20 shadow-lg rounded-none overflow-y-auto overflow-x-hidden sidebar-scrollbar transition-colors ${
+        className={`w-full h-full ${embeddedInBodyLayout ? 'min-h-0' : 'max-h-screen'} flex flex-col bg-white/95 dark:bg-[#0D1322] backdrop-blur-lg text-slate-700 dark:text-slate-100 select-none border-r border-indigo-500/20 shadow-lg rounded-none overflow-y-auto overflow-x-hidden sidebar-scrollbar transition-colors ${
           collapsed ? 'px-2' : ''
         }`}
       >
@@ -562,9 +571,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* DESKTOP FIXED SIDEBAR WITH SMOOTH SPRING WIDTH TRANSITION */}
       <motion.aside
         initial={false}
-        animate={{ width: isCollapsed ? 72 : 256 }}
+        animate={{ width: isCollapsed ? collapsedWidth : expandedWidth }}
         transition={{ type: 'spring', stiffness: 350, damping: 32 }}
-        className="hidden lg:flex shrink-0 h-screen sticky top-0 z-30 no-print overflow-hidden rounded-none shadow-lg border-r border-indigo-500/20"
+        className={`hidden lg:flex shrink-0 z-30 no-print overflow-hidden rounded-none shadow-lg border-r border-indigo-500/20 ${
+          embeddedInBodyLayout
+            ? 'self-stretch sticky top-[3.6rem] max-h-[calc(100dvh-3.6rem)]'
+            : 'h-screen sticky top-0'
+        }`}
       >
         {renderSidebar(false)}
       </motion.aside>

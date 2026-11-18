@@ -8,6 +8,8 @@ import { PushNotificationSoftPrompt } from './components/notifications/PushNotif
 import { LoadingWindow } from './components/common/LoadingWindow.tsx';
 import { SaasLandingPage } from './components/saas/SaasLandingPage.tsx';
 import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
+import { BodyLayoutWrapper } from './components/common/BodyLayoutWrapper.tsx';
+import { resolveRouteLayoutMetadata, type SaasRouteMode } from './config/routeLayoutMetadata.ts';
 import { emitDataSync } from './utils/dataSyncBus.ts';
 
 const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
@@ -41,18 +43,6 @@ import { CashierIdleWarningModal } from './components/common/CashierIdleWarningM
 import { useCashierIdleLogout } from './hooks/useCashierIdleLogout.ts';
 import { CASHIER_IDLE_LOGOUT_NOTICE, isCashierIdleTimerEnabled } from './utils/cashierIdleTimer.ts';
 import type { ActiveExchange, TenantInfo, CompanySettings } from './types.ts';
-
-type SaasRouteMode =
-  | 'INSTALLER'
-  | 'LANDING'
-  | 'AUTH'
-  | 'SUPERADMIN'
-  | 'TENANT_ACTIVE'
-  | 'TENANT_SUSPENDED'
-  | 'TENANT_EXPIRED'
-  | 'TENANT_NOT_FOUND'
-  | 'TENANT_ONBOARDING'
-  | 'VERIFY_EMAIL';
 
 const APP_TAB_ROUTES = new Set([
   'dashboard', 'pos', 'inventory', 'ledger', 'purchases', 'suppliers',
@@ -1818,7 +1808,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, [currentUser, saasMode, currentTab]);
 
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
 
   const chromeCompanySettings = useMemo(
     () => ({
@@ -2025,8 +2015,33 @@ export default function App() {
     currentUser && (currentRoleUpper === 'ADMIN' || currentRoleUpper === 'SUPERADMIN')
   );
 
+  const activeRouteLayoutMeta = useMemo(
+    () =>
+      resolveRouteLayoutMetadata(saasMode, {
+        tab: currentTab,
+        isAuthenticated: saasMode === 'SUPERADMIN' ? isCurrentUserSuperAdmin : Boolean(currentUser),
+        isLoginModalOpen,
+        isLoading:
+          (saasMode === 'TENANT_ACTIVE' && isInitializing && hasStoredAuthToken && Boolean(currentUser)) ||
+          (saasMode === 'SUPERADMIN' && isInitializing && hasStoredAuthToken && isCurrentUserSuperAdmin) ||
+          (saasMode === 'TENANT_ONBOARDING' && isInitializing && hasStoredAuthToken && canAccessOnboarding) ||
+          ((saasMode === 'AUTH' || (saasMode === 'LANDING' && isLoginModalOpen)) && shouldShowTenantLoading),
+      }),
+    [
+      saasMode,
+      currentTab,
+      isCurrentUserSuperAdmin,
+      currentUser,
+      isLoginModalOpen,
+      isInitializing,
+      hasStoredAuthToken,
+      canAccessOnboarding,
+      shouldShowTenantLoading,
+    ]
+  );
+
   return (
-    <div className="min-h-screen w-full flex flex-col bg-slate-100 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
+    <div className="min-h-[100dvh] w-full flex flex-col bg-slate-100 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
       {saasMode === 'INSTALLER' && (
         <Suspense
           fallback={
@@ -2042,6 +2057,7 @@ export default function App() {
           }
         >
           <InstallationWizard
+            layoutMeta={activeRouteLayoutMeta}
             onCompleted={(superAdminUser) => {
               if (superAdminUser) {
                 const role = String(superAdminUser?.role || 'SUPERADMIN').toUpperCase();
@@ -2092,6 +2108,7 @@ export default function App() {
               </div>
             )}
             <AuthModal
+              layoutMeta={activeRouteLayoutMeta}
               companySettings={storeLoginTarget
                 ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
                 : (activeTenant
@@ -2138,6 +2155,7 @@ export default function App() {
               </div>
             )}
             <AuthModal
+              layoutMeta={activeRouteLayoutMeta}
               companySettings={storeLoginTarget
                 ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
                 : (activeTenant
@@ -2154,6 +2172,7 @@ export default function App() {
           )
         ) : (
           <SaasLandingPage
+            layoutMeta={activeRouteLayoutMeta}
             availableTenants={availableTenants}
             unauthTenantId={tenantIdParam || getStoredUnauthTenantId()}
             onClearTenantScope={handleClearTenantScope}
@@ -2210,6 +2229,7 @@ export default function App() {
       {saasMode === 'VERIFY_EMAIL' && (
         <Suspense fallback={<PortalRouteFallback label="Loading verification..." />}>
           <VerifyEmailNoticeView
+            layoutMeta={activeRouteLayoutMeta}
             storeName={effectiveStoreName || 'SarbaazSoft Shoe POS'}
             onNavigateLogin={(verifiedEmail, sessionData) => {
               if (sessionData?.token && sessionData?.user) {
@@ -2255,6 +2275,7 @@ export default function App() {
         ) : !isInitializing && isCurrentUserSuperAdmin ? (
           <Suspense fallback={<PortalRouteFallback label="Loading SuperAdmin Control Plane..." />}>
             <SuperAdminControlPanel
+              layoutMeta={activeRouteLayoutMeta}
               currentUser={currentUser}
               onUserAuthenticated={(user) => {
                 setCurrentUser(user);
@@ -2273,6 +2294,7 @@ export default function App() {
       {saasMode === 'TENANT_NOT_FOUND' && (
         <Suspense fallback={<PortalRouteFallback label="Loading..." />}>
           <UnknownStore404View
+            layoutMeta={activeRouteLayoutMeta}
             onBackHome={() => {
               setSaasMode('LANDING');
               window.history.pushState({}, '', '/');
@@ -2286,6 +2308,7 @@ export default function App() {
       {(saasMode === 'TENANT_SUSPENDED' || saasMode === 'TENANT_EXPIRED') && (
         <Suspense fallback={<PortalRouteFallback label="Loading store status..." />}>
           <SuspendedStoreView
+            layoutMeta={activeRouteLayoutMeta}
             tenant={activeTenant}
             onGoToLanding={() => handleNavigateDomain({ mode: 'LANDING' })}
             onGoToSuperAdmin={() => handleNavigateDomain({ mode: 'SUPERADMIN' })}
@@ -2314,6 +2337,7 @@ export default function App() {
         ) : !isInitializing && canAccessOnboarding ? (
           <Suspense fallback={<PortalRouteFallback label="Loading onboarding setup..." />}>
             <TenantOnboardingWizard
+              layoutMeta={activeRouteLayoutMeta}
               tenantId={Number(activeTenant?.id || currentUser?.tenantId || 0)}
               isRequiredFirstLogin={
                 Boolean(currentUser?.role === 'ADMIN' && (currentUser?.onboardingCompleted === false || activeTenant?.onboardingCompleted === false))
@@ -2369,25 +2393,15 @@ export default function App() {
               logoSrc={(activeTenant as any)?.logo || (activeTenant as any)?.logo_url || activeTenant?.logoUrl}
             />
           ) : !isInitializing && currentUser ? (
-            <div
+            <BodyLayoutWrapper
               key={`tenant-app-${activeTenant?.id || currentUser?.tenantId || 'none'}-${currentUser?.id || 'anon'}`}
-              className="saas-panel flex w-full min-h-screen bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 transition-colors"
-            >
-              <Sidebar
-                currentTab={currentTab}
-                onTabChange={handleTabChange}
-                currentUser={currentUser}
-                companySettings={chromeCompanySettings}
-                onLogout={handleLogout}
-                mobileOpen={mobileMenuOpen}
-                onCloseMobile={() => setMobileMenuOpen(false)}
-                onOpenProfile={() => setIsProfileModalOpen(true)}
-              />
-
-              <div
-                ref={scrollContainerRef}
-                className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto bg-[#F8FAFC] dark:bg-[#0A0E1A]"
-              >
+              id="tenant-dashboard-layout"
+              layoutMeta={activeRouteLayoutMeta}
+              sidebarSelfSized={true}
+              mainRef={scrollContainerRef}
+              className="saas-panel bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 transition-colors"
+              mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"
+              header={
                 <Header
                   currentTab={currentTab}
                   onTabChange={handleTabChange}
@@ -2398,18 +2412,23 @@ export default function App() {
                   onOpenProfile={() => setIsProfileModalOpen(true)}
                   onSwitchRole={handleSwitchRole}
                 />
-
-                <main className="flex-1 min-w-0 overflow-x-hidden bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors">
-                  <KeepAliveRouteHost
-                    currentTab={currentTab}
-                    userRole={currentUser?.role}
-                    businessType={effectiveBusinessType}
-                    scopeKey={keepAliveScopeKey}
-                    scrollContainerRef={scrollContainerRef}
-                    renderTab={renderKeptAliveTab}
-                  />
-                </main>
-
+              }
+              sidebar={
+                <Sidebar
+                  currentTab={currentTab}
+                  onTabChange={handleTabChange}
+                  currentUser={currentUser}
+                  companySettings={chromeCompanySettings}
+                  onLogout={handleLogout}
+                  mobileOpen={mobileMenuOpen}
+                  onCloseMobile={() => setMobileMenuOpen(false)}
+                  onOpenProfile={() => setIsProfileModalOpen(true)}
+                  expandedWidth={activeRouteLayoutMeta.sidebarWidth}
+                  collapsedWidth={activeRouteLayoutMeta.collapsedSidebarWidth}
+                  embeddedInBodyLayout={true}
+                />
+              }
+              footer={
                 <footer className="px-4 py-2.5 border border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 text-xs font-medium text-slate-800 dark:text-slate-100 tracking-wide shrink-0 no-print select-none">
                   <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
                     <div className="flex items-center gap-2 justify-center sm:justify-start">
@@ -2425,8 +2444,17 @@ export default function App() {
                     </span>
                   </div>
                 </footer>
-              </div>
-            </div>
+              }
+            >
+              <KeepAliveRouteHost
+                currentTab={currentTab}
+                userRole={currentUser?.role}
+                businessType={effectiveBusinessType}
+                scopeKey={keepAliveScopeKey}
+                scrollContainerRef={scrollContainerRef}
+                renderTab={renderKeptAliveTab}
+              />
+            </BodyLayoutWrapper>
           ) : null}
         </>
       )}

@@ -8,6 +8,8 @@ import { FreeTrialOnboardingModal } from './FreeTrialOnboardingModal';
 import { useTheme } from '../../context/ThemeContext';
 import { APP_VERSION } from '../../version.ts';
 import { Navbar } from './Navbar';
+import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
+import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { LuxuryBadge } from '../common/Badge';
 import type { LuxuryBadgeTone } from '../../utils/badgeStyles';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -376,6 +378,7 @@ interface SaasLandingPageProps {
   onOpenSuperAdmin: () => void;
   onStoreCreated?: (tenantId: number, loginUrl: string, user?: any, token?: string) => void;
   onSelectStore?: (tenant: TenantInfo) => void;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
@@ -386,6 +389,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   onOpenSuperAdmin,
   onStoreCreated,
   onSelectStore,
+  layoutMeta: layoutMetaOverride,
 }) => {
   const [activeNav, setActiveNav] = useState<'home' | 'features' | 'stores' | 'pricing' | 'about'>('home');
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -700,55 +704,90 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     return all.find((t) => String(t.id) === String(unauthTenantId)) || null;
   }, [unauthTenantId, storeDirectory, availableTenants]);
 
+  const landingLayoutMeta = resolveRouteLayoutMetadata('LANDING', {
+    overrides: layoutMetaOverride,
+  });
+
   return (
-    <div
+    <BodyLayoutWrapper
+      layoutMeta={landingLayoutMeta}
       data-landing-theme={landingTheme}
       style={{ colorScheme: landingTheme }}
-      className="min-h-screen overflow-x-hidden bg-[#070A24] lt:bg-[#F7F8FF] text-slate-100 lt:text-slate-800 font-sans selection:bg-violet-500 selection:text-white"
-    >
-      {/* 1. TOP NAVIGATION BAR */}
-      <Navbar
-        activeNav={activeNav}
-        navItems={landingNavItems}
-        onNavigate={scrollToSection}
-        onLogin={onGlobalLogin}
-        onStartFreeTrial={() => openGetStartedWithPlan('TRIAL')}
-        landingTheme={landingTheme}
-        onToggleTheme={toggleLandingTheme}
-      />
-
-      {/* Unauthenticated Store Scope Notification Banner */}
-      {unauthTenantId && (
-        <div id="unauth-tenant-scope-banner" className="bg-purple-950/90 lt:bg-purple-100 border-b border-purple-800/60 lt:border-purple-300 py-2 px-4 text-xs select-none">
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-purple-200 lt:text-purple-900 font-medium">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>
-                Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${unauthTenantId}`}</strong> (Tenant #{unauthTenantId})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onGlobalLogin}
-                className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
-              >
-                Sign In to {matchedScopedStore?.name || 'Store'}
-              </button>
-              {onClearTenantScope && (
+      className="bg-[#070A24] lt:bg-[#F7F8FF] text-slate-100 lt:text-slate-800 font-sans selection:bg-violet-500 selection:text-white"
+      header={
+        <Navbar
+          activeNav={activeNav}
+          navItems={landingNavItems}
+          onNavigate={scrollToSection}
+          onLogin={onGlobalLogin}
+          onStartFreeTrial={() => openGetStartedWithPlan('TRIAL')}
+          landingTheme={landingTheme}
+          onToggleTheme={toggleLandingTheme}
+        />
+      }
+      topBanner={
+        unauthTenantId ? (
+          <div id="unauth-tenant-scope-banner" className="bg-purple-950/90 lt:bg-purple-100 border-b border-purple-800/60 lt:border-purple-300 py-2 px-4 text-xs select-none">
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-purple-200 lt:text-purple-900 font-medium">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>
+                  Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${unauthTenantId}`}</strong> (Tenant #{unauthTenantId})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={onClearTenantScope}
-                  className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 lt:bg-white lt:hover:bg-slate-200 text-purple-200 lt:text-purple-900 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
-                  title="Clear tenant scope and view all stores"
+                  onClick={onGlobalLogin}
+                  className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
                 >
-                  Clear Store Scope
+                  Sign In to {matchedScopedStore?.name || 'Store'}
                 </button>
-              )}
+                {onClearTenantScope && (
+                  <button
+                    type="button"
+                    onClick={onClearTenantScope}
+                    className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 lt:bg-white lt:hover:bg-slate-200 text-purple-200 lt:text-purple-900 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
+                    title="Clear tenant scope and view all stores"
+                  >
+                    Clear Store Scope
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : null
+      }
+      footer={
+        <footer id="global-public-footer" className="border-t border-white/10 lt:border-slate-200 bg-[#080A2A] lt:bg-[#F1F3FF] px-4 sm:px-8 py-3.5 text-xs text-slate-300 lt:text-slate-600">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
+            <div className="flex items-center gap-2 justify-center sm:justify-start">
+              <strong
+                id="sarbaazsoft-credit-text"
+                className="font-bold text-white lt:text-slate-900 tracking-wide"
+              >
+                SarbaazSoft Shoe POS
+              </strong>
+              <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-white/10 lt:bg-slate-200 text-indigo-300 lt:text-indigo-700 border border-white/10 lt:border-slate-300">
+                {APP_VERSION}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 lt:text-slate-500">
+              <span>&copy; {new Date().getFullYear()} SarbaazSoft Shoe POS. All rights reserved.</span>
+              <button
+                type="button"
+                onClick={onOpenSuperAdmin}
+                className="text-slate-500 hover:text-white lt:text-slate-400 lt:hover:text-slate-800 transition cursor-pointer text-[10px] opacity-30 hover:opacity-100"
+                title="SuperAdmin"
+                aria-label="SuperAdmin"
+              >
+                &bull;
+              </button>
+            </div>
+          </div>
+        </footer>
+      }
+    >
 
       {/* 2. HERO */}
       <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0B0C38_0%,#080A2C_60%,#070A24_100%)] lt:bg-[linear-gradient(180deg,#EEF0FF_0%,#F7F8FF_100%)]">
@@ -1159,34 +1198,6 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         </div>
       </section>
 
-      {/* Global Application Footer */}
-      <footer id="global-public-footer" className="border-t border-white/10 lt:border-slate-200 bg-[#080A2A] lt:bg-[#F1F3FF] px-4 sm:px-8 py-3.5 text-xs text-slate-300 lt:text-slate-600">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
-          <div className="flex items-center gap-2 justify-center sm:justify-start">
-            <strong
-              id="sarbaazsoft-credit-text"
-              className="font-bold text-white lt:text-slate-900 tracking-wide"
-            >
-              SarbaazSoft Shoe POS
-            </strong>
-            <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-white/10 lt:bg-slate-200 text-indigo-300 lt:text-indigo-700 border border-white/10 lt:border-slate-300">
-              {APP_VERSION}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 lt:text-slate-500">
-            <span>&copy; {new Date().getFullYear()} SarbaazSoft Shoe POS. All rights reserved.</span>
-            <button
-              type="button"
-              onClick={onOpenSuperAdmin}
-              className="text-slate-500 hover:text-white lt:text-slate-400 lt:hover:text-slate-800 transition cursor-pointer text-[10px] opacity-30 hover:opacity-100"
-              title="SuperAdmin"
-              aria-label="SuperAdmin"
-            >
-              &bull;
-            </button>
-          </div>
-        </div>
-      </footer>
       {/* STEP-BY-STEP FREE TRIAL ONBOARDING WIZARD */}
       <FreeTrialOnboardingModal
         isOpen={showRequestModal}
@@ -1200,6 +1211,6 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         onToggleTheme={toggleLandingTheme}
       />
 
-    </div>
+    </BodyLayoutWrapper>
   );
 };

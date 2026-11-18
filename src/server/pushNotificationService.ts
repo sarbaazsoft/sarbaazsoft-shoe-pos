@@ -9,8 +9,19 @@ import {
   normalizeSubscriptionPlan,
 } from '../db/schemaInit.ts';
 import { getAppSetting, registerSettingsUpdateListener } from './services/appSettingsService.ts';
-import { dispatchPosEmailAlert, dispatchSuperAdminEmailAlert } from './services/emailAlertService.ts';
+import {
+  dispatchPosEmailAlert,
+  dispatchStoreNoticeEmailAlert,
+  dispatchSuperAdminEmailAlert,
+} from './services/emailAlertService.ts';
 import { getApplicationBaseUrl } from './services/welcomeService.ts';
+import { getTenantNotificationPreferences } from './services/notificationPreferencesService.ts';
+import {
+  mapPlatformAnnouncementToEventKey,
+  mapPosActionTypeToEventKey,
+  resolveStoreChannelDelivery,
+  type StoreNotificationPreferences,
+} from '../utils/notificationPreferences.ts';
 import { normalizeVapidPublicKey } from '../utils/vapid.ts';
 import {
   isOwnerRole,
@@ -719,15 +730,16 @@ export interface NotifyPosActionDeps {
     tenantId: number,
     allowedRoles: string[]
   ) => Promise<Array<{ token: string; user_role: string; user_id: number }>>;
+  getPreferencesFn?: (tenantId: number) => Promise<StoreNotificationPreferences>;
+  isFirebaseReadyFn?: () => Promise<boolean>;
 }
 
 /**
- * Broadcasts real-time POS transactional alerts with smart Store Owner routing:
- * - Owner Online  (active authenticated session / heartbeat / SSE):
- *     Send in-app (SSE) + push (FCM) ONLY — do NOT send transactional email.
- * - Owner Offline (offline, logged out, or expired session):
- *     Send transactional email alert reliably — skip owner push/SSE to avoid duplicates.
- * - Cashiers continue receiving counter alerts for their own transactions.
+ * Broadcasts real-time POS transactional alerts with Store Notification Preferences & Email Fallback:
+ * - Disabled event types are suppressed completely across all channels.
+ * - Owner Online with Web Push active, Firebase available, & active subscription: SSE + FCM push (no duplicate email).
+ * - Owner Offline OR Web Push inactive/unavailable/unsubscribed/failed (with Email Alerts enabled): Email Fallback triggers reliably.
+ * - Cashiers continue receiving counter alerts for their own transactions when Web Push is enabled.
  */
 export async function notifyPosAction(
   tenantId: number,
@@ -739,6 +751,15 @@ export async function notifyPosAction(
     return;
   }
   const cleanTenantId = Number(tenantId) || 1;
+  const eventKey = mapPosActionTypeToEventKey(actionType);
+  const prefs = deps?.getPreferencesFn
+    ? await deps.getPreferencesFn(cleanTenantId)
+    : await getTenantNotificationPreferences(cleanTenantId);
+
+  if (eventKey && !prefs.events[eventKey]) {
+    return;
+  }
+
   const allowedRoles = payload.targetRoles || ['ADMIN', 'CASHIER'];
   const typeLower = payload.type.toLowerCase();
   const explicitEventId = typeof payload.eventId === 'string' ? payload.eventId.trim() : '';
@@ -778,18 +799,8 @@ export async function notifyPosAction(
     ? deps.isOwnerOnlineFn(cleanTenantId)
     : isStoreOwnerOnline(cleanTenantId);
 
-  const deliverOwnerInAppAndPush = !isTransactionAlert || !ownerAllowed || ownerOnline;
-  const deliverOwnerEmail = isTransactionAlert ? ownerAllowed && !ownerOnline : true;
-
-  // 1. Deliver to active browser dashboard sessions via Server-Sent Events (SSE)
-  broadcastSsePosAction(cleanTenantId, enrichedPayload, {
-    skipOwnerClients: !deliverOwnerInAppAndPush,
-  });
-
-  // 2. Deliver via Firebase Cloud Messaging (FCM) to registered devices
-  //    (Skip Owner tokens when Owner is Offline for transaction alerts to prevent cross-channel duplicates)
+  let tokenRows: Array<{ token: string; user_role: string; user_id: number }> = [];
   try {
-    let tokenRows: Array<{ token: string; user_role: string; user_id: number }> = [];
     if (deps?.fetchFcmTokensFn) {
       tokenRows = await deps.fetchFcmTokensFn(cleanTenantId, allowedRoles);
     } else {
@@ -808,11 +819,52 @@ export async function notifyPosAction(
       );
       tokenRows = tokensRes.rows;
     }
+  } catch (err) {
+    console.error('Error loading FCM tokens for POS dispatch:', err);
+  }
 
+  const hasActiveOwnerPushSubscription = tokenRows.some(
+    (row) => row.token && isOwnerRole(row.user_role)
+  );
+  const fcmConfigured = deps?.isFirebaseReadyFn
+    ? await deps.isFirebaseReadyFn()
+    : Boolean(deps?.sendFcmPushToTokensFn || (await getFirebaseAdmin()));
+
+  const deliveryPlan = resolveStoreChannelDelivery({
+    preferences: prefs,
+    eventKey: eventKey || 'sale',
+    ownerOnline,
+    fcmConfigured,
+    hasActiveOwnerPushSubscription,
+    ownerTargeted: ownerAllowed,
+  });
+
+  const deliverOwnerInApp = !isTransactionAlert || !ownerAllowed || ownerOnline;
+
+  // 1. Deliver to active browser dashboard sessions via Server-Sent Events (SSE)
+  broadcastSsePosAction(cleanTenantId, enrichedPayload, {
+    skipOwnerClients: !deliverOwnerInApp,
+  });
+
+  // 2. Deliver via Firebase Cloud Messaging (FCM) to registered devices when Web Push is enabled
+  let ownerPushTargeted = false;
+  let ownerPushSucceeded = false;
+
+  try {
     const targetTokens: string[] = [];
     for (const row of tokenRows) {
       const uRole = String(row.user_role || '').toUpperCase();
-      if (isOwnerRole(uRole) && !deliverOwnerInAppAndPush) {
+      if (isOwnerRole(uRole)) {
+        if (!deliveryPlan.sendOwnerWebPush) {
+          continue;
+        }
+        if (row.token) {
+          ownerPushTargeted = true;
+          targetTokens.push(row.token);
+        }
+        continue;
+      }
+      if (!deliveryPlan.sendCashierWebPush) {
         continue;
       }
       // Cashiers only receive their own counter alerts
@@ -824,9 +876,9 @@ export async function notifyPosAction(
       }
     }
 
-    if (targetTokens.length > 0) {
+    if (targetTokens.length > 0 && prefs.channels.webPush && fcmConfigured) {
       const sendFcmImpl = deps?.sendFcmPushToTokensFn || sendFcmPushToTokens;
-      await sendFcmImpl(targetTokens, {
+      const pushRes = await sendFcmImpl(targetTokens, {
         title: enrichedPayload.title,
         body: enrichedPayload.message,
         deepLinkUrl: enrichedPayload.deepLinkUrl || '/pos',
@@ -846,13 +898,22 @@ export async function notifyPosAction(
           timestamp: enrichedPayload.timestamp,
         },
       });
+      if (ownerPushTargeted && (pushRes?.sentCount || 0) > 0) {
+        ownerPushSucceeded = true;
+      }
     }
   } catch (err) {
     console.error('Error during FCM POS push dispatch:', err);
   }
 
-  // 3. Store owner transactional email alert (only sent when Owner is Offline)
-  if (deliverOwnerEmail) {
+  // 3. Store owner transactional email alert / Email Fallback
+  //    Sent if Owner is offline (when Email Alerts enabled), OR if Web Push is inactive/unavailable/unsubscribed/failed (Email Fallback)
+  const runtimePushFailed = ownerPushTargeted && !ownerPushSucceeded;
+  const shouldSendOwnerEmail = isTransactionAlert
+    ? deliveryPlan.sendOwnerEmail || (ownerAllowed && prefs.channels.emailAlerts && runtimePushFailed)
+    : prefs.channels.emailAlerts && ownerAllowed;
+
+  if (shouldSendOwnerEmail) {
     const dispatchEmailImpl = deps?.dispatchPosEmailAlertFn || dispatchPosEmailAlert;
     try {
       await dispatchEmailImpl(cleanTenantId, enrichedPayload);
@@ -910,8 +971,12 @@ function broadcastSsePlatformAnnouncement(
 export interface NotifyPlatformAnnouncementDeps {
   isSuperAdminOnlineFn?: () => boolean;
   dispatchSuperAdminEmailAlertFn?: typeof dispatchSuperAdminEmailAlert;
+  dispatchStoreNoticeEmailFn?: typeof dispatchStoreNoticeEmailAlert;
   sendFcmPushToTokensFn?: typeof sendFcmPushToTokens;
   fetchFcmTokensFn?: (targetRole: string, cleanTenantId: number | null) => Promise<string[]>;
+  getPreferencesFn?: (tenantId: number) => Promise<StoreNotificationPreferences>;
+  isFirebaseReadyFn?: () => Promise<boolean>;
+  isOwnerOnlineFn?: (tenantId: number) => boolean;
 }
 
 export async function notifyPlatformAnnouncement(
@@ -947,6 +1012,19 @@ export async function notifyPlatformAnnouncement(
     }
     if (isSecurity && !isRenewal && !isNewTrial && (await getAppSetting('SUPERADMIN_PUSH_ON_SECURITY_ALERT', 'true')).toLowerCase() === 'false') {
       return; // Suppressed by SuperAdmin alert settings
+    }
+  }
+
+  // Enforce per-store Notification Preferences for tenant-targeted store alerts
+  let storePrefs: StoreNotificationPreferences | null = null;
+  const storeEventKey = mapPlatformAnnouncementToEventKey(payload);
+  if (targetRole !== 'SUPERADMIN' && cleanTenantId !== null) {
+    storePrefs = deps?.getPreferencesFn
+      ? await deps.getPreferencesFn(cleanTenantId)
+      : await getTenantNotificationPreferences(cleanTenantId);
+
+    if (!storePrefs.events[storeEventKey]) {
+      return;
     }
   }
 
@@ -999,63 +1077,104 @@ export async function notifyPlatformAnnouncement(
   // 1. Deliver to active browser sessions via SSE
   broadcastSsePlatformAnnouncement(eventPayload, { isGlobal, cleanTenantId, targetRole });
 
-  // 2. Deliver via Firebase Cloud Messaging (FCM)
+  // 2. Deliver via Firebase Cloud Messaging (FCM) respecting store Web Push preference
+  const allowWebPush = storePrefs ? Boolean(storePrefs.channels.webPush) : true;
+  const ownerTargeted = targetRole === 'ADMIN' || targetRole === 'ALL';
+  let hasOwnerToken = false;
+  let ownerPushSentCount = 0;
+
+  const fcmConfigured = deps?.isFirebaseReadyFn
+    ? await deps.isFirebaseReadyFn()
+    : Boolean(deps?.sendFcmPushToTokensFn || (await getFirebaseAdmin()));
+
   try {
     let tokens: string[] = [];
     if (deps?.fetchFcmTokensFn) {
       tokens = await deps.fetchFcmTokensFn(targetRole, cleanTenantId);
+      hasOwnerToken = ownerTargeted && tokens.length > 0;
     } else {
       await ensureFcmTokensSchema();
       let query = '';
       let params: any[] = [];
 
       if (targetRole === 'SUPERADMIN') {
-        query = `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'SUPERADMIN'`;
+        query = `SELECT token, user_role FROM public.fcm_tokens WHERE UPPER(user_role) = 'SUPERADMIN'`;
         params = [];
       } else if (targetRole === 'ADMIN') {
         query = isGlobal
-          ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) IN ('ADMIN', 'OWNER') AND tenant_id != 0`
-          : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER')`;
+          ? `SELECT token, user_role FROM public.fcm_tokens WHERE UPPER(user_role) IN ('ADMIN', 'OWNER') AND tenant_id != 0`
+          : `SELECT token, user_role FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER')`;
         params = isGlobal ? [] : [cleanTenantId];
       } else if (targetRole === 'CASHIER') {
         query = isGlobal
-          ? `SELECT token FROM public.fcm_tokens WHERE UPPER(user_role) = 'CASHIER' AND tenant_id != 0`
-          : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) = 'CASHIER'`;
+          ? `SELECT token, user_role FROM public.fcm_tokens WHERE UPPER(user_role) = 'CASHIER' AND tenant_id != 0`
+          : `SELECT token, user_role FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) = 'CASHIER'`;
         params = isGlobal ? [] : [cleanTenantId];
       } else {
         query = isGlobal
-          ? `SELECT token FROM public.fcm_tokens`
-          : `SELECT token FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER', 'CASHIER')`;
+          ? `SELECT token, user_role FROM public.fcm_tokens`
+          : `SELECT token, user_role FROM public.fcm_tokens WHERE tenant_id = $1 AND UPPER(user_role) IN ('ADMIN', 'OWNER', 'CASHIER')`;
         params = isGlobal ? [] : [cleanTenantId];
       }
 
-      const tokensRes = await pgClient.query<{ token: string }>(query, params);
-      tokens = tokensRes.rows.map((r) => r.token);
+      const tokensRes = await pgClient.query<{ token: string; user_role: string }>(query, params);
+      tokens = tokensRes.rows.map((r) => r.token).filter(Boolean);
+      hasOwnerToken = ownerTargeted && tokensRes.rows.some((r) => Boolean(r.token) && isOwnerRole(r.user_role));
     }
 
-    if (tokens.length === 0) return;
-
-    const isAdminAnnouncement = targetRole === 'SUPERADMIN';
-    const sendFcmImpl = deps?.sendFcmPushToTokensFn || sendFcmPushToTokens;
-    await sendFcmImpl(tokens, {
-      title: payload.title,
-      body: payload.message,
-      deepLinkUrl: payload.actionUrl || (isAdminAnnouncement ? '/admin' : '/'),
-      icon: isAdminAnnouncement ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON,
-      badge: NOTIFICATION_BADGE_ICON,
-      tag: eventTag,
-      data: {
-        type: payload.type || 'INFO',
-        itemType: 'ANNOUNCEMENT',
-        eventId: eventTag,
+    if (tokens.length > 0 && allowWebPush && fcmConfigured) {
+      const isAdminAnnouncement = targetRole === 'SUPERADMIN';
+      const sendFcmImpl = deps?.sendFcmPushToTokensFn || sendFcmPushToTokens;
+      const pushRes = await sendFcmImpl(tokens, {
+        title: payload.title,
+        body: payload.message,
+        deepLinkUrl: payload.actionUrl || (isAdminAnnouncement ? '/admin' : '/'),
+        icon: isAdminAnnouncement ? ADMIN_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON,
+        badge: NOTIFICATION_BADGE_ICON,
         tag: eventTag,
-        announcementId: String(payload.id || ''),
-        notificationId: String(payload.id || ''),
-        isAdmin: isAdminAnnouncement ? 'true' : 'false',
-      },
-    });
+        data: {
+          type: payload.type || 'INFO',
+          itemType: 'ANNOUNCEMENT',
+          eventId: eventTag,
+          tag: eventTag,
+          announcementId: String(payload.id || ''),
+          notificationId: String(payload.id || ''),
+          isAdmin: isAdminAnnouncement ? 'true' : 'false',
+        },
+      });
+      if (hasOwnerToken) {
+        ownerPushSentCount = pushRes?.sentCount || 0;
+      }
+    }
   } catch (err) {
     console.error('Error during FCM announcement push dispatch:', err);
+  }
+
+  // 3. Store Owner Email Fallback for tenant-targeted announcements & subscription alerts
+  if (cleanTenantId !== null && ownerTargeted && storePrefs?.channels.emailAlerts) {
+    const ownerOnline = deps?.isOwnerOnlineFn
+      ? deps.isOwnerOnlineFn(cleanTenantId)
+      : isStoreOwnerOnline(cleanTenantId);
+    const plan = resolveStoreChannelDelivery({
+      preferences: storePrefs,
+      eventKey: storeEventKey,
+      ownerOnline,
+      fcmConfigured,
+      hasActiveOwnerPushSubscription: hasOwnerToken,
+      ownerTargeted: true,
+    });
+    const runtimePushFailed = plan.sendOwnerWebPush && hasOwnerToken && ownerPushSentCount === 0;
+    if (plan.sendOwnerEmail || runtimePushFailed) {
+      const dispatchNoticeEmailImpl = deps?.dispatchStoreNoticeEmailFn || dispatchStoreNoticeEmailAlert;
+      try {
+        await dispatchNoticeEmailImpl(cleanTenantId, {
+          ...eventPayload,
+          fallbackReason: runtimePushFailed ? 'push_delivery_failed' : plan.emailFallbackReason,
+        });
+      } catch (err: any) {
+        console.warn('[pushNotificationService] Error in dispatchStoreNoticeEmailAlert:', err?.message || err);
+      }
+    }
   }
 }
 

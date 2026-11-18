@@ -7,8 +7,10 @@ import {
   sendFcmPushToTokens,
 } from '../pushNotificationService.ts';
 import { getAppSetting } from './appSettingsService.ts';
+import { getTenantNotificationPreferences } from './notificationPreferencesService.ts';
 import { getApplicationBaseUrl } from './welcomeService.ts';
 import { sendEmail, type SendEmailOptions, type SendEmailResult } from '../utils/email.ts';
+import type { StoreNotificationPreferences } from '../../utils/notificationPreferences.ts';
 
 export interface LowStockBatchItem {
   productId: number;
@@ -46,6 +48,7 @@ export interface LowStockDispatchDeps {
   sendEmailFn?: (opts: SendEmailOptions) => Promise<SendEmailResult>;
   sendFcmPushToTokensFn?: typeof sendFcmPushToTokens;
   broadcastSseFn?: typeof broadcastSsePosAction;
+  getPreferencesFn?: (tenantId: number) => Promise<StoreNotificationPreferences>;
 }
 
 export function resolveLowStockThreshold(rawThreshold: unknown, fallback: number = 5): number {
@@ -265,6 +268,24 @@ export async function dispatchBatchedLowStockNotifications(
     };
   }
 
+  const prefs = deps?.getPreferencesFn
+    ? await deps.getPreferencesFn(cleanTenantId)
+    : await getTenantNotificationPreferences(cleanTenantId);
+
+  if (!prefs.events.low_stock) {
+    return {
+      triggered: false,
+      eventId,
+      itemCount: items.length,
+      notificationId: null,
+      inAppCreated: false,
+      emailSent: false,
+      pushSent: false,
+      pushSentCount: 0,
+      errors: [],
+    };
+  }
+
   const actionUrl = resolveLowStockActionUrl();
   const baseUrl = getApplicationBaseUrl();
   const restockHref = baseUrl ? `${baseUrl.replace(/\/+$/, '')}${actionUrl}` : actionUrl;
@@ -309,9 +330,10 @@ export async function dispatchBatchedLowStockNotifications(
     console.warn('[lowStockNotificationService]', msg);
   }
 
-  // Channel 2: Consolidated Email Alert (Configurable via app_settings)
+  // Channel 2: Consolidated Email Alert (Configurable via app_settings + Store Preferences, acts as Email Fallback when push is inactive/unavailable)
   try {
     const emailEnabled =
+      Boolean(prefs.channels.emailAlerts) &&
       (await getAppSetting('LOW_STOCK_EMAIL_ALERTS_ENABLED', 'true')).toLowerCase() !== 'false';
     if (emailEnabled) {
       const [csRes, usersRes] = await Promise.all([
@@ -374,9 +396,10 @@ export async function dispatchBatchedLowStockNotifications(
     console.warn('[lowStockNotificationService]', msg);
   }
 
-  // Channel 3: Consolidated SSE + Push Notification (Configurable via app_settings, ADMIN/OWNER only)
+  // Channel 3: Consolidated SSE + Push Notification (Configurable via app_settings + Store Preferences, ADMIN/OWNER only)
   try {
     const pushEnabled =
+      Boolean(prefs.channels.webPush) &&
       (await getAppSetting('LOW_STOCK_PUSH_ALERTS_ENABLED', 'true')).toLowerCase() !== 'false';
     if (pushEnabled) {
       const nowIso = new Date().toISOString();

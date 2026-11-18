@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { PublicLayout } from '../common/PublicLayout.tsx';
+import type { RouteLayoutMetadata } from '../../config/routeLayoutMetadata.ts';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
 
@@ -12,6 +13,7 @@ interface VerifyEmailNoticeViewProps {
   storeName?: string;
   onNavigateLogin?: (email?: string, sessionData?: any) => void;
   onNavigateHome?: () => void;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
@@ -21,6 +23,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
   storeName = 'SarbaazSoft Shoe POS',
   onNavigateLogin,
   onNavigateHome,
+  layoutMeta,
 }) => {
   useDocumentTitle(
     () => getStandardDocumentTitle({ saasMode: 'VERIFY_EMAIL', storeName }),
@@ -143,6 +146,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
       badgeVariant="connecting"
       subtitle="Complete email confirmation to activate your store"
       dbText="Account Safeguard Active"
+      layoutMeta={layoutMeta}
     >
       <div className="w-full max-w-lg bg-white/95 dark:bg-[#11162B]/95 backdrop-blur-xl border border-slate-200/80 dark:border-purple-800/50 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl transition-all duration-200 mx-auto">
         {verificationSuccess ? (

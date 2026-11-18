@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, LoaderCircle, Lock, Mail, Phone, Server, ShieldCheck, Sparkles, User, UserRoundPlus, X } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api';
 import { PublicLayout } from '../common/PublicLayout';
+import type { RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { toTitleCaseLive, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip';
@@ -10,6 +11,7 @@ import { evaluatePasswordStrength } from '../../utils/passwordStrength';
 
 interface InstallationWizardProps {
   onCompleted: (user?: any) => void;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 interface InstallStatus {
@@ -20,7 +22,7 @@ interface InstallStatus {
   error?: string;
 }
 
-export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onCompleted }) => {
+export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onCompleted, layoutMeta }) => {
   const [status, setStatus] = useState<InstallStatus | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -115,6 +117,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
       badgeVariant={status?.dbReady ? 'wizard' : 'connecting'}
       subtitle="SarbaazSoft Shoe POS Initial Platform Setup"
       dbText="Secure system setup"
+      layoutMeta={layoutMeta}
     >
       <motion.section
         initial={{ opacity: 0, scale: 0.95, y: 16 }}

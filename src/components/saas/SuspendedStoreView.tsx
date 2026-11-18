@@ -2,6 +2,8 @@ import React from 'react';
 import { ShieldOff, Lock, ArrowLeft, Shield, KeyRound, Calendar, Clock } from 'lucide-react';
 import type { TenantInfo } from '../../types';
 import { isFreeTrial } from '../../utils/subscription';
+import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
+import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 
 interface SuspendedStoreViewProps {
   tenant: TenantInfo | null;
@@ -9,6 +11,7 @@ interface SuspendedStoreViewProps {
   onGoToLanding: () => void;
   onGoToSuperAdmin: () => void;
   onOpenStoreSettings?: () => void;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
@@ -17,6 +20,7 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
   onGoToLanding,
   onGoToSuperAdmin,
   onOpenStoreSettings,
+  layoutMeta: layoutMetaOverride,
 }) => {
   const storeName = tenant?.name || 'Store';
   const expired =
@@ -39,8 +43,17 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
     ? '6 Months'
     : 'Yearly';
 
+  const statusLayoutMeta = resolveRouteLayoutMetadata(
+    expired ? 'TENANT_EXPIRED' : 'TENANT_SUSPENDED',
+    { overrides: layoutMetaOverride }
+  );
+
   return (
-    <div className="min-h-[calc(100vh-3rem)] bg-slate-950 text-slate-100 flex items-center justify-center p-3.5 sm:p-6">
+    <BodyLayoutWrapper
+      layoutMeta={statusLayoutMeta}
+      className="bg-slate-950 text-slate-100"
+      mainClassName="p-3.5 sm:p-6"
+    >
       <div className="max-w-lg w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-5 sm:p-8 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-5 sm:mb-6">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] sm:text-xs font-mono uppercase">
@@ -131,6 +144,6 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </BodyLayoutWrapper>
   );
 };

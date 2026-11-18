@@ -456,3 +456,153 @@ export async function dispatchSuperAdminEmailAlert(
     return false;
   }
 }
+
+export interface StoreNoticeEmailAlertPayload {
+  id?: number;
+  eventId?: string;
+  title: string;
+  message: string;
+  type?: string;
+  actionUrl?: string;
+  actionLabel?: string;
+  timestamp?: string;
+  fallbackReason?: string | null;
+}
+
+export function buildStoreNoticeEmailHtml(
+  payload: StoreNoticeEmailAlertPayload,
+  storeName: string,
+  actionHref: string
+): { subject: string; html: string; text: string } {
+  const title = String(payload.title || 'Store Notification Alert').trim();
+  const message = String(payload.message || 'You have a new store alert.').trim();
+  const alertType = String(payload.type || 'INFO').trim().toUpperCase();
+  const actionLabel = String(payload.actionLabel || 'Open Store Dashboard').trim();
+  const timestampStr = payload.timestamp
+    ? new Date(payload.timestamp).toLocaleString()
+    : new Date().toLocaleString();
+
+  const subject = `[${storeName}] ${title}`;
+  const text = `${storeName}\n${title}\n\nType: ${alertType}\nTime: ${timestampStr}\n\n${message}\n\nOpen Store: ${actionHref}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeEmailHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:24px 16px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
+    <tr>
+      <td style="background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 100%);padding:22px 26px;color:#ffffff;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;opacity:0.9;">${escapeEmailHtml(storeName)}</div>
+        <div style="font-size:19px;font-weight:800;margin-top:6px;">Store Notification Alert</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:26px;">
+        <div style="margin-bottom:12px;">
+          <span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;background-color:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe;">
+            ${escapeEmailHtml(alertType)}
+          </span>
+          <span style="font-size:12px;color:#64748b;margin-left:10px;">${escapeEmailHtml(timestampStr)}</span>
+        </div>
+        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">${escapeEmailHtml(title)}</h2>
+        <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-line;">
+          ${escapeEmailHtml(message)}
+        </div>
+        <div style="text-align:center;margin:24px 0 8px;">
+          <a href="${escapeEmailHtml(actionHref)}" style="display:inline-block;background-color:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:10px;">
+            ${escapeEmailHtml(actionLabel)}
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:14px 26px;background-color:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;line-height:1.5;">
+        Delivered to your registered Store Owner email based on your Store Notification Preferences &amp; Email Fallback configuration.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  return { subject, html, text };
+}
+
+export async function dispatchStoreNoticeEmailAlert(
+  tenantId: number,
+  payload: StoreNoticeEmailAlertPayload,
+  deps?: { sendEmailFn?: (opts: SendEmailOptions) => Promise<SendEmailResult> }
+): Promise<boolean> {
+  const cleanTenantId = Number(tenantId);
+  if (!Number.isInteger(cleanTenantId) || cleanTenantId <= 0) return false;
+
+  const masterEnabled = (await getAppSetting('EMAIL_POS_ALERTS_ENABLED', 'true')).toLowerCase() !== 'false';
+  if (!masterEnabled) return false;
+
+  try {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const [csRes, usersRes] = await Promise.all([
+      pgClient
+        .query<{ company_name: string | null; email: string | null }>(
+          `SELECT t.name AS company_name, cs.email
+           FROM company_settings cs
+           LEFT JOIN tenants t ON t.id = cs.tenant_id
+           WHERE COALESCE(cs.tenant_id, 1) = $1 LIMIT 1`,
+          [cleanTenantId]
+        )
+        .catch(() => ({ rows: [] as Array<{ company_name: string | null; email: string | null }> })),
+      pgClient
+        .query<{ email: string }>(
+          `SELECT email FROM users
+           WHERE tenant_id = $1
+             AND UPPER(COALESCE(role::text, '')) IN ('ADMIN', 'OWNER')
+             AND status = 'APPROVED'
+             AND COALESCE(active, true) = true`,
+          [cleanTenantId]
+        )
+        .catch(() => ({ rows: [] as Array<{ email: string }> })),
+    ]);
+
+    const cs = csRes.rows[0] || null;
+    const recipients = new Set<string>();
+    if (cs?.email && emailRegex.test(cs.email.trim())) {
+      recipients.add(cs.email.trim().toLowerCase());
+    }
+    for (const u of usersRes.rows) {
+      if (u.email && emailRegex.test(u.email.trim())) {
+        recipients.add(u.email.trim().toLowerCase());
+      }
+    }
+
+    if (recipients.size === 0) return false;
+
+    const storeName = String(cs?.company_name || 'SarbaazSoft Shoe Store').trim();
+    const baseUrl = getApplicationBaseUrl();
+    const rawAction = String(payload.actionUrl || '/').trim() || '/';
+    const actionHref = rawAction.startsWith('http')
+      ? rawAction
+      : baseUrl
+      ? `${baseUrl.replace(/\/+$/, '')}${rawAction.startsWith('/') ? rawAction : `/${rawAction}`}`
+      : rawAction;
+
+    const rendered = buildStoreNoticeEmailHtml(payload, storeName, actionHref);
+    const sendEmailImpl = deps?.sendEmailFn || sendEmail;
+    const sendRes = await sendEmailImpl({
+      to: Array.from(recipients),
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      tags: [{ name: 'category', value: 'store_notice_alert' }],
+    });
+
+    return Boolean(sendRes?.delivered);
+  } catch (err: any) {
+    console.warn('[emailAlertService] Exception during store notice email dispatch:', err?.message || err);
+    return false;
+  }
+}

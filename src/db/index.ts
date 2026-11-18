@@ -1712,6 +1712,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     let business_type = 'RETAIL';
     let allow_half_carton = true;
     let low_stock_threshold = 5;
+    let notification_preferences: any = null;
 
     const colMatch = upper.match(/INSERT\s+INTO\s+COMPANY_SETTINGS\s*\(([^)]+)\)/i);
     const valMatch = upper.match(/VALUES\s*\(([^)]+)\)/i);
@@ -1724,8 +1725,10 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       cols.forEach((col, idx) => {
         const token = valTokens[idx] || '';
         let v: any;
-        if (token.startsWith('$')) {
-          v = params[pIdx++];
+        const paramTokMatch = token.match(/^\$(\d+)/);
+        if (paramTokMatch) {
+          const explicitIdx = Number(paramTokMatch[1]) - 1;
+          v = params[explicitIdx >= 0 ? explicitIdx : pIdx++];
         } else {
           v = token.replace(/^'|'$/g, '');
         }
@@ -1742,6 +1745,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         else if (col === 'business_type') business_type = String(v || 'RETAIL');
         else if (col === 'allow_half_carton') allow_half_carton = Boolean(v);
         else if (col === 'low_stock_threshold') low_stock_threshold = Math.max(1, Number(v || 5));
+        else if (col === 'notification_preferences') {
+          try {
+            notification_preferences = typeof v === 'string' ? JSON.parse(v) : v ?? null;
+          } catch {
+            notification_preferences = null;
+          }
+        }
       });
     }
 
@@ -1767,6 +1777,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       pricing_mode,
       business_type,
       allow_half_carton,
+      notification_preferences,
       updated_at: new Date().toISOString(),
     };
     mockStore.company_settings.push(newCs);
@@ -1780,7 +1791,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       const setMatch = sql.match(/SET\s+([\s\S]+?)\s+WHERE\s+/i);
       if (setMatch) {
         const setBody = setMatch[1];
-        const assignRegex = /([a-z_]+)\s*=\s*(?:COALESCE\(NULLIF\(\$(\d+),\s*''\),\s*[a-z_]+\)|\$(\d+))/gi;
+        const assignRegex = /([a-z_]+)\s*=\s*(?:COALESCE\(NULLIF\(\$(\d+),\s*''\),\s*[a-z_]+\)|\$(\d+)(?:::[a-z]+)?)/gi;
         let m: RegExpExecArray | null;
         while ((m = assignRegex.exec(setBody)) !== null) {
           const col = m[1].toLowerCase();
@@ -1793,6 +1804,12 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
             (cs as any)[col] = Boolean(val);
           } else if (col === 'tax_rate') {
             (cs as any)[col] = Number(val || 0);
+          } else if (col === 'notification_preferences') {
+            try {
+              (cs as any).notification_preferences = typeof val === 'string' ? JSON.parse(val) : val;
+            } catch {
+              (cs as any).notification_preferences = val ?? null;
+            }
           } else if (val !== undefined) {
             (cs as any)[col] = val;
           }

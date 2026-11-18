@@ -390,6 +390,7 @@ const DATABASE_TABLE_DDL: string[] = [
     pricing_mode pricing_mode_enum NOT NULL DEFAULT 'FIXED',
     business_type business_type_enum NOT NULL DEFAULT 'RETAIL',
     allow_half_carton BOOLEAN NOT NULL DEFAULT true,
+    notification_preferences JSONB DEFAULT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS categories (
@@ -1313,6 +1314,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
               SET allow_half_carton = COALESCE(allow_half_carton, (min_selling_quantity <= 0.5), true);
             END IF;
             ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS allow_half_carton BOOLEAN NOT NULL DEFAULT true;
+            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT NULL;
             ALTER TABLE company_settings DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
             ALTER TABLE company_settings DROP COLUMN IF EXISTS pricing_policy_locked CASCADE;
             ALTER TABLE company_settings DROP COLUMN IF EXISTS telegram_bot_token CASCADE;

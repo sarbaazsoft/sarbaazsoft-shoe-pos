@@ -17,6 +17,11 @@ import {
 } from '../pushNotificationService.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import {
+  getStoreNotificationDeliveryStatus,
+  getTenantNotificationPreferences,
+  saveTenantNotificationPreferences,
+} from '../services/notificationPreferencesService.ts';
+import {
   extractTokenFromRequest,
   getJwtSecret,
   isTokenRevoked,
@@ -1487,6 +1492,80 @@ router.post(['/test-fcm', '/test-push'], async (req: Request, res: Response) => 
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Failed to trigger test FCM alert' });
+  }
+});
+
+function resolvePreferencesTenantId(req: AuthenticatedRequest): number | null {
+  const user = req.user;
+  if (!user) return null;
+  const roleUpper = String(user.role || '').toUpperCase();
+  if (isSuperAdminRole(roleUpper)) {
+    const requested = Number(req.query.tenantId || req.body?.tenantId || 1);
+    return Number.isInteger(requested) && requested > 0 ? requested : 1;
+  }
+  if (isOwnerRole(roleUpper)) {
+    const tid = Number(user.tenantId || 1);
+    return Number.isInteger(tid) && tid > 0 ? tid : 1;
+  }
+  return null;
+}
+
+// GET /api/notifications/preferences - Retrieve store notification preferences & delivery status
+router.get('/preferences', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const cleanTenantId = resolvePreferencesTenantId(req);
+    if (cleanTenantId === null) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only store owners or administrators can view store notification preferences.',
+      });
+    }
+
+    const preferences = await getTenantNotificationPreferences(cleanTenantId);
+    const deliveryStatus = await getStoreNotificationDeliveryStatus(cleanTenantId, preferences);
+
+    return res.json({
+      success: true,
+      tenantId: cleanTenantId,
+      preferences,
+      deliveryStatus,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Failed to load notification preferences',
+    });
+  }
+});
+
+// PUT, PATCH, POST /api/notifications/preferences - Save store notification preferences & preset
+router.all('/preferences', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (!['PUT', 'PATCH', 'POST'].includes(req.method.toUpperCase())) {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+  try {
+    const cleanTenantId = resolvePreferencesTenantId(req);
+    if (cleanTenantId === null) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only store owners or administrators can update notification preferences.',
+      });
+    }
+
+    const preferences = await saveTenantNotificationPreferences(cleanTenantId, req.body);
+    const deliveryStatus = await getStoreNotificationDeliveryStatus(cleanTenantId, preferences);
+
+    return res.json({
+      success: true,
+      tenantId: cleanTenantId,
+      preferences,
+      deliveryStatus,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Failed to update notification preferences',
+    });
   }
 });
 

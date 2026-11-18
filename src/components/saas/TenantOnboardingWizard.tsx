@@ -4,6 +4,8 @@ import { api, setAuthSession } from '../../services/api';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { PublicHeader } from '../common/PublicHeader';
 import { PublicFooter } from '../common/PublicFooter';
+import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
+import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip';
@@ -15,6 +17,7 @@ interface TenantOnboardingWizardProps {
   onCompleted: (tenantId: number, user?: User | null, token?: string | null, settings?: any) => void;
   onCancel: () => void;
   isRequiredFirstLogin?: boolean;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 interface StarterProductInput {
@@ -33,6 +36,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
   onCompleted,
   onCancel,
   isRequiredFirstLogin = false,
+  layoutMeta: layoutMetaOverride,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [loading, setLoading] = useState(true);
@@ -270,24 +274,32 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
     }
   };
 
+  const onboardingLayoutMeta = resolveRouteLayoutMetadata('TENANT_ONBOARDING', {
+    overrides: layoutMetaOverride,
+  });
+
   return (
-    <div className="min-h-screen w-full flex flex-col justify-between relative overflow-x-hidden bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
-      <ShowroomBackground />
-
-      <PublicHeader
-        storeName={`${storeName || 'Store'} — Initial Store Setup`}
-        badgeText={alreadyCompleted ? 'Setup Locked' : 'Owner Onboarding'}
-        badgeVariant={alreadyCompleted ? 'locked' : 'wizard'}
-        subtitle={
-          alreadyCompleted
-            ? 'Initial Store Setup & POS Defaults Sealed'
-            : 'First-Time Store Owner Configuration'
-        }
-        dbText="Secure Store Setup"
-      />
-
-      <main className="relative z-10 w-full flex-1 py-5 sm:py-8 px-3 sm:px-6">
-        <div className="max-w-4xl mx-auto">
+    <BodyLayoutWrapper
+      layoutMeta={onboardingLayoutMeta}
+      className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200"
+      backdrop={<ShowroomBackground />}
+      header={
+        <PublicHeader
+          storeName={`${storeName || 'Store'} — Initial Store Setup`}
+          badgeText={alreadyCompleted ? 'Setup Locked' : 'Owner Onboarding'}
+          badgeVariant={alreadyCompleted ? 'locked' : 'wizard'}
+          subtitle={
+            alreadyCompleted
+              ? 'Initial Store Setup & POS Defaults Sealed'
+              : 'First-Time Store Owner Configuration'
+          }
+          dbText="Secure Store Setup"
+        />
+      }
+      mainClassName="relative z-10 w-full py-5 sm:py-8 px-3 sm:px-6"
+      footer={<PublicFooter />}
+    >
+      <div className="max-w-4xl mx-auto w-full">
           {loading ? (
             <div className="bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md rounded-3xl p-6 sm:p-10 shadow-2xl border border-white/30 dark:border-purple-800/60 flex flex-col items-center max-w-sm w-full mx-auto text-center animate-in fade-in zoom-in-95 duration-200">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white mb-4 shadow-lg shadow-purple-600/30 ring-2 ring-indigo-400/30">
@@ -1621,10 +1633,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
               </form>
             </>
           )}
-        </div>
-      </main>
-
-      <PublicFooter />
-    </div>
+      </div>
+    </BodyLayoutWrapper>
   );
 };

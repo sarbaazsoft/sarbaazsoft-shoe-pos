@@ -13,7 +13,7 @@ export interface KeepAliveRouteHostProps {
   userRole?: string | null;
   businessType?: string | null;
   scopeKey: string;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  scrollContainerRef: React.RefObject<HTMLElement | null>;
   maxMountedTabs?: number;
   renderTab: (tab: string) => React.ReactNode;
 }
@@ -70,17 +70,28 @@ export const KeepAliveRouteHost: React.FC<KeepAliveRouteHostProps> = ({
   useLayoutEffect(() => {
     const scroller = scrollContainerRef.current;
     const prevTab = prevActiveTabRef.current;
+    const isElementScrollable = Boolean(
+      scroller && scroller.scrollHeight > scroller.clientHeight + 2
+    );
 
     if (prevTab !== activeTab) {
-      if (scroller) {
+      if (isElementScrollable && scroller) {
         scrollPositionsRef.current[prevTab] = scroller.scrollTop;
+      } else if (typeof window !== 'undefined') {
+        scrollPositionsRef.current[prevTab] = window.scrollY || 0;
       }
       prevActiveTabRef.current = activeTab;
 
       const targetScroll = scrollPositionsRef.current[activeTab] ?? 0;
       const rafId = requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = targetScroll;
+        const activeScroller = scrollContainerRef.current;
+        if (
+          activeScroller &&
+          activeScroller.scrollHeight > activeScroller.clientHeight + 2
+        ) {
+          activeScroller.scrollTop = targetScroll;
+        } else if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+          window.scrollTo({ top: targetScroll, behavior: 'auto' });
         }
       });
       return () => cancelAnimationFrame(rafId);

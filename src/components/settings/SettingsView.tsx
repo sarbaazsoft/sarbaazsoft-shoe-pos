@@ -14,6 +14,7 @@ import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.t
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip.tsx';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 import { NotificationAlertProvidersSettings } from './NotificationAlertProvidersSettings.tsx';
+import { StoreNotificationPreferencesCard } from './StoreNotificationPreferencesCard.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import {
   isWebPushSupported,
@@ -1108,6 +1109,7 @@ setFormErrors(errors);
   );
   const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
   const [testNotifFeedback, setTestNotifFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [notifPrefsRefreshKey, setNotifPrefsRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!isStoreAdmin && !isSuperAdmin) return;
@@ -1182,6 +1184,7 @@ setFormErrors(errors);
         text: 'Notification permission has not been granted yet. Click Enable Notifications to activate alerts.',
       });
     } finally {
+      setNotifPrefsRefreshKey((prev) => prev + 1);
       setIsTogglingNotifs(false);
     }
   };
@@ -1257,6 +1260,7 @@ setFormErrors(errors);
         text: err?.message || 'Could not update notification settings.',
       });
     } finally {
+      setNotifPrefsRefreshKey((prev) => prev + 1);
       setIsTogglingNotifs(false);
     }
   };
@@ -4385,6 +4389,15 @@ setFormErrors(errors);
               </div>
             )}
           </div>
+
+          {/* Store Owner Notification Preferences: Presets, Delivery Channels, Event Types, & Email Fallback */}
+          {isStoreAdmin && (
+            <StoreNotificationPreferencesCard
+              refreshTrigger={notifPrefsRefreshKey}
+              isDeviceSubscribed={isNotifSubscribed}
+              onNavigateToStoreProfile={() => handleSelectTab('store')}
+            />
+          )}
 
           {/* Card 2: Send Test Notification Message */}
           <form

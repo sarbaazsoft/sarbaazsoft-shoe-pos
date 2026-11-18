@@ -243,35 +243,67 @@ test('notifyPlatformAnnouncement & testFcmPush coalesce concurrent/retried trigg
 
   try {
     // 1. Platform announcement with same id / eventId triggers once
+    const allEnabledPrefs = {
+      preset: 'all' as const,
+      channels: { webPush: true, emailAlerts: true },
+      events: {
+        sale: true,
+        return: true,
+        exchange: true,
+        low_stock: true,
+        subscription: true,
+        announcement: true,
+      },
+      custom: {
+        channels: { webPush: true, emailAlerts: true },
+        events: {
+          sale: true,
+          return: true,
+          exchange: true,
+          low_stock: true,
+          subscription: true,
+          announcement: true,
+        },
+      },
+    };
     await Promise.all([
-      notifyPlatformAnnouncement({
-        id: 501,
-        eventId: 'announcement-501',
-        tenantId: 15,
-        targetRole: 'ADMIN',
-        title: 'Store Notice',
-        message: 'Maintenance window',
-      }),
-      notifyPlatformAnnouncement({
-        id: 501,
-        eventId: 'announcement-501',
-        tenantId: 15,
-        targetRole: 'ADMIN',
-        title: 'Store Notice',
-        message: 'Maintenance window',
-      }),
+      notifyPlatformAnnouncement(
+        {
+          id: 501,
+          eventId: 'announcement-501',
+          tenantId: 15,
+          targetRole: 'ADMIN',
+          title: 'Store Notice',
+          message: 'Maintenance window',
+        },
+        { getPreferencesFn: async () => allEnabledPrefs }
+      ),
+      notifyPlatformAnnouncement(
+        {
+          id: 501,
+          eventId: 'announcement-501',
+          tenantId: 15,
+          targetRole: 'ADMIN',
+          title: 'Store Notice',
+          message: 'Maintenance window',
+        },
+        { getPreferencesFn: async () => allEnabledPrefs }
+      ),
     ]);
     assert.equal(adminSse.length, 1);
 
     // Different announcement id must still deliver
-    await notifyPlatformAnnouncement({
-      id: 502,
-      eventId: 'announcement-502',
-      tenantId: 15,
-      targetRole: 'ADMIN',
-      title: 'Second Notice',
-      message: 'Feature update',
-    });
+    await notifyPlatformAnnouncement(
+      {
+        id: 502,
+        eventId: 'announcement-502',
+        tenantId: 15,
+        targetRole: 'ADMIN',
+        title: 'Second Notice',
+        message: 'Feature update',
+      },
+      { getPreferencesFn: async () => allEnabledPrefs }
+    );
     assert.equal(adminSse.length, 2);
 
     // 2. Concurrent & retried testFcmPush sharing the same eventId only dispatches once

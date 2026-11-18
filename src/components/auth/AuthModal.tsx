@@ -6,6 +6,8 @@ import { ShoeIcon } from '../common/ShoeIcon.tsx';
 import { ShowroomBackground } from '../common/ShowroomBackground.tsx';
 import { PublicHeader } from '../common/PublicHeader.tsx';
 import { PublicFooter } from '../common/PublicFooter.tsx';
+import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper.tsx';
+import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata.ts';
 import { getRememberedEmail, saveRememberedEmail, forgetRememberedEmail } from '../../utils/rememberedAccount.ts';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.tsx';
@@ -18,6 +20,7 @@ interface AuthModalProps {
   onBack?: () => void;
   onClearTenantScope?: () => void;
   sessionNotice?: string | null;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -26,6 +29,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onBack,
   onClearTenantScope,
   sessionNotice,
+  layoutMeta: layoutMetaOverride,
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -312,71 +316,74 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const authLayoutMeta = resolveRouteLayoutMetadata('AUTH', {
+    overrides: layoutMetaOverride,
+  });
+
   return (
-    <div
+    <BodyLayoutWrapper
+      layoutMeta={authLayoutMeta}
       style={{
         backgroundColor: isDark ? '#0A0E1A' : '#E2E8F0',
       }}
-      className={`min-h-screen w-full flex flex-col justify-between relative overflow-x-hidden bg-slate-200 dark:bg-[#0A0E1A] ${
+      className={`bg-slate-200 dark:bg-[#0A0E1A] ${
         isDark ? 'dark text-slate-100' : 'light text-slate-900'
       } font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200`}
-    >
-      {/* Showroom Background Image Layer aligned with loading route */}
-      <ShowroomBackground />
-
-      {/* Top Application Bar with backdrop blur */}
-      <PublicHeader
-        storeName={storeName}
-        logoSrc={companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png'}
-        actionText={onBack ? 'Store Directory' : undefined}
-        actionIcon={<Store className="w-3.5 h-3.5" />}
-        onActionClick={onBack}
-      />
-
-      {/* Unauthenticated Store Scope Notification Banner (matching landing page header bar) */}
-      {activeTenantId && (
-        <div
-          id="auth-tenant-scope-banner"
-          className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-2 px-3 sm:px-4 text-xs select-none"
-        >
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-              <span>
-                Active Store Scope: <strong>{effectiveStoreName}</strong> (Tenant #{activeTenantId})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {onBack && (
+      backdrop={<ShowroomBackground />}
+      header={
+        <PublicHeader
+          storeName={storeName}
+          logoSrc={companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png'}
+          actionText={onBack ? 'Store Directory' : undefined}
+          actionIcon={<Store className="w-3.5 h-3.5" />}
+          onActionClick={onBack}
+        />
+      }
+      topBanner={
+        activeTenantId ? (
+          <div
+            id="auth-tenant-scope-banner"
+            className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-2 px-3 sm:px-4 text-xs select-none"
+          >
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+                <span>
+                  Active Store Scope: <strong>{effectiveStoreName}</strong> (Tenant #{activeTenantId})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {onBack && (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
+                  >
+                    Change Store
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={onBack}
-                  className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
+                  onClick={() => {
+                    try {
+                      sessionStorage.removeItem('pos_unauth_scoped_tenant_id');
+                      localStorage.removeItem('pos_unauth_scoped_tenant_id');
+                    } catch {}
+                    onClearTenantScope?.();
+                  }}
+                  className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-purple-900 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
+                  title="Clear tenant scope and sign in without a store lock"
                 >
-                  Change Store
+                  Clear Store Scope
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    sessionStorage.removeItem('pos_unauth_scoped_tenant_id');
-                    localStorage.removeItem('pos_unauth_scoped_tenant_id');
-                  } catch {}
-                  onClearTenantScope?.();
-                }}
-                className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-purple-900 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
-                title="Clear tenant scope and sign in without a store lock"
-              >
-                Clear Store Scope
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Main Content Area - Centered Login Form Card */}
-      <main className="relative z-10 w-full flex-1 flex items-center justify-center px-4 py-8 sm:py-12">
+        ) : null
+      }
+      footer={<PublicFooter storeName={storeName} />}
+      mainClassName="relative z-10 w-full px-4 py-8 sm:py-12"
+    >
         <div className="w-full max-w-md mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.985, filter: 'blur(6px)' }}
@@ -847,11 +854,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           </motion.div>
         </div>
-      </main>
-
-      {/* Global Public Footer */}
-      <PublicFooter storeName={storeName} />
-    </div>
+    </BodyLayoutWrapper>
   );
 };
 

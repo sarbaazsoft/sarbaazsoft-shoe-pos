@@ -2,16 +2,19 @@ import React from 'react';
 import { ShowroomBackground } from './ShowroomBackground.tsx';
 import { PublicHeader, PublicHeaderProps } from './PublicHeader.tsx';
 import { PublicFooter } from './PublicFooter.tsx';
+import { BodyLayoutWrapper } from './BodyLayoutWrapper.tsx';
+import type { RouteLayoutMetadata } from '../../config/routeLayoutMetadata.ts';
 
 export interface PublicLayoutProps extends PublicHeaderProps {
   children: React.ReactNode;
   contentClassName?: string;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 /**
  * PublicLayout
  * Standard wrapper for public and onboarding routes (Loading, Auth, InstallWizard)
- * providing aligned showroom background (10% opacity as cover), global header, and global footer.
+ * built on top of BodyLayoutWrapper with showroom background, global header, and global footer.
  */
 export const PublicLayout: React.FC<PublicLayoutProps> = ({
   children,
@@ -21,30 +24,35 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
   subtitle,
   dbText,
   contentClassName = '',
+  layoutMeta,
   ...rest
 }) => {
   return (
-    <div className="min-h-screen w-full flex flex-col justify-between relative overflow-x-hidden bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200">
-      {/* Aligned Showroom Background (10% opacity as cover + subtle depth overlay) */}
-      <ShowroomBackground />
-
-      {/* Global Public Header */}
-      <PublicHeader
-        storeName={storeName}
-        badgeText={badgeText}
-        badgeVariant={badgeVariant}
-        subtitle={subtitle}
-        dbText={dbText}
-        {...rest}
-      />
-
-      {/* Centered Main Viewport */}
-      <main className={`relative z-10 flex-1 flex flex-col justify-center items-center px-4 py-6 sm:px-8 sm:py-10 ${contentClassName}`}>
-        {children}
-      </main>
-
-      {/* Global Public Footer */}
-      <PublicFooter storeName={storeName} subtitle={subtitle} />
-    </div>
+    <BodyLayoutWrapper
+      layoutMeta={{
+        preset: 'wizard',
+        showHeader: true,
+        showSidebar: false,
+        showFooter: true,
+        centerMain: true,
+        ...layoutMeta,
+      }}
+      backdrop={<ShowroomBackground />}
+      header={
+        <PublicHeader
+          storeName={storeName}
+          badgeText={badgeText}
+          badgeVariant={badgeVariant}
+          subtitle={subtitle}
+          dbText={dbText}
+          {...rest}
+        />
+      }
+      footer={<PublicFooter storeName={storeName} subtitle={subtitle} />}
+      className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
+      mainClassName={`relative z-10 px-4 py-6 sm:px-8 sm:py-10 ${contentClassName}`}
+    >
+      {children}
+    </BodyLayoutWrapper>
   );
 };

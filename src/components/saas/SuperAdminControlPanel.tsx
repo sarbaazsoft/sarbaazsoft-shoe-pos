@@ -5,6 +5,8 @@ import { api, setAuthSession } from '../../services/api';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { PublicHeader } from '../common/PublicHeader';
 import { PublicFooter } from '../common/PublicFooter';
+import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
+import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { APP_VERSION } from '../../version.ts';
 import { UserAvatar } from '../common/UserAvatar';
 import { ThemeDropdown } from '../common/ThemeDropdown';
@@ -49,6 +51,7 @@ interface SuperAdminControlPanelProps {
   onOpenOnboarding: (tenantId: number) => void;
   onTenantsUpdated: () => void;
   onOpenProfile?: () => void;
+  layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
 type SuperAdminTab = 'dashboard' | 'stores' | 'trials' | 'requests' | 'notifications' | 'reports' | 'manifests' | 'settings';
@@ -61,6 +64,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   onOpenOnboarding,
   onTenantsUpdated,
   onOpenProfile,
+  layoutMeta: layoutMetaOverride,
 }) => {
   const { theme, toggleTheme, accentPalette } = useTheme();
   const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
@@ -1330,24 +1334,35 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   // Render SuperAdmin Dedicated Login Screen aligned with Store Auth Page if not logged in as SUPERADMIN
   if (!isSuperAdmin) {
+    const superAdminAuthLayoutMeta = resolveRouteLayoutMetadata('SUPERADMIN', {
+      isAuthenticated: false,
+      overrides: layoutMetaOverride,
+    });
+
     return (
-      <div className="min-h-screen w-full flex flex-col justify-between relative overflow-x-hidden bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200">
-        {/* Showroom Background Image Layer (aligned with Store Auth Page) */}
-        <ShowroomBackground />
-
-        {/* Top Application Bar with backdrop blur */}
-        <PublicHeader
-          storeName="POS SaaS C-Panel"
-          badgeText="Control Plane Online"
-          badgeVariant="online"
-          subtitle="Multi-Tenant POS Cloud • SuperAdmin Access"
-          dbText="System Secure • Active"
-          isSuperAdmin={true}
-        />
-
-        {/* Main Content Area - Centered Login Form Card */}
-        <main className="relative z-10 w-full flex-1 flex items-center justify-center px-4 py-8 sm:py-12">
-          <div className="w-full max-w-md mx-auto">
+      <BodyLayoutWrapper
+        layoutMeta={superAdminAuthLayoutMeta}
+        className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
+        backdrop={<ShowroomBackground />}
+        header={
+          <PublicHeader
+            storeName="POS SaaS C-Panel"
+            badgeText="Control Plane Online"
+            badgeVariant="online"
+            subtitle="Multi-Tenant POS Cloud • SuperAdmin Access"
+            dbText="System Secure • Active"
+            isSuperAdmin={true}
+          />
+        }
+        mainClassName="relative z-10 w-full px-4 py-8 sm:py-12"
+        footer={
+          <PublicFooter
+            storeName="POS SaaS C-Panel"
+            subtitle="Multi-Tenant POS & Inventory Control Plane"
+          />
+        }
+      >
+        <div className="w-full max-w-md mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 16, scale: 0.98 }}
@@ -1716,15 +1731,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 )}
               </div>
             </motion.div>
-          </div>
-        </main>
-
-        {/* Bottom Global Footer */}
-        <PublicFooter
-          storeName="POS SaaS C-Panel"
-          subtitle="Multi-Tenant POS & Inventory Control Plane"
-        />
-      </div>
+        </div>
+      </BodyLayoutWrapper>
     );
   }
 
@@ -2209,14 +2217,24 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     );
   };
 
-  return (
-    <div className="saas-panel flex w-full min-h-screen bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 transition-colors">
+  const authLayoutMeta = resolveRouteLayoutMetadata('SUPERADMIN', {
+    isAuthenticated: true,
+    tab: activeTab,
+    overrides: layoutMetaOverride,
+  });
+
+  const superAdminSidebar = (
+    <>
       {/* DESKTOP FIXED SIDEBAR WITH SMOOTH SPRING WIDTH TRANSITION */}
       <motion.aside
         initial={false}
-        animate={{ width: isCollapsed ? 72 : 256 }}
+        animate={{
+          width: isCollapsed
+            ? authLayoutMeta.collapsedSidebarWidth || 72
+            : authLayoutMeta.sidebarWidth || 256,
+        }}
         transition={{ type: 'spring', stiffness: 350, damping: 32 }}
-        className="hidden lg:flex shrink-0 h-screen sticky top-0 z-30 no-print overflow-hidden rounded-none shadow-lg border-r border-indigo-500/20"
+        className="hidden lg:flex shrink-0 self-stretch sticky top-[3.6rem] max-h-[calc(100dvh-3.6rem)] z-30 no-print overflow-hidden rounded-none shadow-lg border-r border-indigo-500/20"
       >
         {renderSuperAdminSidebar(false)}
       </motion.aside>
@@ -2245,17 +2263,29 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           </div>
         )}
       </AnimatePresence>
+    </>
+  );
 
-      {/* RIGHT COLUMN: TOP HEADER + MAIN WORKSPACE + FOOTER (Aligned with Store Page) */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#F8FAFC] dark:bg-[#0A0E1A]">
-        {/* Notification Status Modal Window (Pop-up Window for warnings, errors, and success confirmations) */}
-        <NotificationStatusModal
-          modal={notificationModalData}
-          onClose={() => setNotificationModalData(null)}
-        />
+  const superAdminFooter = (
+    <footer className="px-4 py-2.5 border-t border-indigo-500/20 bg-white/95 dark:bg-white/5 backdrop-blur-lg shadow-lg transition-colors duration-500 text-xs font-medium text-slate-800 dark:text-slate-100 tracking-wide shrink-0 no-print select-none">
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
+        <div className="flex items-center gap-2 justify-center sm:justify-start">
+          <strong className="font-bold text-slate-900 dark:text-white">
+            SarbaazSoft Shoe POS
+          </strong>
+          <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
+            {APP_VERSION}
+          </span>
+        </div>
+        <span className="text-slate-500 dark:text-slate-400 text-[11px] sm:text-xs">
+          &copy; {new Date().getFullYear()} SarbaazSoft Shoe POS. All rights reserved.
+        </span>
+      </div>
+    </footer>
+  );
 
-        {/* STICKY TOP HEADER BAR (Exact h-[3.6rem] aligned with Store Header.tsx) */}
-        <header className="h-[3.6rem] sticky top-0 z-20 bg-white/95 dark:bg-[#0D1322]/95 backdrop-blur-lg border-b border-indigo-500/20 px-3 sm:px-6 flex items-center justify-between gap-3 shrink-0 shadow-2xs transition-colors">
+  const superAdminHeader = (
+    <header className="h-[3.6rem] bg-white/95 dark:bg-[#0D1322]/95 backdrop-blur-lg border-b border-indigo-500/20 px-3 sm:px-6 flex items-center justify-between gap-3 shrink-0 shadow-2xs transition-colors">
           {/* Left: Mobile Menu Button & Mobile Brand Identity */}
           <div className="flex items-center gap-2.5 min-w-0">
             <button
@@ -2864,14 +2894,29 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </AnimatePresence>
             </div>
           </div>
-        </header>
+    </header>
+  );
 
-        {/* MAIN CONTENT AREA (Aligned with Store DashboardOverview.tsx) */}
-        <main className="flex-1 min-w-0 overflow-x-hidden bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors">
-          <div
-            ref={superAdminWorkspaceRef}
-            className="p-3 sm:p-6 lg:p-7 space-y-4 sm:space-y-6 max-w-7xl mx-auto select-none"
-          >
+  return (
+    <BodyLayoutWrapper
+      layoutMeta={authLayoutMeta}
+      sidebarSelfSized={true}
+      header={superAdminHeader}
+      sidebar={superAdminSidebar}
+      footer={superAdminFooter}
+      className="saas-panel bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 transition-colors"
+      mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"
+    >
+      {/* Notification Status Modal Window (Pop-up Window for warnings, errors, and success confirmations) */}
+      <NotificationStatusModal
+        modal={notificationModalData}
+        onClose={() => setNotificationModalData(null)}
+      />
+
+      <div
+        ref={superAdminWorkspaceRef}
+        className="p-3 sm:p-6 lg:p-7 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full select-none"
+      >
             {/* DASHBOARD HEADER ROW (Shown on Dashboard & Manifests tabs; Stores, Requests & Reports use Product-route Top Banner Card) */}
             {(activeTab === 'dashboard' || activeTab === 'manifests') && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
@@ -5862,25 +5907,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 )}
               </div>
             )}
-          </div>
-        </main>
-
-        {/* FOOTER (Aligned with Store Page Footer) */}
-        <footer className="px-4 py-2.5 border-t border-indigo-500/20 bg-white/95 dark:bg-white/5 backdrop-blur-lg shadow-lg transition-colors duration-500 text-xs font-medium text-slate-800 dark:text-slate-100 tracking-wide shrink-0 no-print select-none">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
-            <div className="flex items-center gap-2 justify-center sm:justify-start">
-              <strong className="font-bold text-slate-900 dark:text-white">
-                SarbaazSoft Shoe POS
-              </strong>
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
-                {APP_VERSION}
-              </span>
-            </div>
-            <span className="text-slate-500 dark:text-slate-400 text-[11px] sm:text-xs">
-              &copy; {new Date().getFullYear()} SarbaazSoft Shoe POS. All rights reserved.
-            </span>
-          </div>
-        </footer>
       </div>
 
       {/* Add New Store Modal (Aligned with ProductFormModal Header, Cards & Footer) */}
@@ -7332,6 +7358,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         isAdmin={true}
         role="SUPERADMIN"
       />
-    </div>
+    </BodyLayoutWrapper>
   );
 };
