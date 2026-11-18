@@ -10,6 +10,7 @@ import { BrandLogo } from '../common/BrandLogo.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
+import { useTheme } from '../../context/ThemeContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
@@ -106,7 +107,7 @@ const CustomWeeklySalesTooltip: React.FC<CustomWeeklySalesTooltipProps> = ({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-3">
           <span className="text-slate-300 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_6px_#6366F1]" />
+            <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_6px_rgba(var(--brand-companion-rgb,99,102,241),0.8)]" />
             <span>Sales Revenue:</span>
           </span>
           <span className="font-bold font-mono text-indigo-300">
@@ -240,6 +241,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   companySettings,
   onNavigate,
 }) => {
+  const { accentPalette } = useTheme();
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
   const tenantId = currentUser?.tenantId || currentUser?.tenant_id || companySettings?.id || '1';
@@ -1016,7 +1018,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             onClick={loadData}
             disabled={loading}
             title={loading ? "Refreshing metrics..." : "Refresh metrics & recount stats"}
-            className="btn-outline-landing p-1.5 rounded-xl bg-white hover:text-blue-600 border border-slate-200/90 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] text-slate-500 cursor-pointer transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="btn-outline-landing p-1.5 rounded-xl bg-white hover:text-blue-600 border border-slate-200/90 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] text-slate-500 cursor-pointer transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-slate-500 dark:text-purple-300'}`} />
           </button>
@@ -1690,8 +1692,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 >
                   <defs>
                     <linearGradient id="dashboardSalesGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.45} />
-                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0} />
+                      <stop offset="5%" stopColor={accentPalette.companionHex} stopOpacity={0.45} />
+                      <stop offset="95%" stopColor={accentPalette.companionHex} stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="dashboardTxGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.38} />
@@ -1737,11 +1739,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       type="monotone"
                       dataKey="amount"
                       name="Sales Revenue"
-                      stroke="#6366F1"
+                      stroke={accentPalette.companionHex}
                       strokeWidth={2.6}
                       fillOpacity={1}
                       fill="url(#dashboardSalesGrad)"
-                      activeDot={{ r: 6, stroke: '#6366F1', strokeWidth: 2, fill: '#ffffff' }}
+                      activeDot={{ r: 6, stroke: accentPalette.companionHex, strokeWidth: 2, fill: '#ffffff' }}
                     />
                   )}
                   {(activeChartMetric === 'all' || activeChartMetric === 'orders') && (
@@ -1765,8 +1767,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 >
                   <defs>
                     <linearGradient id="dashboardMonthlySalesAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.45} />
-                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0} />
+                      <stop offset="5%" stopColor={accentPalette.companionHex} stopOpacity={0.45} />
+                      <stop offset="95%" stopColor={accentPalette.companionHex} stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="dashboardMonthlyVolSoldAreaGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10B981" stopOpacity={0.42} />
@@ -1816,11 +1818,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       type="monotone"
                       dataKey="amount"
                       name="Gross Sales (Rs.)"
-                      stroke="#6366F1"
+                      stroke={accentPalette.companionHex}
                       strokeWidth={2.8}
                       fillOpacity={1}
                       fill="url(#dashboardMonthlySalesAreaGrad)"
-                      activeDot={{ r: 6, stroke: '#6366F1', strokeWidth: 2, fill: '#ffffff' }}
+                      activeDot={{ r: 6, stroke: accentPalette.companionHex, strokeWidth: 2, fill: '#ffffff' }}
                     />
                   )}
                   {(activeChartMetric === 'all' || activeChartMetric === 'orders') && (
@@ -1883,7 +1885,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {dashboardData.topBrands.slice(0, 2).map((brand, idx) => {
                   const pct = brand.percentage || 0;
                   const circumference = 238.76;
-                  const strokeColor = idx === 0 ? '#3B82F6' : '#8B5CF6';
+                  const strokeColor = idx === 0 ? accentPalette.baseHex : accentPalette.companionHex;
 
                   return (
                     <div key={`top-brand-${brand.id || brand.name || idx}-${idx}`} className="flex flex-col items-center text-center min-w-0">
@@ -1913,7 +1915,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                             data-per-role="donut"
                             data-circumference={circumference}
                             data-stagger-index={idx}
-                            className={`${idx === 0 ? 'neon-glow-blue' : ''}`}
+                            className={`${idx === 0 ? 'neon-glow-primary' : ''}`}
                           />
                         </svg>
                         {/* Brand Logo or Placeholder in center of ring */}
@@ -2090,8 +2092,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 >
                   <defs>
                     <linearGradient id="catBarUnitsGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#6366F1" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#818CF8" stopOpacity={0.7} />
+                      <stop offset="0%" stopColor={accentPalette.companionHex} stopOpacity={0.9} />
+                      <stop offset="100%" stopColor={accentPalette.companionScale[400]} stopOpacity={0.7} />
                     </linearGradient>
                     <linearGradient id="catBarSalesGrad" x1="0" y1="0" x2="1" y2="0">
                       <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.9} />

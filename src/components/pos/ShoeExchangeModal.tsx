@@ -726,7 +726,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                           className={`text-[11px] px-2.5 py-1.5 sm:py-1 rounded-lg border font-medium transition cursor-pointer ${
                             retailReason === chip
                               ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 font-bold'
-                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)]'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
                           }`}
                         >
                           {chip}

@@ -1679,7 +1679,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     id="pos-scanner-submit-btn"
                     onMouseDown={(e) => e.preventDefault()}
                     style={{ color: '#ffffff' }}
-                    className="btn-pure-white h-11 px-3.5 sm:h-auto sm:px-6 sm:py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white font-bold text-sm rounded-xl border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(147,51,234,0.35)] transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer active:scale-95"
+                    className="btn-pure-white h-11 px-3.5 sm:h-auto sm:px-6 sm:py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white font-bold text-sm rounded-xl border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(var(--primary-rgb,147,51,234),)] transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer active:scale-95"
                     aria-label="Scan barcode or search article"
                   >
                     <Barcode className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
@@ -1845,7 +1845,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     }}
                     className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 min-h-[36px] sm:min-h-0 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       inputMode === 'SCANNER'
-                        ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border border-purple-400/40 shadow-sm shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:border-purple-400/50 dark:shadow-[0_0_14px_rgba(147,51,234,0.35)]'
+                        ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border border-purple-400/40 shadow-sm shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:border-purple-400/50 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-300/40 dark:hover:bg-slate-800/60'
                     }`}
                   >
@@ -1878,7 +1878,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     }}
                     className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 min-h-[36px] sm:min-h-0 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       inputMode === 'MANUAL'
-                        ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border border-purple-400/40 shadow-sm shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:border-purple-400/50 dark:shadow-[0_0_14px_rgba(147,51,234,0.35)]'
+                        ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border border-purple-400/40 shadow-sm shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:border-purple-400/50 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-300/40 dark:hover:bg-slate-800/60'
                     }`}
                   >
@@ -3172,7 +3172,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     isWholesaleStore && method === 'SPLIT' ? 'col-span-2' : ''
                   } ${
                     paymentMethod === method
-                      ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.35)]'
+                      ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
                       : 'bg-slate-100 dark:bg-[#131B2E] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800 font-semibold'
                   }`}
                 >
@@ -3862,7 +3862,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               className={`w-full py-3.5 text-sm sm:text-base font-extrabold rounded-xl shadow-lg flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.98] disabled:opacity-50 transition-all ${
                 activeExchange
                   ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-black shadow-amber-500/25'
-                  : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_24px_rgba(147,51,234,0.4)]'
+                  : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_24px_rgba(var(--primary-rgb,147,51,234),)]'
               }`}
             >
               {activeExchange ? <Repeat className="w-5 h-5" /> : <Printer className="w-5 h-5" />}

@@ -226,7 +226,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
           <button
             type="submit"
             disabled={isVerifying}
-            className="h-11 px-5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-50 active:scale-95"
+            className="h-11 px-5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-50 active:scale-95"
           >
             <Search className="w-4 h-4" />
             <span>{isVerifying ? 'Searching...' : 'Verify Invoice'}</span>

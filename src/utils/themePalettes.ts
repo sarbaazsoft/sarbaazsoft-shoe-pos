@@ -485,6 +485,8 @@ export const ACCENT_THEME_LIST: AccentThemePalette[] = [
   ACCENT_THEME_PALETTES.stone,
 ];
 
+export const THEME_MODE_STORAGE_KEY = 'pos_theme';
+export const ACCENT_THEME_STORAGE_KEY = 'pos_accent_theme';
 export const DEFAULT_ACCENT_THEME: AccentThemeId = 'purple';
 
 export function isValidAccentTheme(value: unknown): value is AccentThemeId {
@@ -498,12 +500,82 @@ export function resolveAccentPalette(accentId?: string | null): AccentThemePalet
   return ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME];
 }
 
+export function getStoredAccentThemeOrNull(): AccentThemeId | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage?.getItem(ACCENT_THEME_STORAGE_KEY);
+    return isValidAccentTheme(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredAccentTheme(): AccentThemeId {
+  return getStoredAccentThemeOrNull() ?? DEFAULT_ACCENT_THEME;
+}
+
+export function persistAccentTheme(accentId: AccentThemeId): AccentThemeId {
+  const valid = isValidAccentTheme(accentId) ? accentId : DEFAULT_ACCENT_THEME;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, valid);
+    } catch {
+      // ignore storage quota or restricted context errors
+    }
+  }
+  return valid;
+}
+
+/**
+ * Dynamically updates <meta name="theme-color"> (creating it if absent) so the
+ * PWA/browser chrome reflects the active primary color theme, while keeping
+ * static web app manifests untouched as a fallback.
+ */
+export function updatePwaThemeColorMeta(colorHex: string): void {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
+
+  let metaThemeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!metaThemeColor && document.head && typeof document.createElement === 'function') {
+    metaThemeColor = document.createElement('meta');
+    metaThemeColor.setAttribute('name', 'theme-color');
+    document.head.appendChild(metaThemeColor);
+  }
+  if (metaThemeColor && metaThemeColor.getAttribute?.('content') !== colorHex) {
+    metaThemeColor.setAttribute('content', colorHex);
+  }
+
+  const tileMeta = document.querySelector<HTMLMetaElement>('meta[name="msapplication-TileColor"]');
+  if (tileMeta && tileMeta.getAttribute?.('content') !== colorHex) {
+    tileMeta.setAttribute('content', colorHex);
+  }
+}
+
+export function getActivePwaThemeColor(
+  fallback: string = ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME].baseHex
+): string {
+  if (
+    typeof document !== 'undefined' &&
+    document.documentElement &&
+    typeof document.documentElement.getAttribute === 'function'
+  ) {
+    const attrAccent = document.documentElement.getAttribute('data-accent-theme');
+    if (isValidAccentTheme(attrAccent)) {
+      return ACCENT_THEME_PALETTES[attrAccent].baseHex;
+    }
+  }
+  const storedAccent = getStoredAccentThemeOrNull();
+  if (storedAccent) {
+    return ACCENT_THEME_PALETTES[storedAccent].baseHex;
+  }
+  return fallback;
+}
+
 const SHADE_KEYS: Array<keyof ShadeScale> = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
 /**
  * Applies the selected accent palette dynamically to `:root` so both custom CSS variables
- * and Tailwind v4 utility classes (from-purple-*, via-indigo-*, bg-purple-*, text-purple-*, etc.)
- * adapt seamlessly in real time across buttons, card headers, footers, inputs, and shadows.
+ * and Tailwind v4 utility classes (primary-*, from-purple-*, via-indigo-*, bg-purple-*, text-purple-*, etc.)
+ * adapt seamlessly in real time across buttons, card headers, footers, inputs, and PWA theme-color.
  */
 export function applyAccentThemeToDOM(accentId: AccentThemeId): AccentThemePalette {
   const palette = resolveAccentPalette(accentId);
@@ -514,6 +586,9 @@ export function applyAccentThemeToDOM(accentId: AccentThemeId): AccentThemePalet
   const c = palette.companionScale;
 
   root.setAttribute('data-accent-theme', palette.id);
+  if (document.body && typeof document.body.setAttribute === 'function') {
+    document.body.setAttribute('data-accent-theme', palette.id);
+  }
 
   // Semantic brand tokens
   root.style.setProperty('--primary', p[600]);
@@ -526,6 +601,17 @@ export function applyAccentThemeToDOM(accentId: AccentThemeId): AccentThemePalet
   root.style.setProperty('--primary-border', p[200]);
   root.style.setProperty('--primary-ring', `rgba(${palette.primaryRgb}, 0.25)`);
 
+  // Semantic Tailwind @theme primary tokens
+  root.style.setProperty('--color-primary', p[600]);
+  root.style.setProperty('--color-primary-rgb', palette.primaryRgb);
+  root.style.setProperty('--color-primary-hover', p[700]);
+  root.style.setProperty('--color-primary-light', p[500]);
+  root.style.setProperty('--color-primary-400', p[400]);
+  root.style.setProperty('--color-primary-dark', p[800]);
+  root.style.setProperty('--color-primary-subtle', p[50]);
+  root.style.setProperty('--color-primary-border', p[200]);
+  root.style.setProperty('--color-primary-ring', `rgba(${palette.primaryRgb}, 0.25)`);
+
   // Companion & surface tokens
   root.style.setProperty('--brand-companion', c[600]);
   root.style.setProperty('--brand-companion-rgb', palette.companionRgb);
@@ -533,6 +619,7 @@ export function applyAccentThemeToDOM(accentId: AccentThemeId): AccentThemePalet
   root.style.setProperty('--brand-companion-hover', c[700]);
   root.style.setProperty('--brand-companion-dark', c[950]);
   root.style.setProperty('--brand-dark-surface', palette.darkSurfaceBg);
+  root.style.setProperty('--color-brand-companion', c[600]);
 
   // Ready-to-use gradient pairs for buttons, card headers, and footers
   root.style.setProperty('--brand-btn-gradient', palette.buttonGradient);
@@ -544,17 +631,17 @@ export function applyAccentThemeToDOM(accentId: AccentThemeId): AccentThemePalet
   root.style.setProperty('--brand-footer-gradient-dark', palette.cardFooterGradientDark);
   root.style.setProperty('--brand-footer-gradient-light', palette.cardFooterGradientLight);
 
-  // Override Tailwind v4 purple & indigo scale variables so every utility class updates live
+  // Full primary & companion CSS variable scales + Tailwind v4 purple & indigo scale overrides
   for (const shade of SHADE_KEYS) {
+    root.style.setProperty(`--primary-${shade}`, p[shade]);
+    root.style.setProperty(`--companion-${shade}`, c[shade]);
+    root.style.setProperty(`--color-primary-${shade}`, p[shade]);
     root.style.setProperty(`--color-purple-${shade}`, p[shade]);
     root.style.setProperty(`--color-indigo-${shade}`, c[shade]);
   }
 
-  // Update PWA/browser theme-color meta tag
-  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-  if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', palette.baseHex);
-  }
+  // Dynamically update PWA/browser theme-color meta tag
+  updatePwaThemeColorMeta(palette.baseHex);
 
   return palette;
 }

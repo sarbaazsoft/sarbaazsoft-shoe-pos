@@ -301,12 +301,12 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
               <select
                 value={tagSize}
                 onChange={(e) => setTagSize(e.target.value as TagSize)}
-                className="text-xs font-semibold bg-white dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] shadow-2xs focus:ring-1 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
+                className="text-xs font-semibold bg-white dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-2xs focus:ring-1 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
                 title="Select thermal label size"
               >
-                <option value="50x30" className="dark:bg-[#120726] dark:text-purple-100">50 × 30 mm (Standard Shoe Tag)</option>
-                <option value="40x25" className="dark:bg-[#120726] dark:text-purple-100">40 × 25 mm (Compact Tag)</option>
-                <option value="60x40" className="dark:bg-[#120726] dark:text-purple-100">60 × 40 mm (Large Tag)</option>
+                <option value="50x30" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">50 × 30 mm (Standard Shoe Tag)</option>
+                <option value="40x25" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">40 × 25 mm (Compact Tag)</option>
+                <option value="60x40" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">60 × 40 mm (Large Tag)</option>
               </select>
 
               <button

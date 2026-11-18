@@ -175,7 +175,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
           <button
             onClick={handleOpenAddModal}
             style={{ color: '#ffffff' }}
-            className="btn-pure-white customer-btn bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="btn-pure-white customer-btn bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
             <span className="!text-white font-bold text-white" style={{ color: '#ffffff' }}>Add New Customer</span>
@@ -278,23 +278,23 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-between md:justify-end">
           {/* Sort Selector */}
-          <div className="flex items-center space-x-1.5 bg-slate-50 dark:bg-purple-500/20 hover:bg-slate-100 dark:hover:bg-purple-500/30 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] transition">
+          <div className="flex items-center space-x-1.5 bg-slate-50 dark:bg-purple-500/20 hover:bg-slate-100 dark:hover:bg-purple-500/30 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition">
             <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-purple-300" />
             <select
               value={sortBy}
               onChange={(e: any) => setSortBy(e.target.value)}
               className="bg-transparent text-xs font-medium text-slate-700 dark:text-purple-200 outline-none cursor-pointer"
             >
-              <option value="recent" className="bg-white dark:bg-[#120726] text-slate-900 dark:text-purple-100">
+              <option value="recent" className="bg-white dark:bg-[var(--brand-dark-surface,#120726)] text-slate-900 dark:text-purple-100">
                 Recently Added
               </option>
-              <option value="name" className="bg-white dark:bg-[#120726] text-slate-900 dark:text-purple-100">
+              <option value="name" className="bg-white dark:bg-[var(--brand-dark-surface,#120726)] text-slate-900 dark:text-purple-100">
                 Name (A - Z)
               </option>
-              <option value="orders" className="bg-white dark:bg-[#120726] text-slate-900 dark:text-purple-100">
+              <option value="orders" className="bg-white dark:bg-[var(--brand-dark-surface,#120726)] text-slate-900 dark:text-purple-100">
                 Most Orders
               </option>
-              <option value="spent" className="bg-white dark:bg-[#120726] text-slate-900 dark:text-purple-100">
+              <option value="spent" className="bg-white dark:bg-[var(--brand-dark-surface,#120726)] text-slate-900 dark:text-purple-100">
                 Highest Spending
               </option>
             </select>
@@ -306,7 +306,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
             onClick={loadCustomers}
             disabled={isLoading}
             title={isLoading ? "Refreshing list..." : "Refresh List & recount metrics"}
-            className="btn-outline-landing p-2 text-slate-600 dark:text-purple-200 hover:text-blue-600 dark:hover:text-white bg-slate-50 dark:bg-purple-500/20 hover:bg-slate-100 dark:hover:bg-purple-500/30 rounded-xl border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="btn-outline-landing p-2 text-slate-600 dark:text-purple-200 hover:text-blue-600 dark:hover:text-white bg-slate-50 dark:bg-purple-500/20 hover:bg-slate-100 dark:hover:bg-purple-500/30 rounded-xl border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
           </button>
@@ -318,7 +318,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
               title="Table View"
               className={`p-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 viewMode === 'table'
-                  ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] shadow-xs'
+                  ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-xs'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
@@ -329,7 +329,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
               title="Card Grid View"
               className={`p-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 viewMode === 'grid'
-                  ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] shadow-xs'
+                  ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-xs'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
@@ -359,7 +359,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
           <button
             onClick={handleOpenAddModal}
             style={{ color: '#ffffff' }}
-            className="btn-pure-white customer-btn bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="btn-pure-white customer-btn bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
             <span className="!text-white font-bold text-white" style={{ color: '#ffffff' }}>Add New Customer</span>

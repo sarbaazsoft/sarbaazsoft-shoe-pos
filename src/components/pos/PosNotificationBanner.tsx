@@ -367,7 +367,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
             ? 'bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-purple-50/80 border-emerald-300/80 text-emerald-950 dark:from-[#091f16] dark:via-[#0c1822] dark:to-[#170d28] dark:border-emerald-500/40 dark:text-emerald-100 dark:shadow-[0_0_20px_rgba(16,185,129,0.16)]'
             : isWarning
             ? 'bg-gradient-to-r from-amber-50 via-amber-100/50 to-orange-50 border-amber-300/80 text-amber-950 dark:from-[#231706] dark:via-[#1e1308] dark:to-[#170d1e] dark:border-amber-500/40 dark:text-amber-100 dark:shadow-[0_0_20px_rgba(245,158,11,0.16)]'
-            : 'bg-gradient-to-r from-purple-50/95 via-indigo-50/80 to-slate-50 border-purple-200 dark:from-[#180a2e] dark:via-[#120c24] dark:to-[#0c1322] dark:border-purple-500/40 text-slate-900 dark:text-purple-100 dark:shadow-[0_0_20px_rgba(147,51,234,0.18)]'
+            : 'bg-gradient-to-r from-purple-50/95 via-indigo-50/80 to-slate-50 border-purple-200 dark:from-[var(--brand-dark-surface,#120726)] dark:via-indigo-950/90 dark:to-[#0c1322] dark:border-purple-500/40 text-slate-900 dark:text-purple-100 dark:shadow-[0_0_20px_rgba(var(--primary-rgb,147,51,234),0.18)]'
         }`}
       >
         {/* Subtle decorative background glow */}

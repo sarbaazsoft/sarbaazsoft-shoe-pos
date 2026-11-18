@@ -1,18 +1,21 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
+  ACCENT_THEME_LIST,
+  ACCENT_THEME_STORAGE_KEY,
+  THEME_MODE_STORAGE_KEY,
   type AccentThemeId,
   type AccentThemePalette,
   DEFAULT_ACCENT_THEME,
   applyAccentThemeToDOM,
+  getStoredAccentTheme,
   isValidAccentTheme,
+  persistAccentTheme,
   resolveAccentPalette,
 } from '../utils/themePalettes.ts';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 export type Theme = ResolvedTheme; // backward compatibility
-
-const ACCENT_STORAGE_KEY = 'pos_accent_theme';
 
 interface ThemeContextType {
   theme: ResolvedTheme;
@@ -22,8 +25,12 @@ interface ThemeContextType {
   toggleTheme: () => void;
   accentTheme: AccentThemeId;
   accentPalette: AccentThemePalette;
+  availableAccents: AccentThemePalette[];
+  pwaThemeColor: string;
   setAccentTheme: (accent: AccentThemeId) => void;
 }
+
+const defaultPalette = resolveAccentPalette(DEFAULT_ACCENT_THEME);
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
@@ -32,7 +39,9 @@ const ThemeContext = createContext<ThemeContextType>({
   setTheme: () => {},
   toggleTheme: () => {},
   accentTheme: DEFAULT_ACCENT_THEME,
-  accentPalette: resolveAccentPalette(DEFAULT_ACCENT_THEME),
+  accentPalette: defaultPalette,
+  availableAccents: ACCENT_THEME_LIST,
+  pwaThemeColor: defaultPalette.baseHex,
   setAccentTheme: () => {},
 });
 
@@ -46,7 +55,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     try {
-      const stored = localStorage.getItem('pos_theme');
+      const stored = localStorage.getItem(THEME_MODE_STORAGE_KEY);
       if (stored === 'dark' || stored === 'light' || stored === 'system') {
         return stored;
       }
@@ -58,7 +67,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [theme, setResolvedTheme] = useState<ResolvedTheme>(() => {
     try {
-      const stored = localStorage.getItem('pos_theme');
+      const stored = localStorage.getItem(THEME_MODE_STORAGE_KEY);
       if (stored === 'dark') return 'dark';
       if (stored === 'light') return 'light';
       if (stored === 'system') {
@@ -72,14 +81,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  const [accentTheme, setAccentThemeState] = useState<AccentThemeId>(() => {
-    try {
-      const stored = localStorage.getItem(ACCENT_STORAGE_KEY);
-      return isValidAccentTheme(stored) ? stored : DEFAULT_ACCENT_THEME;
-    } catch {
-      return DEFAULT_ACCENT_THEME;
-    }
-  });
+  const [accentTheme, setAccentThemeState] = useState<AccentThemeId>(() => getStoredAccentTheme());
 
   const accentPalette = resolveAccentPalette(accentTheme);
 
@@ -140,7 +142,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
       window.dispatchEvent(
-        new CustomEvent('pos:theme-changed', { detail: { theme: resolved, accentTheme: accentThemeRef.current } })
+        new CustomEvent('pos:theme-changed', {
+          detail: {
+            theme: resolved,
+            accentTheme: accentThemeRef.current,
+            pwaThemeColor: resolveAccentPalette(accentThemeRef.current).baseHex,
+          },
+        })
       );
     } catch (e) {
       console.error('Error applying theme:', e);
@@ -150,7 +158,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setThemeMode = (mode: ThemeMode) => {
     setThemeModeState(mode);
     try {
-      localStorage.setItem('pos_theme', mode);
+      localStorage.setItem(THEME_MODE_STORAGE_KEY, mode);
     } catch (_) {}
     const resolved = mode === 'system' ? getSystemPreference() : mode;
     setResolvedTheme(resolved);
@@ -168,15 +176,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const setAccentTheme = (nextAccent: AccentThemeId) => {
-    const valid = isValidAccentTheme(nextAccent) ? nextAccent : DEFAULT_ACCENT_THEME;
+    const valid = persistAccentTheme(nextAccent);
     setAccentThemeState(valid);
-    try {
-      localStorage.setItem(ACCENT_STORAGE_KEY, valid);
-    } catch (_) {}
-    applyAccentThemeToDOM(valid);
+    const applied = applyAccentThemeToDOM(valid);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
-        new CustomEvent('pos:theme-changed', { detail: { theme, accentTheme: valid } })
+        new CustomEvent('pos:theme-changed', {
+          detail: {
+            theme,
+            accentTheme: valid,
+            pwaThemeColor: applied.baseHex,
+          },
+        })
       );
     }
   };
@@ -191,7 +202,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [themeMode]);
 
-  // Apply accent CSS variables on mount and whenever accentTheme changes
+  // Apply accent CSS variables + PWA meta[name="theme-color"] on mount and whenever accentTheme changes
   useEffect(() => {
     applyAccentThemeToDOM(accentTheme);
   }, [accentTheme]);
@@ -221,11 +232,24 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Synchronize theme & accent changes across tabs/windows
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'pos_theme' && (e.newValue === 'dark' || e.newValue === 'light' || e.newValue === 'system')) {
-        setThemeModeState(e.newValue as ThemeMode);
+      if (e.key === null) {
+        setThemeModeState('light');
+        setAccentThemeState(DEFAULT_ACCENT_THEME);
+        return;
       }
-      if (e.key === ACCENT_STORAGE_KEY && isValidAccentTheme(e.newValue)) {
-        setAccentThemeState(e.newValue);
+      if (e.key === THEME_MODE_STORAGE_KEY) {
+        if (e.newValue === 'dark' || e.newValue === 'light' || e.newValue === 'system') {
+          setThemeModeState(e.newValue as ThemeMode);
+        } else if (e.newValue === null) {
+          setThemeModeState('light');
+        }
+      }
+      if (e.key === ACCENT_THEME_STORAGE_KEY) {
+        if (isValidAccentTheme(e.newValue)) {
+          setAccentThemeState(e.newValue);
+        } else if (e.newValue === null) {
+          setAccentThemeState(DEFAULT_ACCENT_THEME);
+        }
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -244,6 +268,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleTheme,
         accentTheme,
         accentPalette,
+        availableAccents: ACCENT_THEME_LIST,
+        pwaThemeColor: accentPalette.baseHex,
         setAccentTheme,
       }}
     >

@@ -401,7 +401,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             type="button"
             onClick={handleRefresh}
             disabled={isLoading || (activeTab === 'profit_loss' && isLoadingPL)}
-            className="btn-outline-landing px-3 sm:px-3.5 py-2 sm:py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer text-xs flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="btn-outline-landing px-3 sm:px-3.5 py-2 sm:py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl transition cursor-pointer text-xs flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
             title={isLoading || (activeTab === 'profit_loss' && isLoadingPL) ? "Refreshing store records..." : "Refresh store records & recount metrics"}
           >
             <RotateCw className={`w-3.5 h-3.5 ${isLoading || (activeTab === 'profit_loss' && isLoadingPL) ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
@@ -412,7 +412,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             id="print-financial-summary-btn"
             type="button"
             onClick={() => setIsPrintSummaryOpen(true)}
-            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
             title="Print Financial Closing Slip / Z-Report"
           >
             <Printer className="w-4 h-4" />
@@ -541,7 +541,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             {activeTab === 'overview' && (
               <motion.div
                 layoutId="reportsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -570,7 +570,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             {activeTab === 'sales_ledger' && (
               <motion.div
                 layoutId="reportsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -592,7 +592,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             {activeTab === 'profit_loss' && (
               <motion.div
                 layoutId="reportsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -623,7 +623,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             {activeTab === 'stock_alerts' && (
               <motion.div
                 layoutId="reportsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -665,12 +665,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               <select
                 value={paymentFilter}
                 onChange={(e) => setPaymentFilter(e.target.value)}
-                className="px-3.5 py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-xl outline-none font-medium focus:border-blue-500 dark:focus:border-purple-400 cursor-pointer transition text-xs"
+                className="px-3.5 py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-xl outline-none font-medium focus:border-blue-500 dark:focus:border-purple-400 cursor-pointer transition text-xs"
               >
-                <option value="ALL" className="dark:bg-[#120726] dark:text-purple-100">All Payments</option>
-                <option value="CASH" className="dark:bg-[#120726] dark:text-purple-100">Cash Only</option>
-                <option value="CARD" className="dark:bg-[#120726] dark:text-purple-100">Card Only</option>
-                <option value="ONLINE" className="dark:bg-[#120726] dark:text-purple-100">Online/UPI</option>
+                <option value="ALL" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">All Payments</option>
+                <option value="CASH" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Cash Only</option>
+                <option value="CARD" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Card Only</option>
+                <option value="ONLINE" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Online/UPI</option>
               </select>
 
               <button
@@ -800,7 +800,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                               transition={{ duration: 0.5, delay: idx * 0.05 }}
                               className={`w-full rounded-t-lg transition-all ${
                                 isToday
-                                  ? 'bg-gradient-to-t from-purple-700 via-indigo-600 to-purple-500 shadow-md shadow-purple-600/30 dark:shadow-[0_0_14px_rgba(147,51,234,0.45)] ring-1 ring-purple-400/40'
+                                  ? 'bg-gradient-to-t from-purple-700 via-indigo-600 to-purple-500 shadow-md shadow-purple-600/30 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] ring-1 ring-purple-400/40'
                                   : 'bg-gradient-to-t from-indigo-700/80 via-purple-600/85 to-indigo-500/80 hover:from-purple-700 hover:via-indigo-600 hover:to-purple-500 group-hover:from-purple-700 group-hover:via-indigo-600 group-hover:to-purple-500 group-hover:shadow-md group-hover:shadow-purple-600/25'
                               }`}
                             />
@@ -1435,7 +1435,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           aria-modal="true"
           aria-label="Loading invoice receipt"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-purple-900/40 flex items-center justify-between">
               <div className="space-y-1.5">
                 <div className="h-4 w-40 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
@@ -1484,7 +1484,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#120726] border border-rose-200 dark:border-rose-900/50 shadow-2xl p-5 space-y-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-rose-200 dark:border-rose-900/50 shadow-2xl p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
                 <AlertTriangle className="w-5 h-5 shrink-0" />

@@ -467,7 +467,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer text-xs flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl transition cursor-pointer text-xs flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Refresh platform reports & recount metrics"
           >
             <RotateCw
@@ -483,7 +483,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           <button
             type="button"
             onClick={handleExportCsv}
-            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3.5 sm:px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
             title="Export current report view to CSV"
           >
             <Download className="w-4 h-4" />
@@ -638,7 +638,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             {activeSubTab === 'overview' && (
               <motion.div
                 layoutId="superAdminReportsUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -674,7 +674,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             {activeSubTab === 'store_leaderboard' && (
               <motion.div
                 layoutId="superAdminReportsUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -710,7 +710,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             {activeSubTab === 'top_products' && (
               <motion.div
                 layoutId="superAdminReportsUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -746,7 +746,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             {activeSubTab === 'sales_ledger' && (
               <motion.div
                 layoutId="superAdminReportsUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}

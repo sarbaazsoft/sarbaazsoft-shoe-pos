@@ -153,7 +153,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
             <div className="flex items-center space-x-2 self-end sm:self-center">
               <button
                 onClick={handlePrintStatement}
-                className="btn-outline-landing inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-purple-400/40 bg-white dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-500/30 text-xs font-semibold shadow-2xs dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] transition cursor-pointer"
+                className="btn-outline-landing inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-purple-400/40 bg-white dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-500/30 text-xs font-semibold shadow-2xs dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition cursor-pointer"
                 title="Print Vendor Statement"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -267,7 +267,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
                 {activeTab === tab.id && (
                   <motion.div
                     layoutId="supplierLedgerActiveUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                    className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                     transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                   />
                 )}

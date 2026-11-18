@@ -56,9 +56,9 @@ const AnimatedCounter: React.FC<{
 const SneakerGlyph: React.FC<{ className?: string }> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 120 70" className={className} aria-hidden="true">
     <path d="M8 50c0-6 4-10 10-12l22-8c6-2 11-8 15-15 2-3 6-3 8 0 4 6 10 10 17 12l22 6c7 2 12 8 12 15 0 4-3 7-7 7H15c-4 0-7-2-7-5z" fill="#F4F3FF" />
-    <path d="M8 52h104c3 0 5 2 5 5s-2 5-5 5H14c-4 0-6-4-6-10z" fill="#C9C2FF" />
-    <path d="M40 30l6 4m-10 2l6 4m-10 2l6 4" stroke="#7C6CFF" strokeWidth="2.5" strokeLinecap="round" />
-    <path d="M22 46c14-2 28-8 42-18" stroke="#8B7CFF" strokeWidth="3" strokeLinecap="round" fill="none" />
+    <path d="M8 52h104c3 0 5 2 5 5s-2 5-5 5H14c-4 0-6-4-6-10z" fill="var(--color-purple-200, #E9D5FF)" />
+    <path d="M40 30l6 4m-10 2l6 4m-10 2l6 4" stroke="var(--primary, #9333EA)" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M22 46c14-2 28-8 42-18" stroke="var(--primary-400, #C084FC)" strokeWidth="3" strokeLinecap="round" fill="none" />
   </svg>
 );
 
@@ -87,24 +87,24 @@ const DashboardMockup: React.FC = () => {
 
   return (
     <div className="relative" role="img" aria-label="Sample SarbaazSoft POS dashboard with sales, orders, products, a sales chart and popular products">
-      <div className="absolute -inset-4 rounded-[2rem] bg-violet-600/25 blur-3xl pointer-events-none" aria-hidden="true" />
-      <div className="relative overflow-hidden rounded-[20px] border-2 border-indigo-400/50 bg-[#0A0C2E] shadow-[0_0_0_1px_rgba(124,108,255,0.2),0_30px_90px_-20px_rgba(91,75,255,0.65)]" aria-hidden="true">
+      <div className="absolute -inset-4 rounded-[2rem] bg-purple-600/25 blur-3xl pointer-events-none" aria-hidden="true" />
+      <div className="relative overflow-hidden rounded-[20px] border-2 border-indigo-400/50 bg-[#0A0C2E] shadow-[0_0_0_1px_rgba(var(--primary-rgb,147,51,234),0.22),0_30px_90px_-20px_rgba(var(--brand-companion-rgb,79,70,229),0.65)]" aria-hidden="true">
         {/* top bar */}
         <div className="flex items-center gap-3 border-b border-white/5 px-4 py-2.5">
           <span className="flex items-center gap-1.5 text-[11px] font-bold text-white">
-            <svg viewBox="0 0 64 42" className="h-4 w-6"><path d="M6 31c0-3 2-5 5-6l12-5c3-1.5 6-4.5 8-8 1-1.5 2.8-1.5 3.8 0 1.8 2.8 4.5 5 8.2 5.8l11 2.4c3.5.8 6 3.8 6 7.3 0 2.5-2 4.5-4.5 4.5H10.5C8 37 6 34.5 6 31z" fill="#7C6CFF" /></svg>
+            <svg viewBox="0 0 64 42" className="h-4 w-6"><path d="M6 31c0-3 2-5 5-6l12-5c3-1.5 6-4.5 8-8 1-1.5 2.8-1.5 3.8 0 1.8 2.8 4.5 5 8.2 5.8l11 2.4c3.5.8 6 3.8 6 7.3 0 2.5-2 4.5-4.5 4.5H10.5C8 37 6 34.5 6 31z" fill="var(--primary-400, #C084FC)" /></svg>
             SarbaazSoft
           </span>
           <span className="hidden sm:flex flex-1 max-w-[260px] items-center gap-1.5 rounded-md bg-white/5 px-2.5 py-1 text-[9px] text-slate-500"><Search className="h-2.5 w-2.5" />Search products, customers…</span>
           <span className="ml-auto flex items-center gap-2 text-[9px] text-slate-300">
-            <span className="h-4 w-4 rounded-full bg-violet-500/40 ring-1 ring-violet-300/40" />
+            <span className="h-4 w-4 rounded-full bg-purple-500/40 ring-1 ring-purple-300/40" />
             <span className="leading-tight">Demo store<br /><span className="text-slate-500">Owner</span></span>
           </span>
         </div>
         <div className="flex">
           <ul className="hidden sm:block w-[118px] shrink-0 space-y-0.5 border-r border-white/5 p-2.5">
             {menu.map(({ label, icon: Icon }, i) => (
-              <li key={label} className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[9px] ${i === 0 ? 'bg-violet-500/25 text-white font-semibold' : 'text-slate-400'}`}>
+              <li key={label} className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[9px] ${i === 0 ? 'bg-purple-500/25 text-white font-semibold' : 'text-slate-400'}`}>
                 <Icon className="h-3 w-3" />{label}
               </li>
             ))}
@@ -114,7 +114,7 @@ const DashboardMockup: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               {kpis.map(({ label, value, delta, icon: Icon }) => (
                 <div key={label} className="rounded-lg border border-indigo-400/25 bg-gradient-to-b from-indigo-500/15 to-transparent p-2">
-                  <div className="flex items-center gap-1.5 text-[8px] text-slate-300"><Icon className="h-3 w-3 text-violet-300" />{label}</div>
+                  <div className="flex items-center gap-1.5 text-[8px] text-slate-300"><Icon className="h-3 w-3 text-purple-300" />{label}</div>
                   <div className="mt-1 text-[13px] sm:text-base font-extrabold text-white tabular-nums">{value}</div>
                   <div className="text-[7px] text-emerald-400">{delta}</div>
                 </div>
@@ -132,13 +132,13 @@ const DashboardMockup: React.FC = () => {
                     <svg viewBox="0 0 300 110" className="h-24 w-full" preserveAspectRatio="none">
                       <defs>
                         <linearGradient id="dm-area" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8B7CFF" stopOpacity="0.55" />
-                          <stop offset="100%" stopColor="#8B7CFF" stopOpacity="0" />
+                          <stop offset="0%" stopColor="var(--primary-400, #C084FC)" stopOpacity="0.55" />
+                          <stop offset="100%" stopColor="var(--primary-400, #C084FC)" stopOpacity="0" />
                         </linearGradient>
                       </defs>
                       {[15, 40, 65, 90].map((y) => <line key={y} x1="0" x2="300" y1={y} y2={y} stroke="rgba(255,255,255,0.06)" />)}
                       <path d="M0 98 L45 90 L90 62 L130 68 L175 50 L215 46 L255 30 L300 12 L300 110 L0 110 Z" fill="url(#dm-area)" />
-                      <path d="M0 98 L45 90 L90 62 L130 68 L175 50 L215 46 L255 30 L300 12" fill="none" stroke="#A395FF" strokeWidth="2" strokeLinejoin="round" />
+                      <path d="M0 98 L45 90 L90 62 L130 68 L175 50 L215 46 L255 30 L300 12" fill="none" stroke="var(--color-purple-300, #D8B4FE)" strokeWidth="2" strokeLinejoin="round" />
                     </svg>
                     <div className="mt-0.5 flex justify-between text-[7px] text-slate-500">{days.map((d) => <span key={d}>{d}</span>)}</div>
                   </div>
@@ -163,7 +163,7 @@ const DashboardMockup: React.FC = () => {
         </div>
       </div>
       {/* Floating product card */}
-      <div className="absolute -bottom-10 left-3 sm:-left-8 w-44 rounded-xl border-2 border-indigo-400/50 bg-[#0B0E36] p-3 shadow-[0_20px_50px_-10px_rgba(91,75,255,0.7)]" aria-hidden="true">
+      <div className="absolute -bottom-10 left-3 sm:-left-8 w-44 rounded-xl border-2 border-indigo-400/50 bg-[#0B0E36] p-3 shadow-[0_20px_50px_-10px_rgba(var(--brand-companion-rgb,79,70,229),0.7)]" aria-hidden="true">
         <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white"><ShoppingCart className="h-3 w-3" /></span>
         <div className="mx-auto h-16 w-28"><SneakerGlyph /></div>
         <div className="mt-1 text-[10px] font-semibold text-white">Classic runner</div>
@@ -327,7 +327,7 @@ const StoreSliderCard: React.FC<{
         }
       }}
       aria-label={`${tenant.name} store — click to sign in`}
-      className="group relative flex flex-col items-center justify-between rounded-2xl border border-indigo-400/25 lt:border-indigo-200/80 bg-gradient-to-b from-[#12154A]/80 lt:from-white to-[#0A0C2E]/90 lt:to-[#F8FAFF] p-4 sm:p-5 text-center shadow-[0_12px_28px_-12px_rgba(91,75,255,0.4)] lt:shadow-sm hover:border-purple-400/80 lt:hover:border-purple-400/80 hover:shadow-2xl hover:shadow-purple-600/30 dark:hover:shadow-indigo-500/35 lt:hover:shadow-[0_22px_45px_-12px_rgba(91,75,255,0.28)] hover:scale-[1.045] hover:-translate-y-1 active:scale-[0.985] active:translate-y-0 cursor-pointer transition-all duration-300 ease-out transform-gpu will-change-transform select-none w-full min-h-[220px] sm:min-h-[235px] h-full"
+      className="group relative flex flex-col items-center justify-between rounded-2xl border border-indigo-400/25 lt:border-indigo-200/80 bg-gradient-to-b from-[#12154A]/80 lt:from-white to-[#0A0C2E]/90 lt:to-[#F8FAFF] p-4 sm:p-5 text-center shadow-[0_12px_28px_-12px_rgba(var(--brand-companion-rgb,79,70,229),0.4)] lt:shadow-sm hover:border-purple-400/80 lt:hover:border-purple-400/80 hover:shadow-2xl hover:shadow-purple-600/30 dark:hover:shadow-indigo-500/35 lt:hover:shadow-[0_22px_45px_-12px_rgba(var(--brand-companion-rgb,79,70,229),0.28)] hover:scale-[1.045] hover:-translate-y-1 active:scale-[0.985] active:translate-y-0 cursor-pointer transition-all duration-300 ease-out transform-gpu will-change-transform select-none w-full min-h-[220px] sm:min-h-[235px] h-full"
     >
       {/* 1. Store Logo OR Store Name First and Second Letter as Fallback */}
       <StoreLogoBadge tenant={tenant} index={index} />
@@ -589,7 +589,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       desc: 'Fast billing, offline support, barcode scanning, returns and exchanges.',
       icon: ShoppingCart,
       iconBg: 'bg-[#EBF3FF]',
-      iconColor: 'text-violet-300',
+      iconColor: 'text-purple-300',
     },
     {
       title: 'Inventory Management',
@@ -610,7 +610,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       desc: 'Thermal receipts, barcode labels and direct hardware control.',
       icon: Printer,
       iconBg: 'bg-[#F3E8FF]',
-      iconColor: 'text-[#8B5CF6]',
+      iconColor: 'text-purple-500',
     },
     {
       title: 'Customers & Returns',
@@ -631,7 +631,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       desc: 'Role-based access, secure accounts and automated backups.',
       icon: ShieldCheck,
       iconBg: 'bg-[#EBF3FF]',
-      iconColor: 'text-violet-300',
+      iconColor: 'text-purple-300',
     },
     {
       title: 'Store Settings & Branding',
@@ -645,7 +645,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       desc: 'Get help with store operations and POS questions, plus AI suggestions when adding products.',
       icon: Sparkles,
       iconBg: 'bg-[#F3E8FF]',
-      iconColor: 'text-[#8B5CF6]',
+      iconColor: 'text-purple-500',
     },
   ];
 
@@ -666,7 +666,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   ];
 
   const primaryBtn =
-    'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white font-semibold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(147,51,234,0.35)] transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
+    'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white font-semibold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(var(--primary-rgb,147,51,234),0.35)] transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
   const outlineBtn =
     'inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-400/50 lt:border-slate-300 bg-transparent hover:bg-indigo-500/10 lt:hover:bg-slate-100 text-white lt:text-slate-900 font-semibold transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
 
@@ -752,21 +752,21 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
 
       {/* 2. HERO */}
       <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0B0C38_0%,#080A2C_60%,#070A24_100%)] lt:bg-[linear-gradient(180deg,#EEF0FF_0%,#F7F8FF_100%)]">
-        <div className="pointer-events-none absolute -top-24 right-[-6%] h-[460px] w-[460px] rounded-full bg-[radial-gradient(circle,rgba(124,108,255,0.55),rgba(91,75,255,0.1)_60%,transparent_70%)] lt:opacity-40 blur-2xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -top-24 right-[-6%] h-[460px] w-[460px] rounded-full bg-[radial-gradient(circle,rgba(var(--primary-rgb,147,51,234),0.5),rgba(var(--brand-companion-rgb,79,70,229),0.1)_60%,transparent_70%)] lt:opacity-40 blur-2xl" aria-hidden="true" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16 sm:pt-10 sm:pb-20 lg:pt-14 lg:pb-28">
           <div className="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-12 sm:gap-14 lg:gap-6 items-center">
             <div>
               <div
-                className="font-roboto brand-subtitle-roboto inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3 sm:px-3.5 py-1 sm:py-1.5 text-[11px] sm:text-xs text-violet-100 lt:text-indigo-700"
+                className="font-roboto brand-subtitle-roboto inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3 sm:px-3.5 py-1 sm:py-1.5 text-[11px] sm:text-xs text-purple-100 lt:text-indigo-700"
                 style={{ fontFamily: "'Roboto', system-ui, -apple-system, sans-serif" }}
               >
-                <Zap className="w-3.5 h-3.5 shrink-0 text-violet-300 lt:text-[#5B4BFF]" aria-hidden="true" />
+                <Zap className="w-3.5 h-3.5 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
                 Dual-Engine Wholesale & Retail POS Solution for Shoe Stores
               </div>
               <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.05] text-white lt:text-slate-900">
                 Grow your shoe<br />
-                business <span className="font-courgette font-normal tracking-normal text-[#8B7CFF] lt:text-[#5B4BFF]" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>smarter</span> &amp;<br />
-                <span className="font-courgette font-normal tracking-normal bg-gradient-to-r from-[#8B7CFF] lt:from-[#5B4BFF] to-[#B9A9FF] lt:to-[#8B7CFF] bg-clip-text text-transparent" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>faster</span>
+                business <span className="font-courgette font-normal tracking-normal text-purple-400 lt:text-purple-600" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>smarter</span> &amp;<br />
+                <span className="font-courgette font-normal tracking-normal bg-gradient-to-r from-purple-400 lt:from-purple-600 to-indigo-300 lt:to-indigo-500 bg-clip-text text-transparent" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>faster</span>
               </h1>
               <p className="mt-6 max-w-md text-[15px] leading-relaxed text-slate-200 lt:text-slate-700">
                 SarbaazSoft POS gives you everything you need to manage sales, track inventory, and grow your footwear business — all in one powerful, easy-to-use platform.
@@ -796,9 +796,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   { icon: Headphones, title: '24/7 Support', desc: "We're always here" },
                 ].map(({ icon: Icon, title, desc }) => (
                   <li key={title} className="flex items-start gap-2.5">
-                    <Icon className="w-5 h-5 mt-0.5 shrink-0 text-violet-300 lt:text-[#5B4BFF]" aria-hidden="true" />
+                    <Icon className="w-5 h-5 mt-0.5 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
                     <span>
-                      <span className="block text-xs font-semibold text-violet-300 lt:text-[#5B4BFF]">{title}</span>
+                      <span className="block text-xs font-semibold text-purple-300 lt:text-purple-600">{title}</span>
                       <span className="block text-[11px] text-slate-400 lt:text-slate-500">{desc}</span>
                     </span>
                   </li>
@@ -834,8 +834,8 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               {/* Executive dashboard */}
               <div className="text-center">
                 <div className="flex h-28 flex-col justify-between rounded-xl border border-indigo-400/25 bg-gradient-to-b from-[#12154A]/70 to-[#0A0C2E]/80 p-2 text-left">
-                  <div className="flex items-center justify-between rounded bg-indigo-500/15 px-1.5 py-0.5 text-[7px] font-bold text-white">
-                    <span>SarbaazSoft</span><span className="text-violet-300">KPIs</span>
+                    <div className="flex items-center justify-between rounded bg-indigo-500/15 px-1.5 py-0.5 text-[7px] font-bold text-white">
+                    <span>SarbaazSoft</span><span className="text-purple-300">KPIs</span>
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     <div className="rounded border border-indigo-400/20 bg-[#080A2A] p-1">
@@ -850,7 +850,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                     </div>
                   </div>
                   <div className="flex h-7 items-end gap-1 px-1">
-                    {['h-2 bg-violet-300/70', 'h-3 bg-violet-300', 'h-4 bg-violet-400', 'h-5 bg-[#8B7CFF]', 'h-6 bg-[#7C6CFF]', 'h-7 bg-[#6D5CFF]'].map((c) => <span key={c} className={`flex-1 rounded-t ${c}`} />)}
+                    {['h-2 bg-purple-300/70', 'h-3 bg-purple-300', 'h-4 bg-purple-400', 'h-5 bg-purple-500', 'h-6 bg-indigo-500', 'h-7 bg-purple-600'].map((c) => <span key={c} className={`flex-1 rounded-t ${c}`} />)}
                   </div>
                 </div>
                 <div className="mt-2 text-xs font-semibold text-white lt:text-slate-800">Executive dashboard</div>
@@ -895,9 +895,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               return (
                 <li
                   key={feat.title}
-                  className={`flex items-start gap-3.5 rounded-2xl border border-indigo-400/25 lt:border-indigo-200 bg-gradient-to-b from-[#12154A]/70 lt:from-white to-[#0A0C2E]/80 lt:to-[#F3F4FF] p-4 shadow-[0_0_20px_rgba(59,130,246,0.05)] transition-colors hover:border-violet-400/60 ${spansRow ? 'sm:col-span-2' : ''}`}
+                  className={`flex items-start gap-3.5 rounded-2xl border border-indigo-400/25 lt:border-indigo-200 bg-gradient-to-b from-[#12154A]/70 lt:from-white to-[#0A0C2E]/80 lt:to-[#F3F4FF] p-4 shadow-[0_0_20px_rgba(var(--primary-rgb,147,51,234),0.08)] transition-colors hover:border-purple-400/60 ${spansRow ? 'sm:col-span-2' : ''}`}
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-indigo-400/30 lt:border-indigo-200 bg-indigo-500/15 lt:bg-indigo-100 text-violet-300 lt:text-[#5B4BFF]">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-indigo-400/30 lt:border-indigo-200 bg-indigo-500/15 lt:bg-indigo-100 text-purple-300 lt:text-purple-600">
                     <Icon className="w-5 h-5" aria-hidden="true" />
                   </span>
                   <span className="min-w-0">
@@ -935,7 +935,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 { label: 'Platform revenue', value: publicStats?.platformRevenue, prefix: 'Rs. ', suffix: '' },
               ].map(({ label, value, prefix, suffix }, i) => (
                 <div key={label} className={`sm:pr-4 ${i > 0 ? 'sm:pl-5 sm:border-l sm:border-white/10 lt:sm:border-slate-200' : ''}`}>
-                  <dd className="order-1 text-xl sm:text-2xl font-extrabold tabular-nums text-[#9B8CFF] lt:text-[#5B4BFF]">
+                  <dd className="order-1 text-xl sm:text-2xl font-extrabold tabular-nums text-purple-300 lt:text-purple-600">
                     {typeof value === 'number'
                       ? <AnimatedCounter target={value} startTime={statsAnimationStartTime} prefix={prefix} suffix={suffix} />
                       : <span aria-label="Loading statistic">—</span>}
@@ -1079,7 +1079,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               <div
                 key={p.id}
                 className={`relative flex flex-col rounded-2xl p-5 sm:p-7 ${p.popular
-                  ? 'border-2 border-[#7C6CFF] bg-gradient-to-b from-[#1A1A66]/70 lt:from-[#EEEBFF] to-[#0A0C2E] lt:to-white shadow-[0_24px_70px_-20px_rgba(109,92,255,0.7)]'
+                  ? 'border-2 border-purple-400 bg-gradient-to-b from-[#1A1A66]/70 lt:from-purple-50 to-[#0A0C2E] lt:to-white shadow-[0_24px_70px_-20px_rgba(var(--primary-rgb,147,51,234),0.6)]'
                   : 'border border-indigo-400/25 lt:border-indigo-200 bg-gradient-to-b from-[#12154A]/60 lt:from-white to-[#0A0C2E] lt:to-white'}`}
               >
                 {p.popular && (
@@ -1091,7 +1091,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   </span>
                 )}
                 <h3 className="flex items-center gap-2 text-lg font-bold text-white lt:text-slate-900">
-                  <Calendar className="w-5 h-5 text-violet-300 lt:text-[#5B4BFF]" aria-hidden="true" /> {p.name}
+                  <Calendar className="w-5 h-5 text-purple-300 lt:text-purple-600" aria-hidden="true" /> {p.name}
                 </h3>
                 <div className="mt-3 flex items-baseline gap-1.5">
                   <span className="text-3xl sm:text-4xl font-extrabold tabular-nums text-white lt:text-slate-900">{p.price}</span>
@@ -1135,7 +1135,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
           />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#080A2A]/25 to-[#080A2A] lt:via-[#EEF0FF]/25 lt:to-[#EEF0FF]" />
         </div>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(109,92,255,0.1),transparent_60%)] lt:opacity-40" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(var(--primary-rgb,147,51,234),0.12),transparent_60%)] lt:opacity-40" aria-hidden="true" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="text-center md:text-left">

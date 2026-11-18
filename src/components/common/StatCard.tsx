@@ -217,11 +217,11 @@ const colorStyles: Record<
 
 const sparklinePaths: Record<string, { d: string; stroke: string }> = {
   blue: { d: 'M 2 24 C 15 22, 25 10, 38 14 C 50 18, 55 4, 62 3', stroke: '#3B82F6' },
-  purple: { d: 'M 2 20 C 14 18, 26 24, 38 12 C 48 4, 56 10, 62 4', stroke: '#8B5CF6' },
+  purple: { d: 'M 2 20 C 14 18, 26 24, 38 12 C 48 4, 56 10, 62 4', stroke: 'var(--primary, #8B5CF6)' },
   cyan: { d: 'M 2 22 C 16 20, 24 8, 38 14 C 48 18, 54 8, 62 5', stroke: '#06B6D4' },
   emerald: { d: 'M 2 25 C 14 20, 26 15, 38 11 C 48 7, 56 6, 62 3', stroke: '#10B981' },
   amber: { d: 'M 2 22 C 14 16, 26 20, 38 12 C 48 8, 56 9, 62 4', stroke: '#F59E0B' },
-  indigo: { d: 'M 2 24 C 14 19, 26 13, 38 15 C 48 9, 56 6, 62 4', stroke: '#6366F1' },
+  indigo: { d: 'M 2 24 C 14 19, 26 13, 38 15 C 48 9, 56 6, 62 4', stroke: 'var(--brand-companion, #6366F1)' },
   rose: { d: 'M 2 6 C 14 8, 26 12, 38 18 C 48 24, 56 22, 62 26', stroke: '#F43F5E' },
   sky: { d: 'M 2 26 C 15 20, 25 14, 38 16 C 50 18, 55 8, 62 5', stroke: '#0EA5E9' },
 };

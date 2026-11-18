@@ -5,6 +5,8 @@ import {
   type PwaBrandingInput,
 } from '../utils/pwaBranding.ts';
 import { applyBrowserFavicon } from '../utils/documentTitle.ts';
+import { useTheme } from '../context/ThemeContext.tsx';
+import { getActivePwaThemeColor, updatePwaThemeColorMeta } from '../utils/themePalettes.ts';
 
 function upsertMetaTag(
   selector: string,
@@ -40,10 +42,14 @@ function upsertManifestLink(href: string): void {
 
 /**
  * Synchronizes PWA manifest link, installation shortcut meta tags (application-name,
- * apple-mobile-web-app-title), theme-color, apple-touch-icons, and browser favicon
- * with the active role branding config without altering document.title.
+ * apple-mobile-web-app-title), dynamic theme-color, apple-touch-icons, and browser favicon
+ * with the active role branding config without altering document.title or overwriting
+ * the user's selected primary color theme.
  */
-export function syncPwaMetadataToDocument(branding: PwaBrandingConfig): void {
+export function syncPwaMetadataToDocument(
+  branding: PwaBrandingConfig,
+  options?: { themeColor?: string }
+): void {
   if (typeof document === 'undefined') return;
 
   upsertMetaTag(
@@ -56,11 +62,7 @@ export function syncPwaMetadataToDocument(branding: PwaBrandingConfig): void {
     { name: 'application-name' },
     branding.applicationName
   );
-  upsertMetaTag(
-    'meta[name="theme-color"]',
-    { name: 'theme-color' },
-    branding.themeColor
-  );
+  updatePwaThemeColorMeta(options?.themeColor || getActivePwaThemeColor(branding.themeColor));
 
   upsertManifestLink(branding.manifestUrl);
 
@@ -89,10 +91,11 @@ export function syncPwaMetadataToDocument(branding: PwaBrandingConfig): void {
 }
 
 /**
- * React hook that keeps document.title, PWA meta tags, and <link rel="manifest">
- * strictly synchronized with the user's active role and SuperAdmin view state.
+ * React hook that keeps PWA meta tags (including dynamic theme-color) and <link rel="manifest">
+ * strictly synchronized with the user's active role, SuperAdmin view state, and primary theme color.
  */
 export function usePwaManifest(input: PwaBrandingInput): PwaBrandingConfig {
+  const { pwaThemeColor } = useTheme();
   const branding = useMemo(
     () =>
       resolvePwaBranding({
@@ -105,8 +108,8 @@ export function usePwaManifest(input: PwaBrandingInput): PwaBrandingConfig {
   );
 
   useEffect(() => {
-    syncPwaMetadataToDocument(branding);
-  }, [branding]);
+    syncPwaMetadataToDocument(branding, { themeColor: pwaThemeColor });
+  }, [branding, pwaThemeColor]);
 
   return branding;
 }

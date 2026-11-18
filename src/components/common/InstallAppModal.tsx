@@ -143,7 +143,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             {activeTab === 'android' && (
               <motion.div
                 layoutId="installActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -169,7 +169,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             {activeTab === 'apple' && (
               <motion.div
                 layoutId="installActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -192,7 +192,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             {activeTab === 'desktop' && (
               <motion.div
                 layoutId="installActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -317,7 +317,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
                 className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
                   isInstalled
                     ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-default'
-                    : 'bg-white hover:bg-slate-50 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-slate-800 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] shadow-2xs'
+                    : 'bg-white hover:bg-slate-50 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-slate-800 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-2xs'
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5 text-indigo-500" />

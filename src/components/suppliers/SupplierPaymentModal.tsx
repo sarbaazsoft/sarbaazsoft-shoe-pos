@@ -170,12 +170,12 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                         if (bal > 0) setAmount(String(bal));
                       }
                     }}
-                    className="capitalize w-full px-3 py-1.5 bg-white dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-lg text-xs font-bold text-slate-900 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] outline-none focus:ring-2 focus:ring-purple-500/30 cursor-pointer"
+                    className="capitalize w-full px-3 py-1.5 bg-white dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-lg text-xs font-bold text-slate-900 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] outline-none focus:ring-2 focus:ring-purple-500/30 cursor-pointer"
                   >
                     {suppliersList.map((s) => {
                       const bal = calcPayable(s);
                       return (
-                        <option key={s.id} value={s.id} className="dark:bg-[#120726] dark:text-purple-100">
+                        <option key={s.id} value={s.id} className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                           {s.name} (Due: {currencySymbol} {formatStockPrice(bal)})
                         </option>
                       );

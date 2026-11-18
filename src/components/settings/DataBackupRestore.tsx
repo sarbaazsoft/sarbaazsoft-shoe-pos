@@ -343,7 +343,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
           type="button"
           onClick={loadStats}
           disabled={isLoadingStats}
-          className="btn-outline-landing self-start sm:self-auto px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+          className="btn-outline-landing self-start sm:self-auto px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStats ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
           <span>Refresh Live Stats</span>
@@ -382,8 +382,8 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
               <svg className="w-full h-full overflow-hidden" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="sparkline-grad-engine" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366F1" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0" />
+                    <stop offset="0%" stopColor="var(--brand-companion, #6366F1)" stopOpacity="0.28" />
+                    <stop offset="100%" stopColor="var(--brand-companion, #6366F1)" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
                 <path
@@ -393,7 +393,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
                 <path
                   d="M 2 13 L 18 13 L 26 5 L 34 20 L 42 8 L 50 16 L 58 13 L 74 13 L 82 7 L 88 15 L 98 13"
                   fill="none"
-                  stroke="#6366F1"
+                  stroke="var(--brand-companion, #6366F1)"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -673,7 +673,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
               type="button"
               onClick={handleExportBackup}
               disabled={isExporting}
-              className="w-full h-11 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+              className="w-full h-11 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
             >
               <ArrowDownToLine className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />
               <span>{isExporting ? 'Exporting Store Records...' : 'Download Full Shop Backup (.json)'}</span>

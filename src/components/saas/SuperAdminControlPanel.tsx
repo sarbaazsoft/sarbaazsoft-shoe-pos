@@ -62,7 +62,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   onTenantsUpdated,
   onOpenProfile,
 }) => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, accentPalette } = useTheme();
   const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
 
   // SuperAdmin user menu dropdown & profile modal states
@@ -1357,7 +1357,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               }}
               className="w-full"
             >
-              <div className="app-card bg-white/95 dark:bg-gradient-to-b dark:from-slate-900/95 dark:via-indigo-950/90 dark:to-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 shadow-2xl shadow-purple-950/10 dark:shadow-[0_10px_35px_rgba(15,23,42,0.8),0_0_25px_rgba(147,51,234,0.2)] rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-slate-800 dark:text-slate-100 transition-colors">
+              <div className="app-card bg-white/95 dark:bg-gradient-to-b dark:from-slate-900/95 dark:via-indigo-950/90 dark:to-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 shadow-2xl shadow-purple-950/10 dark:shadow-[0_10px_35px_rgba(15,23,42,0.8),0_0_25px_rgba(var(--primary-rgb,147,51,234),)] rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-slate-800 dark:text-slate-100 transition-colors">
                 {/* SuperAdmin Icon Header */}
                 <div className="text-center mb-6">
                   <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-md shadow-purple-600/30 border border-purple-400/40 p-2 overflow-hidden">
@@ -1408,7 +1408,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     {authTab === 'login' && (
                       <motion.div
                         layoutId="superAdminAuthActiveUnderline"
-                        className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                        className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                         transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                       />
                     )}
@@ -1440,7 +1440,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     {(authTab === 'forgot' || authTab === 'reset') && (
                       <motion.div
                         layoutId="superAdminAuthActiveUnderline"
-                        className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                        className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                         transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                       />
                     )}
@@ -1562,7 +1562,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       id="superadmin-login-submit-btn"
                       type="submit"
                       disabled={authLoading}
-                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.35)] font-bold text-xs sm:text-sm transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs sm:text-sm transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                     >
                       {authLoading ? (
                         <>
@@ -1619,7 +1619,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       <button
                         type="submit"
                         disabled={authLoading}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         {authLoading ? 'Requesting Token...' : 'Generate Reset Token'}
                       </button>
@@ -1707,7 +1707,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       <button
                         type="submit"
                         disabled={authLoading}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         {authLoading ? 'Updating...' : 'Save New Password'}
                       </button>
@@ -1913,7 +1913,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               {activeTab === 'dashboard' && (
                 <motion.div
                   layoutId={isMobile ? 'superAdminMobilePill' : 'superAdminActiveNavPill'}
-                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 dark:from-purple-600 dark:to-indigo-600 border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.35)]"
+                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 dark:from-purple-600 dark:to-indigo-600 border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]"
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
@@ -1968,7 +1968,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         {isActive && (
                           <motion.div
                             layoutId={isMobile ? 'superAdminMobilePill' : 'superAdminActiveNavPill'}
-                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 dark:from-purple-600 dark:to-indigo-600 border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.35)]"
+                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 dark:from-purple-600 dark:to-indigo-600 border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]"
                             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                           />
                         )}
@@ -2331,7 +2331,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96, y: -6 }}
                     transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="fixed left-2 right-2 top-[3.8rem] sm:left-auto sm:right-6 lg:absolute lg:right-0 lg:top-full lg:mt-2 sm:w-80 md:w-96 max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(147,51,234,0.25)] p-2 z-50 backdrop-blur-md origin-top sm:origin-top-right max-h-[calc(100dvh-4.6rem)] overflow-y-auto flex flex-col"
+                    className="fixed left-2 right-2 top-[3.8rem] sm:left-auto sm:right-6 lg:absolute lg:right-0 lg:top-full lg:mt-2 sm:w-80 md:w-96 max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),)] p-2 z-50 backdrop-blur-md origin-top sm:origin-top-right max-h-[calc(100dvh-4.6rem)] overflow-y-auto flex flex-col"
                   >
                     <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-purple-800/40 mb-1.5 flex items-center justify-between shrink-0">
                       <span className="text-xs font-bold text-slate-900 dark:text-purple-100 truncate">
@@ -2406,7 +2406,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 }}
                 className={`relative p-2 rounded-xl transition cursor-pointer border ${
                   showNotifDropdown
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.4)]'
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]'
                     : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border-slate-200/80 dark:border-indigo-500/20 text-slate-600 dark:text-slate-200'
                 }`}
                 title="SuperAdmin Notifications (Renewals & Trials)"
@@ -2433,7 +2433,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96, y: -6 }}
                     transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="fixed left-2 right-2 top-[3.8rem] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 md:w-96 max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(147,51,234,0.25)] p-2 z-50 backdrop-blur-md origin-top sm:origin-top-right max-h-[calc(100dvh-4.6rem)] overflow-y-auto flex flex-col"
+                    className="fixed left-2 right-2 top-[3.8rem] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 md:w-96 max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),)] p-2 z-50 backdrop-blur-md origin-top sm:origin-top-right max-h-[calc(100dvh-4.6rem)] overflow-y-auto flex flex-col"
                   >
                     {/* Header */}
                     <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-purple-800/40 mb-1 flex items-center justify-between shrink-0">
@@ -2611,7 +2611,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                             className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
                               item.isUnread
                                 ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60 shadow-2xs'
-                                : 'bg-white/60 dark:bg-[#120726]/50 border-slate-200/80 dark:border-purple-900/30 opacity-75 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-purple-950/30'
+                                : 'bg-white/60 dark:bg-[var(--brand-dark-surface,#120726)]/50 border-slate-200/80 dark:border-purple-900/30 opacity-75 hover:opacity-100 hover:bg-slate-50 dark:hover:bg-purple-950/30'
                             }`}
                           >
                             <div className="flex items-start gap-2.5">
@@ -2691,7 +2691,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     </div>
 
                     {/* Sticky Footer with View All Trials Link & New Announcement */}
-                    <div className="px-2.5 py-2 border-t border-slate-100 dark:border-purple-800/40 mt-1.5 flex items-center justify-between text-[11px] sticky bottom-0 bg-white/95 dark:bg-[#120726]/95 backdrop-blur-md shrink-0">
+                    <div className="px-2.5 py-2 border-t border-slate-100 dark:border-purple-800/40 mt-1.5 flex items-center justify-between text-[11px] sticky bottom-0 bg-white/95 dark:bg-[var(--brand-dark-surface,#120726)]/95 backdrop-blur-md shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -2741,8 +2741,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 onClick={() => setShowUserDropdown((prev) => !prev)}
                 className={`h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
                   showUserDropdown
-                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.4)]'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)]'
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
                 }`}
                 aria-label="SuperAdmin User menu"
                 aria-expanded={showUserDropdown}
@@ -2772,7 +2772,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     exit={{ opacity: 0, scale: 0.94, y: -8 }}
                     transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                     style={{ transformOrigin: 'top right' }}
-                    className="absolute right-0 left-auto top-full mt-2 w-68 sm:w-76 bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(147,51,234,0.25)] p-2.5 z-50 backdrop-blur-md space-y-1.5"
+                    className="absolute right-0 left-auto top-full mt-2 w-68 sm:w-76 bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),)] p-2.5 z-50 backdrop-blur-md space-y-1.5"
                   >
                     {/* Unified Identity & Role Card */}
                     <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border border-slate-100 dark:border-purple-800/80 dark:text-white transition-colors mb-0.5 space-y-2">
@@ -2795,7 +2795,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       </div>
 
                       {/* Role Card */}
-                      <div className="p-2 rounded-lg bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-500/30 text-purple-900 dark:text-purple-200 space-y-1.5 dark:shadow-[0_0_10px_rgba(147,51,234,0.15)] backdrop-blur-xs">
+                      <div className="p-2 rounded-lg bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-500/30 text-purple-900 dark:text-purple-200 space-y-1.5 dark:shadow-[0_0_10px_rgba(var(--primary-rgb,147,51,234),)] backdrop-blur-xs">
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
@@ -3460,13 +3460,13 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                               onChange={(e) => setChartTimeframe(e.target.value as '7days' | 'month' | 'year')}
                               className="appearance-none bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-[11px] font-medium text-slate-700 dark:text-purple-200 py-1 pl-2.5 pr-6 rounded-lg outline-none cursor-pointer hover:border-purple-400 transition"
                             >
-                              <option value="7days" className="dark:bg-[#120726] dark:text-purple-100">
+                              <option value="7days" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                                 Last 7 Days
                               </option>
-                              <option value="month" className="dark:bg-[#120726] dark:text-purple-100">
+                              <option value="month" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                                 This Month
                               </option>
-                              <option value="year" className="dark:bg-[#120726] dark:text-purple-100">
+                              <option value="year" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                                 This Year
                               </option>
                             </select>
@@ -3634,7 +3634,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           {donutStores.map((st, idx) => {
                             const pct = st.pct || 0;
                             const circumference = 238.76;
-                            const strokeColor = idx === 0 ? '#3B82F6' : '#8B5CF6';
+                            const strokeColor = idx === 0 ? accentPalette.baseHex : accentPalette.companionHex;
 
                             return (
                               <div
@@ -3666,7 +3666,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                       data-per-role="donut"
                                       data-circumference={circumference}
                                       data-stagger-index={idx}
-                                      className={`${idx === 0 ? 'neon-glow-blue' : ''}`}
+                                      className={`${idx === 0 ? 'neon-glow-primary' : ''}`}
                                     />
                                   </svg>
                                   <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
@@ -4275,7 +4275,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       type="button"
                       disabled={exportingPlatform}
                       onClick={handleExportPlatformSql}
-                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer disabled:opacity-50"
+                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer disabled:opacity-50"
                       title="Export All Stores & Platform Backup"
                     >
                       <Download className="w-4 h-4" />
@@ -4295,7 +4295,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setCreateModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add New Store</span>
@@ -4339,8 +4339,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         onClick={() => setStatusFilter(statusOpt)}
                         className={`px-3.5 py-2.5 rounded-xl font-bold border transition cursor-pointer text-xs flex items-center gap-1.5 ${
                           statusFilter === statusOpt
-                            ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/20 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)]'
-                            : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
+                            ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/20 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
+                            : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
                         }`}
                       >
                         {statusOpt === 'ONLINE' && (
@@ -4357,7 +4357,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     ))}
                   </div>
 
-                  <span className="font-mono font-bold px-3.5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)]">
+                  <span className="font-mono font-bold px-3.5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]">
                     {filteredStores.length} Tenants
                   </span>
 
@@ -4365,7 +4365,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     type="button"
                     onClick={loadOverview}
                     disabled={loading}
-                    className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                    className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                     title={loading ? 'Refreshing deployed stores...' : 'Refresh store stats & records'}
                   >
                     <RefreshCw
@@ -4598,7 +4598,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                     {store.name}
                                   </div>
                                   <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-[#312E81]/60 text-indigo-700 dark:text-[#A5B4FC] border border-indigo-200 dark:border-[#6366F1]/40 font-mono">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 font-mono">
                                       ID #{store.id}
                                     </span>
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-sky-50 dark:bg-[#0284C7]/20 text-sky-700 dark:text-[#38BDF8] border border-sky-200 dark:border-[#0284C7]/40 font-mono">
@@ -4769,7 +4769,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                       type="button"
                                       disabled={exportingStoreId === store.id}
                                       onClick={() => handleExportStoreSql(store)}
-                                      className="p-1.5 rounded-xl border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-600 dark:hover:bg-purple-500/30 text-purple-600 dark:text-purple-200 hover:text-white dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] transition-all cursor-pointer disabled:opacity-50"
+                                      className="p-1.5 rounded-xl border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-600 dark:hover:bg-purple-500/30 text-purple-600 dark:text-purple-200 hover:text-white dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition-all cursor-pointer disabled:opacity-50"
                                       title={`Export ${store.name} Store Backup File`}
                                     >
                                       <Download className="w-3.5 h-3.5" />
@@ -4807,7 +4807,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => onOpenStore(store.id)}
-                                      className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(147,51,234,0.25)] text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                                      className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(var(--primary-rgb,147,51,234),)] text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
                                     >
                                       <span>Open POS</span>
                                       <ArrowRight className="w-3.5 h-3.5" />
@@ -4852,7 +4852,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveTab('stores')}
-                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer"
+                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer"
                       title="View Deployed Stores Directory"
                     >
                       <Store className="w-4 h-4" />
@@ -4862,7 +4862,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setCreateModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add New Store</span>
@@ -4906,8 +4906,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         onClick={() => setTrialStatusFilter(filterOpt)}
                         className={`px-3.5 py-2.5 rounded-xl font-bold border transition cursor-pointer text-xs ${
                           trialStatusFilter === filterOpt
-                            ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/20 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)]'
-                            : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
+                            ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/20 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
+                            : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
                         }`}
                       >
                         {filterOpt}
@@ -4924,7 +4924,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     type="button"
                     onClick={loadOverview}
                     disabled={loading}
-                    className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                    className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                     title={loading ? 'Refreshing trial activations...' : 'Refresh trial activations'}
                   >
                     <RefreshCw
@@ -4994,7 +4994,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-[#312E81]/60 text-indigo-700 dark:text-[#A5B4FC] border border-indigo-200 dark:border-[#6366F1]/40 font-bold">
+                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 font-bold">
                                 TRIAL #{trial.id}
                               </span>
                               <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/40 font-bold">
@@ -5102,7 +5102,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                     {trial.storeName}
                                   </div>
                                   <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-[#312E81]/60 text-indigo-700 dark:text-[#A5B4FC] border border-indigo-200 dark:border-[#6366F1]/40 font-mono">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 font-mono">
                                       TRIAL #{trial.id}
                                     </span>
                                     {trial.tenantId && (
@@ -5208,7 +5208,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                       type="button"
                                       disabled={extendingTrialId === trial.id}
                                       onClick={() => handleExtendTrial(trial.id, 30)}
-                                      className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 disabled:opacity-50 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(147,51,234,0.25)] text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                                      className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 disabled:opacity-50 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(var(--primary-rgb,147,51,234),)] text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
                                       title="Extend trial by +30 Days"
                                     >
                                       <Sparkles className="w-3.5 h-3.5" />
@@ -6366,13 +6366,13 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     onChange={(e) => setNewSubscriptionPlan(e.target.value as 'free_tier' | '6_MONTHS' | 'YEARLY')}
                     className="capitalize w-full px-3.5 py-2.5 bg-white dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 rounded-xl text-xs font-semibold text-gray-900 dark:text-purple-100 hover:bg-slate-50 dark:hover:bg-purple-500/30 outline-none focus:border-indigo-600 dark:focus:border-purple-400 cursor-pointer transition"
                   >
-                    <option value="free_tier" className="bg-white text-gray-900 dark:bg-[#120726] dark:text-purple-100">
+                    <option value="free_tier" className="bg-white text-gray-900 dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                       30-Day Free Tier (Trial)
                     </option>
-                    <option value="6_MONTHS" className="bg-white text-gray-900 dark:bg-[#120726] dark:text-purple-100">
+                    <option value="6_MONTHS" className="bg-white text-gray-900 dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                       6 Months Plan
                     </option>
-                    <option value="YEARLY" className="bg-white text-gray-900 dark:bg-[#120726] dark:text-purple-100">
+                    <option value="YEARLY" className="bg-white text-gray-900 dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                       Yearly Plan (1 Year)
                     </option>
                   </select>

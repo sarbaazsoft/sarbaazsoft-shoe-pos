@@ -232,7 +232,7 @@ export const PrinterHardwareSettings: React.FC = () => {
                     type="button"
                     onClick={handlePairReceipt}
                     disabled={isPairingReceipt || !webUsbAvailable}
-                    className="flex-1 min-w-[180px] flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer disabled:opacity-50 active:scale-95"
+                    className="flex-1 min-w-[180px] flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition cursor-pointer disabled:opacity-50 active:scale-95"
                   >
                     <Usb className="w-3.5 h-3.5" />
                     <span>
@@ -426,7 +426,7 @@ export const PrinterHardwareSettings: React.FC = () => {
                     type="button"
                     onClick={handlePairSticker}
                     disabled={isPairingSticker || !webUsbAvailable}
-                    className="flex-1 min-w-[180px] flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer disabled:opacity-50 active:scale-95"
+                    className="flex-1 min-w-[180px] flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition cursor-pointer disabled:opacity-50 active:scale-95"
                   >
                     <Usb className="w-3.5 h-3.5" />
                     <span>

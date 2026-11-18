@@ -1,19 +1,40 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   ACCENT_THEME_LIST,
   ACCENT_THEME_PALETTES,
+  ACCENT_THEME_STORAGE_KEY,
   DEFAULT_ACCENT_THEME,
   applyAccentThemeToDOM,
+  getActivePwaThemeColor,
+  getStoredAccentTheme,
   isValidAccentTheme,
+  persistAccentTheme,
   resolveAccentPalette,
   type AccentThemeId,
   type ShadeScale,
 } from '../src/utils/themePalettes.ts';
+import { resolvePwaBranding } from '../src/utils/pwaBranding.ts';
+import { syncPwaMetadataToDocument } from '../src/hooks/usePwaManifest.ts';
 
 const HEX_RE = /^#[0-9A-F]{6}$/i;
 const SHADES: Array<keyof ShadeScale> = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+
+function collectTsFiles(dir: string): string[] {
+  const results: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    const stat = statSync(full);
+    if (stat.isDirectory()) {
+      results.push(...collectTsFiles(full));
+    } else if (full.endsWith('.ts') || full.endsWith('.tsx')) {
+      results.push(full);
+    }
+  }
+  return results;
+}
 
 describe('Multi-Color Brand Gradient Palettes', () => {
   const expectedBaseHexes: Record<AccentThemeId, string> = {
@@ -69,7 +90,6 @@ describe('Multi-Color Brand Gradient Palettes', () => {
         assert.ok(grad.includes('#'), `${palette.id} gradient must include color stops`);
       }
 
-      // Ensure light & dark header/footer gradients reference both primary and companion stops
       assert.ok(palette.cardHeaderGradientDark.includes(palette.primaryScale[900]));
       assert.ok(palette.cardHeaderGradientDark.includes(palette.companionScale[950]));
       assert.ok(palette.cardHeaderGradientLight.includes(palette.primaryScale[50]));
@@ -120,6 +140,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       assert.equal(props.get('--brand-companion'), '#0D9488');
       assert.equal(props.get('--color-purple-600'), '#059669');
       assert.equal(props.get('--color-indigo-600'), '#0D9488');
+      assert.equal(props.get('--color-primary-600'), '#059669');
       assert.equal(props.get('--brand-btn-gradient'), applied.buttonGradient);
       assert.equal(props.get('--brand-header-gradient-dark'), applied.cardHeaderGradientDark);
       assert.equal(props.get('--brand-footer-gradient-light'), applied.cardFooterGradientLight);
@@ -130,6 +151,137 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       } else {
         (globalThis as { document?: unknown }).document = originalDoc;
       }
+    }
+  });
+
+  it('persists selected accent theme in localStorage and restores or falls back safely', () => {
+    const storage = new Map<string, string>();
+    const originalWin = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = {
+      localStorage: {
+        getItem: (k: string) => storage.get(k) ?? null,
+        setItem: (k: string, v: string) => {
+          storage.set(k, v);
+        },
+      },
+    };
+
+    try {
+      assert.equal(getStoredAccentTheme(), 'purple');
+
+      persistAccentTheme('teal');
+      assert.equal(storage.get(ACCENT_THEME_STORAGE_KEY), 'teal');
+      assert.equal(getStoredAccentTheme(), 'teal');
+
+      storage.set(ACCENT_THEME_STORAGE_KEY, 'not-a-theme');
+      assert.equal(getStoredAccentTheme(), 'purple');
+    } finally {
+      if (originalWin === undefined) {
+        delete (globalThis as { window?: unknown }).window;
+      } else {
+        (globalThis as { window?: unknown }).window = originalWin;
+      }
+    }
+  });
+
+  it('syncPwaMetadataToDocument preserves the active dynamic accent theme-color instead of overwriting with static fallback', () => {
+    const metaTags = new Map<string, { getAttribute: (k: string) => string | null; setAttribute: (k: string, v: string) => void }>();
+    const createdMeta = (attrs: Record<string, string> = {}) => {
+      const map = new Map<string, string>(Object.entries(attrs));
+      return {
+        getAttribute: (k: string) => map.get(k) ?? null,
+        setAttribute: (k: string, v: string) => {
+          map.set(k, v);
+        },
+      };
+    };
+
+    metaTags.set('meta[name="theme-color"]', createdMeta({ name: 'theme-color', content: '#14B8A6' }));
+    const manifestLink = createdMeta({ rel: 'manifest', href: '/manifest.webmanifest' });
+
+    const originalDoc = (globalThis as { document?: unknown }).document;
+    (globalThis as { document?: unknown }).document = {
+      documentElement: {
+        getAttribute: (k: string) => (k === 'data-accent-theme' ? 'teal' : null),
+      },
+      head: {
+        appendChild: (node: { getAttribute: (k: string) => string | null; setAttribute: (k: string, v: string) => void }) => {
+          const name = node.getAttribute('name');
+          if (name) {
+            metaTags.set(`meta[name="${name}"]`, node);
+          }
+        },
+      },
+      createElement: () => createdMeta(),
+      querySelector: (sel: string) => {
+        if (sel === 'link[rel="manifest"]') return manifestLink;
+        return metaTags.get(sel) ?? null;
+      },
+      querySelectorAll: () => [],
+    };
+
+    try {
+      assert.equal(getActivePwaThemeColor('#9333EA'), '#14B8A6');
+      const branding = resolvePwaBranding({ role: 'admin', saasMode: 'tenant' });
+      assert.equal(branding.themeColor, '#9333EA');
+
+      syncPwaMetadataToDocument(branding);
+      assert.equal(metaTags.get('meta[name="theme-color"]')?.getAttribute('content'), '#14B8A6');
+
+      syncPwaMetadataToDocument(branding, { themeColor: '#F97316' });
+      assert.equal(metaTags.get('meta[name="theme-color"]')?.getAttribute('content'), '#F97316');
+    } finally {
+      if (originalDoc === undefined) {
+        delete (globalThis as { document?: unknown }).document;
+      } else {
+        (globalThis as { document?: unknown }).document = originalDoc;
+      }
+    }
+  });
+
+  it('defines all 11 [data-accent-theme] CSS variable blocks and primary scale tokens in src/index.css', () => {
+    const cssSource = readFileSync('src/index.css', 'utf8');
+
+    for (const shade of SHADES) {
+      assert.ok(cssSource.includes(`--color-primary-${shade}`), `src/index.css @theme missing --color-primary-${shade}`);
+    }
+
+    for (const palette of ACCENT_THEME_LIST) {
+      const selector = `:root[data-accent-theme="${palette.id}"]`;
+      assert.ok(cssSource.includes(selector), `src/index.css missing CSS rule block for ${selector}`);
+      assert.ok(cssSource.includes(palette.darkSurfaceBg), `src/index.css missing darkSurfaceBg ${palette.darkSurfaceBg} for ${palette.id}`);
+    }
+  });
+
+  it('keeps static PWA manifest theme_color at default #9333EA fallback', () => {
+    const manifestFiles = [
+      'public/manifest.json',
+      'public/manifest.webmanifest',
+      'public/admin/manifest.json',
+      'public/admin/manifest.webmanifest',
+    ];
+    for (const file of manifestFiles) {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as { theme_color?: string };
+      assert.equal(parsed.theme_color, '#9333EA', `${file} should preserve static theme_color fallback`);
+    }
+  });
+
+  it('does not leave un-themed hardcoded dark purple card surfaces or bare rgba(147,51,234,...) glows in components', () => {
+    const files = [...collectTsFiles('src/components'), 'src/utils/badgeStyles.ts'];
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8');
+      assert.equal(
+        /(?:^|[\s:'"`])dark:bg-\[#120726\]/.test(src),
+        false,
+        `${file} should use var(--brand-dark-surface) instead of hardcoded dark:bg-[#120726]`
+      );
+      // Allow rgba(147, 51, 234, ...) only inside Tailwind fallback syntax var(--primary-rgb,147,51,234)
+      const cleaned = src.replace(/var\(--primary-rgb,\s*147,\s*51,\s*234\)/g, '');
+      assert.equal(
+        /rgba\(\s*147\s*,\s*51\s*,\s*234/.test(cleaned),
+        false,
+        `${file} should use var(--primary-rgb) instead of bare rgba(147,51,234,...)`
+      );
     }
   });
 

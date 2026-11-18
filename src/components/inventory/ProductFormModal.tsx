@@ -1166,7 +1166,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           value={brand}
                           onChange={(e) => handleBrandChange(e.target.value)}
                           placeholder="Add brand (e.g., Nike, Services) or leave blank for Unbranded"
-                          className="capitalize w-full px-3 py-2 bg-white dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 rounded-xl text-xs font-medium text-gray-900 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] outline-none focus:border-indigo-600 dark:focus:border-purple-400 transition"
+                          className="capitalize w-full px-3 py-2 bg-white dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 rounded-xl text-xs font-medium text-gray-900 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] outline-none focus:border-indigo-600 dark:focus:border-purple-400 transition"
                         />
                       </div>
                       <div title={`Brand: ${currentBrandName}`} className="shrink-0">
@@ -1190,13 +1190,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <select
                         value={category}
                         onChange={(e) => handleCategoryChange(e.target.value)}
-                        className="w-full px-3 py-2 bg-white dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 rounded-xl text-xs font-medium text-gray-900 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] outline-none focus:border-indigo-600 dark:focus:border-purple-400 cursor-pointer transition"
+                        className="w-full px-3 py-2 bg-white dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 rounded-xl text-xs font-medium text-gray-900 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] outline-none focus:border-indigo-600 dark:focus:border-purple-400 cursor-pointer transition"
                       >
                         {categories.map((cName, cIdx) => (
                           <option
                             key={`cat-opt-${cName}-${cIdx}`}
                             value={cName}
-                            className="bg-white text-gray-900 dark:bg-[#120726] dark:text-purple-100"
+                            className="bg-white text-gray-900 dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100"
                           >
                             {cName}
                           </option>

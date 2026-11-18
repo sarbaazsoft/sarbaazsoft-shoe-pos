@@ -398,7 +398,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             id="open-barcode-generator-btn"
             type="button"
             onClick={() => handleOpenBarcodeTool()}
-            className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer"
+            className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer"
             title="Open Barcode Generation & Physical Label Printing Tool"
           >
             <Barcode className="w-4 h-4" />
@@ -423,7 +423,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                   setEditingProduct(null);
                   setIsFormModalOpen(true);
                 }}
-                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add New Product</span>
@@ -549,11 +549,11 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         <select
           value={selectedBrand}
           onChange={(e) => setSelectedBrand(e.target.value)}
-          className="capitalize px-3.5 py-2.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-xl outline-none font-medium focus:border-blue-500 dark:focus:border-purple-400 cursor-pointer transition"
+          className="capitalize px-3.5 py-2.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-xl outline-none font-medium focus:border-blue-500 dark:focus:border-purple-400 cursor-pointer transition"
         >
           <option value="">All Brands</option>
           {brands.map((bName) => (
-            <option key={`brand-opt-${bName}`} value={bName} className="dark:bg-[#120726] dark:text-purple-100">
+            <option key={`brand-opt-${bName}`} value={bName} className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
               {bName} {bName.toLowerCase() === 'local' ? '(Default)' : ''}
             </option>
           ))}
@@ -562,14 +562,14 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="capitalize px-3.5 py-2.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-xl outline-none font-medium focus:border-blue-500 dark:focus:border-purple-400 cursor-pointer transition"
+          className="capitalize px-3.5 py-2.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-xl outline-none font-medium focus:border-blue-500 dark:focus:border-purple-400 cursor-pointer transition"
         >
           <option value="">All Categories</option>
           {categories.map((c, idx) => {
             const cName = typeof c === 'string' ? c : c.name;
             const optKey = c?.id ? `cat-opt-${c.id}` : `cat-opt-${cName || 'c'}-${idx}`;
             return (
-              <option key={optKey} value={cName} className="dark:bg-[#120726] dark:text-purple-100">
+              <option key={optKey} value={cName} className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                 {cName}
               </option>
             );
@@ -582,7 +582,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           className={`flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl font-bold border transition cursor-pointer ${
             lowStockFilter
               ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40 shadow-xs'
-              : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
+              : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
           }`}
         >
           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -596,7 +596,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               const firstSelected = products.find((p) => p.id === selectedProductIds[0]);
               handleOpenBarcodeTool(firstSelected);
             }}
-            className="flex items-center space-x-1.5 px-3.5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white font-bold rounded-xl border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer active:scale-95"
+            className="flex items-center space-x-1.5 px-3.5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white font-bold rounded-xl border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition cursor-pointer active:scale-95"
           >
             <Barcode className="w-3.5 h-3.5" />
             <span>Generate Labels ({selectedProductIds.length} Selected)</span>
@@ -607,7 +607,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           type="button"
           onClick={loadProducts}
           disabled={isLoading}
-          className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+          className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           title={isLoading ? "Refreshing inventory..." : "Refresh inventory stats & records"}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
@@ -622,7 +622,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             title="Card Grid View"
             className={`p-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               viewMode === 'grid'
-                ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] shadow-xs'
+                ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-xs'
                 : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
             }`}
           >
@@ -634,7 +634,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             title="Table View"
             className={`p-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               viewMode === 'table'
-                ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] shadow-xs'
+                ? 'bg-white dark:bg-purple-500/20 text-blue-600 dark:text-purple-200 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-xs'
                 : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
             }`}
           >
@@ -1158,7 +1158,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             size="xs"
                           />
                           {isUnbranded ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-[#312E81]/60 text-indigo-700 dark:text-[#A5B4FC] border border-indigo-200 dark:border-[#6366F1]/40">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40">
                               {p.brandName || 'Unbranded'}
                             </span>
                           ) : (
@@ -1485,7 +1485,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                                   setEditingProduct(p);
                                   setIsFormModalOpen(true);
                                 }}
-                                className="p-1.5 rounded-xl border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-600 dark:hover:bg-purple-500/30 text-purple-600 dark:text-purple-200 hover:text-white dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] transition-all cursor-pointer"
+                                className="p-1.5 rounded-xl border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-600 dark:hover:bg-purple-500/30 text-purple-600 dark:text-purple-200 hover:text-white dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition-all cursor-pointer"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>

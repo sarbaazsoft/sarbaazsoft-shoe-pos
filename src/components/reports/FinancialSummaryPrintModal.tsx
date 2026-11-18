@@ -215,7 +215,7 @@ export const FinancialSummaryPrintModal: React.FC<FinancialSummaryPrintModalProp
           <button
             type="button"
             onClick={handlePrint}
-            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-5 py-2 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer active:scale-95"
+            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-5 py-2 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer active:scale-95"
           >
             <Printer className="w-4 h-4" />
             <span>Print Financial Summary</span>

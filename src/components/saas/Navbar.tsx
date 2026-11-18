@@ -209,7 +209,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {/* Active / Hover underline accent in app's Purple/Indigo brand color */}
                   {isActive && (
                     <span
-                      className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)]"
+                      className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)]"
                       aria-hidden="true"
                     />
                   )}
@@ -346,7 +346,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="nav-link flex items-center gap-2 font-courgette font-courgate nav-link-courgette"
                       >
                         {isActive && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.7)]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-600 dark:bg-purple-400 shadow-[0_0_6px_rgba(var(--primary-rgb,147,51,234),)]" />
                         )}
                         <span style={{ fontFamily: "'Courgette', cursive, sans-serif" }} className="nav-link font-courgette font-courgate nav-link-courgette">
                           {item.label}

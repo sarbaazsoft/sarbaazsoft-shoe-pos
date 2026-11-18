@@ -140,7 +140,7 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
       className={`p-3.5 sm:p-4 rounded-2xl border notif-slide-item ${slideStateClass} ${
         isUnread
           ? `shadow-xs ${badge.cardBg} ring-1 ring-purple-400/20`
-          : 'bg-white/80 dark:bg-[#120726]/40 border-slate-200/80 dark:border-purple-900/30 opacity-85 hover:opacity-100 hover:bg-white dark:hover:bg-[#120726]/60'
+          : 'bg-white/80 dark:bg-[var(--brand-dark-surface,#120726)]/40 border-slate-200/80 dark:border-purple-900/30 opacity-85 hover:opacity-100 hover:bg-white dark:hover:bg-[#120726]/60'
       }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -663,7 +663,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               className={`px-3 py-1.5 rounded-xl font-semibold text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer ${
                 showProviderSettings
                   ? 'bg-purple-600 text-white shadow-purple-600/30'
-                  : 'bg-white dark:bg-[#120726] border border-slate-200/90 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:text-purple-600 dark:hover:text-white'
+                  : 'bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200/90 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:text-purple-600 dark:hover:text-white'
               }`}
               title="Configure Firebase Cloud Messaging (FCM) credentials and test push alerts"
             >
@@ -688,7 +688,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             type="button"
             onClick={fetchHistory}
             disabled={loading}
-            className="p-2 rounded-xl bg-white dark:bg-[#120726] border border-slate-200/90 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:text-purple-600 dark:hover:text-white shadow-2xs transition cursor-pointer disabled:opacity-50"
+            className="p-2 rounded-xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200/90 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:text-purple-600 dark:hover:text-white shadow-2xs transition cursor-pointer disabled:opacity-50"
             title="Refresh Notification Feed"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-purple-600' : ''}`} />
@@ -707,7 +707,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
       {/* STATS OVERVIEW CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
           <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
             <span className="font-medium truncate">Total Alerts</span>
             <Layers className="w-3.5 h-3.5 text-purple-500 shrink-0" />
@@ -718,7 +718,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">All captured events</div>
         </div>
 
-        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
           <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
             <span className="font-medium truncate">Announcements</span>
             <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
@@ -731,7 +731,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           </div>
         </div>
 
-        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
           <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
             <span className="font-medium truncate">POS Activities</span>
             <ShoppingBag className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
@@ -744,7 +744,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           </div>
         </div>
 
-        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
           <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
             <span className="font-medium truncate">Unread Total</span>
             <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -759,7 +759,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       </div>
 
       {/* FILTER & SEARCH TOOLBAR */}
-      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#120726]/80 border border-slate-200/90 dark:border-purple-900/40 shadow-xs space-y-3">
+      <div className="p-3.5 rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/80 border border-slate-200/90 dark:border-purple-900/40 shadow-xs space-y-3">
         {/* Category Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           {(
@@ -882,7 +882,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             </p>
           </div>
         ) : items.length === 0 ? (
-          <div className="py-16 px-4 text-center rounded-2xl bg-white dark:bg-[#120726]/40 border border-slate-200/80 dark:border-purple-900/30">
+          <div className="py-16 px-4 text-center rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/40 border border-slate-200/80 dark:border-purple-900/30">
             <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 flex items-center justify-center mx-auto mb-3 border border-purple-200/80 dark:border-purple-800/40">
               <CheckCircle2 className="w-6 h-6 stroke-[2]" />
             </div>
@@ -927,7 +927,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+          <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
             <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 shrink-0" />
             {selectedAnnouncement ? (
               <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
@@ -1041,7 +1041,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={pagination.page <= 1 || loading}
-              className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-900/40 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer flex items-center gap-1"
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-900/40 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer flex items-center gap-1"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               <span>Previous</span>
@@ -1055,7 +1055,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               type="button"
               onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
               disabled={pagination.page >= pagination.totalPages || loading}
-              className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-900/40 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer flex items-center gap-1"
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/40 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-900/40 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer flex items-center gap-1"
             >
               <span>Next</span>
               <ChevronRight className="w-3.5 h-3.5" />

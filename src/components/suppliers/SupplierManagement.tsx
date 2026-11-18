@@ -268,7 +268,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
             type="button"
             onClick={() => loadSuppliers(searchTerm)}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
             title={isLoading ? "Refreshing suppliers..." : "Refresh suppliers & recount metrics"}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600 dark:text-purple-400' : ''}`} />
@@ -278,7 +278,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           {onNavigateToPurchase && (
             <button
               onClick={() => onNavigateToPurchase()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] active:scale-[0.98] transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] active:scale-[0.98] transition cursor-pointer"
             >
               <Truck className="w-3.5 h-3.5" />
               <span>Purchases List</span>
@@ -288,7 +288,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           <button
             onClick={handleOpenAddModal}
             style={{ color: '#ffffff' }}
-            className="btn-pure-white supplier-btn inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 !text-white text-white rounded-xl text-xs font-bold border border-purple-400/40 shadow-md shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 dark:border-purple-400/50 dark:shadow-[0_0_18px_rgba(147,51,234,0.35)] transition-all cursor-pointer active:scale-95"
+            className="btn-pure-white supplier-btn inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 !text-white text-white rounded-xl text-xs font-bold border border-purple-400/40 shadow-md shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 dark:border-purple-400/50 dark:shadow-[0_0_18px_rgba(var(--primary-rgb,147,51,234),)] transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
             <span className="!text-white font-bold text-white" style={{ color: '#ffffff' }}>Add New Supplier</span>
@@ -383,7 +383,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
             loadSuppliers('');
             triggerStatRecount();
           }}
-          className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] active:scale-[0.98] transition shrink-0 cursor-pointer"
+          className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] active:scale-[0.98] transition shrink-0 cursor-pointer"
         >
           Reset Filter
         </button>

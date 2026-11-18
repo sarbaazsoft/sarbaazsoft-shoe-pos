@@ -435,7 +435,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
               {activeTab === 'catalog' && (
                 <motion.div
                   layoutId="barcodeActiveUnderline"
-                  className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                  className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
               )}
@@ -458,7 +458,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
               {activeTab === 'custom' && (
                 <motion.div
                   layoutId="barcodeActiveUnderline"
-                  className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                  className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
               )}
@@ -518,11 +518,11 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                   <select
                     value={filterBrand}
                     onChange={(e) => setFilterBrand(e.target.value)}
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg text-xs font-medium outline-none focus:border-indigo-500 dark:focus:border-purple-400 cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-lg text-xs font-medium outline-none focus:border-indigo-500 dark:focus:border-purple-400 cursor-pointer"
                   >
-                    <option value="all" className="dark:bg-[#120726] dark:text-purple-100">All Brands</option>
+                    <option value="all" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">All Brands</option>
                     {uniqueBrands.map((b, idx) => (
-                      <option key={`bgt-brand-opt-${b}-${idx}`} value={b} className="dark:bg-[#120726] dark:text-purple-100">
+                      <option key={`bgt-brand-opt-${b}-${idx}`} value={b} className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
                         {b}
                       </option>
                     ))}
@@ -547,14 +547,14 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                     <button
                       type="button"
                       onClick={handleSelectAllFiltered}
-                      className="btn-outline-landing px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-semibold rounded text-xs transition cursor-pointer"
+                      className="btn-outline-landing px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-semibold rounded text-xs transition cursor-pointer"
                     >
                       Select All ({filteredProducts.length})
                     </button>
                     <button
                       type="button"
                       onClick={handleDeselectAll}
-                      className="btn-outline-landing px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-semibold rounded text-xs transition cursor-pointer"
+                      className="btn-outline-landing px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-semibold rounded text-xs transition cursor-pointer"
                     >
                       Clear Selection
                     </button>
@@ -567,7 +567,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                         key={num}
                         type="button"
                         onClick={() => handleApplyPresetCopiesToAll(num)}
-                        className="px-2 py-0.5 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded font-bold text-xs transition cursor-pointer"
+                        className="px-2 py-0.5 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded font-bold text-xs transition cursor-pointer"
                         title={`Set ${num} copies for all selected items`}
                       >
                         {num}x
@@ -822,10 +822,10 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                     <select
                       value={customBarcodeFormat}
                       onChange={(e: any) => setCustomBarcodeFormat(e.target.value)}
-                      className="w-full sm:w-auto px-3 py-2 bg-slate-50 dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg text-xs font-semibold outline-none focus:border-purple-400 cursor-pointer"
+                      className="w-full sm:w-auto px-3 py-2 bg-slate-50 dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-lg text-xs font-semibold outline-none focus:border-purple-400 cursor-pointer"
                     >
-                      <option value="CODE128" className="dark:bg-[#120726] dark:text-purple-100">Code-128 (Alphanumeric)</option>
-                      <option value="EAN13" className="dark:bg-[#120726] dark:text-purple-100">EAN-13 (Numeric)</option>
+                      <option value="CODE128" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Code-128 (Alphanumeric)</option>
+                      <option value="EAN13" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">EAN-13 (Numeric)</option>
                     </select>
                   </div>
                   <p className="text-[11px] text-gray-500">
@@ -1100,7 +1100,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                 id="print-physical-labels-btn"
                 onClick={handlePrintStandard}
                 disabled={totalStickersToPrint === 0}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 disabled:opacity-50 font-bold text-sm rounded-xl shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(147,51,234,0.35)] transition flex items-center justify-center space-x-2 cursor-pointer active:scale-98"
+                className="w-full py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 disabled:opacity-50 font-bold text-sm rounded-xl shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(var(--primary-rgb,147,51,234),)] transition flex items-center justify-center space-x-2 cursor-pointer active:scale-98"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Physical Labels ({totalStickersToPrint} Labels)</span>
@@ -1123,7 +1123,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                 <button
                   type="button"
                   onClick={handleExportPng}
-                  className="btn-outline-landing flex items-center justify-center space-x-1.5 py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] text-xs font-semibold rounded-lg transition cursor-pointer"
+                  className="btn-outline-landing flex items-center justify-center space-x-1.5 py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] text-xs font-semibold rounded-lg transition cursor-pointer"
                   title="Download sticker PNG image"
                 >
                   <ImageIcon className="w-3.5 h-3.5 text-gray-500 dark:text-purple-300" />

@@ -102,7 +102,7 @@ export const StockLedgerView: React.FC = () => {
           onClick={loadLedger}
           disabled={isLoading}
           title={isLoading ? "Refreshing ledger..." : "Refresh Ledger"}
-          className="btn-outline-landing inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] text-xs font-semibold active:scale-[0.98] self-start sm:self-auto cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+          className="btn-outline-landing inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] text-xs font-semibold active:scale-[0.98] self-start sm:self-auto cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-purple-300 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh Ledger</span>
@@ -121,11 +121,11 @@ export const StockLedgerView: React.FC = () => {
         <select
           value={selectedProduct}
           onChange={(e) => setSelectedProduct(e.target.value ? Number(e.target.value) : '')}
-          className="w-full sm:w-auto max-w-full px-3.5 py-2.5 sm:py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
+          className="w-full sm:w-auto max-w-full px-3.5 py-2.5 sm:py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
         >
-          <option value="" className="dark:bg-[#120726] dark:text-purple-100">All Products</option>
+          <option value="" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">All Products</option>
           {products.map((p) => (
-            <option key={p.id} value={p.id} className="dark:bg-[#120726] dark:text-purple-100">
+            <option key={p.id} value={p.id} className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">
               {p.article || p.name} {p.barcode ? `(${p.barcode})` : ''}
             </option>
           ))}
@@ -134,13 +134,13 @@ export const StockLedgerView: React.FC = () => {
         <select
           value={movementType}
           onChange={(e) => setMovementType(e.target.value)}
-          className="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
+          className="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
         >
-          <option value="" className="dark:bg-[#120726] dark:text-purple-100">All Movement Types</option>
-          <option value="SALE" className="dark:bg-[#120726] dark:text-purple-100">POS Sales</option>
-          <option value="PURCHASE" className="dark:bg-[#120726] dark:text-purple-100">Stock Purchases</option>
-          <option value="SALE_RETURN" className="dark:bg-[#120726] dark:text-purple-100">Customer Returns</option>
-          <option value="ADJUSTMENT" className="dark:bg-[#120726] dark:text-purple-100">Physical Adjustments</option>
+          <option value="" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">All Movement Types</option>
+          <option value="SALE" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">POS Sales</option>
+          <option value="PURCHASE" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Stock Purchases</option>
+          <option value="SALE_RETURN" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Customer Returns</option>
+          <option value="ADJUSTMENT" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">Physical Adjustments</option>
         </select>
 
         {(selectedProduct !== '' || movementType !== '') && (

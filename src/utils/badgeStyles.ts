@@ -47,7 +47,7 @@ export function getLuxuryBadgeClass(options: LuxuryBadgeOptions = {}): string {
       'border border-purple-400/40 dark:border-purple-400/50',
       'ring-1 ring-inset ring-indigo-400/20 dark:ring-purple-400/30',
       'text-purple-800 dark:text-purple-200',
-      glow ? 'shadow-[0_0_14px_rgba(168,85,247,0.18)]' : 'shadow-2xs',
+      glow ? 'shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.18)]' : 'shadow-2xs',
     ].join(' '),
 
     indigo: [
@@ -56,7 +56,7 @@ export function getLuxuryBadgeClass(options: LuxuryBadgeOptions = {}): string {
       'border border-indigo-400/40 dark:border-indigo-400/50',
       'ring-1 ring-inset ring-purple-400/20 dark:ring-indigo-400/30',
       'text-indigo-800 dark:text-indigo-200',
-      glow ? 'shadow-[0_0_14px_rgba(99,102,241,0.18)]' : 'shadow-2xs',
+      glow ? 'shadow-[0_0_14px_rgba(var(--brand-companion-rgb,79,70,229),0.18)]' : 'shadow-2xs',
     ].join(' '),
 
     emerald: [
@@ -92,7 +92,7 @@ export function getLuxuryBadgeClass(options: LuxuryBadgeOptions = {}): string {
       'border border-purple-400/40 dark:border-purple-400/50',
       'ring-1 ring-inset ring-indigo-400/20 dark:ring-purple-400/30',
       'text-purple-800 dark:text-purple-200',
-      glow ? 'shadow-[0_0_14px_rgba(168,85,247,0.18)]' : 'shadow-2xs',
+      glow ? 'shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.18)]' : 'shadow-2xs',
     ].join(' '),
   };
 

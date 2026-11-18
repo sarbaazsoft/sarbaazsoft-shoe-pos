@@ -1362,7 +1362,7 @@ setFormErrors(errors);
               type="button"
               onClick={handleGlobalRefresh}
               disabled={isRefreshingAll}
-              className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+              className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
               title={isRefreshingAll ? "Reloading settings..." : "Reload settings"}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-purple-300 ${isRefreshingAll ? 'animate-spin' : ''}`} />
@@ -1526,7 +1526,7 @@ setFormErrors(errors);
             {activeTab === 'store' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -1560,7 +1560,7 @@ setFormErrors(errors);
             {activeTab === 'users' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -1585,7 +1585,7 @@ setFormErrors(errors);
             {activeTab === 'app_settings' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -1613,7 +1613,7 @@ setFormErrors(errors);
             {activeTab === 'notifications' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -1638,7 +1638,7 @@ setFormErrors(errors);
             {activeTab === 'printers' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -1663,7 +1663,7 @@ setFormErrors(errors);
             {activeTab === 'backup' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -1688,7 +1688,7 @@ setFormErrors(errors);
             {activeTab === 'install' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(147,51,234,0.45)] pointer-events-none z-10"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               />
             )}
@@ -2646,7 +2646,7 @@ setFormErrors(errors);
             <button
               type="submit"
               disabled={isSavingSettings}
-              className="w-full sm:w-auto bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold text-xs px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
+              className="w-full sm:w-auto bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
             >
               {isSavingSettings ? (
                 <>
@@ -2684,7 +2684,7 @@ setFormErrors(errors);
                 type="button"
                 id="create-staff-user-btn"
                 onClick={handleOpenAddUserModal}
-                className="btn-pure-white px-3.5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white font-bold rounded-xl text-xs cursor-pointer transition shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] border border-purple-400/40 flex items-center space-x-1.5"
+                className="btn-pure-white px-3.5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white font-bold rounded-xl text-xs cursor-pointer transition shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] border border-purple-400/40 flex items-center space-x-1.5"
                 style={{ color: '#ffffff' }}
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -2695,7 +2695,7 @@ setFormErrors(errors);
                 onClick={loadUsers}
                 disabled={isLoadingUsers}
                 title={isLoadingUsers ? "Refreshing users..." : "Refresh List"}
-                className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center space-x-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center space-x-1.5 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-blue-600 dark:text-purple-300 ${isLoadingUsers ? 'animate-spin' : ''}`} />
                 <span>Refresh List</span>
@@ -2759,8 +2759,8 @@ setFormErrors(errors);
                           onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
                           className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
                         >
-                          <option value="CASHIER" className="dark:bg-[#120726] dark:text-purple-100">CASHIER</option>
-                          <option value="ADMIN" className="dark:bg-[#120726] dark:text-purple-100">ADMIN</option>
+                          <option value="CASHIER" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">CASHIER</option>
+                          <option value="ADMIN" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">ADMIN</option>
                         </select>
 
                         <div className="flex items-center gap-1.5">
@@ -2864,10 +2864,10 @@ setFormErrors(errors);
                           <select
                             value={u.role}
                             onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
-                            className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
+                            className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
                           >
-                            <option value="CASHIER" className="dark:bg-[#120726] dark:text-purple-100">CASHIER</option>
-                            <option value="ADMIN" className="dark:bg-[#120726] dark:text-purple-100">ADMIN</option>
+                            <option value="CASHIER" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">CASHIER</option>
+                            <option value="ADMIN" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">ADMIN</option>
                           </select>
                         </td>
                         <td className="py-3 px-4">
@@ -2887,7 +2887,7 @@ setFormErrors(errors);
                               <button
                                 type="button"
                                 onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')}
-                                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_12px_rgba(147,51,234,0.3)] transition-all hover:scale-105 active:scale-95"
+                                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_12px_rgba(var(--primary-rgb,147,51,234),)] transition-all hover:scale-105 active:scale-95"
                               >
                                 Approve
                               </button>
@@ -4553,7 +4553,7 @@ setFormErrors(errors);
               onClick={loadInstallStatus}
               disabled={isLoadingInstallStatus}
               title={isLoadingInstallStatus ? "Refreshing status..." : "Refresh Status"}
-              className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+              className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingInstallStatus ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
               <span>Refresh Status</span>
@@ -4654,7 +4654,7 @@ setFormErrors(errors);
                   window.location.href = '/install';
                 }
               }}
-              className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold text-xs py-2.5 px-4 rounded-xl shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition-all shrink-0 flex items-center gap-2 cursor-pointer active:scale-95"
+              className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold text-xs py-2.5 px-4 rounded-xl shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] transition-all shrink-0 flex items-center gap-2 cursor-pointer active:scale-95"
             >
               {effectivePosLocked ? (
                 <>
@@ -4806,7 +4806,7 @@ setFormErrors(errors);
                     <button
                       type="submit"
                       disabled={isResettingInstall || !resetPasswordInput}
-                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold px-5 h-11 rounded-xl text-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] shrink-0 active:scale-95"
+                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold px-5 h-11 rounded-xl text-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shrink-0 active:scale-95"
                     >
                       <Unlock className="w-3.5 h-3.5" />
                       <span>{isResettingInstall ? 'Verifying...' : 'Unlock Install Wizard'}</span>
