@@ -60,15 +60,15 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
             className="fixed bottom-3 left-3 right-3 sm:bottom-4 sm:left-auto sm:right-6 sm:max-w-md z-50 no-print pointer-events-auto"
           >
-            <div className="relative w-full bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden">
+            <div className="relative w-full bg-white dark:bg-[#0E1628] rounded-2xl border border-primary-200/80 dark:border-primary-900/60 shadow-2xl overflow-hidden">
               {/* Header Accent Bar */}
-              <div className="h-1.5 w-full bg-amber-500" />
+              <div className="h-1.5 w-full bg-primary-500" />
 
               <div className="p-3.5 sm:p-5 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Icon container matching NotificationStatusModal */}
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-sm shrink-0">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-primary-100 dark:bg-primary-950/60 border border-primary-300 dark:border-primary-700/60 flex items-center justify-center text-primary-600 dark:text-primary-400 shadow-sm shrink-0">
                       <WifiOff className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
                     </div>
 
@@ -77,7 +77,7 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
                         <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
                           Offline Node Active
                         </h4>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary-500/10 text-primary-700 dark:text-primary-300 border border-primary-500/20">
                           No Internet
                         </span>
                       </div>
@@ -120,18 +120,18 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
 
                 <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80">
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    <Cloud className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <Cloud className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400 shrink-0" />
                     <span>
                       Queue: <strong className="text-slate-900 dark:text-white font-mono font-bold">{pendingCount}</strong>
                     </span>
-                    {isSyncing && <RefreshCw className="w-3 h-3 text-purple-600 animate-spin ml-1 shrink-0" />}
+                    {isSyncing && <RefreshCw className="w-3 h-3 text-primary-600 dark:text-primary-400 animate-spin ml-1 shrink-0" />}
                   </div>
 
                   <button
                     type="button"
                     id="offline-toast-view-queue-btn"
                     onClick={() => setIsModalOpen(true)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500"
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700"
                   >
                     <span>View Node Queue</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -154,7 +154,7 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
             transition={{ type: 'spring', damping: 26, stiffness: 360 }}
             className="fixed bottom-3 right-3 sm:bottom-4 sm:right-6 z-50 no-print pointer-events-auto"
           >
-            <div className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1628] border border-amber-300/90 dark:border-amber-700/60 shadow-xl text-xs">
+            <div className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1628] border border-primary-300/90 dark:border-primary-700/60 shadow-xl text-xs">
               <button
                 type="button"
                 id="offline-toast-view-queue-btn"
@@ -162,16 +162,16 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
                 className="flex items-center gap-2 pr-1 text-left cursor-pointer group"
                 title="Open Offline Node Queue"
               >
-                <span className="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <span className="w-6 h-6 rounded-lg bg-primary-100 dark:bg-primary-950/70 border border-primary-300 dark:border-primary-700/60 flex items-center justify-center text-primary-600 dark:text-primary-400 shrink-0">
                   <WifiOff className="w-3.5 h-3.5" />
                 </span>
-                <span className="font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                   Offline
                 </span>
-                <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                <span className="px-1.5 py-0.5 rounded-md bg-primary-500/10 border border-primary-500/20 font-mono text-[11px] font-bold text-primary-700 dark:text-primary-300">
                   Queue: {pendingCount}
                 </span>
-                {isSyncing && <RefreshCw className="w-3 h-3 text-purple-600 animate-spin shrink-0" />}
+                {isSyncing && <RefreshCw className="w-3 h-3 text-primary-600 dark:text-primary-400 animate-spin shrink-0" />}
               </button>
 
               <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" aria-hidden="true" />

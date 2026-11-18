@@ -403,5 +403,25 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       );
     }
   });
+
+  it('uses active primary theme CSS variable tokens instead of hardcoded amber/orange in offline alert modals', () => {
+    const offlineFiles = [
+      'src/components/common/OfflineToastNotification.tsx',
+      'src/components/pos/OfflineSyncModal.tsx',
+    ];
+    for (const file of offlineFiles) {
+      const src = readFileSync(file, 'utf8');
+      assert.equal(
+        /\b(?:amber|orange)-\d{2,3}\b/.test(src),
+        false,
+        `${file} should not contain hardcoded amber-* or orange-* classes`
+      );
+      assert.ok(src.includes('bg-primary-500'), `${file} should use bg-primary-500 header bar`);
+      assert.ok(src.includes('bg-primary-600'), `${file} should use bg-primary-600 primary CTA`);
+      assert.ok(src.includes('text-primary-600'), `${file} should use text-primary-600 in light mode`);
+      assert.ok(src.includes('dark:text-primary-400'), `${file} should use dark:text-primary-400 in dark mode`);
+    }
+  });
 });
+
 
