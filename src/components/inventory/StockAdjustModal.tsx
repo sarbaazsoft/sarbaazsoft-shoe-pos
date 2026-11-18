@@ -64,7 +64,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md app-modal-container overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-md app-modal-container overflow-hidden flex flex-col max-h-[92dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white shrink-0">
@@ -74,7 +74,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
             </div>
             <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">Adjust Physical Stock</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white cursor-pointer transition">
+          <button onClick={onClose} className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white cursor-pointer transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -147,14 +147,14 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="btn-secondary px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer"
+              className="btn-secondary px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-semibold rounded-xl cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="btn-primary px-5 py-2 text-xs font-bold rounded-xl flex items-center space-x-2 text-white cursor-pointer active:scale-95 disabled:opacity-50"
+              className="btn-primary px-5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-bold rounded-xl flex items-center space-x-2 text-white cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Recording...' : 'Commit Adjustment'}</span>
             </button>

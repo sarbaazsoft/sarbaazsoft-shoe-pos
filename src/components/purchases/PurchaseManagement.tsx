@@ -1517,7 +1517,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       {/* RECORD NEW PURCHASE MODAL */}
       {isModalOpen && (
         <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80">
+          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] border border-slate-200 dark:border-purple-800/80">
             {/* Modal Header & 3-Step Wizard Stepper matching ProductFormModal */}
             <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4">
               <div className="flex items-center justify-between mb-4">
@@ -1536,7 +1536,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                 </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+                  className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1879,11 +1879,11 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                             }
                           }}
                           onKeyDown={handleProductInputKeyDown}
-                          className="w-full pl-9 pr-28 py-2.5 bg-white dark:bg-[#0E1628] border-2 border-blue-400 dark:border-purple-500/50 focus:border-blue-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none font-medium text-xs shadow-2xs transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                          className="w-full pl-9 pr-10 sm:pr-28 py-2.5 bg-white dark:bg-[#0E1628] border-2 border-blue-400 dark:border-purple-500/50 focus:border-blue-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-blue-500/20 rounded-xl outline-none font-medium text-xs shadow-2xs transition text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                           autoComplete="off"
                         />
 
-                        <span className="absolute right-9 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-blue-700 dark:text-purple-300 bg-blue-50 dark:bg-purple-950/80 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-purple-500/30 pointer-events-none font-mono">
+                        <span className="hidden sm:inline-block absolute right-9 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-blue-700 dark:text-purple-300 bg-blue-50 dark:bg-purple-950/80 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-purple-500/30 pointer-events-none font-mono">
                           Scanner Ready
                         </span>
 
@@ -2690,7 +2690,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       {/* SUPPLIER TABLE MODAL (SELECT SUPPLIER DIRECTLY FROM TABLE) */}
       {isSupplierTableModalOpen && (
         <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90vh] sm:max-h-[88vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90dvh] sm:max-h-[88dvh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">
@@ -2704,7 +2704,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               </div>
               <button
                 onClick={() => setIsSupplierTableModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 sm:p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2831,7 +2831,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       {/* CATALOG PRODUCTS TABLE MODAL (BROWSE FULL CATALOG AND SELECT ARTICLE) */}
       {isProductCatalogModalOpen && (
         <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">
@@ -2854,7 +2854,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                 </button>
                 <button
                   onClick={() => setIsProductCatalogModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 sm:p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3101,7 +3101,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       {/* VIEW PAST PURCHASE DETAILS MODAL */}
       {viewPurchaseModalOpen && (
         <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2.5 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
@@ -3116,7 +3116,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               </div>
               <button
                 onClick={() => setViewPurchaseModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 sm:p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

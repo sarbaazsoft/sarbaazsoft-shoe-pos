@@ -2220,7 +2220,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         <button
                           type="button"
                           onClick={() => removeFromCart(item.productId)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg cursor-pointer"
+                          className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg cursor-pointer"
                           aria-label={`Remove ${item.article || item.name}`}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -2276,7 +2276,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                             updateQuantity(item.productId, -1);
                           }}
                           disabled={isMinusDisabled}
-                          className={`p-2 rounded-lg transition border ${
+                          className={`p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition border ${
                             isMinusDisabled
                               ? 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-400 border-slate-200/40 cursor-not-allowed opacity-40'
                               : 'bg-slate-100 dark:bg-[#131B2E] text-slate-700 dark:text-slate-300 active:scale-95 border-slate-200 dark:border-slate-700 cursor-pointer'
@@ -2296,7 +2296,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                           type="button"
                           onClick={() => updateQuantity(item.productId, 1)}
                           disabled={item.quantity >= item.totalStock}
-                          className="p-2 rounded-lg bg-slate-100 dark:bg-[#131B2E] text-slate-700 dark:text-slate-300 active:scale-95 disabled:opacity-40 transition border border-slate-200 dark:border-slate-700 cursor-pointer"
+                          className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-slate-100 dark:bg-[#131B2E] text-slate-700 dark:text-slate-300 active:scale-95 disabled:opacity-40 transition border border-slate-200 dark:border-slate-700 cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -2305,7 +2305,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                             type="button"
                             onClick={() => updateQuantity(item.productId, lotSize)}
                             disabled={item.quantity >= item.totalStock}
-                            className="px-2 py-2 text-[10px] font-bold rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 active:scale-95 disabled:opacity-40 transition border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                            className="px-2 py-2 min-h-[36px] text-[10px] font-bold rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 active:scale-95 disabled:opacity-40 transition border border-indigo-200 dark:border-indigo-800 cursor-pointer"
                           >
                             +1 Ctn
                           </button>
@@ -3279,7 +3279,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         setSplitCashAmount(half);
                         setSplitOnlineAmount(netTotalPayable - half);
                       }}
-                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition shadow-2xs cursor-pointer"
+                      className="px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition shadow-2xs cursor-pointer"
                     >
                       50 / 50 Split
                     </button>
@@ -3289,7 +3289,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         const rem = Math.max(0, netTotalPayable - numSplitCash);
                         setSplitOnlineAmount(rem);
                       }}
-                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition shadow-2xs cursor-pointer"
+                      className="px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition shadow-2xs cursor-pointer"
                     >
                       Balance Digital ({formatStockPrice(Math.max(0, netTotalPayable - numSplitCash))})
                     </button>
@@ -3299,7 +3299,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         const rem = Math.max(0, netTotalPayable - numSplitOnline);
                         setSplitCashAmount(rem);
                       }}
-                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs cursor-pointer"
+                      className="px-2.5 py-1.5 sm:px-2 sm:py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition shadow-2xs cursor-pointer"
                     >
                       Balance Cash ({formatStockPrice(Math.max(0, netTotalPayable - numSplitOnline))})
                     </button>
@@ -3350,21 +3350,21 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                       <button
                         type="button"
                         onClick={() => setSplitCashAmount((prev) => (typeof prev === 'number' ? prev + 500 : 500))}
-                        className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                        className="flex-1 py-1.5 sm:py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                       >
                         +500
                       </button>
                       <button
                         type="button"
                         onClick={() => setSplitCashAmount((prev) => (typeof prev === 'number' ? prev + 1000 : 1000))}
-                        className="flex-1 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                        className="flex-1 py-1.5 sm:py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
                       >
                         +1K
                       </button>
                       <button
                         type="button"
                         onClick={() => setSplitCashAmount(0)}
-                        className="px-1.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                        className="px-2 py-1.5 sm:px-1.5 sm:py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer"
                       >
                         Clear
                       </button>
@@ -3415,7 +3415,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                           key={channel}
                           type="button"
                           onClick={() => setSplitDigitalType(channel)}
-                          className={`py-1 px-1 rounded-md text-[9px] font-bold transition text-center truncate cursor-pointer ${
+                          className={`py-1.5 sm:py-1 px-1 rounded-md text-[9px] font-bold transition text-center truncate cursor-pointer ${
                             splitDigitalType === channel
                               ? 'bg-indigo-600 text-white shadow-2xs'
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
@@ -3591,14 +3591,14 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <button
                       type="button"
                       onClick={() => setCashReceived(0)}
-                      className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                      className="px-2 py-2 sm:py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                     >
                       Full Credit (0)
                     </button>
                     <button
                       type="button"
                       onClick={() => setCashReceived(netTotalPayable)}
-                      className="px-2 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition cursor-pointer"
+                      className="px-2 py-2 sm:py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition cursor-pointer"
                     >
                       Bill Only ({formatStockPrice(netTotalPayable)})
                     </button>
@@ -3608,7 +3608,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         onClick={() => {
                           setCashReceived(Math.round((netTotalPayable + customerOutstandingBalance) * 100) / 100);
                         }}
-                        className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
+                        className="px-2 py-2 sm:py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
                       >
                         Pay All ({formatStockPrice(netTotalPayable + customerOutstandingBalance)})
                       </button>
@@ -3915,7 +3915,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       {/* ADMIN OVERRIDE MODAL FOR MIN SALE PRICE VIOLATION */}
       {showAdminOverrideModal && (
         <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden max-h-[92vh] flex flex-col">
+          <div className="w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden max-h-[92dvh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white shrink-0">
               <div className="flex items-center space-x-3 text-amber-600 dark:text-amber-400">
@@ -3933,7 +3933,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   setShowAdminOverrideModal(false);
                   setOverridePendingItem(null);
                 }}
-                className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+                className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -4022,14 +4022,14 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     setShowAdminOverrideModal(false);
                     setOverridePendingItem(null);
                   }}
-                  className="btn-secondary px-4 py-2 text-xs font-semibold cursor-pointer"
+                  className="btn-secondary px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-semibold cursor-pointer"
                 >
                   Cancel Sale
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 rounded-xl text-xs font-bold shadow-md shadow-purple-600/25 transition cursor-pointer"
+                  className="px-5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 rounded-xl text-xs font-bold shadow-md shadow-purple-600/25 transition cursor-pointer"
                 >
                   {isSubmitting ? 'Authorizing...' : 'Authorize & Complete'}
                 </button>

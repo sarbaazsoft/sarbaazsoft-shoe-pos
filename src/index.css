@@ -4520,3 +4520,26 @@ html.dark .saas-panel .app-stat-card.app-stat-card:hover {
     cursor: not-allowed;
   }
 }
+
+/* ========================================================================= */
+/* RESPONSIVE MOBILE & TABLET SAFEGUARDS (@media screen only)                */
+/* Keeps @media print untouched while eliminating accidental horizontal      */
+/* overflow and double-tap zoom delay on touch devices.                      */
+/* ========================================================================= */
+@media screen {
+  html,
+  body,
+  #root {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  button,
+  [role="button"],
+  a,
+  select,
+  input {
+    touch-action: manipulation;
+  }
+}
+

@@ -277,7 +277,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     >
       <div
         id="user-profile-modal-card"
-        className="bg-white dark:bg-[#131B2E] w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col my-auto max-h-[92vh]"
+        className="bg-white dark:bg-[#131B2E] w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col my-auto max-h-[92dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -318,7 +318,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <button
             id="close-profile-modal-btn"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition cursor-pointer"
+            className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -645,7 +645,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="btn-secondary px-4 py-2 text-xs font-semibold rounded-xl transition cursor-pointer"
+                  className="btn-secondary px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-semibold rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -653,7 +653,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   id="save-profile-btn"
                   type="submit"
                   disabled={profileLoading}
-                  className="btn-primary flex items-center space-x-2 px-5 py-2 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
+                  className="btn-primary flex items-center space-x-2 px-5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>{profileLoading ? 'Saving...' : 'Save Profile Changes'}</span>
@@ -815,7 +815,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="btn-secondary px-4 py-2 text-xs font-semibold rounded-xl transition cursor-pointer"
+                  className="btn-secondary px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-semibold rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -823,7 +823,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   id="submit-change-password-btn"
                   type="submit"
                   disabled={passwordLoading || Boolean(isPasswordMismatch)}
-                  className="btn-primary flex items-center space-x-2 px-5 py-2 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
+                  className="btn-primary flex items-center space-x-2 px-5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
                 >
                   <Key className="w-3.5 h-3.5" />
                   <span>{passwordLoading ? 'Updating...' : 'Update Password'}</span>

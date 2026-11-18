@@ -48,7 +48,7 @@ export const FinancialSummaryPrintModal: React.FC<FinancialSummaryPrintModalProp
 
   return (
     <div className="app-modal-overlay">
-      <div className="app-modal-container max-w-2xl w-full flex flex-col max-h-[92vh]">
+      <div className="app-modal-container max-w-2xl w-full flex flex-col max-h-[92dvh]">
         {/* Header */}
         <div className="bg-slate-900 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-white p-3.5 sm:p-5 border-b border-slate-700/60 dark:border-purple-800/80 flex items-center justify-between gap-2 no-print">
           <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
@@ -62,7 +62,7 @@ export const FinancialSummaryPrintModal: React.FC<FinancialSummaryPrintModalProp
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+            className="p-2 sm:p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

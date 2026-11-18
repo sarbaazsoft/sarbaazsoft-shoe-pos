@@ -28,7 +28,7 @@ export const AnalyticsOverviewSkeleton: React.FC<{ showFilterBar?: boolean }> = 
   showFilterBar = false,
 }) => (
   <div
-    className="p-4 sm:p-6 lg:p-7 space-y-6 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen transition-colors"
+    className="p-4 sm:p-6 lg:p-7 space-y-6 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh transition-colors"
     role="status"
     aria-label="Loading analytics overview"
   >
@@ -156,7 +156,7 @@ export const DirectoryCrudSkeleton: React.FC<{
   statCount?: number;
 }> = ({ variant = 'table', statCount = 3 }) => (
   <div
-    className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen transition-colors"
+    className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh transition-colors"
     role="status"
     aria-label="Loading directory workspace"
   >
@@ -260,7 +260,7 @@ export const DirectoryCrudSkeleton: React.FC<{
  */
 export const FeedLedgerSkeleton: React.FC = () => (
   <div
-    className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-6xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen transition-colors"
+    className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-6xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh transition-colors"
     role="status"
     aria-label="Loading activity feed"
   >
@@ -309,7 +309,7 @@ export const FeedLedgerSkeleton: React.FC = () => (
  */
 export const SplitPosSkeleton: React.FC = () => (
   <div
-    className="p-3 sm:p-5 lg:p-6 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen transition-colors select-none"
+    className="p-3 sm:p-5 lg:p-6 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh transition-colors select-none"
     role="status"
     aria-label="Loading POS terminal"
   >
@@ -389,7 +389,7 @@ export const FocusedUtilitySkeleton: React.FC<{ variant?: 'returns' | 'settings'
   variant = 'settings',
 }) => (
   <div
-    className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-6xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen transition-colors"
+    className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-6xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh transition-colors"
     role="status"
     aria-label="Loading workspace section"
   >

@@ -375,7 +375,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
           </button>
         ) : isDeniedState ? (
           <>
-            <div className="relative group flex-1 min-w-[180px]">
+            <div className="relative group w-full sm:w-auto sm:flex-1 sm:min-w-[180px]">
               <button
                 type="button"
                 onClick={() => void handleInspectPermissionStatus()}

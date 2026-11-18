@@ -116,7 +116,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 16 }}
           transition={{ duration: 0.2 }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col my-auto sm:my-6 max-h-[92vh]"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col my-auto sm:my-6 max-h-[92dvh]"
         >
           {/* Top Header matching ProductFormModal */}
           <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">

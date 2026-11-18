@@ -875,7 +875,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
           className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4"
           onKeyDown={handleModalKeyDown}
         >
-          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88dvh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -1095,7 +1095,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                 </div>
 
                 {/* Searchable Supplier Table */}
-                <div className="flex-1 overflow-y-auto min-h-[280px] max-h-[52vh]">
+                <div className="flex-1 overflow-y-auto min-h-[280px] max-h-[52dvh]">
                   {modalVisibleRows.length === 0 ? (
                     <div className="p-12 text-center space-y-3">
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-purple-950/50 border border-blue-100 dark:border-purple-800/60 flex items-center justify-center text-blue-600 dark:text-purple-400 mx-auto">

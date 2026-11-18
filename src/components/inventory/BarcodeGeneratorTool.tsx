@@ -367,7 +367,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-6xl app-modal-container overflow-hidden flex flex-col max-h-[95vh] no-print"
+        className="relative w-full max-w-6xl app-modal-container overflow-hidden flex flex-col max-h-[95dvh] no-print"
         onClick={(e) => e.stopPropagation()}
       >
         {/* MODAL TOP HEADER */}

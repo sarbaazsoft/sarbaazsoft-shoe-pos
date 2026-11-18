@@ -127,7 +127,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.2 }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-lg w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col my-auto sm:my-8"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-lg w-full max-h-[92dvh] shadow-2xl overflow-hidden flex flex-col my-auto sm:my-8"
         >
           {/* Header */}
           <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white gap-2">
@@ -145,7 +145,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
+              className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>

@@ -321,7 +321,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
 
   return (
     <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl app-modal-container flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-2xl app-modal-container flex flex-col max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden">
         {/* Header */}
         <div className="flex items-start sm:items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">
           <div className="flex items-start sm:items-center space-x-2.5 sm:space-x-3 min-w-0">
@@ -476,7 +476,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                           <button
                             type="button"
                             onClick={() => updateWholesaleItemQty(item.productId, item.quantity - 6)}
-                            className="px-2 py-1 sm:px-1.5 sm:py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold"
+                            className="px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                             title="Minus 6 pairs (half-carton)"
                           >
                             -6
@@ -491,7 +491,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                           <button
                             type="button"
                             onClick={() => updateWholesaleItemQty(item.productId, item.quantity + 6)}
-                            className="px-2 py-1 sm:px-1.5 sm:py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold"
+                            className="px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                             title="Add 6 pairs (half-carton)"
                           >
                             +6
@@ -537,7 +537,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                       key={chip}
                       type="button"
                       onClick={() => setWholesaleReason(chip)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition cursor-pointer ${
+                      className={`text-[11px] px-2.5 py-1.5 sm:py-1 rounded-lg border font-medium transition cursor-pointer ${
                         wholesaleReason === chip
                           ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-500 text-amber-900 dark:text-amber-200 font-bold'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-purple-500/20 dark:text-purple-200 dark:border-purple-400/40'
@@ -688,7 +688,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                                     type="button"
                                     onClick={() => handleRetailQtyChange(item.id, -1, item.returnableQuantity)}
                                     disabled={qty === 0}
-                                    className="p-1.5 sm:p-1 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
+                                    className="p-2 sm:p-1 min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
@@ -699,7 +699,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                                     type="button"
                                     onClick={() => handleRetailQtyChange(item.id, 1, item.returnableQuantity)}
                                     disabled={qty >= item.returnableQuantity}
-                                    className="p-1.5 sm:p-1 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
+                                    className="p-2 sm:p-1 min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
                                   >
                                     <Plus className="w-3.5 h-3.5" />
                                   </button>

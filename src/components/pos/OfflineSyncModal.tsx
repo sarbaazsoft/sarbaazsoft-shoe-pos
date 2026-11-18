@@ -57,7 +57,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative w-full max-w-xl bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]"
+          className="relative w-full max-w-xl bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh]"
           role="dialog"
           aria-modal="true"
         >
@@ -178,7 +178,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setSyncFeedback(null)}
-                  className="p-0.5 text-purple-400 hover:text-purple-600 dark:hover:text-purple-200 cursor-pointer"
+                  className="p-1.5 sm:p-0.5 text-purple-400 hover:text-purple-600 dark:hover:text-purple-200 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -273,7 +273,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                                 type="button"
                                 onClick={() => retrySale(sale)}
                                 title="Retry synchronization"
-                                className="p-1.5 sm:p-1 rounded-lg text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition cursor-pointer"
+                                className="p-2 sm:p-1 rounded-lg text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition cursor-pointer"
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
                               </button>
@@ -282,14 +282,14 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                               type="button"
                               onClick={() => removeSale(sale.clientTxId)}
                               title="Delete from local queue"
-                              className="p-1.5 sm:p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                              className="p-2 sm:p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => setExpandedTxId(isExpanded ? null : sale.clientTxId)}
-                              className="p-1.5 sm:p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                              className="p-2 sm:p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
                               title="Toggle item details"
                             >
                               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

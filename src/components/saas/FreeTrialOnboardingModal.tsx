@@ -340,7 +340,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className={`relative w-full max-w-xl max-h-[92vh] sm:max-h-[94vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
+          className={`relative w-full max-w-xl max-h-[92dvh] sm:max-h-[94dvh] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
             isDark
               ? 'bg-[#131B2E] text-white border border-purple-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.8)]'
               : 'bg-white text-slate-900 border border-slate-200 shadow-2xl'

@@ -112,7 +112,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
             ? typeof triggerClassName === 'function'
               ? triggerClassName(open)
               : `${triggerClassName} ${open ? 'ring-2 ring-indigo-400/40' : ''}`
-            : `h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
+            : `h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 flex items-center justify-center sm:justify-start gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                 open
                   ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),0.4)]'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.2)]'
@@ -170,7 +170,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
             }}
             className={`absolute ${
               dropdownAlign === 'right' ? 'right-0 left-auto' : 'left-0 right-auto'
-            } top-full mt-2 w-60 sm:w-64 max-w-[calc(100vw-1rem)] bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),0.25)] p-1.5 z-50 backdrop-blur-md list-none space-y-0.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+            } top-full mt-2 w-60 sm:w-64 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(var(--primary-rgb,147,51,234),0.25)] p-1.5 z-50 backdrop-blur-md list-none space-y-0.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
             role="menu"
             aria-orientation="vertical"
           >
@@ -195,7 +195,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 type="button"
                 onClick={() => handleSelect('light')}
                 style={courgetteStyle}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
+                className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                   themeMode === 'light'
                     ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
                     : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
@@ -224,7 +224,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 type="button"
                 onClick={() => handleSelect('dark')}
                 style={courgetteStyle}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
+                className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                   themeMode === 'dark'
                     ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
                     : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
@@ -253,7 +253,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 type="button"
                 onClick={() => handleSelect('system')}
                 style={courgetteStyle}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
+                className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 text-xs font-medium transition cursor-pointer rounded-lg ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
                   themeMode === 'system'
                     ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-semibold shadow-md shadow-purple-600/25 border border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),0.3)]'
                     : 'text-slate-700 dark:text-purple-200 font-medium hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent'
@@ -321,7 +321,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                       title={`${palette.name} (${palette.baseHex}) + ${palette.companionName}`}
                       role="menuitemradio"
                       aria-checked={isSelected}
-                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-[11px] transition-all cursor-pointer border ${
+                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-2 sm:py-1.5 rounded-lg text-[11px] transition-all cursor-pointer border ${
                         isSelected
                           ? 'bg-purple-50 dark:bg-purple-500/25 border-purple-400 dark:border-purple-400/70 text-purple-800 dark:text-white font-bold shadow-2xs'
                           : 'bg-slate-50/70 hover:bg-slate-100 dark:bg-white/[0.03] dark:hover:bg-white/[0.08] border-transparent text-slate-700 dark:text-slate-200 font-medium'

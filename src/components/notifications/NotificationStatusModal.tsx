@@ -71,7 +71,7 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative w-full max-w-md max-h-[92vh] flex flex-col bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-md max-h-[92dvh] flex flex-col bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden"
           role="dialog"
           aria-modal="true"
         >

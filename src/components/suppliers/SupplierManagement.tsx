@@ -762,7 +762,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
       {/* ADD / EDIT SUPPLIER MODAL */}
       {isModalOpen && (
         <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-lg max-h-[92vh] bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
+          <div className="relative w-full max-w-lg max-h-[92dvh] bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2 bg-blue-500/10 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 rounded-lg">
@@ -774,7 +774,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:text-purple-300/70 dark:hover:text-white p-1 rounded-lg transition cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 dark:text-purple-300/70 dark:hover:text-white p-2 sm:p-1.5 rounded-lg transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -904,7 +904,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
       {/* VIEW SUPPLIER PURCHASES HISTORY MODAL */}
       {viewSupplierModalOpen && selectedSupplier && (
         <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] border border-slate-200 dark:border-purple-800/80">
+          <div className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh] border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 gap-2">
               <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-200 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs sm:text-sm shadow-2xs shrink-0">
@@ -921,7 +921,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
               <button
                 onClick={() => setViewSupplierModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:text-purple-300/70 dark:hover:text-white p-1.5 rounded-lg transition cursor-pointer shrink-0"
+                className="text-slate-400 hover:text-slate-700 dark:text-purple-300/70 dark:hover:text-white p-2 sm:p-1.5 rounded-lg transition cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>

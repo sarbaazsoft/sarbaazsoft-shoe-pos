@@ -178,7 +178,7 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[94vh] border border-slate-200 dark:border-purple-800/80"
+        className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
         onClick={(e) => e.stopPropagation()}
       >
         {/* HEADER & 2-STEP WIZARD STEPPER ALIGNED WITH PRODUCT FORM MODAL */}
