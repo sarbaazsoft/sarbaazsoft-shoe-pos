@@ -11,6 +11,7 @@ import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface CustomCategoryArticlesTooltipProps {
   active?: boolean;
@@ -448,6 +449,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     companySettings?.companyName ||
     'Your Store';
 
+  const isDesktop = useIsDesktop();
   const isCashier = currentUser?.role === 'CASHIER';
   let bannerGreeting = '';
   let bannerSubtext = '';
@@ -456,7 +458,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   if (isCashier) {
     bannerGreeting = `Welcome to ${storeName}, ${currentUser?.name || 'Cashier'}!`;
-    bannerSubtext = 'Your cashier terminal is ready. Click "Open POS" or press F9 anytime to begin processing customer sales and counter checkouts.';
+    bannerSubtext = isDesktop
+      ? 'Your cashier terminal is ready. Click "Open POS" or press F9 anytime to begin processing customer sales and counter checkouts.'
+      : 'Your cashier terminal is ready. Tap "Open POS" anytime to begin processing customer sales and counter checkouts.';
     bannerBadge = 'Cashier Station';
     showRenewUpgradeButton = false;
   } else if (isFree) {
@@ -982,13 +986,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   return (
     <div
       ref={dashboardContainerRef}
-      className="p-4 sm:p-6 lg:p-7 space-y-6 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen text-slate-800 dark:text-slate-100 transition-colors"
+      className="p-3 sm:p-5 lg:p-7 space-y-4 sm:space-y-5 lg:space-y-6 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen text-slate-800 dark:text-slate-100 transition-colors"
     >
       {/* DASHBOARD HEADER WITH SEAMLESS RETAIL / WHOLESALE MODE TOGGLE */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               Dashboard
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-cyan-300 border-blue-200 dark:border-blue-800/80 shadow-2xs">
@@ -1202,7 +1206,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       )}
 
       {/* ROW 1: 5 B2C RETAIL KPI METRIC CARDS (BALANCED RESPONSIVE GRID) */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4">
         {/* Card 1: Today's Counter Sales */}
         <StatCard
           id="stat-today-sales"
@@ -1212,7 +1216,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           icon={ShoppingCart}
           iconColor="blue"
           sparkline="blue"
-          className="col-span-2 sm:col-span-1"
+          className="col-span-2 md:col-span-1"
           trendIndicator={
             dashboardData.todaySales > 0
               ? { value: `${dashboardData.recentTransactions.filter(t => t.type === 'Sale').length || 'Active'}`, direction: 'up', label: 'today' }
@@ -1292,7 +1296,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           icon={AlertTriangle}
           iconColor="rose"
           sparkline="rose"
-          className="col-span-2 sm:col-span-1"
+          className="col-span-1 md:col-span-2 lg:col-span-1"
           valueClassName="text-rose-600 dark:text-rose-400"
           trendIndicator={
             dashboardData.lowStockCount > 0
@@ -1306,7 +1310,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       </div>
 
       {/* B2C RETAIL SHOE METRICS & FAST-PACED TURNOVER */}
-      <div className="space-y-5">
+      <div className="space-y-4 lg:space-y-5">
           {/* DYNAMIC RETAIL SHOE METRICS (Sales Target, Category Breakdown, Inventory Clearance) */}
           <RetailShoeMetrics
             metrics={dashboardData.retailShoeMetrics}
@@ -1323,9 +1327,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           />
 
           {/* RETAIL-SPECIFIC: TOP SELLING SIZES & ARTICLES + FAST-PACED COUNTER VELOCITY */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 lg:gap-5">
             {/* Top Selling Sizes / Articles Card */}
-            <div className="lg:col-span-8 app-card p-5">
+            <div className="lg:col-span-8 app-card p-3.5 sm:p-4 lg:p-5">
               <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3.5">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/10 dark:bg-purple-500/20 text-indigo-600 dark:text-purple-300 flex items-center justify-center font-bold">
@@ -1416,7 +1420,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             </div>
 
             {/* Fast-Paced Metrics Card */}
-            <div className="lg:col-span-4 app-card p-5 flex flex-col justify-between">
+            <div className="lg:col-span-4 app-card p-3.5 sm:p-4 lg:p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 flex items-center justify-center font-bold">
@@ -1502,9 +1506,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       </div>
 
       {/* ROW 2: COMPARATIVE REVENUE CHART & COMPANION METRICS (BALANCED RESPONSIVE GRID) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 lg:gap-5 items-stretch">
         {/* Card 1: Sales Trends with Weekly / Monthly Tab Switcher (Occupies lg:7, xl:8 columns for generous visual clarity) */}
-        <div className="col-span-1 lg:col-span-7 xl:col-span-8 app-card p-5 sm:p-6 flex flex-col justify-between">
+        <div className="col-span-1 lg:col-span-7 xl:col-span-8 app-card p-3.5 sm:p-5 lg:p-6 flex flex-col justify-between">
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2">
               <div className="flex items-center gap-2">
@@ -1620,8 +1624,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
             {/* Quick Performance Insights Strip (Dynamic based on Tab) */}
             {activeTrendTab === 'weekly' ? (
-              <div className="grid grid-cols-3 gap-2.5 my-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
-                <div className="space-y-0.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 my-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+                <div className="flex sm:block items-center justify-between space-y-0.5">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
                     7-Day Revenue
                   </span>
@@ -1629,7 +1633,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     {formatCurrency(sevenDaySalesTotal, currency)}
                   </span>
                 </div>
-                <div className="space-y-0.5 border-x border-slate-200 dark:border-slate-800 px-2.5">
+                <div className="flex sm:block items-center justify-between space-y-0.5 border-y sm:border-y-0 sm:border-x border-slate-200 dark:border-slate-800 py-1.5 sm:py-0 sm:px-2.5">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
                     Daily Average
                   </span>
@@ -1637,7 +1641,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     {formatCurrency(averageDailySales, currency)}
                   </span>
                 </div>
-                <div className="space-y-0.5 pl-1">
+                <div className="flex sm:block items-center justify-between space-y-0.5 sm:pl-1">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
                     Peak Day
                   </span>
@@ -1647,8 +1651,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-2.5 my-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
-                <div className="space-y-0.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 my-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+                <div className="flex sm:block items-center justify-between space-y-0.5">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
                     6-Mo Revenue
                   </span>
@@ -1656,7 +1660,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     {formatCurrency(monthlySalesTotal, currency)}
                   </span>
                 </div>
-                <div className="space-y-0.5 border-x border-slate-200 dark:border-slate-800 px-2.5">
+                <div className="flex sm:block items-center justify-between space-y-0.5 border-y sm:border-y-0 sm:border-x border-slate-200 dark:border-slate-800 py-1.5 sm:py-0 sm:px-2.5">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
                     Monthly Average
                   </span>
@@ -1664,7 +1668,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     {formatCurrency(averageMonthlySales, currency)}
                   </span>
                 </div>
-                <div className="space-y-0.5 pl-1">
+                <div className="flex sm:block items-center justify-between space-y-0.5 sm:pl-1">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
                     Peak Month
                   </span>
@@ -1853,9 +1857,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
 
         {/* Companion Column: Best Selling Brands & Products (Occupies lg:5, xl:4 columns; stacked vertically on desktop, side-by-side on tablet sm/md) */}
-        <div className="col-span-1 lg:col-span-5 xl:col-span-4 flex flex-col sm:grid sm:grid-cols-2 lg:flex lg:flex-col gap-5 justify-between">
+        <div className="col-span-1 lg:col-span-5 xl:col-span-4 flex flex-col sm:grid sm:grid-cols-2 lg:flex lg:flex-col gap-3.5 sm:gap-4 lg:gap-5 justify-between">
           {/* Card 2: Best Selling Brands */}
-          <div className="app-card p-5 flex flex-col justify-between min-w-0 flex-1">
+          <div className="app-card p-3.5 sm:p-4 lg:p-5 flex flex-col justify-between min-w-0 flex-1">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                 Best Selling Brands
@@ -1938,7 +1942,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
 
           {/* Card 3: Best Selling Products */}
-          <div className="app-card p-5 flex flex-col justify-between min-w-0 flex-1">
+          <div className="app-card p-3.5 sm:p-4 lg:p-5 flex flex-col justify-between min-w-0 flex-1">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                 Best Selling Products
@@ -2014,9 +2018,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       </div>
 
       {/* ROW 3: SHARED BOTTOM SECTION - TOP SELLING CATEGORIES/ARTICLES HORIZONTAL BAR CHART (LEFT) & LATEST TRANSACTIONS (RIGHT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 lg:gap-5 items-stretch">
         {/* SHARED CORE COMPONENT: TOP SELLING CATEGORIES / ARTICLES HORIZONTAL BAR CHART (Bottom Left, Span 7) */}
-        <div className="lg:col-span-7 app-card p-5 sm:p-6 flex flex-col justify-between">
+        <div className="lg:col-span-7 app-card p-3.5 sm:p-5 lg:p-6 flex flex-col justify-between">
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2">
               <div className="flex items-center gap-2">
@@ -2165,7 +2169,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
 
         {/* Right: Latest Transactions (Span 5) */}
-        <div className="lg:col-span-5 app-card p-5 flex flex-col justify-between">
+        <div className="lg:col-span-5 app-card p-3.5 sm:p-4 lg:p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               Latest Transactions
@@ -2253,8 +2257,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       </div>
 
       {/* ROW 4: QUICK ACTIONS (F1 - F7 SHORTCUTS DOCKED IN STREAMLINED GRID) */}
-      <div className="app-card p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-2 mb-4">
+      <div className="app-card p-3.5 sm:p-5 lg:p-6">
+        <div className="flex items-center justify-between gap-2 mb-3 lg:mb-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 flex items-center justify-center font-bold">
               <Zap className="w-4 h-4" />
@@ -2264,27 +2268,27 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 Quick Actions
               </h2>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Direct operations &amp; keyboard shortcuts F1–F7
+                Direct operations<span className="hidden lg:inline"> &amp; keyboard shortcuts F1–F7</span>
               </p>
             </div>
           </div>
-          <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          <span className="hidden lg:inline-flex text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
             F1–F7 Shortcuts
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
           {/* Action 1: New Sale (F1) */}
           <button
             type="button"
             onClick={() => onNavigate('pos')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <ShoppingCart className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 F1
               </kbd>
             </div>
@@ -2302,13 +2306,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('inventory')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <Boxes className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 F2
               </kbd>
             </div>
@@ -2326,13 +2330,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('purchases')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <Truck className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 F3
               </kbd>
             </div>
@@ -2350,13 +2354,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('returns')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <RotateCcw className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 F4
               </kbd>
             </div>
@@ -2374,13 +2378,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('customers')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <Users className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 F5
               </kbd>
             </div>
@@ -2398,13 +2402,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('reports')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <BarChart3 className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 F6
               </kbd>
             </div>
@@ -2422,13 +2426,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('suppliers')}
-            className="quick-action-btn p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+            className="quick-action-btn col-span-2 sm:col-span-2 lg:col-span-1 p-3 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden min-h-[44px]"
           >
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 transition shadow-2xs">
                 <Building2 className="w-4 h-4" />
               </div>
-              <kbd className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
+              <kbd className="hidden lg:inline-flex text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:text-purple-600 transition">
                 Alt+S
               </kbd>
             </div>
@@ -2473,10 +2477,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
               return (
                 <>
-                  <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
+                  <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold shadow-2xs ${
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold shadow-2xs shrink-0 ${
                           isExpired
                             ? 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/20 dark:border-amber-400/30'
                             : 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-500/20 dark:border-purple-400/30'
@@ -2484,8 +2488,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       >
                         <Sparkles className="w-4 h-4" />
                       </div>
-                      <div>
-                        <h3 id="dashboard-upgrade-title" className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
+                      <div className="min-w-0">
+                        <h3 id="dashboard-upgrade-title" className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                           {isExpired
                             ? 'Subscription Expired — Renew Store License'
                             : isActive1Year
@@ -2496,7 +2500,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                             ? 'Free Tier Evaluation — Upgrade Store License'
                             : 'Renew Store Subscription'}
                         </h3>
-                        <p className="text-xs text-slate-500 dark:text-purple-200/80">
+                        <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
                           {isExpired
                             ? 'Select a renewal plan below to notify the SuperAdmin for immediate reactivation'
                             : isActive1Year
@@ -2514,14 +2518,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       onClick={() => setIsUpgradeModalOpen(false)}
                       disabled={isSubmittingUpgrade}
                       aria-label="Close dialog"
-                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer disabled:opacity-50"
+                      className="p-2 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
                   {/* Modal Form */}
-                  <form onSubmit={handleRequestUpgrade} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+                  <form onSubmit={handleRequestUpgrade} className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 space-y-4">
                     {/* Expired Alert Banner inside Modal */}
                     {isExpired && (
                       <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-700/60 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
@@ -2772,23 +2776,23 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </form>
 
                   {/* Modal Footer Buttons matching ProductFormModal */}
-                  <div className="px-6 py-4 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-[#0D1322]/70 flex items-center justify-between gap-3">
+                  <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-[#0D1322]/70 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => {
                         setIsUpgradeModalOpen(false);
                         onNavigate('settings');
                       }}
-                      className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-semibold cursor-pointer"
+                      className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-semibold cursor-pointer text-center sm:text-left py-1"
                     >
                       Manage in Settings
                     </button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => setIsUpgradeModalOpen(false)}
                         disabled={isSubmittingUpgrade}
-                        className="btn-secondary px-4 py-2.5 text-xs font-semibold cursor-pointer"
+                        className="btn-secondary px-4 py-2.5 text-xs font-semibold cursor-pointer min-h-[40px]"
                       >
                         Close
                       </button>
@@ -2796,7 +2800,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         type="button"
                         onClick={handleRequestUpgrade}
                         disabled={isSubmittingUpgrade}
-                        className="btn-primary px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50"
+                        className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50 min-h-[40px] flex-1 sm:flex-initial"
                       >
                         {isSubmittingUpgrade ? (
                           <>

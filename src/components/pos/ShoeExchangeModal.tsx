@@ -320,20 +320,20 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
   ];
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl app-modal-container flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl app-modal-container flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-xl shadow-2xs border ${
+        <div className="flex items-start sm:items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">
+          <div className="flex items-start sm:items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className={`p-2 rounded-xl shadow-2xs border shrink-0 ${
               isWholesaleStore
                 ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/50'
                 : 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-cyan-400 border border-blue-200 dark:border-blue-900/50'
             }`}>
-              {isWholesaleStore ? <RotateCcw className="w-5 h-5" /> : <Repeat className="w-5 h-5" />}
+              {isWholesaleStore ? <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> : <Repeat className="w-4 h-4 sm:w-5 sm:h-5" />}
             </div>
-            <div>
-              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <span>{isWholesaleStore ? 'Dealer Shoe Return' : 'Direct Shoe Exchange'}</span>
                 <span className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded-full font-semibold border ${
                   isWholesaleStore
@@ -343,7 +343,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                   {isWholesaleStore ? 'Wholesale Return (No Invoice Req.)' : 'POS Combined Flow'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {isWholesaleStore
                   ? 'Process returned footwear directly against current invoice with automatic balance deduction'
                   : 'Return customer shoe & scan replacement with automatic net difference calculation'}
@@ -352,14 +352,14 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 sm:p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
           {errorMessage && (
             <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl flex items-center space-x-2 text-xs text-red-700 dark:text-red-300">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
@@ -476,7 +476,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                           <button
                             type="button"
                             onClick={() => updateWholesaleItemQty(item.productId, item.quantity - 6)}
-                            className="px-1.5 py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold"
+                            className="px-2 py-1 sm:px-1.5 sm:py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold"
                             title="Minus 6 pairs (half-carton)"
                           >
                             -6
@@ -486,12 +486,12 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                             min="1"
                             value={item.quantity}
                             onChange={(e) => updateWholesaleItemQty(item.productId, parseInt(e.target.value, 10))}
-                            className="w-16 px-1.5 py-1 text-center font-mono font-bold text-xs bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                            className="w-16 px-1.5 py-1.5 sm:py-1 text-center font-mono font-bold text-xs bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
                           />
                           <button
                             type="button"
                             onClick={() => updateWholesaleItemQty(item.productId, item.quantity + 6)}
-                            className="px-1.5 py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold"
+                            className="px-2 py-1 sm:px-1.5 sm:py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold"
                             title="Add 6 pairs (half-carton)"
                           >
                             +6
@@ -507,7 +507,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                             min="0"
                             value={item.unitRefundPrice}
                             onChange={(e) => updateWholesaleItemRate(item.productId, parseFloat(e.target.value))}
-                            className="w-20 px-1.5 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                            className="w-20 px-1.5 py-1.5 sm:py-1 text-right font-mono font-bold text-xs bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
                           />
                           <span className="text-[10px] text-slate-500">/pr</span>
                         </div>
@@ -516,7 +516,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                         <button
                           type="button"
                           onClick={() => removeWholesaleItem(item.productId)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                          className="p-2 sm:p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -557,7 +557,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
               </div>
 
               {/* Wholesale Return Credit Banner */}
-              <div className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300/80 dark:border-amber-800/80 rounded-2xl flex items-center justify-between">
+              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300/80 dark:border-amber-800/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <div className="text-[11px] uppercase font-extrabold tracking-wider text-amber-800 dark:text-amber-300">
                     Total Return Credit (Deducted from Invoice Remaining Balance)
@@ -566,7 +566,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                     {totalWholesalePairsCount} shoe {totalWholesalePairsCount === 1 ? 'pair' : 'pairs'} selected for return
                   </div>
                 </div>
-                <div className="text-2xl font-black font-mono text-amber-900 dark:text-amber-200">
+                <div className="text-xl sm:text-2xl font-black font-mono text-amber-900 dark:text-amber-200 shrink-0">
                   {currencySymbol} {formatStockPrice(totalWholesaleReturnCredit)}
                 </div>
               </div>
@@ -581,7 +581,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   1. Original Receipt / Invoice Number
                 </label>
-                <form onSubmit={handleRetailLookup} className="flex gap-2">
+                <form onSubmit={handleRetailLookup} className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
@@ -606,7 +606,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                   <button
                     type="submit"
                     disabled={isVerifyingRetail || !retailInvoiceInput.trim()}
-                    className="px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 flex items-center space-x-1.5 shrink-0 shadow-md shadow-purple-600/25 transition disabled:opacity-50 cursor-pointer active:scale-95"
+                    className="px-5 py-2.5 min-h-[40px] sm:min-h-0 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 flex items-center justify-center space-x-1.5 shrink-0 shadow-md shadow-purple-600/25 transition disabled:opacity-50 cursor-pointer active:scale-95"
                   >
                     <Search className="w-4 h-4" />
                     <span>{isVerifyingRetail ? 'Verifying...' : 'Look Up Invoice'}</span>
@@ -648,7 +648,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                         return (
                           <div
                             key={item.id}
-                            className={`p-3.5 flex items-center justify-between gap-3 transition ${
+                            className={`p-3 sm:p-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-3 transition ${
                               isSelected
                                 ? 'bg-amber-50/80 dark:bg-amber-950/30 border-l-4 border-amber-500'
                                 : isFullyReturned
@@ -656,7 +656,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                                 : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                             }`}
                           >
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-[160px]">
                               <div className="font-bold text-slate-900 dark:text-white text-sm">
                                 {item.article || item.productName}
                               </div>
@@ -670,7 +670,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                               </div>
                             </div>
 
-                            <div className="text-right shrink-0">
+                            <div className="text-left sm:text-right shrink-0">
                               <div className="font-mono font-bold text-slate-800 dark:text-slate-200">
                                 {currencySymbol} {formatStockPrice(netUnitPrice)}
                               </div>
@@ -688,7 +688,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                                     type="button"
                                     onClick={() => handleRetailQtyChange(item.id, -1, item.returnableQuantity)}
                                     disabled={qty === 0}
-                                    className="p-1 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
+                                    className="p-1.5 sm:p-1 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
@@ -699,7 +699,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                                     type="button"
                                     onClick={() => handleRetailQtyChange(item.id, 1, item.returnableQuantity)}
                                     disabled={qty >= item.returnableQuantity}
-                                    className="p-1 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
+                                    className="p-1.5 sm:p-1 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition cursor-pointer"
                                   >
                                     <Plus className="w-3.5 h-3.5" />
                                   </button>
@@ -723,7 +723,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                           key={chip}
                           type="button"
                           onClick={() => setRetailReason(chip)}
-                          className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition cursor-pointer ${
+                          className={`text-[11px] px-2.5 py-1.5 sm:py-1 rounded-lg border font-medium transition cursor-pointer ${
                             retailReason === chip
                               ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 font-bold'
                               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)]'
@@ -743,7 +743,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                   </div>
 
                   {/* Exchange Credit Banner */}
-                  <div className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300/80 dark:border-amber-800/80 rounded-2xl flex items-center justify-between">
+                  <div className="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300/80 dark:border-amber-800/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <div className="text-[11px] uppercase font-extrabold tracking-wider text-amber-800 dark:text-amber-300">
                         Total Return Credit (Deducted from POS Cart)
@@ -752,7 +752,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
                         {totalRetailReturnCount} shoe {totalRetailReturnCount === 1 ? 'pair' : 'pairs'} selected for return
                       </div>
                     </div>
-                    <div className="text-2xl font-black font-mono text-amber-900 dark:text-amber-200">
+                    <div className="text-xl sm:text-2xl font-black font-mono text-amber-900 dark:text-amber-200 shrink-0">
                       {currencySymbol} {formatStockPrice(totalRetailExchangeCredit)}
                     </div>
                   </div>
@@ -763,11 +763,11 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-between">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+            className="px-4 py-2.5 sm:py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
           >
             Cancel
           </button>
@@ -777,7 +777,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
               type="button"
               onClick={handleConfirmWholesaleReturn}
               disabled={wholesaleReturnItems.length === 0}
-              className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl text-xs font-bold border border-amber-400 flex items-center space-x-2 disabled:opacity-50 shadow-md transition cursor-pointer active:scale-95"
+              className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl text-xs font-bold border border-amber-400 flex items-center space-x-2 disabled:opacity-50 shadow-md transition cursor-pointer active:scale-95"
             >
               <span>Apply Return to Current Invoice</span>
               <ArrowRight className="w-4 h-4" />
@@ -787,7 +787,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
               type="button"
               onClick={handleConfirmRetailExchange}
               disabled={!verifiedSale || totalRetailReturnCount === 0}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 flex items-center space-x-2 disabled:opacity-50 shadow-md shadow-purple-600/25 transition cursor-pointer active:scale-95"
+              className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 flex items-center space-x-2 disabled:opacity-50 shadow-md shadow-purple-600/25 transition cursor-pointer active:scale-95"
             >
               <span>Apply Exchange to POS Cart</span>
               <ArrowRight className="w-4 h-4" />

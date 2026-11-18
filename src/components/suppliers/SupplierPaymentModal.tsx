@@ -121,23 +121,23 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+      <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.2 }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col my-8"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-lg w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col my-auto sm:my-8"
         >
           {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">
-            <div className="flex items-center space-x-3">
-              <span className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white gap-2">
+            <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+              <span className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
                 <CreditCard className="w-5 h-5 stroke-[2.2]" />
               </span>
-              <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white">Record Supplier Payment</h3>
-                <p className="text-xs text-slate-500 dark:text-purple-200/80">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate">Record Supplier Payment</h3>
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
                   Credit payment voucher &amp; update ledger balance
                 </p>
               </div>
@@ -145,14 +145,14 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Supplier Info & Balance Card */}
-          <div className="p-5 space-y-4">
+          <div className="p-4 sm:p-5 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1">
             <div className="bg-slate-50 dark:bg-purple-950/20 border border-slate-200/80 dark:border-purple-800/40 rounded-xl p-3.5 space-y-2">
               {suppliersList && suppliersList.length > 1 && !purchaseId && (
                 <div className="pb-2 border-b border-slate-200 dark:border-purple-800/40">
@@ -184,7 +184,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center space-x-3 min-w-0">
                   <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-purple-500/20 text-blue-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs shrink-0">
                     <Building2 className="w-4 h-4" />
@@ -227,7 +227,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Payment Amount */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Payment Amount ({currencySymbol}) <span className="text-rose-500">*</span>
                   </label>
@@ -336,7 +336,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               </div>
 
               {/* Modal Action Buttons */}
-              <div className="pt-2 flex items-center justify-end space-x-2.5">
+              <div className="pt-2 flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={onClose}

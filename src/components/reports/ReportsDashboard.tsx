@@ -379,16 +379,16 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   }
 
   return (
-    <div ref={reportsContainerRef} className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
+    <div ref={reportsContainerRef} className="space-y-3 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto text-xs">
       {/* Top Banner & Action */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
       >
         <div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
             Financial Reports &amp; Analytics
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-purple-200/80 font-medium mt-0.5">
@@ -396,12 +396,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleRefresh}
             disabled={isLoading || (activeTab === 'profit_loss' && isLoadingPL)}
-            className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer text-xs flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="btn-outline-landing px-3 sm:px-3.5 py-2 sm:py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold rounded-xl transition cursor-pointer text-xs flex items-center space-x-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
             title={isLoading || (activeTab === 'profit_loss' && isLoadingPL) ? "Refreshing store records..." : "Refresh store records & recount metrics"}
           >
             <RotateCw className={`w-3.5 h-3.5 ${isLoading || (activeTab === 'profit_loss' && isLoadingPL) ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
@@ -412,7 +412,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             id="print-financial-summary-btn"
             type="button"
             onClick={() => setIsPrintSummaryOpen(true)}
-            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
             title="Print Financial Closing Slip / Z-Report"
           >
             <Printer className="w-4 h-4" />
@@ -422,7 +422,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       </motion.div>
 
       {/* KPI Cards (4-Column Bento Grid) with Animated Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
         {/* CARD 1: TODAY'S REVENUE */}
         <StatCard
           id="stat-reports-today-revenue"
@@ -517,13 +517,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.25 }}
-        className="app-card p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
+        className="app-card p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
       >
         {/* Tab Buttons - Responsive Scrollable Underline Navigation */}
         <div 
           ref={reportsTabContainerRef}
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-0 no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden border-b border-slate-200/80 dark:border-purple-900/50"
+          className="w-full lg:w-auto flex items-center gap-1 sm:gap-2 overflow-x-auto pb-0 no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden border-b border-slate-200/80 dark:border-purple-900/50"
         >
           <button
             id="reports-tab-overview"
@@ -634,9 +634,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         </div>
 
         {/* Tab Context Search & Actions */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
           {(activeTab === 'sales_ledger' || activeTab === 'stock_alerts') && (
-            <div className="relative flex-1 sm:w-60">
+            <div className="relative flex-1 min-w-[200px] sm:w-60">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-purple-300" />
               <input
                 type="text"
@@ -755,7 +755,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
-              className="app-card p-5 space-y-3 transition-colors dark:border-purple-800/60"
+              className="app-card p-3.5 sm:p-5 space-y-3 transition-colors dark:border-purple-800/60"
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center space-x-2 text-slate-900 dark:text-white">
@@ -772,7 +772,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                   100
                 );
                 return (
-                  <div className="grid grid-cols-7 gap-2 pt-4 items-end h-40">
+                  <div className="overflow-x-auto pb-1">
+                  <div className="grid grid-cols-7 gap-1.5 sm:gap-2 min-w-[440px] sm:min-w-0 pt-4 items-end h-40">
                     {dashboardData.sevenDaysSales.map((item: any, idx: number) => {
                       const heightPercent =
                         (item.amount || 0) > 0
@@ -818,19 +819,20 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                       );
                     })}
                   </div>
+                  </div>
                 );
               })()}
             </motion.div>
           )}
 
           {/* 2-Column Grid: Top Selling & Critical Alerts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Top Selling Products */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.05 }}
-              className="app-card p-5 space-y-4 transition-colors dark:border-purple-800/60"
+              className="app-card p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-colors dark:border-purple-800/60"
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center space-x-2 text-slate-900 dark:text-white">
@@ -915,7 +917,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.1 }}
-              className="app-card p-5 space-y-4 transition-colors dark:border-purple-800/60"
+              className="app-card p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-colors dark:border-purple-800/60"
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center space-x-2 text-slate-900 dark:text-white">
@@ -990,7 +992,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.15 }}
-            className="app-card p-5 space-y-4 transition-colors dark:border-purple-800/60"
+            className="app-card p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-colors dark:border-purple-800/60"
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center space-x-2 text-slate-900 dark:text-white">
@@ -1078,7 +1080,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="app-card p-5 space-y-4 transition-colors dark:border-purple-800/60"
+          className="app-card p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-colors dark:border-purple-800/60"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
             <div>
@@ -1192,7 +1194,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           className="space-y-4"
         >
           {/* P&L Financial Cards with Animated Counters */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
             <StatCard
               id="stat-pl-revenue"
               title="Net Sales Revenue"
@@ -1239,7 +1241,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           </div>
 
           {/* Itemized P&L Table */}
-          <div className="app-card p-5 space-y-4 transition-colors dark:border-purple-800/60">
+          <div className="app-card p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-colors dark:border-purple-800/60">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-sm text-slate-900 dark:text-white">Product-by-Product Profit Analysis</h3>
               {isLoadingPL && (
@@ -1329,7 +1331,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="app-card p-5 space-y-4 transition-colors dark:border-purple-800/60"
+          className="app-card p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-colors dark:border-purple-800/60"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
             <div>

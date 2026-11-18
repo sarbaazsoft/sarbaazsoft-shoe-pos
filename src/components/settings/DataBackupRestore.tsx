@@ -324,15 +324,15 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
   };
 
   return (
-    <div className="app-card p-5 sm:p-6 space-y-6 transition-colors">
+    <div className="app-card p-3.5 sm:p-6 space-y-5 sm:space-y-6 transition-colors">
       {/* Header & Status Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
-        <div className="flex items-center space-x-3.5">
-          <div className="p-3 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-cyan-400 border border-blue-100 dark:border-blue-500/30 rounded-xl shrink-0">
-            <ShieldCheck className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4 sm:pb-5">
+        <div className="flex items-center space-x-3 sm:space-x-3.5">
+          <div className="p-2.5 sm:p-3 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-cyan-400 border border-blue-100 dark:border-blue-500/30 rounded-xl shrink-0">
+            <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white text-base">Store Backup &amp; Safety Restore (بیک اپ اور بحالی)</h3>
+            <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">Store Backup &amp; Safety Restore (بیک اپ اور بحالی)</h3>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
               Safeguard your wholesale shoe store by creating snapshot backups and restoring store records anytime.
             </p>
@@ -351,34 +351,34 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
       </div>
 
       {/* Live Store Storage Overview KPI Cards with Sparkline Visuals */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
         {/* KPI 1: SYSTEM STORAGE */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.05 }}
-          className="app-stat-card p-4 hover:border-indigo-500/50 transition-all flex flex-col justify-between"
+          className="app-stat-card hover:border-indigo-500/50 transition-all flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
                 System Storage
               </span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/30 flex items-center justify-center">
-                <HardDrive className="w-4 h-4" />
+              <div className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/30 flex items-center justify-center shrink-0">
+                <HardDrive className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="mt-1.5 lg:mt-2 flex items-baseline justify-between gap-1 flex-wrap">
+              <div className="text-base sm:text-xl lg:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 {stats?.database ? 'Cloud Active' : 'Active'}
               </div>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
                 <Activity className="w-2.5 h-2.5" /> 99.9%
               </span>
             </div>
 
             {/* Sparkline Graphic: Live Latency / Engine Uptime Frequency */}
-            <div className="mt-2 mb-1.5 h-6 w-full">
+            <div className="mt-1.5 lg:mt-2 mb-1 lg:mb-1.5 h-5 lg:h-6 w-full">
               <svg className="w-full h-full overflow-hidden" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="sparkline-grad-engine" x1="0" y1="0" x2="0" y2="1">
@@ -418,28 +418,28 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.1 }}
-          className="app-stat-card p-4 hover:border-blue-500/50 transition-all flex flex-col justify-between"
+          className="app-stat-card hover:border-blue-500/50 transition-all flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10.5px] font-bold text-blue-600 dark:text-cyan-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-[10px] sm:text-[10.5px] font-bold text-blue-600 dark:text-cyan-400 uppercase tracking-wider truncate">
                 Total Records
               </span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-cyan-400 border border-blue-100 dark:border-blue-500/30 flex items-center justify-center">
-                <HardDrive className="w-4 h-4" />
+              <div className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-cyan-400 border border-blue-100 dark:border-blue-500/30 flex items-center justify-center shrink-0">
+                <HardDrive className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-cyan-400 font-mono tracking-tight">
+            <div className="mt-1.5 lg:mt-2 flex items-baseline justify-between gap-1 flex-wrap">
+              <div className="text-lg sm:text-2xl lg:text-3xl font-black text-blue-600 dark:text-cyan-400 font-mono tracking-tight">
                 <AnimatedCounter value={stats?.totalRecords} loading={isLoadingStats} duration={1200} />
               </div>
-              <span className="text-[10px] font-bold text-blue-600 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/60 flex items-center gap-0.5">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-blue-600 dark:text-cyan-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/60 flex items-center gap-0.5">
                 <TrendingUp className="w-2.5 h-2.5" /> Growth
               </span>
             </div>
 
             {/* Sparkline Graphic: Historical Database Growth Trend */}
-            <div className="mt-2 mb-1.5 h-6 w-full">
+            <div className="mt-1.5 lg:mt-2 mb-1 lg:mb-1.5 h-5 lg:h-6 w-full">
               <svg className="w-full h-full overflow-hidden" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="sparkline-grad-records" x1="0" y1="0" x2="0" y2="1">
@@ -472,29 +472,29 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.15 }}
-          className="app-stat-card p-4 hover:border-emerald-500/50 transition-all flex flex-col justify-between"
+          className="app-stat-card hover:border-emerald-500/50 transition-all flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
                 Shoe Catalog
               </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center">
-                <ShoppingBag className="w-4 h-4" />
+              <div className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight flex items-baseline gap-1.5">
+            <div className="mt-1.5 lg:mt-2 flex items-baseline justify-between gap-1 flex-wrap">
+              <div className="text-lg sm:text-2xl lg:text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight flex items-baseline gap-1">
                 <AnimatedCounter value={stats?.counts?.products ?? 0} loading={isLoadingStats} duration={1200} />
-                <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400">Products</span>
+                <span className="text-[10px] sm:text-xs lg:text-sm font-bold text-slate-500 dark:text-slate-400">Products</span>
               </div>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-0.5">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-0.5">
                 <TrendingUp className="w-2.5 h-2.5" /> Active
               </span>
             </div>
 
             {/* Sparkline Graphic: Inventory Addition Trend */}
-            <div className="mt-2 mb-1.5 h-6 w-full">
+            <div className="mt-1.5 lg:mt-2 mb-1 lg:mb-1.5 h-5 lg:h-6 w-full">
               <svg className="w-full h-full overflow-hidden" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="sparkline-grad-catalog" x1="0" y1="0" x2="0" y2="1">
@@ -527,29 +527,29 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.2 }}
-          className="app-stat-card p-4 hover:border-amber-500/50 transition-all flex flex-col justify-between"
+          className="app-stat-card hover:border-amber-500/50 transition-all flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
                 Sales Invoices
               </span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/30 flex items-center justify-center">
-                <Receipt className="w-4 h-4" />
+              <div className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/30 flex items-center justify-center shrink-0">
+                <Receipt className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 font-mono tracking-tight flex items-baseline gap-1.5">
+            <div className="mt-1.5 lg:mt-2 flex items-baseline justify-between gap-1 flex-wrap">
+              <div className="text-lg sm:text-2xl lg:text-3xl font-black text-amber-600 dark:text-amber-400 font-mono tracking-tight flex items-baseline gap-1">
                 <AnimatedCounter value={stats?.counts?.sales ?? 0} loading={isLoadingStats} duration={1200} />
-                <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400">Bills</span>
+                <span className="text-[10px] sm:text-xs lg:text-sm font-bold text-slate-500 dark:text-slate-400">Bills</span>
               </div>
-              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/60 flex items-center gap-0.5">
+              <span className="text-[9.5px] sm:text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/60 flex items-center gap-0.5">
                 <TrendingUp className="w-2.5 h-2.5" /> Daily
               </span>
             </div>
 
             {/* Sparkline Graphic: Sales Transaction Frequency */}
-            <div className="mt-2 mb-1.5 h-6 w-full">
+            <div className="mt-1.5 lg:mt-2 mb-1 lg:mb-1.5 h-5 lg:h-6 w-full">
               <svg className="w-full h-full overflow-hidden" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="sparkline-grad-sales" x1="0" y1="0" x2="0" y2="1">
@@ -586,9 +586,9 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
       )}
 
       {/* Main Two-Column Layout: Export on Left, Import/Restore on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* ================= SECTION 1: EXPORT (DOWNLOAD BACKUP) ================= */}
-        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-6 bg-white dark:bg-[#131B2E] shadow-xs space-y-5 flex flex-col justify-between transition-colors">
+        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 bg-white dark:bg-[#131B2E] shadow-xs space-y-4 sm:space-y-5 flex flex-col justify-between transition-colors">
           <div className="space-y-4">
             <div className="flex items-center gap-3 text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-cyan-400 border border-blue-100 dark:border-blue-500/30 flex items-center justify-center font-bold">
@@ -682,7 +682,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
         </div>
 
         {/* ================= SECTION 2: RESTORE (IMPORT BACKUP) ================= */}
-        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-6 bg-white dark:bg-[#131B2E] shadow-xs space-y-5 flex flex-col justify-between transition-colors">
+        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 bg-white dark:bg-[#131B2E] shadow-xs space-y-4 sm:space-y-5 flex flex-col justify-between transition-colors">
           <div className="space-y-4">
             <div className="flex items-center gap-3 text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center font-bold">
@@ -844,7 +844,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
       </div>
 
       {/* Manual SQL Script Import Card */}
-      <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#070D1F] shadow-xs space-y-5">
+      <div className="p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#070D1F] shadow-xs space-y-4 sm:space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold shrink-0">
@@ -936,7 +936,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
       </div>
 
       {/* Safety Best Practices Guidance Card */}
-      <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#0E172E] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-200 dark:border-slate-800/80 shadow-xs">
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#0E172E] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 sm:gap-4 border border-slate-200 dark:border-slate-800/80 shadow-xs">
         <div className="flex items-start gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5" />

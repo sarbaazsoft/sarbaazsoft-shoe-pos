@@ -76,7 +76,7 @@ export const PasswordRequirementsTooltip: React.FC<PasswordRequirementsTooltipPr
       {/* Tooltip Popover */}
       <div
         role="tooltip"
-        className={`absolute ${placementClasses} z-50 w-64 p-3 rounded-xl bg-slate-900 text-slate-100 dark:bg-[#0B1120] dark:text-slate-100 border border-slate-700/80 dark:border-purple-800/80 shadow-2xl backdrop-blur-md transition-all duration-150 pointer-events-none ${
+        className={`absolute ${placementClasses} z-50 w-64 max-w-[calc(100vw-2rem)] p-3 rounded-xl bg-slate-900 text-slate-100 dark:bg-[#0B1120] dark:text-slate-100 border border-slate-700/80 dark:border-purple-800/80 shadow-2xl backdrop-blur-md transition-all duration-150 pointer-events-none ${
           isOpen
             ? 'opacity-100 visible scale-100 translate-y-0'
             : 'opacity-0 invisible scale-95 pointer-events-none'

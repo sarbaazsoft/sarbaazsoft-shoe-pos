@@ -18,6 +18,7 @@ import { STANDARD_FOOTWEAR_CATEGORIES, isHalfCartonAllowed } from '../../utils/f
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface ProductManagementProps {
   currentUser: any;
@@ -38,6 +39,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const isDesktop = useIsDesktop();
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
 
@@ -350,7 +352,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   }
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto">
+    <div className="space-y-3 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto">
       {/* CSV Import Completion Toast Notification */}
       <AnimatePresence>
         {importToastMessage && (
@@ -358,7 +360,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             initial={{ opacity: 0, y: -16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -16, scale: 0.96 }}
-            className="fixed top-4 right-4 z-50 max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-xl border border-emerald-400/50 flex items-center justify-between gap-3 text-xs font-bold"
+            className="fixed top-3 left-3 right-3 sm:left-auto sm:top-4 sm:right-4 z-50 sm:max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-xl border border-emerald-400/50 flex items-center justify-between gap-3 text-xs font-bold"
           >
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -380,7 +382,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
       >
         <div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
@@ -455,7 +457,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       </AnimatePresence>
 
       {/* Inventory KPI Summary Cards with Animated Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
         {/* CARD 1: TOTAL ARTICLES */}
         <StatCard
           id="stat-total-articles"
@@ -521,9 +523,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.25 }}
-        className="app-card p-4 flex flex-wrap items-center gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
+        className="app-card p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
       >
-        <form onSubmit={handleSearchSubmit} className="flex-1 min-w-[240px] relative">
+        <form onSubmit={handleSearchSubmit} className="w-full sm:w-auto flex-1 sm:min-w-[240px] relative">
           <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -891,8 +893,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             type="button"
                             disabled={savingStockId === p.id}
                             onClick={() => handleSaveInlineStock(p)}
-                            className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition cursor-pointer shadow-xs disabled:opacity-50"
-                            title="Save stock quantity (Enter)"
+                            className="p-2 lg:p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition cursor-pointer shadow-xs disabled:opacity-50"
+                            title={isDesktop ? "Save stock quantity (Enter)" : "Save stock quantity"}
                           >
                             {savingStockId === p.id ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -904,8 +906,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             type="button"
                             disabled={savingStockId === p.id}
                             onClick={handleCancelInlineEdit}
-                            className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition cursor-pointer active:scale-95"
-                            title="Cancel (Esc)"
+                            className="p-2 lg:p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition cursor-pointer active:scale-95"
+                            title={isDesktop ? "Cancel (Esc)" : "Cancel"}
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -915,7 +917,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             {inlineStockError}
                           </span>
                         ) : (
-                          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                          <span className="hidden lg:inline text-[9px] text-slate-400 dark:text-slate-500 font-medium">
                             Press ↵ to save • Esc
                           </span>
                         )}
@@ -956,7 +958,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
                   {/* Card Actions Footer */}
                   <div className="p-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 lg:gap-1">
                       {/* Barcode Price Tag Button */}
                       <button
                         type="button"
@@ -966,7 +968,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                           e.stopPropagation();
                           setStickerProduct(p);
                         }}
-                        className="p-1.5 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] hover:bg-purple-600 text-purple-600 dark:text-purple-400 hover:text-white transition cursor-pointer"
+                        className="p-2 lg:p-1.5 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] hover:bg-purple-600 text-purple-600 dark:text-purple-400 hover:text-white transition cursor-pointer"
                       >
                         <Barcode className="w-3.5 h-3.5" />
                       </button>
@@ -981,7 +983,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             e.stopPropagation();
                             setSideEndLabelProduct(p);
                           }}
-                          className="p-1.5 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] text-purple-700 dark:text-purple-400 hover:bg-purple-600 hover:text-white transition cursor-pointer"
+                          className="p-2 lg:p-1.5 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] text-purple-700 dark:text-purple-400 hover:bg-purple-600 hover:text-white transition cursor-pointer"
                         >
                           <Box className="w-3.5 h-3.5" />
                         </button>
@@ -990,7 +992,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
                     {/* Admin Actions */}
                     {isAdmin && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 lg:gap-1">
                         <button
                           type="button"
                           title="Adjust Stock"
@@ -998,7 +1000,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             e.stopPropagation();
                             setAdjustingProduct(p);
                           }}
-                          className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-[#0E1628] hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white transition cursor-pointer"
+                          className="p-2 lg:p-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-[#0E1628] hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white transition cursor-pointer"
                         >
                           <SlidersHorizontal className="w-3.5 h-3.5" />
                         </button>
@@ -1010,7 +1012,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             setEditingProduct(p);
                             setIsFormModalOpen(true);
                           }}
-                          className="p-1.5 rounded-lg border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-600 text-purple-600 dark:text-purple-200 hover:text-white transition cursor-pointer"
+                          className="p-2 lg:p-1.5 rounded-lg border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-600 text-purple-600 dark:text-purple-200 hover:text-white transition cursor-pointer"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -1021,7 +1023,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             e.stopPropagation();
                             handleDeleteProduct(p);
                           }}
-                          className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-[#0E1628] hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white transition cursor-pointer"
+                          className="p-2 lg:p-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-[#0E1628] hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white transition cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1294,8 +1296,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                                 type="button"
                                 disabled={savingStockId === p.id}
                                 onClick={() => handleSaveInlineStock(p)}
-                                className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition cursor-pointer shadow-xs disabled:opacity-50"
-                                title="Save stock quantity (Enter)"
+                                className="p-2 lg:p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition cursor-pointer shadow-xs disabled:opacity-50"
+                                title={isDesktop ? "Save stock quantity (Enter)" : "Save stock quantity"}
                               >
                                 {savingStockId === p.id ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1307,8 +1309,8 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                                 type="button"
                                 disabled={savingStockId === p.id}
                                 onClick={handleCancelInlineEdit}
-                                className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition cursor-pointer active:scale-95"
-                                title="Cancel (Esc)"
+                                className="p-2 lg:p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition cursor-pointer active:scale-95"
+                                title={isDesktop ? "Cancel (Esc)" : "Cancel"}
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
@@ -1323,7 +1325,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                                 ={Math.floor((parseInt(inlineStockValue, 10) || 0) / (p.pairsPerCarton || 12))} lots ({p.pairsPerCarton || 12} prs/ctn)
                               </span>
                             ) : (
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                              <span className="hidden lg:inline text-[9px] text-slate-400 dark:text-slate-500 font-medium">
                                 Press ↵ to save • Esc to cancel
                               </span>
                             )}

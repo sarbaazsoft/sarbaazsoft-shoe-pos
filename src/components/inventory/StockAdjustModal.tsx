@@ -54,7 +54,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -64,22 +64,22 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md app-modal-container overflow-hidden"
+        className="w-full max-w-md app-modal-container overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-200 dark:border-purple-400/30 rounded-xl shadow-2xs">
               <SlidersHorizontal className="w-4 h-4" />
             </div>
             <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">Adjust Physical Stock</h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white cursor-pointer transition">
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white cursor-pointer transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
           {error && (
             <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-400 rounded-xl flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -143,7 +143,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
             </p>
           </div>
 
-          <div className="px-6 py-4 -mx-6 -mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-3">
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
               type="button"
               onClick={onClose}

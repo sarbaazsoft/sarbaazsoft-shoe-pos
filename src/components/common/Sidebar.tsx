@@ -204,10 +204,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id="sidebar-close-mobile-btn"
               type="button"
               onClick={onCloseMobile}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+              className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
               aria-label="Close Mobile Navigation"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4.5 h-4.5" />
             </button>
           )}
 
@@ -249,7 +249,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => handleItemClick('dashboard')}
               whileTap={{ scale: 0.98 }}
               className={`relative w-full flex items-center ${
-                collapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2'
+                collapsed
+                  ? 'justify-center p-2.5'
+                  : isMobile
+                  ? 'justify-between px-3 py-2.5 min-h-[42px]'
+                  : 'justify-between px-3 py-2'
               } rounded-xl text-xs font-semibold cursor-pointer group transition-colors duration-150 ${
                 currentTab === 'dashboard'
                   ? 'text-white font-bold'
@@ -312,7 +316,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={() => handleItemClick(item.id)}
                         whileTap={{ scale: 0.98 }}
                         className={`relative w-full flex items-center ${
-                          collapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2'
+                          collapsed
+                            ? 'justify-center p-2.5'
+                            : isMobile
+                            ? 'justify-between px-3 py-2.5 min-h-[42px]'
+                            : 'justify-between px-3 py-2'
                         } rounded-xl text-xs font-medium cursor-pointer group transition-colors duration-150 ${
                           isActive
                             ? 'text-white font-bold'
@@ -339,9 +347,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {!collapsed && <span className="truncate">{item.label}</span>}
                         </div>
 
-                        {!collapsed && item.shortcut && (
+                        {!isMobile && !collapsed && item.shortcut && (
                           <kbd
-                            className={`relative z-10 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md transition ${
+                            className={`hidden lg:inline-flex relative z-10 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md transition ${
                               isActive
                                 ? 'bg-white/20 text-white border border-white/30'
                                 : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-indigo-500/20'
@@ -437,7 +445,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             onClick={() => setIsInstallModalOpen(true)}
             className={`w-full flex items-center rounded-xl bg-indigo-50/60 hover:bg-indigo-100/80 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 transition cursor-pointer group shadow-xs ${
-              collapsed ? 'justify-center p-2 relative' : 'justify-between px-2.5 py-1.5'
+              collapsed
+                ? 'justify-center p-2 relative'
+                : isMobile
+                ? 'justify-between px-2.5 py-2 min-h-[40px]'
+                : 'justify-between px-2.5 py-1.5'
             }`}
             title="Install Android APK, iOS Safari PWA, or Windows .EXE"
           >
@@ -466,7 +478,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               onClick={toggleTheme}
               className={`w-full flex items-center rounded-lg bg-slate-100/80 hover:bg-slate-200/80 dark:bg-[#0E1628] dark:hover:bg-[#131D33] border border-indigo-500/20 text-[11px] text-slate-700 dark:text-slate-200 transition cursor-pointer ${
-                collapsed ? 'justify-center p-2 relative group' : 'justify-between px-2 py-1.5'
+                collapsed
+                  ? 'justify-center p-2 relative group'
+                  : isMobile
+                  ? 'justify-between px-2.5 py-2 min-h-[38px]'
+                  : 'justify-between px-2 py-1.5'
               }`}
               title={`Current theme: ${theme}. Click to toggle`}
             >
@@ -517,9 +533,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
 
-            {/* Shortcuts Info */}
-            {!collapsed && (
-              <div className="flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+            {/* Shortcuts Info (Desktop only) */}
+            {!isMobile && !collapsed && (
+              <div className="hidden lg:flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-1.5">
                   <Keyboard className="w-3 h-3 text-slate-400" />
                   <span>Shortcuts:</span>

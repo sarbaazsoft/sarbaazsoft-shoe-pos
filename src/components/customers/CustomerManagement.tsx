@@ -142,25 +142,25 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
   }
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
+    <div className="space-y-3 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto text-xs">
       {/* Top Header Card - aligned with Product/Purchase styling */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="app-card p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:text-white"
+        className="app-card p-3.5 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:text-white"
       >
         <div>
-          <div className="flex items-center space-x-3 text-slate-900 dark:text-white">
-            <span className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0 shadow-2xs">
-              <Users className="w-5 h-5 stroke-[2.2]" />
+          <div className="flex items-center space-x-2.5 sm:space-x-3 text-slate-900 dark:text-white">
+            <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0 shadow-2xs">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
             </span>
-            <div>
-              <div className="flex items-center space-x-2.5">
-                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
                   Customer Directory & Accounts
                 </h2>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-purple-950/60 text-blue-700 dark:text-purple-300 border border-blue-200/80 dark:border-purple-800/60">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-blue-50 dark:bg-purple-950/60 text-blue-700 dark:text-purple-300 border border-blue-200/80 dark:border-purple-800/60">
                   {customers.length} Registered
                 </span>
               </div>
@@ -171,11 +171,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
           </div>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex flex-wrap items-center gap-2 sm:space-x-2.5">
           <button
             onClick={handleOpenAddModal}
             style={{ color: '#ffffff' }}
-            className="btn-pure-white customer-btn bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="btn-pure-white customer-btn bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 !text-white text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4 !text-white" style={{ color: '#ffffff', stroke: '#ffffff' }} />
             <span className="!text-white font-bold text-white" style={{ color: '#ffffff' }}>Add New Customer</span>
@@ -184,7 +184,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
       </motion.div>
 
       {/* KPI Stats Banner with Animated Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         <StatCard
           id="stat-registered-customers"
           layout="horizontal"
@@ -244,9 +244,9 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
-        className="app-card p-3.5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:text-white"
+        className="app-card p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-3 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:text-white"
       >
-        <div className="relative flex-1 w-full max-w-lg">
+        <div className="relative flex-1 w-full md:max-w-lg">
           <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -276,7 +276,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
           </button>
         </div>
 
-        <div className="flex items-center space-x-2 w-full md:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-between md:justify-end">
           {/* Sort Selector */}
           <div className="flex items-center space-x-1.5 bg-slate-50 dark:bg-purple-500/20 hover:bg-slate-100 dark:hover:bg-purple-500/30 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] transition">
             <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 dark:text-purple-300" />
@@ -372,7 +372,95 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
           animate={{ opacity: 1 }}
           className="app-card rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs overflow-hidden"
         >
-          <div className="overflow-x-auto">
+          {/* Mobile Card List (< 640px) */}
+          <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-900/40">
+            {displayedCustomers.slice(0, visibleCount).map((c) => {
+              const initials = (c.name || 'C')
+                .split(' ')
+                .map((n: string) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
+              const custBal = parseFloat(
+                c.outstanding_balance ??
+                c.outstandingBalance ??
+                c.current_balance ??
+                c.currentBalance ??
+                c.balance ??
+                0
+              ) || 0;
+
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => handleViewCustomer(c.id)}
+                  className="p-3.5 space-y-2.5 active:bg-blue-50/30 dark:active:bg-purple-900/30 transition cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-purple-950/60 border border-blue-200 dark:border-purple-800/60 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 dark:text-white text-xs truncate">{c.name}</span>
+                          <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-mono font-bold">
+                            #{c.id}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 shrink-0" />
+                          <span>{c.phone}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <span className={`inline-flex items-center font-mono font-bold px-2 py-0.5 rounded-lg text-[11px] shrink-0 ${
+                      custBal > 0
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
+                        : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
+                    }`}>
+                      {currencySymbol} {formatStockPrice(custBal)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-purple-900/30" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {[c.shop_name || c.shopName, c.market_name || c.marketName, c.city].filter(Boolean).join(' • ') || 'Walk-in / Retail'}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleViewCustomer(c.id)}
+                        aria-label="View Khata & Purchase Ledger"
+                        className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 rounded-lg bg-slate-50 dark:bg-slate-800/60"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(c)}
+                        aria-label="Edit Customer"
+                        className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 rounded-lg bg-slate-50 dark:bg-slate-800/60"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingCustomerId(c.id)}
+                        aria-label="Delete Customer"
+                        className="p-2 text-slate-400 hover:text-rose-600 rounded-lg bg-slate-50 dark:bg-slate-800/60"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50/90 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-600 dark:text-white font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-purple-800/80">
                 <tr>
@@ -505,7 +593,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
         </motion.div>
       ) : (
         /* GRID / CARD VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {displayedCustomers.slice(0, visibleCount).map((c, index) => {
             const initials = (c.name || 'C')
               .split(' ')
@@ -525,7 +613,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
                   ease: [0.16, 1, 0.3, 1],
                 }}
                 onClick={() => handleViewCustomer(c.id)}
-                className="app-card p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs hover:border-purple-500/60 dark:hover:border-purple-500/60 cursor-pointer transition-all flex flex-col justify-between group"
+                className="app-card p-3.5 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs hover:border-purple-500/60 dark:hover:border-purple-500/60 cursor-pointer transition-all flex flex-col justify-between group"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
@@ -630,7 +718,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
       {/* DELETE CONFIRMATION DIALOG */}
       <AnimatePresence>
         {deletingCustomerId && (
-          <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

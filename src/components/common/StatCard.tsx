@@ -278,7 +278,7 @@ export const StatCard: React.FC<StatCardProps> = ({
     if (!icon) return null;
     if (React.isValidElement(icon)) return icon;
     const IconComponent = icon as React.ComponentType<{ className?: string }>;
-    return <IconComponent className="w-5 h-5 stroke-[2.2]" />;
+    return <IconComponent className="w-4 h-4 sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5 stroke-[2.2]" />;
   };
 
   // Horizontal Banner Layout (Used in SupplierManagement, CustomerManagement, etc.)
@@ -291,23 +291,23 @@ export const StatCard: React.FC<StatCardProps> = ({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.3, delay: delay * 0.4 }}
         onClick={onClick}
-        className={`group relative app-stat-card p-4.5 rounded-2xl bg-slate-50 dark:bg-gradient-to-br dark:from-[#0E1628] dark:to-purple-950/30 border border-slate-200/90 dark:border-purple-800/60 shadow-xs flex items-center space-x-3.5 ${color.hoverBorder} transition-all duration-200 ${
+        className={`group relative app-stat-card p-3 sm:p-3.5 lg:p-4.5 rounded-xl lg:rounded-2xl bg-slate-50 dark:bg-gradient-to-br dark:from-[#0E1628] dark:to-purple-950/30 border border-slate-200/90 dark:border-purple-800/60 shadow-xs flex items-center space-x-2.5 sm:space-x-3 lg:space-x-3.5 ${color.hoverBorder} transition-all duration-200 ${
           onClick ? 'cursor-pointer' : ''
         } ${className}`}
       >
         {icon && (
           <div
-            className={`w-11 h-11 rounded-xl ${color.bgLight} ${color.bgDark} border ${color.borderLight} ${color.borderDark} flex items-center justify-center ${color.textLight} ${color.textDark} shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
+            className={`w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 rounded-lg lg:rounded-xl ${color.bgLight} ${color.bgDark} border ${color.borderLight} ${color.borderDark} flex items-center justify-center ${color.textLight} ${color.textDark} shrink-0 shadow-2xs group-hover:scale-105 transition-transform [&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px] lg:[&>svg]:w-5 lg:[&>svg]:h-5`}
           >
             {renderIcon()}
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold text-slate-500 dark:text-purple-200/80 uppercase tracking-wider truncate">
+          <div className="text-[10px] sm:text-[10.5px] lg:text-[11px] font-bold text-slate-500 dark:text-purple-200/80 uppercase tracking-wider truncate">
             {title}
           </div>
           <div
-            className={`text-xl font-black text-slate-900 dark:text-white mt-0.5 tracking-tight font-mono truncate ${valueClassName}`}
+            className={`text-base sm:text-lg lg:text-xl font-black text-slate-900 dark:text-white mt-0.5 tracking-tight font-mono truncate ${valueClassName}`}
           >
             <AnimatedCounter
               value={value}
@@ -319,7 +319,7 @@ export const StatCard: React.FC<StatCardProps> = ({
               refreshKey={cardRefreshKey}
             />
           </div>
-          {subtext && <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{subtext}</div>}
+          {subtext && <div className="mt-0.5 text-[10px] lg:text-[11px] text-slate-500 dark:text-slate-400 truncate">{subtext}</div>}
         </div>
       </motion.div>
     );
@@ -334,15 +334,15 @@ export const StatCard: React.FC<StatCardProps> = ({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.3, delay: delay * 0.4 }}
       onClick={onClick}
-      className={`group relative app-stat-card p-4.5 rounded-2xl bg-slate-50 dark:bg-gradient-to-br dark:from-slate-900 dark:via-indigo-950 dark:to-purple-950 border border-slate-200 dark:border-indigo-600/40 shadow-xs flex flex-col justify-between ${color.hoverBorder} ${
+      className={`group relative app-stat-card p-3 sm:p-3.5 lg:p-4.5 rounded-xl lg:rounded-2xl bg-slate-50 dark:bg-gradient-to-br dark:from-slate-900 dark:via-indigo-950 dark:to-purple-950 border border-slate-200 dark:border-indigo-600/40 shadow-xs flex flex-col justify-between ${color.hoverBorder} ${
         color.accentGlow || ''
       } transition-all duration-200 ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
       {/* Top Row: Icon & Optional Sparkline */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         {icon && (
           <div
-            className={`w-10 h-10 rounded-xl ${color.bgLight} ${color.bgDark} border ${color.borderLight} ${color.borderDark} flex items-center justify-center ${color.textLight} ${color.textDark} shadow-2xs group-hover:scale-105 transition-transform`}
+            className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl ${color.bgLight} ${color.bgDark} border ${color.borderLight} ${color.borderDark} flex items-center justify-center ${color.textLight} ${color.textDark} shrink-0 shadow-2xs group-hover:scale-105 transition-transform [&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-[18px] sm:[&>svg]:h-[18px] lg:[&>svg]:w-5 lg:[&>svg]:h-5`}
           >
             {renderIcon()}
           </div>
@@ -350,7 +350,7 @@ export const StatCard: React.FC<StatCardProps> = ({
 
         {/* Sparkline curve */}
         {sparkline && typeof sparkline === 'string' && sparklinePaths[sparkline] ? (
-          <svg className="w-16 h-8 overflow-visible" viewBox="0 0 64 32" aria-hidden="true">
+          <svg className="w-11 h-6 sm:w-13 sm:h-7 lg:w-16 lg:h-8 overflow-visible shrink-0" viewBox="0 0 64 32" aria-hidden="true">
             <motion.path
               key={`spark-${cardRefreshKey}`}
               d={sparklinePaths[sparkline].d}
@@ -369,12 +369,12 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       {/* Main Metric Section */}
-      <div className="mt-3">
-        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+      <div className="mt-2 sm:mt-2.5 lg:mt-3 min-w-0">
+        <div className="text-[10.5px] sm:text-[11px] lg:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
           {title}
         </div>
         <div
-          className={`text-2xl font-bold text-slate-900 dark:text-white mt-1 tracking-tight ${valueClassName}`}
+          className={`text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 dark:text-white mt-0.5 lg:mt-1 tracking-tight truncate ${valueClassName}`}
         >
           <AnimatedCounter
             value={value}
@@ -389,10 +389,10 @@ export const StatCard: React.FC<StatCardProps> = ({
 
         {/* Subtext or Trend Indicator */}
         {(trendIndicator || subtext) && (
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1 font-medium">
+          <div className="text-[10px] sm:text-[10.5px] lg:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 lg:mt-1 flex items-center flex-wrap gap-1 font-medium leading-tight">
             {trendIndicator && (
               <span
-                className={`font-semibold flex items-center gap-0.5 ${
+                className={`font-semibold flex items-center gap-0.5 shrink-0 ${
                   trendIndicator.direction === 'up'
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : trendIndicator.direction === 'down'
@@ -408,7 +408,7 @@ export const StatCard: React.FC<StatCardProps> = ({
                 {trendIndicator.value}
               </span>
             )}
-            {trendIndicator?.label && <span>{trendIndicator.label}</span>}
+            {trendIndicator?.label && <span className="truncate">{trendIndicator.label}</span>}
             {subtext && !trendIndicator && subtext}
           </div>
         )}

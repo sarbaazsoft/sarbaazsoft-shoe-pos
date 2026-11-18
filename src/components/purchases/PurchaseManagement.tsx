@@ -22,6 +22,7 @@ import {
   useProductsQuery,
   useSuppliersQuery,
 } from '../../hooks/useLiveData.ts';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface PurchaseManagementProps {
   currentUser: any;
@@ -39,6 +40,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   onNavigateToSuppliers,
 }) => {
   const { isActive } = useRouteActivity();
+  const isDesktop = useIsDesktop();
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
   const hasLoadedOnceRef = useRef(false);
@@ -805,20 +807,20 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   }
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
+    <div className="space-y-3.5 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto text-xs">
       {/* Top Banner & Action Controls */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
       >
         <div>
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-purple-500/20 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-purple-500/20 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
               <Truck className="w-4 h-4" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
               Stock Purchases &amp; Supplier Shipments
             </h2>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 border border-blue-200/80 dark:border-purple-500/30">
@@ -830,12 +832,12 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+        <div className="flex items-center flex-wrap gap-2">
           {onNavigateToSuppliers && (
             <button
               type="button"
               onClick={onNavigateToSuppliers}
-              className="btn-outline-landing bg-slate-100 hover:bg-slate-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-400/40 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer"
+              className="btn-outline-landing bg-slate-100 hover:bg-slate-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-400/40 font-bold px-3 sm:px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer"
             >
               <Building2 className="w-3.5 h-3.5" />
               <span>Manage Suppliers</span>
@@ -847,7 +849,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
             onClick={handleRefreshAll}
             disabled={isLoading || isLoadingReturns}
             title={isLoading || isLoadingReturns ? "Refreshing purchases & returns..." : "Refresh purchases, returns & recount metrics"}
-            className="btn-outline-landing bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="btn-outline-landing bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-3 sm:px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading || isLoadingReturns ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
             <span>Refresh</span>
@@ -860,7 +862,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               setReturnModalSupplierId(undefined);
               setIsReturnModalOpen(true);
             }}
-            className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
+            className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-bold px-3 sm:px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs"
           >
             <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             <span>Return Defective Items</span>
@@ -872,7 +874,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               setIsModalOpen(true);
               setModalStep(1);
             }}
-            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Record New Purchase</span>
@@ -881,7 +883,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
       </motion.div>
 
       {/* KPI Summary Cards with Animated Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
         <StatCard
           id="stat-inward-purchases"
           title="Total Inward Purchases"
@@ -946,13 +948,13 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.25 }}
-        className="app-card p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
+        className="app-card p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
       >
         {/* Left: View Tabs - Responsive Scrollable Underline Navigation */}
         <div 
           ref={purchaseTabContainerRef}
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-0 no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden border-b border-slate-200/80 dark:border-purple-900/50"
+          className="w-full lg:w-auto flex items-center gap-1 sm:gap-2 overflow-x-auto pb-0 no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden border-b border-slate-200/80 dark:border-purple-900/50"
         >
           <button
             type="button"
@@ -1093,10 +1095,118 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
         className="app-card overflow-hidden transition-colors dark:border-purple-800/60"
       >
 
-        {/* TAB 1: PURCHASES TABLE */}
+        {/* TAB 1: PURCHASES TABLE & MOBILE CARDS */}
         {activeTab === 'purchases' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <>
+            <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
+              {isLoading ? (
+                <div className="py-10 text-center text-slate-400 dark:text-slate-500 space-y-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
+                  <p className="font-medium text-xs">Loading purchases...</p>
+                </div>
+              ) : purchases.length === 0 ? (
+                <div className="py-10 px-4 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  No supplier purchases recorded yet. Tap "Record New Purchase" to start.
+                </div>
+              ) : (
+                purchases.map((p) => {
+                  const pNum = p.purchaseNumber || p.purchase_number;
+                  const pDate = p.purchaseDate || p.purchase_date;
+                  const sName = p.supplier_official_name || p.supplierName || p.supplier_name;
+                  const tAmt = parseFloat(p.totalAmount || p.total_amount || 0);
+                  const paidAmt = parseFloat(p.paidAmount || p.paid_amount || 0);
+                  const balanceDue = Math.max(0, tAmt - paidAmt);
+                  const status = p.payment_status || (paidAmt >= tAmt && tAmt > 0 ? 'PAID' : paidAmt > 0 ? 'PARTIAL' : 'UNPAID');
+                  const itemCount = p.item_count || 1;
+                  return (
+                    <div
+                      key={`m-pur-${p.id}`}
+                      onClick={() => handleViewPurchaseDetails(p.id)}
+                      className="p-3.5 space-y-2.5 active:bg-slate-50 dark:active:bg-slate-900/60 transition cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-blue-600 dark:text-cyan-400 text-xs">{pNum}</span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">{pDate}</span>
+                          </div>
+                          <div className="font-bold text-slate-900 dark:text-white text-sm mt-0.5 flex items-center gap-1.5 truncate">
+                            <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400 shrink-0" />
+                            <span className="truncate">{sName}</span>
+                          </div>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                            status === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                              : status === 'PARTIAL'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900'
+                          }`}
+                        >
+                          {status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200/70 dark:border-purple-800/40 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Total Bill</span>
+                          <span className="font-mono font-bold text-slate-900 dark:text-white">{currencySymbol} {formatStockPrice(tAmt)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Paid</span>
+                          <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{currencySymbol} {formatStockPrice(paidAmt)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-400 block text-[10px]">Due</span>
+                          <span className={`font-mono font-bold ${balanceDue > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>{currencySymbol} {formatStockPrice(balanceDue)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-cyan-400 border border-blue-200/80 dark:border-cyan-500/30">
+                          {itemCount} articles
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {balanceDue > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPurchasePayment(p)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Pay</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleViewPurchaseDetails(p.id)}
+                            className="p-2 rounded-lg bg-slate-50 dark:bg-[#0B1120] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#1A263D] cursor-pointer"
+                            aria-label="View order details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturnModalPurchaseNumber(pNum);
+                              setSelectedSupplierId(p.supplier_id || '');
+                              setIsReturnModalOpen(true);
+                            }}
+                            className="p-2 rounded-lg bg-slate-50 dark:bg-[#0B1120] text-rose-600 dark:text-rose-400 border border-slate-200 dark:border-[#1A263D] cursor-pointer"
+                            aria-label="Return defective items"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4">Purchase #</th>
@@ -1230,10 +1340,64 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               </tbody>
             </table>
           </div>
+        </>
         ) : (
           /* TAB 2: SUPPLIER RETURNS & DEBIT NOTES TABLE */
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <>
+            <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
+              {isLoadingReturns ? (
+                <div className="py-10 text-center text-slate-400 dark:text-slate-500 space-y-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
+                  <p className="font-medium text-xs">Loading supplier returns &amp; debit notes...</p>
+                </div>
+              ) : purchaseReturns.length === 0 ? (
+                <div className="py-10 px-4 text-center text-slate-400 dark:text-slate-500 space-y-2">
+                  <AlertTriangle className="w-7 h-7 text-rose-400 mx-auto" />
+                  <p className="font-bold text-slate-700 dark:text-slate-200">No Supplier Returns Issued Yet</p>
+                </div>
+              ) : (
+                purchaseReturns.map((pr) => {
+                  const rNum = pr.return_number || pr.returnNumber;
+                  const rDate = pr.return_date || pr.returnDate;
+                  const sName = pr.supplier_name || pr.supplierName;
+                  const dAmt = parseFloat(pr.total_debit_amount || pr.totalDebitAmount || 0);
+                  const pairs = pr.total_pairs ?? pr.quantity ?? '-';
+                  return (
+                    <div
+                      key={`m-pr-${pr.id}`}
+                      onClick={() => handleViewReturnDetails(pr.id)}
+                      className="p-3.5 space-y-2 active:bg-slate-50 dark:active:bg-slate-900/60 transition cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="px-2 py-0.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/60 rounded-md font-mono font-bold text-rose-700 dark:text-rose-300 text-[11px]">
+                          {rNum}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">{rDate}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-bold text-slate-900 dark:text-white text-xs truncate">{sName}</div>
+                        <span className="font-mono font-black text-rose-700 dark:text-rose-400 text-xs shrink-0">
+                          - {currencySymbol} {formatStockPrice(dAmt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="truncate">{pr.reason || 'Defective Footwear'} • {pairs} prs</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleViewReturnDetails(pr.id); }}
+                          className="px-2.5 py-1 bg-white dark:bg-[#0B1120] text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>Debit Note</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4">Debit Note #</th>
@@ -1346,15 +1510,16 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </motion.div>
 
       {/* RECORD NEW PURCHASE MODAL */}
       {isModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
           <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80">
             {/* Modal Header & 3-Step Wizard Stepper matching ProductFormModal */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-6 py-4">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-purple-500/20 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs">
@@ -1484,7 +1649,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                   }
                 }
               }}
-              className="flex-1 overflow-y-auto p-6 space-y-4 text-xs"
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs"
             >
               {errorMessage && (
                 <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 rounded-xl flex items-center space-x-2">
@@ -1705,7 +1870,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         <input
                           ref={productInputRef}
                           type="text"
-                          placeholder="Scan Barcode or search Article (F2 to focus)..."
+                          placeholder={isDesktop ? 'Scan Barcode or search Article (F2 to focus)...' : 'Scan Barcode or search Article...'}
                           value={productQuery}
                           onChange={(e) => handleProductInputChange(e.target.value)}
                           onFocus={() => {
@@ -1765,7 +1930,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                           >
                             <div className="px-3 py-1.5 bg-slate-50 dark:bg-[#0B1120] text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex justify-between">
                               <span>Matching Articles ({matchingProducts.length})</span>
-                              <span className="text-slate-400 dark:text-slate-500">Press Enter or click to select</span>
+                              <span className="hidden lg:inline text-slate-400 dark:text-slate-500">Press Enter or click to select</span>
                             </div>
                             {matchingProducts.map((prod) => (
                               <div
@@ -2098,7 +2263,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                                     className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 disabled:opacity-40 font-bold flex items-center justify-center space-x-1.5 cursor-pointer transition active:scale-95"
                                   >
                                     <Plus className="w-4 h-4" />
-                                    <span>Add to Order (Enter)</span>
+                                    <span>Add to Order <span className="hidden lg:inline">(Enter)</span></span>
                                   </button>
                                 </>
                               );
@@ -2111,7 +2276,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
                   {/* Shipment Articles List Table */}
                   <div className="border border-slate-200 dark:border-purple-800/60 rounded-2xl overflow-hidden shadow-2xs">
-                    <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 px-4 py-2.5 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between text-slate-800 dark:text-white">
+                    <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 px-3.5 sm:px-4 py-2.5 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-slate-800 dark:text-white">
                       <span className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">
                         Shipment Articles List ({items.length} unique items)
                       </span>
@@ -2120,6 +2285,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                       </span>
                     </div>
 
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="bg-white dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-600 dark:text-white font-semibold border-b border-slate-200 dark:border-purple-800/80">
                         <tr>
@@ -2213,6 +2379,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         </tfoot>
                       )}
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2260,27 +2427,27 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                   </div>
 
                   {/* High-Level Order Metric Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+                    <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60">
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Articles</span>
-                      <span className="text-xl font-bold font-mono text-slate-900 dark:text-white">{items.length}</span>
+                      <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white">{items.length}</span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60">
+                    <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60">
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Pairs</span>
-                      <span className="text-xl font-bold font-mono text-blue-600 dark:text-purple-300">{totalPairsCount}</span>
+                      <span className="text-lg sm:text-xl font-bold font-mono text-blue-600 dark:text-purple-300">{totalPairsCount}</span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60">
+                    <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60">
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Avg Cost / Pair</span>
-                      <span className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                      <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white">
                         {currencySymbol} {totalPairsCount > 0 ? formatStockPrice(totalPurchaseCost / totalPairsCount) : '0'}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-blue-50 dark:bg-purple-950/50 border border-blue-200 dark:border-purple-800">
+                    <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50 dark:bg-purple-950/50 border border-blue-200 dark:border-purple-800">
                       <span className="text-[10px] font-bold text-blue-700 dark:text-purple-300 uppercase tracking-wider block">Order Total</span>
-                      <span className="text-xl font-black font-mono text-blue-600 dark:text-purple-300">
+                      <span className="text-lg sm:text-xl font-black font-mono text-blue-600 dark:text-purple-300">
                         {currencySymbol} {formatStockPrice(totalPurchaseCost)}
                       </span>
                     </div>
@@ -2288,7 +2455,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
                   {/* Articles Verification Table */}
                   <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-hidden shadow-2xs">
-                    <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 px-4 py-2 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between text-slate-800 dark:text-white">
+                    <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 px-3.5 sm:px-4 py-2 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-slate-800 dark:text-white">
                       <span className="font-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider">
                         Shipment Verification ({items.length} Articles)
                       </span>
@@ -2300,6 +2467,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         Edit Articles →
                       </button>
                     </div>
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="bg-white dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-500 dark:text-white font-semibold border-b border-slate-200 dark:border-purple-800/80 text-[11px]">
                         <tr>
@@ -2334,11 +2502,12 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
 
                   {/* Step 3 Optional Initial Supplier Payment Option */}
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60 space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
                       <div className="flex items-center space-x-2">
                         <span className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
                           <CreditCard className="w-4 h-4 stroke-[2.2]" />
@@ -2453,7 +2622,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               )}
 
               {/* Modal Footer with Stepper Controls matching ProductFormModal */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-purple-800/80 mt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2.5 pt-4 border-t border-slate-200 dark:border-purple-800/80 mt-4">
                 <div className="flex items-center gap-2">
                   {modalStep > 1 ? (
                     <button
@@ -2520,10 +2689,10 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* SUPPLIER TABLE MODAL (SELECT SUPPLIER DIRECTLY FROM TABLE) */}
       {isSupplierTableModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[88vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
+        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90vh] sm:max-h-[88vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2.5 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
                   <Building2 className="w-5 h-5" />
@@ -2578,7 +2747,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
             </div>
 
             {/* Table Content */}
-            <div className="flex-1 overflow-y-auto p-4 text-xs">
+            <div className="flex-1 overflow-auto p-3 sm:p-4 text-xs">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-purple-800/80 sticky top-0 z-10">
                   <tr>
@@ -2661,10 +2830,10 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* CATALOG PRODUCTS TABLE MODAL (BROWSE FULL CATALOG AND SELECT ARTICLE) */}
       {isProductCatalogModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
+        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2.5 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
                   <Package className="w-5 h-5" />
@@ -2750,7 +2919,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-y-auto p-4 text-xs">
+            <div className="flex-1 overflow-auto p-3 sm:p-4 text-xs">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-purple-800/80 sticky top-0 z-10">
                   <tr>
@@ -2852,9 +3021,9 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* QUICK ADD SUPPLIER INLINE MODAL */}
       {isQuickSupplierModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
           <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-purple-800/80">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2 font-bold text-sm text-slate-900 dark:text-white">
                 <span className="p-2 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
                   <Building2 className="w-4 h-4" />
@@ -2869,7 +3038,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleQuickSaveSupplier} className="p-5 space-y-3.5 text-xs">
+            <form onSubmit={handleQuickSaveSupplier} className="p-4 sm:p-5 space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Supplier Name <span className="text-red-500">*</span>
@@ -2884,7 +3053,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
                   <input
@@ -2908,7 +3077,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                 </div>
               </div>
 
-              <div className="px-5 py-3.5 -mx-5 -mb-5 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-2">
+              <div className="px-4 sm:px-5 py-3.5 -mx-4 sm:-mx-5 -mb-4 sm:-mb-5 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setIsQuickSupplierModalOpen(false)}
@@ -2931,9 +3100,9 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* VIEW PAST PURCHASE DETAILS MODAL */}
       {viewPurchaseModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2.5 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
                   <Truck className="w-5 h-5" />
@@ -2953,7 +3122,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
               {isLoadingPurchaseDetails ? (
                 <div className="py-12 text-center text-slate-400 dark:text-slate-500 space-y-2">
                   <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
@@ -3062,7 +3231,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                   {/* Items List */}
                   <div>
                     <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-2 uppercase tracking-wider text-xs">Received Articles</h4>
-                    <div className="border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-hidden shadow-2xs">
+                    <div className="border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-x-auto shadow-2xs">
                       <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-purple-800/80">
                           <tr>
@@ -3118,7 +3287,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
               ) : null}
             </div>
 
-            <div className="px-6 py-3 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 flex items-center justify-between">
+            <div className="px-4 sm:px-6 py-3 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => {

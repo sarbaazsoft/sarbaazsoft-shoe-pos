@@ -77,7 +77,7 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
 
       {/* 3. Centered Loading Window */}
       <main className="relative z-10 flex-1 flex flex-col justify-center items-center px-4 py-8 sm:px-6">
-        <div className="w-full max-w-md mx-auto bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/50 dark:border-purple-800/70 text-center relative overflow-hidden transition-all duration-300">
+        <div className="w-full max-w-md mx-auto bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl border border-white/50 dark:border-purple-800/70 text-center relative overflow-hidden transition-all duration-300">
           {/* Top Decorative Gradient Accent Bar */}
           <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-emerald-500" />
 
@@ -111,7 +111,7 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
           </div>
 
           {/* Title & Badge */}
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-1">
+          <h2 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-1">
             {effectiveTitle}
           </h2>
 

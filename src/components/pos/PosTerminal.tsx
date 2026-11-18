@@ -26,6 +26,7 @@ import { QuickReceiveChips } from './QuickReceiveChips.tsx';
 import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { setHoldSwUpdate } from '../../utils/swUpdate.ts';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 export interface CartItem {
   productId: number;
@@ -67,6 +68,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   onClearInitialExchange,
   onNavigateTab,
 }) => {
+  const isDesktop = useIsDesktop();
   const { isActive } = useRouteActivity();
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
@@ -1562,7 +1564,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   };
 
   return (
-    <div className="flex flex-col min-h-0 bg-[#F8FAFC] dark:bg-[#0B0F17] gap-4 p-4 print:p-0 print:bg-white transition-colors">
+    <div className="flex flex-col min-h-0 bg-[#F8FAFC] dark:bg-[#0B0F17] gap-3 sm:gap-4 p-2.5 sm:p-4 print:p-0 print:bg-white transition-colors">
       {/* Persistent Top Banner for Cashier Notifications & SuperAdmin Notices */}
       <PosNotificationBanner
         currentUser={currentUser}
@@ -1570,7 +1572,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
         onNavigateTab={onNavigateTab}
       />
 
-      <div className="flex flex-col xl:flex-row min-h-0 gap-4 flex-1 no-print">
+      <div className="flex flex-col xl:flex-row min-h-0 gap-3 sm:gap-4 flex-1 no-print">
         {/* LEFT COLUMN: Physical Scanner & Cart Table */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -1653,7 +1655,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                             focusScannerInput(false);
                           }}
                           className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs cursor-pointer"
-                          title="Clear input (Esc)"
+                          title={isDesktop ? 'Clear input (Esc)' : 'Clear input'}
                           aria-label="Clear barcode input"
                         >
                           ✕
@@ -1850,7 +1852,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <ScanLine className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Barcode Scanner</span>
                     <span className="sm:hidden">Scan</span>
-                    <span className={`hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                    <span className={`hidden lg:inline text-[10px] font-mono px-1.5 py-0.2 rounded ${
                       inputMode === 'SCANNER' ? 'bg-white/20 text-white' : 'bg-black/10 dark:bg-white/10 text-slate-700 dark:text-slate-300'
                     }`}>Enter Mode</span>
                   </button>
@@ -1925,11 +1927,13 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                       ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
                       : 'bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border-amber-300/80 dark:border-amber-500/30 shadow-2xs'
                   }`}
-                  title={isWholesaleStore ? "Shoe Return (F4 or Ctrl+E)" : "Direct Shoe Return & Exchange (F4 or Ctrl+E)"}
+                  title={isDesktop
+                    ? (isWholesaleStore ? 'Shoe Return (F4 or Ctrl+E)' : 'Direct Shoe Return & Exchange (F4 or Ctrl+E)')
+                    : (isWholesaleStore ? 'Shoe Return' : 'Direct Shoe Return & Exchange')}
                 >
                   <Repeat className={`w-3.5 h-3.5 ${activeExchange ? 'text-slate-950 animate-spin' : 'text-amber-700 dark:text-amber-400'}`} style={{ animationDuration: '6s' }} />
                   <span>{isWholesaleStore ? 'Shoe Return' : 'Shoe Exchange'}</span>
-                  <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/10 dark:bg-white/10 text-slate-900 dark:text-amber-200">F4</span>
+                  <span className="hidden lg:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/10 dark:bg-white/10 text-slate-900 dark:text-amber-200">F4</span>
                   {activeExchange && (
                     <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
                   )}
@@ -1982,7 +1986,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <span>Manual typing & catalog search</span>
                   </div>
                 )}
-                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0E1628] px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800 hidden sm:inline-block">
+                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0E1628] px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800 hidden lg:inline-block">
                   [F3: Mode]
                 </span>
               </div>
@@ -2093,15 +2097,15 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
         {/* CART TABLE (STRICT SPEC: Product, Quantity, Unit Price, Discount, Total) */}
         <div className="flex-1 overflow-auto">
           {cart.length === 0 && !activeExchange ? (
-            <div className="h-full min-h-[320px] flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-8 text-center select-none">
-              <div className="w-20 h-20 rounded-2xl bg-slate-100 dark:bg-[#131B2E] flex items-center justify-center mb-4 border border-slate-200/80 dark:border-slate-800 shadow-inner">
-                <Barcode className="w-10 h-10 text-slate-400 dark:text-blue-400/70 stroke-[1.4]" />
+            <div className="h-full min-h-[200px] sm:min-h-[260px] lg:min-h-[320px] flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-5 sm:p-8 text-center select-none">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-2xl bg-slate-100 dark:bg-[#131B2E] flex items-center justify-center mb-3 sm:mb-4 border border-slate-200/80 dark:border-slate-800 shadow-inner">
+                <Barcode className="w-7 h-7 sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-slate-400 dark:text-blue-400/70 stroke-[1.4]" />
               </div>
-              <h3 className="font-bold text-slate-800 dark:text-white text-base">POS Cart is Empty</h3>
+              <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">POS Cart is Empty</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1 leading-relaxed">
                 Scan shoes using a physical Barcode Scanner or type Article number in the top input to begin checkout.
               </p>
-              <div className="mt-5 flex flex-wrap gap-2 justify-center text-[11px]">
+              <div className="hidden lg:flex mt-5 flex-wrap gap-2 justify-center text-[11px]">
                 <span className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full font-mono font-semibold shadow-2xs">
                   F2: Focus Scanner
                 </span>
@@ -2123,7 +2127,238 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               </div>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse text-xs">
+            <>
+            {/* Mobile Compact Card Cart View (< sm) — prevents horizontal overflow on phones */}
+            <div className="sm:hidden divide-y divide-slate-100 dark:divide-[#1A263D] text-xs">
+              {activeExchange &&
+                activeExchange.items.map((retItem, idx) => (
+                  <div
+                    key={`mobile-exchange-ret-${retItem.saleItemId || idx}`}
+                    className="p-3 bg-amber-50/70 dark:bg-amber-950/20 text-amber-950 dark:text-amber-200 flex items-start justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-300 dark:bg-amber-900/80 text-slate-900 dark:text-amber-200 border border-amber-400 dark:border-amber-700">
+                          {isWholesaleStore ? 'RETURN' : 'EXCHANGE'}
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-white line-through opacity-85 truncate">
+                          {retItem.productName}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-amber-800 dark:text-amber-300 mt-1">
+                        Inv #{activeExchange.originalInvoiceNumber} • Qty -{retItem.quantity} × {currencySymbol} {formatStockPrice(retItem.unitRefundPrice)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">
+                        -{currencySymbol} {formatStockPrice(retItem.subtotal)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveExchange(null);
+                          onClearInitialExchange?.();
+                        }}
+                        className="p-1.5 text-amber-700 dark:text-amber-400 hover:text-red-700 rounded-lg cursor-pointer"
+                        title="Remove Exchange Credit"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+              {cart.map((item, idx) => {
+                const isItemFixed = isFixedPolicy;
+                const cost = item.costPrice || 0;
+                const itemMinFloor = Math.round(item.minSalePrice || (isItemFixed ? item.unitPrice : 0));
+                const itemMaxPrice = Math.round(item.maxSalePrice || item.unitPrice || 0);
+                const isBelowFloor = !isItemFixed && itemMinFloor > 0 && item.unitPrice < itemMinFloor;
+                const isAboveMax = !isItemFixed && itemMaxPrice > 0 && item.unitPrice > itemMaxPrice;
+                const isLoss = cost > 0 && item.unitPrice < cost;
+                const lotSize = Number(item.pairsPerCarton || 12) === 16 ? 16 : 12;
+                const isItemHalfAllowed = isHalfCartonAllowed(item, companySettings);
+                const wholesaleStep = isItemHalfAllowed ? (lotSize / 2) : lotSize;
+                const isMinusDisabled = isWholesaleStore && item.quantity <= wholesaleStep;
+
+                return (
+                  <div
+                    key={`mobile-cart-row-${item.productId}`}
+                    className={`p-3 space-y-2.5 ${
+                      isBelowFloor || isAboveMax
+                        ? 'bg-rose-50/50 dark:bg-rose-950/20 border-l-4 border-l-rose-500'
+                        : ''
+                    }`}
+                  >
+                    {/* Header: Index, Name, Line Total & Remove */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="cart-no px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-bold text-slate-900 dark:text-white text-sm leading-tight">
+                            {item.article || item.name}
+                          </span>
+                          {item.brandName && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                              <BrandLogo logo={item.brandLogo} name={item.brandName} size="xs" />
+                              {item.brandName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10.5px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 truncate">
+                          {item.barcode}
+                          {isWholesaleStore ? ` • ${lotSize} pr/ctn` : ` • ${isItemFixed ? 'Fixed' : 'Negotiable'}`}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
+                          {currencySymbol} {formatStockPrice(item.subtotal)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.productId)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg cursor-pointer"
+                          aria-label={`Remove ${item.article || item.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Warnings */}
+                    {isBelowFloor && (
+                      <div className="p-2 bg-rose-100/90 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-lg flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-rose-800 dark:text-rose-200 font-semibold">
+                          {isLoss ? 'Below Cost!' : `Min: ${currencySymbol} ${formatStockPrice(itemMinFloor)}`}
+                        </span>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            updateUnitPrice(item.productId, itemMinFloor);
+                            playAudioFeedback.barcodeScan();
+                          }}
+                          className="px-2 py-1 bg-rose-600 text-white rounded font-bold shrink-0 cursor-pointer"
+                        >
+                          Set Min Floor
+                        </button>
+                      </div>
+                    )}
+                    {isAboveMax && (
+                      <div className="p-2 bg-amber-100/90 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 rounded-lg flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-amber-800 dark:text-amber-200 font-semibold">
+                          Max: {currencySymbol} {formatStockPrice(itemMaxPrice)}
+                        </span>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            updateUnitPrice(item.productId, itemMaxPrice);
+                            playAudioFeedback.barcodeScan();
+                          }}
+                          className="px-2 py-1 bg-amber-600 text-white rounded font-bold shrink-0 cursor-pointer"
+                        >
+                          Set Max Price
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Quantity Steppers & Unit Price */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isMinusDisabled) return;
+                            updateQuantity(item.productId, -1);
+                          }}
+                          disabled={isMinusDisabled}
+                          className={`p-2 rounded-lg transition border ${
+                            isMinusDisabled
+                              ? 'bg-slate-100/60 dark:bg-slate-800/40 text-slate-400 border-slate-200/40 cursor-not-allowed opacity-40'
+                              : 'bg-slate-100 dark:bg-[#131B2E] text-slate-700 dark:text-slate-300 active:scale-95 border-slate-200 dark:border-slate-700 cursor-pointer'
+                          }`}
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <CartQuantityInput
+                          item={item}
+                          isWholesaleStore={isWholesaleStore}
+                          allowHalfCarton={isItemHalfAllowed}
+                          minSaleQuantity={wholesaleStep}
+                          onCommitQuantity={(productId, exactQty) => updateDirectQuantity(productId, exactQty)}
+                          onValidationAlert={(msg, type) => triggerValidationToast(msg, type, isWholesaleStore ? 'Wholesale Quantity Alert' : 'Quantity Alert')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.productId, 1)}
+                          disabled={item.quantity >= item.totalStock}
+                          className="p-2 rounded-lg bg-slate-100 dark:bg-[#131B2E] text-slate-700 dark:text-slate-300 active:scale-95 disabled:opacity-40 transition border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        {isWholesaleStore && (
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.productId, lotSize)}
+                            disabled={item.quantity >= item.totalStock}
+                            className="px-2 py-2 text-[10px] font-bold rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 active:scale-95 disabled:opacity-40 transition border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                          >
+                            +1 Ctn
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-slate-400 font-mono">{currencySymbol}</span>
+                        {isWholesaleStore ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.unitPrice}
+                            onChange={(e) => {
+                              const val = Math.round(parseFloat(cleanStockPriceInput(e.target.value)) || 0);
+                              updateUnitPrice(item.productId, val);
+                            }}
+                            className="w-20 text-right px-2 py-1.5 rounded-lg border font-mono text-xs font-bold border-indigo-200 dark:border-indigo-800 bg-white dark:bg-[#0A0E1A] text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                          />
+                        ) : isItemFixed ? (
+                          <span className="px-2 py-1.5 rounded-lg border font-mono text-xs font-bold bg-slate-100 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800">
+                            {formatStockPrice(item.unitPrice)}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.unitPrice}
+                            onChange={(e) => {
+                              const val = Math.round(parseFloat(cleanStockPriceInput(e.target.value)) || 0);
+                              updateUnitPrice(item.productId, val);
+                            }}
+                            onBlur={(e) => {
+                              const val = Math.round(parseFloat(cleanStockPriceInput(e.target.value)) || 0);
+                              handleCartPriceBlur(item.productId, val);
+                            }}
+                            className={`w-20 text-right px-2 py-1.5 rounded-lg border font-mono text-xs font-bold outline-none ${
+                              isBelowFloor || isAboveMax
+                                ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/40 text-rose-950 dark:text-rose-200'
+                                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0A0E1A] text-slate-900 dark:text-white'
+                            }`}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <table className="hidden sm:table w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-600 dark:text-white font-semibold border-b border-slate-200 dark:border-purple-800/80 z-10 uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-2.5 px-4">{isWholesaleStore ? 'Article / Wholesale Packaging' : 'Article'}</th>
@@ -2538,13 +2773,14 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 })}
               </tbody>
             </table>
+            </>
           )}
         </div>
 
         {/* Cart Bottom Bar */}
         {cart.length > 0 && (
-          <div className="p-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-between text-xs text-slate-600 dark:text-white">
-            <div className="flex space-x-4 items-center">
+          <div className="p-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-white">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
               <span className="flex items-center gap-1.5">
                 <span>Rows:</span>
                 <strong className="cart-no px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-bold">
@@ -2562,25 +2798,25 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               id="pos-delete-sale-cart-btn"
               type="button"
               onClick={handleDeleteSale}
-              className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white rounded-lg font-bold flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-              title="Delete active sale / clear cart (F8)"
+              className="px-3 py-2 lg:py-1.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white rounded-lg font-bold flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              title={isDesktop ? 'Delete active sale / clear cart (F8)' : 'Delete active sale / clear cart'}
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Delete Sale</span>
-              <kbd className="text-[10px] bg-white/20 text-white px-1 py-0.2 rounded font-mono">F8</kbd>
+              <kbd className="hidden lg:inline-flex text-[10px] bg-white/20 text-white px-1 py-0.2 rounded font-mono">F8</kbd>
             </button>
           </div>
         )}
       </motion.div>
 
       {/* RIGHT COLUMN: Customer, Payment, Cash Tender & Checkout */}
-      <div className="w-full xl:w-96 shrink-0 flex flex-col gap-4">
+      <div className="w-full xl:w-96 shrink-0 flex flex-col gap-3 sm:gap-4">
         {/* Customer Selector Card (High-Volume Searchable Combobox & Find Customer Modal) */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-          className="app-card p-4 transition-colors relative z-20"
+          className="app-card p-3.5 sm:p-4 transition-colors relative z-20"
         >
           <CustomerPicker
             customers={customers}
@@ -2605,7 +2841,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.14, ease: [0.16, 1, 0.3, 1] }}
-          className="app-card p-4 flex-1 flex flex-col justify-between transition-colors"
+          className="app-card p-3.5 sm:p-4 flex-1 flex flex-col justify-between transition-colors"
         >
           <div className="space-y-3.5">
             <div className="flex items-center justify-between">
@@ -2825,7 +3061,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
             {/* BIG TOTAL PAYABLE / NET EXCHANGE STATUS BOX WITH TACTILE POP ANIMATION */}
             <div
-              className={`p-4 rounded-2xl text-center shadow-md relative overflow-hidden transition-colors duration-300 ${
+              className={`p-3.5 sm:p-4 rounded-2xl text-center shadow-md relative overflow-hidden transition-colors duration-300 ${
                 isEvenExchange
                   ? 'bg-[#0f2e24] border border-emerald-600/80 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
                   : isCustomerRefund
@@ -2890,7 +3126,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     damping: 22,
                     mass: 0.6,
                   }}
-                  className="text-3xl font-black text-white font-mono tracking-tight select-none inline-flex items-center gap-1.5"
+                  className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight select-none inline-flex items-center gap-1.5"
                 >
                   <span>{currencySymbol}</span>
                   <span>{formatStockPrice(isCustomerRefund ? customerRefundAmount : netTotalPayable)}</span>
@@ -2932,7 +3168,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     }
                     selectPaymentMethod(method);
                   }}
-                  className={`py-2 px-2.5 rounded-xl font-bold flex items-center justify-center space-x-1.5 transition text-[11px] cursor-pointer ${
+                  className={`py-2.5 lg:py-2 px-2.5 rounded-xl font-bold flex items-center justify-center space-x-1.5 transition text-[11px] cursor-pointer ${
                     isWholesaleStore && method === 'SPLIT' ? 'col-span-2' : ''
                   } ${
                     paymentMethod === method
@@ -3623,7 +3859,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               id="pos-print-receipt-btn"
               onClick={() => handlePrintReceiptAction()}
               disabled={cart.length === 0 || isSubmitting}
-              className={`w-full py-3.5 text-base font-extrabold rounded-xl shadow-lg flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.98] disabled:opacity-50 transition-all ${
+              className={`w-full py-3.5 text-sm sm:text-base font-extrabold rounded-xl shadow-lg flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.98] disabled:opacity-50 transition-all ${
                 activeExchange
                   ? 'bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-black shadow-amber-500/25'
                   : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_24px_rgba(147,51,234,0.4)]'
@@ -3631,15 +3867,20 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
             >
               {activeExchange ? <Repeat className="w-5 h-5" /> : <Printer className="w-5 h-5" />}
               <span>
-                {isSubmitting
-                  ? 'Recording Transaction...'
-                  : isEvenExchange
-                  ? (isWholesaleStore ? 'Complete Even Return Settlement (F9)' : 'Complete Even Shoe Exchange (F9)')
-                  : isCustomerRefund
-                  ? (isWholesaleStore ? 'Authorize Return & Refund Difference (F9)' : 'Authorize Exchange & Refund Difference (F9)')
-                  : activeExchange
-                  ? (isWholesaleStore ? 'Authorize Return & Print Invoice (F9)' : 'Authorize Exchange & Print Receipt (F9)')
-                  : (isWholesaleStore ? 'Print Invoice & Complete (F9)' : 'Print Receipt & Complete (F9)')}
+                {isSubmitting ? (
+                  'Recording Transaction...'
+                ) : (
+                  <>
+                    {isEvenExchange
+                      ? (isWholesaleStore ? 'Complete Even Return Settlement' : 'Complete Even Shoe Exchange')
+                      : isCustomerRefund
+                      ? (isWholesaleStore ? 'Authorize Return & Refund Difference' : 'Authorize Exchange & Refund Difference')
+                      : activeExchange
+                      ? (isWholesaleStore ? 'Authorize Return & Print Invoice' : 'Authorize Exchange & Print Receipt')
+                      : (isWholesaleStore ? 'Print Invoice & Complete' : 'Print Receipt & Complete')}
+                    <span className="hidden lg:inline"> (F9)</span>
+                  </>
+                )}
               </span>
             </button>
 
@@ -3648,12 +3889,12 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 type="button"
                 id="pos-delete-sale-btn"
                 onClick={handleDeleteSale}
-                className="w-full py-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/60 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition active:scale-98 cursor-pointer"
-                title="Delete active sale / cancel transaction (F8)"
+                className="w-full py-2.5 lg:py-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/60 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition active:scale-98 cursor-pointer"
+                title={isDesktop ? 'Delete active sale / cancel transaction (F8)' : 'Delete active sale / cancel transaction'}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Active Sale / Cancel Exchange</span>
-                <kbd className="text-[10px] bg-rose-200/80 dark:bg-rose-900/80 text-rose-800 dark:text-rose-200 px-1.5 py-0.2 rounded font-mono">F8</kbd>
+                <kbd className="hidden lg:inline-flex text-[10px] bg-rose-200/80 dark:bg-rose-900/80 text-rose-800 dark:text-rose-200 px-1.5 py-0.2 rounded font-mono">F8</kbd>
               </button>
             )}
 
@@ -3673,10 +3914,10 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
       {/* ADMIN OVERRIDE MODAL FOR MIN SALE PRICE VIOLATION */}
       {showAdminOverrideModal && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden max-h-[92vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white">
+            <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white shrink-0">
               <div className="flex items-center space-x-3 text-amber-600 dark:text-amber-400">
                 <div className="p-2 bg-amber-100 dark:bg-amber-950/60 rounded-xl">
                   <ShieldAlert className="w-5 h-5" />
@@ -3706,9 +3947,9 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   pass: overrideAdminPassword,
                 });
               }}
-              className="flex flex-col"
+              className="flex flex-col flex-1 min-h-0 overflow-hidden"
             >
-              <div className="p-6 space-y-3 text-xs">
+              <div className="p-4 sm:p-6 space-y-3 text-xs overflow-y-auto flex-1">
                 {overridePendingItem && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs space-y-1 text-amber-900 dark:text-amber-200">
                     <p><strong>Item:</strong> {overridePendingItem.name}</p>
@@ -3774,7 +4015,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-2">
+              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {

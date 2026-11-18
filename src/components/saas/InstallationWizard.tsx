@@ -123,15 +123,15 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
         className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80"
       >
         {/* MODAL HEADER ALIGNED WITH PRODUCT FORM MODAL */}
-        <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-6 py-4 shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+        <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4 shrink-0">
+          <div className="flex items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-purple-500/20 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
                 <ShieldCheck className="w-4 h-4" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                     Install your platform
                   </h1>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-200 border border-purple-200 dark:border-purple-400/30">
@@ -145,7 +145,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <span
                 className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono font-bold ${
                   status?.dbReady
@@ -173,7 +173,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
         {/* WIZARD FORM CONTENT ALIGNED WITH PRODUCT FORM MODAL */}
         <form
           onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto p-6 space-y-5 text-xs bg-slate-50/50 dark:bg-[#070B14]"
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs bg-slate-50/50 dark:bg-[#070B14]"
         >
           {status && !status.dbReady && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100 flex items-start gap-2.5">
@@ -232,7 +232,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
           {!status?.hasSuperAdmin && (
             <>
               {/* CARD 1: SUPERADMIN IDENTITY (Aligned with ProductFormModal & SettingsView inputs) */}
-              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
+              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-3.5 sm:p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
                   <h5 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <User className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
@@ -334,7 +334,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
               </div>
 
               {/* CARD 2: SECURITY & CREDENTIALS (Aligned with ProductFormModal & SettingsView inputs) */}
-              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
+              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-3.5 sm:p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
                   <h5 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <Lock className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
@@ -475,7 +475,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
           )}
 
           {/* FOOTER NAVIGATION & ACTION BUTTONS ALIGNED WITH PRODUCT FORM MODAL */}
-          <div className="pt-4 -mx-6 -mb-6 p-6 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-gray-200 dark:border-purple-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="pt-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 p-4 sm:p-6 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-gray-200 dark:border-purple-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="text-[11px] text-slate-500 dark:text-purple-200/80 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-300 shrink-0" />
               <span>
@@ -483,7 +483,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
               </span>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
               {status?.installed && (
                 <button
                   type="button"

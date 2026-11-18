@@ -116,17 +116,17 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   };
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
       <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 my-auto">
         {/* Header with Gradient Accent */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">
-          <div className="flex items-center space-x-3.5">
-            <div className="w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-sm shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">
+          <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs sm:text-sm shadow-2xs shrink-0">
               {initials}
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">{customer.name}</h3>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight truncate">{customer.name}</h3>
                 {(customer.shop_name || customer.shopName) && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
                     {customer.shop_name || customer.shopName}
@@ -151,7 +151,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
             <button
               type="button"
               onClick={() => setIsRecordingPayment((prev) => !prev)}
@@ -178,7 +178,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-4 text-xs">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-3.5 sm:space-y-4 text-xs">
           {/* Notification Messages */}
           {paymentSuccessMsg && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
@@ -278,74 +278,74 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
           )}
 
           {/* KPI Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
             {/* Outstanding Khata Balance */}
-            <div className={`p-4 rounded-xl border ${
+            <div className={`col-span-2 sm:col-span-1 p-3 sm:p-4 rounded-xl border ${
               outstandingBalance > 0
                 ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60'
                 : 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60'
             }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Outstanding Khata Balance
                 </span>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
                   outstandingBalance > 0
                     ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
                     : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300'
                 }`}>
-                  <BookOpen className="w-4 h-4" />
+                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className={`mt-2 text-2xl font-black font-mono tracking-tight ${
+              <div className={`mt-1.5 sm:mt-2 text-lg sm:text-2xl font-black font-mono tracking-tight ${
                 outstandingBalance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
               }`}>
                 {currencySymbol} {formatStockPrice(outstandingBalance)}
               </div>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-[10.5px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 {outstandingBalance > 0 ? 'Unpaid balance carried forward' : 'Account in good standing (Nil)'}
               </span>
             </div>
 
             {/* Total Orders Placed */}
-            <div className="app-stat-card p-4 rounded-xl border border-slate-200 dark:border-purple-800/80">
-              <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="app-stat-card p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-purple-800/80">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Total Orders Placed
                 </span>
-                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-500/30 flex items-center justify-center">
-                  <ShoppingBag className="w-4 h-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-500/30 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-2 text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+              <div className="mt-1.5 sm:mt-2 text-lg sm:text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
                 {totalOrders} {totalOrders === 1 ? 'invoice' : 'invoices'}
               </div>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Recorded sales invoices</span>
+              <span className="text-[10.5px] sm:text-[11px] text-slate-400 dark:text-slate-500 font-medium">Recorded sales invoices</span>
             </div>
 
             {/* Lifetime Spend Value */}
-            <div className="app-stat-card p-4 rounded-xl border border-slate-200 dark:border-purple-800/80">
-              <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="app-stat-card p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-purple-800/80">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Lifetime Spend Value
                 </span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+              <div className="mt-1.5 sm:mt-2 text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
                 {currencySymbol} {formatStockPrice(totalSpent)}
               </div>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Cumulative account purchases</span>
+              <span className="text-[10.5px] sm:text-[11px] text-slate-400 dark:text-slate-500 font-medium">Cumulative account purchases</span>
             </div>
           </div>
 
           {/* TAB SELECTOR: Khata Ledger vs Sales Invoices */}
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pt-2">
+          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pt-2 overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={() => setActiveTab('ledger')}
-              className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 transition cursor-pointer ${
+              className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'ledger'
                   ? 'border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-300'
                   : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
@@ -358,7 +358,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('sales')}
-              className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 transition cursor-pointer ${
+              className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'sales'
                   ? 'border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-300'
                   : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
@@ -474,6 +474,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                 </div>
               ) : (
                 <div className="border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50/90 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-600 dark:text-white font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-purple-800/80">
                       <tr>
@@ -523,6 +524,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                       })}
                     </tbody>
                   </table>
+                  </div>
 
                   {sales.length > visibleSalesCount && (
                     <div className="p-2.5 text-center bg-slate-50/70 dark:bg-[#0B1120] border-t border-slate-200 dark:border-purple-900/50">
@@ -542,7 +544,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex justify-between items-center">
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap justify-between items-center gap-2">
           <div className="text-[11px] text-slate-500 font-mono">
             Khata Balance: <strong className={outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}>{currencySymbol} {formatStockPrice(outstandingBalance)}</strong>
           </div>

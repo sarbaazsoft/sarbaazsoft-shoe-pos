@@ -273,7 +273,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   return (
     <div
       id="user-profile-modal-backdrop"
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
     >
       <div
         id="user-profile-modal-card"
@@ -281,16 +281,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-          <div className="flex items-center space-x-3">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
             <UserAvatar
               name={currentUser?.name}
               avatarUrl={avatarUrl || currentUser?.avatarUrl || currentUser?.avatar_url}
               role={currentUser?.role}
               size="md"
             />
-            <div>
-              <div className="flex items-center space-x-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">My Account &amp; Profile</h3>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
@@ -329,7 +329,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <div 
           ref={profileTabContainerRef}
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          className="flex border-b border-slate-200 dark:border-[#1A263D] bg-slate-50/80 dark:bg-slate-950/60 px-6 pt-2.5 space-x-6 overflow-x-auto no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden"
+          className="flex border-b border-slate-200 dark:border-[#1A263D] bg-slate-50/80 dark:bg-slate-950/60 px-4 sm:px-6 pt-2.5 space-x-5 sm:space-x-6 overflow-x-auto no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden shrink-0"
         >
           <button
             id="profile-details-tab-btn"
@@ -379,7 +379,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 max-h-[calc(90vh-140px)] overflow-y-auto">
+        <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'profile' && (
             <form onSubmit={handleUpdateProfile} className="space-y-5">
               {profileSuccess && (
@@ -464,7 +464,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </div>
 
                     {/* Secondary Actions: URL Toggle & Remove */}
-                    <div className="flex items-center justify-between text-[11px] pt-0.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-0.5">
                       <button
                         type="button"
                         onClick={() => setIsUrlInputVisible(!isUrlInputVisible)}
@@ -601,7 +601,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Role & Status (Display Only) */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200 dark:border-[#1A263D] flex items-center justify-between text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200 dark:border-[#1A263D] flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center space-x-2">
                   <Shield className={`w-4 h-4 ${isSuperAdmin ? 'text-purple-600 dark:text-purple-400' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="text-slate-600 dark:text-slate-300 font-medium">Assigned Role:</span>
@@ -616,7 +616,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Desktop App & PWA Installation */}
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200 dark:border-[#1A263D] flex items-center justify-between gap-3 text-xs">
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-200 dark:border-[#1A263D] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-3 text-xs">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                     <Monitor className="w-4 h-4" />
@@ -641,7 +641,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="px-6 py-4 -mx-6 -mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-3">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={onClose}
@@ -811,7 +811,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="px-6 py-4 -mx-6 -mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-3">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={onClose}

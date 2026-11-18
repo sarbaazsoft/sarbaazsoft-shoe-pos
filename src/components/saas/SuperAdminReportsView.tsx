@@ -431,10 +431,10 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
       >
         <div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+          <h2 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
             Platform Reports &amp; Analytics
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-purple-200/80 font-medium mt-0.5">
@@ -442,12 +442,12 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           {/* Store Scope Selector */}
           <select
             value={storeScope}
             onChange={(e) => setStoreScope(e.target.value)}
-            className="px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-100 border border-slate-200 dark:border-purple-400/40 font-bold rounded-xl transition cursor-pointer text-xs outline-none"
+            className="w-full sm:w-auto max-w-full px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-100 border border-slate-200 dark:border-purple-400/40 font-bold rounded-xl transition cursor-pointer text-xs outline-none"
           >
             <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
               All Deployed Stores ({stores.length})
@@ -483,7 +483,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           <button
             type="button"
             onClick={handleExportCsv}
-            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+            className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3.5 sm:px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
             title="Export current report view to CSV"
           >
             <Download className="w-4 h-4" />
@@ -493,7 +493,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
       </motion.div>
 
       {/* KPI Cards (4-Column Bento Grid) with Animated Counters - Aligned with Store ReportsDashboard */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 lg:gap-4">
         {/* CARD 1: DEPLOYED STORES COUNT */}
         <StatCard
           id="stat-sa-reports-stores"
@@ -505,7 +505,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           sparkline="purple"
           valueClassName="font-mono text-purple-700 dark:text-purple-400"
           subtext={
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] sm:text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                 {activeCount} active
               </span>
@@ -530,7 +530,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           sparkline="emerald"
           valueClassName="font-mono text-slate-900 dark:text-white"
           subtext={
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] sm:text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                 {totalUnitsSold.toLocaleString()} pairs sold
               </span>
@@ -555,7 +555,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           sparkline="blue"
           valueClassName="font-mono text-blue-700 dark:text-cyan-400"
           subtext={
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] sm:text-[11px]">
               <span className="text-slate-500 dark:text-slate-400 font-medium">
                 Revenue Share
               </span>
@@ -580,7 +580,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           sparkline="amber"
           valueClassName="font-mono text-amber-600 dark:text-amber-400"
           subtext={
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] sm:text-[11px]">
               <span className="text-amber-700 dark:text-amber-400 font-semibold">
                 {totalStockUnits.toLocaleString()} units in stock
               </span>
@@ -610,12 +610,12 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.15 }}
-        className="app-card p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
+        className="app-card p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
       >
         {/* Tab Buttons - Responsive Scrollable Underline Navigation */}
         <div
           ref={reportsTabContainerRef}
-          className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-0 no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden border-b border-slate-200/80 dark:border-purple-900/50"
+          className="w-full lg:w-auto flex items-center gap-1 sm:gap-2 overflow-x-auto pb-0 no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden border-b border-slate-200/80 dark:border-purple-900/50"
         >
           <button
             type="button"
@@ -801,12 +801,12 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left Card: Top Revenue Generating Stores & Store Counting Breakdown */}
-            <div className="app-card p-5 flex flex-col justify-between transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
+            <div className="app-card p-3.5 sm:p-5 flex flex-col justify-between transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
               <div>
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-purple-800/60 pb-3 mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-purple-800/60 pb-3 mb-4">
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-white flex items-center space-x-2 text-sm">
-                      <Award className="w-4 h-4 text-amber-500" />
+                      <Award className="w-4 h-4 text-amber-500 shrink-0" />
                       <span>Top Revenue Generating Stores</span>
                     </h3>
                     <p className="text-[11px] text-slate-400 dark:text-purple-200/70">
@@ -816,14 +816,14 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveSubTab('store_leaderboard')}
-                    className="text-[11px] font-bold text-purple-600 dark:text-purple-300 hover:underline cursor-pointer"
+                    className="text-[11px] font-bold text-purple-600 dark:text-purple-300 hover:underline cursor-pointer shrink-0"
                   >
                     Full Leaderboard &rarr;
                   </button>
                 </div>
 
                 {/* Store Counting Summary Pills */}
-                <div className="grid grid-cols-4 gap-2 mb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                   <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/75 border border-slate-200/70 dark:border-purple-800/50 text-center">
                     <div className="text-[10px] font-semibold text-slate-400 dark:text-purple-200/70 uppercase">
                       Total
@@ -917,7 +917,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                 )}
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-purple-800/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-purple-200/80 font-mono">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-slate-500 dark:text-purple-200/80 font-mono">
                 <span>
                   Staff: <strong>{totalStaff}</strong> • Customers: <strong>{totalCustomers}</strong>
                 </span>
@@ -928,12 +928,12 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             </div>
 
             {/* Right Card: Best Selling Footwear Models (Top Products) */}
-            <div className="app-card p-5 flex flex-col justify-between transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
+            <div className="app-card p-3.5 sm:p-5 flex flex-col justify-between transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
               <div>
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-purple-800/60 pb-3 mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-purple-800/60 pb-3 mb-4">
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-white flex items-center space-x-2 text-sm">
-                      <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <Package className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
                       <span>Best Selling Footwear Models (Top Products)</span>
                     </h3>
                     <p className="text-[11px] text-slate-400 dark:text-purple-200/70">
@@ -943,7 +943,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveSubTab('top_products')}
-                    className="text-[11px] font-bold text-purple-600 dark:text-purple-300 hover:underline cursor-pointer"
+                    className="text-[11px] font-bold text-purple-600 dark:text-purple-300 hover:underline cursor-pointer shrink-0"
                   >
                     View All Products &rarr;
                   </button>
@@ -999,7 +999,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
               </div>
 
               {/* Tenant SaaS Health & Subscription Tier Mini Summary */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-purple-800/60 grid grid-cols-2 gap-2 text-[11px]">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-purple-800/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                 <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/60">
                   <span className="text-slate-500 dark:text-purple-200/80 flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-purple-500" />
@@ -1023,11 +1023,11 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           </div>
 
           {/* Bottom Card: Recent Platform POS Sales Activity (Aligned with Store ReportsDashboard) */}
-          <div className="app-card p-5 transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-purple-800/60 pb-3 mb-4">
+          <div className="app-card p-3.5 sm:p-5 transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-purple-800/60 pb-3 mb-4">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white flex items-center space-x-2 text-sm">
-                  <Receipt className="w-4 h-4 text-blue-600 dark:text-purple-400" />
+                  <Receipt className="w-4 h-4 text-blue-600 dark:text-purple-400 shrink-0" />
                   <span>Recent Platform POS Sales Activity</span>
                 </h3>
                 <p className="text-[11px] text-slate-400 dark:text-purple-200/70">
@@ -1037,7 +1037,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveSubTab('sales_ledger')}
-                className="text-[11px] font-bold text-purple-600 dark:text-purple-300 hover:underline cursor-pointer"
+                className="text-[11px] font-bold text-purple-600 dark:text-purple-300 hover:underline cursor-pointer shrink-0"
               >
                 Full Sales Ledger &rarr;
               </button>
@@ -1048,55 +1048,91 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                 No recent sales transactions recorded
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-purple-800/60 text-[10px] text-slate-400 dark:text-purple-200/70 uppercase">
-                      <th className="py-2 px-3">Invoice #</th>
-                      <th className="py-2 px-3">Store</th>
-                      <th className="py-2 px-3">Date &amp; Time</th>
-                      <th className="py-2 px-3">Customer</th>
-                      <th className="py-2 px-3">Payment</th>
-                      <th className="py-2 px-3 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-purple-800/40">
-                    {filteredTransactions.slice(0, 6).map((tx) => (
-                      <tr
-                        key={`${tx.tenantId}-${tx.id}`}
-                        className="hover:bg-slate-50/80 dark:hover:bg-purple-900/20"
-                      >
-                        <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-cyan-400">
+              <>
+                <div className="sm:hidden space-y-2">
+                  {filteredTransactions.slice(0, 6).map((tx) => (
+                    <div
+                      key={`mob-recent-${tx.tenantId}-${tx.id}`}
+                      className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/70 border border-slate-200/60 dark:border-purple-800/50 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono font-bold text-blue-600 dark:text-cyan-400 truncate">
                           {tx.invoiceNumber}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => tx.tenantId && onOpenStore(tx.tenantId)}
-                            className="font-bold text-slate-800 dark:text-slate-200 hover:text-purple-600 dark:hover:text-purple-300 cursor-pointer"
-                          >
-                            {tx.storeName}
-                          </button>
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono">
-                          {tx.saleDate}
-                        </td>
-                        <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">
-                          {tx.customerName || 'Walk-in Customer'}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
-                            {tx.paymentMethod || 'CASH'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-white font-mono">
+                        </span>
+                        <span className="font-black text-slate-900 dark:text-white font-mono shrink-0">
                           {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
-                        </td>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => tx.tenantId && onOpenStore(tx.tenantId)}
+                          className="font-bold text-slate-800 dark:text-slate-200 hover:text-purple-600 truncate text-left cursor-pointer"
+                        >
+                          {tx.storeName}
+                        </button>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase shrink-0">
+                          {tx.paymentMethod || 'CASH'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                        <span className="truncate">{tx.customerName || 'Walk-in Customer'}</span>
+                        <span className="font-mono shrink-0">{tx.saleDate}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 dark:border-purple-800/60 text-[10px] text-slate-400 dark:text-purple-200/70 uppercase">
+                        <th className="py-2 px-3">Invoice #</th>
+                        <th className="py-2 px-3">Store</th>
+                        <th className="py-2 px-3">Date &amp; Time</th>
+                        <th className="py-2 px-3">Customer</th>
+                        <th className="py-2 px-3">Payment</th>
+                        <th className="py-2 px-3 text-right">Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-purple-800/40">
+                      {filteredTransactions.slice(0, 6).map((tx) => (
+                        <tr
+                          key={`${tx.tenantId}-${tx.id}`}
+                          className="hover:bg-slate-50/80 dark:hover:bg-purple-900/20"
+                        >
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-cyan-400">
+                            {tx.invoiceNumber}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <button
+                              type="button"
+                              onClick={() => tx.tenantId && onOpenStore(tx.tenantId)}
+                              className="font-bold text-slate-800 dark:text-slate-200 hover:text-purple-600 dark:hover:text-purple-300 cursor-pointer"
+                            >
+                              {tx.storeName}
+                            </button>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono">
+                            {tx.saleDate}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">
+                            {tx.customerName || 'Walk-in Customer'}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
+                              {tx.paymentMethod || 'CASH'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-white font-mono">
+                            {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1105,7 +1141,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
       {/* TAB 2: STORE LEADERBOARD (Full Table Aligned with Store ReportsDashboard) */}
       {activeSubTab === 'store_leaderboard' && (
         <div className="app-card overflow-hidden transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
-          <div className="p-4 border-b border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
             <div>
               <span className="font-bold text-slate-700 dark:text-slate-200">
                 Showing {rankedStores.length} Deployed Stores
@@ -1114,7 +1150,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                 (Active: {activeCount} • Suspended: {suspendedCount} • Expired: {expiredCount})
               </span>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <div className="text-slate-600 dark:text-slate-300 font-medium">
                 Filtered Revenue:{' '}
                 <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">
@@ -1133,7 +1169,91 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-800/40">
+            {rankedStores.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 dark:text-purple-200/60">
+                No stores match your filter criteria
+              </div>
+            ) : (
+              rankedStores.map((st, idx) => {
+                const rank = idx + 1;
+                const sharePct =
+                  totalRevenue > 0
+                    ? Math.min(100, Math.round((st.totalSales / totalRevenue) * 1000) / 10)
+                    : 0;
+                const effectiveStatus =
+                  st.subscriptionStatus === 'EXPIRED' || st.status === 'EXPIRED'
+                    ? 'EXPIRED'
+                    : st.status === 'SUSPENDED' || st.subscriptionStatus === 'SUSPENDED'
+                    ? 'SUSPENDED'
+                    : 'ACTIVE';
+
+                return (
+                  <div key={`mob-rank-${st.id}`} className="p-3.5 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-slate-500 dark:text-slate-300 shrink-0">
+                          #{rank}
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-white truncate">{st.name}</span>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono shrink-0 ${
+                          effectiveStatus === 'ACTIVE'
+                            ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                            : effectiveStatus === 'EXPIRED'
+                            ? 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                            : 'bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300'
+                        }`}
+                      >
+                        {effectiveStatus}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50/70 dark:bg-slate-900/50 rounded-xl p-2.5">
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Revenue ({sharePct}%)</div>
+                        <div className="font-black text-emerald-600 dark:text-emerald-400">
+                          {st.currency} {Math.round(st.totalSales).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 uppercase">Stock Value</div>
+                        <div className="font-semibold text-slate-700 dark:text-slate-200">
+                          {st.currency} {Math.round(st.inventoryValue || 0).toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Catalog</div>
+                        <div className="text-slate-700 dark:text-slate-200">
+                          {st.productCount.toLocaleString()} ({st.totalStockUnits.toLocaleString()} u)
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 uppercase">Sales</div>
+                        <div className="text-slate-700 dark:text-slate-200">
+                          {st.salesCount.toLocaleString()} inv • {(st.unitsSold || 0).toLocaleString()} sold
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => onOpenStore(st.id)}
+                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-purple-900/40 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-purple-300 rounded-lg transition inline-flex items-center space-x-1 font-semibold text-[11px] cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open POS</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-purple-800/60 text-[10px] text-slate-400 dark:text-purple-200/70 uppercase bg-slate-50 dark:bg-slate-900/60">
@@ -1243,7 +1363,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
       {/* TAB 3: TOP PERFORMING PRODUCTS (Aligned with Store ReportsDashboard Profit/Loss Table) */}
       {activeSubTab === 'top_products' && (
         <div className="app-card overflow-hidden transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
-          <div className="p-4 border-b border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
             <div className="font-bold text-slate-700 dark:text-slate-200">
               Showing Top {filteredTopProducts.length} Performing Products Across Stores
             </div>
@@ -1258,7 +1378,59 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-800/40">
+            {filteredTopProducts.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 dark:text-purple-200/60">
+                No products match your filter criteria
+              </div>
+            ) : (
+              filteredTopProducts.map((item, idx) => (
+                <div key={`mob-top-${item.tenantId}-${item.id}`} className="p-3.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 dark:text-white truncate">
+                        <span className="font-mono text-slate-400 mr-1.5">#{idx + 1}</span>
+                        {item.productName}
+                      </div>
+                      <div className="text-[10px] font-mono text-purple-600 dark:text-purple-300 truncate">
+                        {item.barcode} • {item.brand} ({item.category})
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenStore(item.tenantId)}
+                      className="font-bold text-[11px] text-blue-600 dark:text-cyan-400 hover:underline shrink-0 cursor-pointer"
+                    >
+                      {item.storeName}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-50/70 dark:bg-slate-900/50 rounded-xl p-2.5">
+                    <div>
+                      <div className="text-[10px] text-slate-400 uppercase">Price</div>
+                      <div className="font-semibold text-slate-800 dark:text-slate-200">
+                        {item.currency} {Math.round(item.sellingPrice).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-slate-400 uppercase">Sold / Stock</div>
+                      <div className="font-bold text-slate-900 dark:text-white">
+                        {item.unitsSold.toLocaleString()} / {item.totalStock.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-slate-400 uppercase">Revenue</div>
+                      <div className="font-black text-emerald-600 dark:text-emerald-400">
+                        {item.currency} {Math.round(item.totalRevenue).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-purple-800/60 text-[10px] text-slate-400 dark:text-purple-200/70 uppercase bg-slate-50 dark:bg-slate-900/60">
@@ -1346,13 +1518,13 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
       {/* TAB 4: PLATFORM SALES LEDGER (Aligned with Store ReportsDashboard Sales Ledger) */}
       {activeSubTab === 'sales_ledger' && (
         <div className="app-card overflow-hidden transition-colors dark:bg-gradient-to-br dark:from-purple-900/90 dark:via-indigo-950/95 dark:to-slate-900 dark:border-purple-800/80 dark:text-white">
-          <div className="p-4 border-b border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-900/50">
             <div>
               <span className="font-bold text-slate-700 dark:text-slate-200">
                 Showing {filteredTransactions.length} Transactions
               </span>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <div className="text-slate-600 dark:text-slate-300 font-medium">
                 Filtered Total:{' '}
                 <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono">
@@ -1371,7 +1543,46 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-800/40">
+            {filteredTransactions.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 dark:text-purple-200/60">
+                No sales match your filter criteria
+              </div>
+            ) : (
+              filteredTransactions.slice(0, visibleTransactionsCount).map((tx) => (
+                <div key={`mob-ledger-${tx.tenantId}-${tx.id}`} className="p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono font-bold text-blue-600 dark:text-cyan-400 truncate">
+                      {tx.invoiceNumber}
+                    </span>
+                    <span className="font-black text-slate-900 dark:text-white font-mono shrink-0">
+                      {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => tx.tenantId && onOpenStore(tx.tenantId)}
+                      className="font-bold text-slate-800 dark:text-slate-100 hover:text-purple-600 truncate text-left cursor-pointer"
+                    >
+                      {tx.storeName}
+                    </button>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 uppercase shrink-0">
+                      {tx.paymentMethod || 'CASH'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                    <span className="truncate">
+                      {tx.customerName || 'Walk-in Customer'} • {tx.cashierName || 'Counter Staff'}
+                    </span>
+                    <span className="font-mono shrink-0">{tx.saleDate}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-purple-800/60 text-[10px] text-slate-400 dark:text-purple-200/70 uppercase bg-slate-50 dark:bg-slate-900/60">

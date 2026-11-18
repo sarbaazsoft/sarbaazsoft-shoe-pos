@@ -64,18 +64,18 @@ export const AnalyticsOverviewSkeleton: React.FC<{ showFilterBar?: boolean }> = 
     )}
 
     {/* 4 KPI Summary Cards matching StatCard light/dark theme */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
       {[0, 1, 2, 3].map((idx) => (
         <div
           key={idx}
-          className="rounded-2xl p-5 border border-slate-200/90 dark:border-purple-800/60 bg-slate-50 dark:bg-gradient-to-br dark:from-[#0E1628] dark:to-purple-950/30 shadow-xs space-y-3"
+          className="rounded-2xl p-3 sm:p-5 border border-slate-200/90 dark:border-purple-800/60 bg-slate-50 dark:bg-gradient-to-br dark:from-[#0E1628] dark:to-purple-950/30 shadow-xs space-y-2.5 sm:space-y-3"
         >
-          <div className="flex items-center justify-between">
-            <SkeletonBlock className="h-3.5 w-28" />
-            <SkeletonBlock className="h-9 w-9 rounded-xl bg-indigo-100/80 dark:bg-purple-900/40" />
+          <div className="flex items-center justify-between gap-2">
+            <SkeletonBlock className="h-3.5 w-20 sm:w-28" />
+            <SkeletonBlock className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl bg-indigo-100/80 dark:bg-purple-900/40 shrink-0" />
           </div>
-          <SkeletonBlock className="h-7 w-36 rounded-lg" />
-          <SkeletonBlock className="h-3 w-24" />
+          <SkeletonBlock className="h-6 sm:h-7 w-24 sm:w-36 rounded-lg" />
+          <SkeletonBlock className="h-3 w-20 sm:w-24" />
         </div>
       ))}
     </div>
@@ -174,14 +174,14 @@ export const DirectoryCrudSkeleton: React.FC<{
 
     {/* Summary Strip */}
     {statCount > 0 && (
-      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.min(4, statCount)} gap-4`}>
+      <div className={`grid grid-cols-2 gap-2.5 sm:gap-4 ${statCount >= 4 ? 'lg:grid-cols-4' : statCount === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-3'}`}>
         {Array.from({ length: statCount }).map((_, idx) => (
-          <SkeletonCardSurface key={idx} className="p-4 flex items-center justify-between">
-            <div className="space-y-2">
-              <SkeletonBlock className="h-3 w-24" />
-              <SkeletonBlock className="h-6 w-28" />
+          <SkeletonCardSurface key={idx} className="p-3 sm:p-4 flex items-center justify-between gap-2">
+            <div className="space-y-2 min-w-0">
+              <SkeletonBlock className="h-3 w-20 sm:w-24" />
+              <SkeletonBlock className="h-5 sm:h-6 w-20 sm:w-28" />
             </div>
-            <SkeletonBlock className="h-10 w-10 rounded-xl bg-indigo-100/80 dark:bg-purple-900/40" />
+            <SkeletonBlock className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl bg-indigo-100/80 dark:bg-purple-900/40 shrink-0" />
           </SkeletonCardSurface>
         ))}
       </div>

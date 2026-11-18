@@ -46,13 +46,13 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 no-print pointer-events-auto"
+            className="fixed bottom-3 left-3 right-3 sm:bottom-4 sm:left-auto sm:right-6 sm:max-w-md z-50 no-print pointer-events-auto"
           >
             <div className="relative w-full bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden">
               {/* Header Accent Bar */}
               <div className="h-1.5 w-full bg-amber-500" />
 
-              <div className="p-4 sm:p-5 space-y-3">
+              <div className="p-3.5 sm:p-5 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     {/* Icon container matching NotificationStatusModal */}
@@ -82,7 +82,7 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
                   </p>
                 </div>
 
-                <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/80">
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <Cloud className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span>

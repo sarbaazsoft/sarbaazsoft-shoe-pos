@@ -317,18 +317,18 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
   const content = (
     <div className="space-y-5">
       {/* STATUS METRICS OVERVIEW */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Push Provider</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
+          <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Push Provider</span>
           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 font-mono mt-0.5 flex items-center gap-1">
-            <Flame className="w-3.5 h-3.5 fill-amber-500" /> Firebase FCM
+            <Flame className="w-3.5 h-3.5 fill-amber-500 shrink-0" /> <span className="truncate">Firebase FCM</span>
           </span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Admin SDK Status</span>
+        <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
+          <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Admin SDK Status</span>
           <span
-            className={`text-xs font-bold font-mono mt-0.5 ${
+            className={`text-xs font-bold font-mono mt-0.5 block truncate ${
               isBackendConfigured ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
             }`}
           >
@@ -336,16 +336,16 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           </span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Registered Devices</span>
+        <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
+          <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Registered Devices</span>
           <span className="text-xs font-bold text-purple-600 dark:text-purple-400 font-mono mt-0.5 flex items-center gap-1">
-            <Smartphone className="w-3.5 h-3.5" />
-            {deviceStats.totalTokens} Device(s)
+            <Smartphone className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{deviceStats.totalTokens} Device(s)</span>
           </span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">This Device</span>
+        <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">
+          <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block font-medium">This Device</span>
           <span
             className={`text-xs font-bold font-mono mt-0.5 flex items-center gap-1 ${
               thisDeviceSubscribed
@@ -357,14 +357,16 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
                 : 'text-slate-500 dark:text-slate-400'
             }`}
           >
-            <Laptop className="w-3.5 h-3.5" />
-            {thisDeviceSubscribed
-              ? 'Subscribed'
-              : permissionSnapshot?.effectiveStatus === 'android-system-disabled'
-              ? 'OS Disabled'
-              : permissionSnapshot?.effectiveStatus === 'browser-denied'
-              ? 'Blocked'
-              : 'Not Subscribed'}
+            <Laptop className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">
+              {thisDeviceSubscribed
+                ? 'Subscribed'
+                : permissionSnapshot?.effectiveStatus === 'android-system-disabled'
+                ? 'OS Disabled'
+                : permissionSnapshot?.effectiveStatus === 'browser-denied'
+                ? 'Blocked'
+                : 'Not Subscribed'}
+            </span>
           </span>
         </div>
       </div>
@@ -616,7 +618,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
   return (
     <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm overflow-hidden transition-colors">
       {/* HEADER SECTION */}
-      <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-purple-900/40 bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-purple-500/5">
+      <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-purple-900/40 bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-purple-500/5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20">
@@ -657,7 +659,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         </div>
       </div>
 
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-6">
         {content}
       </div>
     </div>

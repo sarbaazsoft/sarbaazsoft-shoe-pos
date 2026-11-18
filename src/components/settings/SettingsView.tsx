@@ -1320,17 +1320,17 @@ setFormErrors(errors);
   };
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto">
+    <div className="space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto">
       {/* Top Banner & Actions matching Product Management */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-col gap-3.5 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+        className="flex flex-col gap-3.5 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
               {isSuperAdmin
                 ? 'Application & Platform Configuration'
                 : isStoreAdmin
@@ -1346,7 +1346,7 @@ setFormErrors(errors);
             </p>
           </div>
 
-          <div className="flex items-center space-x-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-purple-950/60 border border-slate-200 dark:border-purple-800/70 text-xs font-semibold text-slate-700 dark:text-purple-200 shadow-2xs">
               <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-purple-300" />
               <span className="font-medium text-xs">
@@ -1729,7 +1729,7 @@ setFormErrors(errors);
           )}
 
           {/* CARD 0: STORE SUBSCRIPTION INFO */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-5 border-b border-slate-100 dark:border-purple-900/40 gap-3">
               <div className="flex items-center space-x-3.5">
                 <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/20 border border-purple-100 dark:border-purple-400/30 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0 shadow-2xs">
@@ -1918,9 +1918,9 @@ setFormErrors(errors);
           </div>
 
           {/* CARD 1: COMPANY PROFILE */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
             {/* Card Header */}
-            <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100 dark:border-purple-900/40">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-5 border-b border-slate-100 dark:border-purple-900/40 gap-2.5">
               <div className="flex items-center space-x-3.5">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-100 dark:border-purple-400/30 text-blue-600 dark:text-purple-300 flex items-center justify-center shrink-0 shadow-2xs">
                   <Building2 className="w-5 h-5" />
@@ -1932,7 +1932,7 @@ setFormErrors(errors);
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-semibold px-3 py-1 rounded-xl bg-slate-100 dark:bg-purple-950/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-800/60">
+              <span className="self-start sm:self-auto shrink-0 text-xs font-semibold px-3 py-1 rounded-xl bg-slate-100 dark:bg-purple-950/60 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-800/60">
                 Business Identity
               </span>
             </div>
@@ -2308,7 +2308,7 @@ setFormErrors(errors);
           </div>
 
           {/* CARD 2: CURRENCY SETTINGS (POS DEFAULTS — Locked after initial store setup) */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
             {/* Card Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-5 border-b border-slate-100 dark:border-purple-900/40 gap-3">
               <div className="flex items-center space-x-3.5">
@@ -2476,14 +2476,14 @@ setFormErrors(errors);
           </div>
 
           {/* CARD 3: STORE TYPE AND PRICING POLICY (Locked after initial setup) */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-5 border-b border-slate-100 dark:border-purple-900/40 gap-3">
               <div className="flex items-center space-x-3.5">
                 <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/20 border border-purple-100 dark:border-purple-400/30 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0 shadow-2xs">
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex flex-wrap items-center gap-2">
                     <span>Store Type &amp; Pricing Policy</span>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800/60 flex items-center gap-1">
                       <Lock className="w-3 h-3 text-amber-500" />
@@ -2666,7 +2666,7 @@ setFormErrors(errors);
 
       {/* TAB 2: USERS & CASHIER APPROVALS (Store Admin Only) */}
       {activeTab === 'users' && isStoreAdmin && (
-        <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5 transition-colors">
+        <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5 transition-colors">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-100 dark:border-purple-900/40 gap-3">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center font-bold shrink-0 shadow-2xs">
@@ -2679,7 +2679,7 @@ setFormErrors(errors);
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 id="create-staff-user-btn"
@@ -2704,65 +2704,46 @@ setFormErrors(errors);
           </div>
 
           <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Staff Name</th>
-                  <th className="py-3 px-4">Email Address</th>
-                  <th className="py-3 px-4">Phone</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Access Status</th>
-                  <th className="py-3 px-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-                {isLoadingUsers ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
-                        <p className="font-medium text-xs">Loading staff accounts...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : usersList.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                      No staff accounts found.
-                    </td>
-                  </tr>
-                ) : (
-                  usersList.map((u) => {
+            {/* Mobile Stacked Cards (< 640px) */}
+            <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
+              {isLoadingUsers ? (
+                <div className="py-10 text-center text-slate-400 dark:text-slate-500">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
+                    <p className="font-medium text-xs">Loading staff accounts...</p>
+                  </div>
+                </div>
+              ) : usersList.length === 0 ? (
+                <div className="py-10 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  No staff accounts found.
+                </div>
+              ) : (
+                usersList.map((u) => {
                   const isPending = u.status === 'PENDING';
+                  const isSelf =
+                    (currentUser?.id && u.id && Number(currentUser.id) === Number(u.id)) ||
+                    (currentUser?.email && u.email && currentUser.email.trim().toLowerCase() === u.email.trim().toLowerCase());
 
                   return (
-                    <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-purple-950/30 transition-colors">
-                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                        <div className="flex items-center space-x-2.5">
+                    <div key={u.id} className="p-3.5 space-y-3 bg-white dark:bg-[#131B2E]">
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <UserAvatar
                             name={u.name}
                             avatarUrl={u.avatarUrl || u.avatar_url}
                             role={u.role}
                             size="sm"
                           />
-                          <span className="truncate">{u.name}</span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 dark:text-white text-xs truncate">{u.name}</p>
+                            <p className="font-mono text-[11px] text-slate-600 dark:text-purple-200/80 truncate">{u.email}</p>
+                            {u.phone && (
+                              <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{u.phone}</p>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-600 dark:text-purple-200/80">{u.email}</td>
-                      <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-mono text-xs">{u.phone || '-'}</td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={u.role}
-                          onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
-                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
-                        >
-                          <option value="CASHIER" className="dark:bg-[#120726] dark:text-purple-100">CASHIER</option>
-                          <option value="ADMIN" className="dark:bg-[#120726] dark:text-purple-100">ADMIN</option>
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
                         <span
-                          className={`inline-block px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                          className={`inline-block shrink-0 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
                             isPending
                               ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
                               : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
@@ -2770,14 +2751,24 @@ setFormErrors(errors);
                         >
                           {u.status}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-1.5">
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/70">
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
+                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
+                        >
+                          <option value="CASHIER" className="dark:bg-[#120726] dark:text-purple-100">CASHIER</option>
+                          <option value="ADMIN" className="dark:bg-[#120726] dark:text-purple-100">ADMIN</option>
+                        </select>
+
+                        <div className="flex items-center gap-1.5">
                           {isPending ? (
                             <button
                               type="button"
                               onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')}
-                              className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_12px_rgba(147,51,234,0.3)] transition-all hover:scale-105 active:scale-95"
+                              className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-sm transition-all active:scale-95"
                             >
                               Approve
                             </button>
@@ -2785,47 +2776,167 @@ setFormErrors(errors);
                             <button
                               type="button"
                               onClick={() => handleUpdateUserStatus(u.id, 'PENDING')}
-                              className="bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 text-slate-700 dark:text-purple-200 hover:text-slate-900 border border-slate-200 dark:border-purple-800/60 px-3 py-1.5 font-semibold rounded-lg cursor-pointer text-xs transition-colors"
+                              className="bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-800/60 px-3 py-1.5 font-semibold rounded-lg cursor-pointer text-xs transition-colors"
                             >
                               Suspend
                             </button>
                           )}
 
-                          {(() => {
-                            const isSelf =
-                              (currentUser?.id && u.id && Number(currentUser.id) === Number(u.id)) ||
-                              (currentUser?.email && u.email && currentUser.email.trim().toLowerCase() === u.email.trim().toLowerCase());
+                          {isSelf ? (
+                            <button
+                              type="button"
+                              disabled
+                              title="You cannot delete your own active logged-in administrator account"
+                              className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteUserError(null);
+                                setUserToDelete(u);
+                              }}
+                              title={`Delete account for ${u.name}`}
+                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-800/60 transition cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
 
-                            return isSelf ? (
+            {/* Desktop & Tablet Table (>= 640px) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Staff Name</th>
+                    <th className="py-3 px-4">Email Address</th>
+                    <th className="py-3 px-4">Phone</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Access Status</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+                  {isLoadingUsers ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
+                          <p className="font-medium text-xs">Loading staff accounts...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : usersList.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                        No staff accounts found.
+                      </td>
+                    </tr>
+                  ) : (
+                    usersList.map((u) => {
+                    const isPending = u.status === 'PENDING';
+
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-purple-950/30 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                          <div className="flex items-center space-x-2.5">
+                            <UserAvatar
+                              name={u.name}
+                              avatarUrl={u.avatarUrl || u.avatar_url}
+                              role={u.role}
+                              size="sm"
+                            />
+                            <span className="truncate">{u.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-600 dark:text-purple-200/80">{u.email}</td>
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-mono text-xs">{u.phone || '-'}</td>
+                        <td className="py-3 px-4">
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
+                            className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
+                          >
+                            <option value="CASHIER" className="dark:bg-[#120726] dark:text-purple-100">CASHIER</option>
+                            <option value="ADMIN" className="dark:bg-[#120726] dark:text-purple-100">ADMIN</option>
+                          </select>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                              isPending
+                                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                            }`}
+                          >
+                            {u.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center space-x-1.5">
+                            {isPending ? (
                               <button
                                 type="button"
-                                disabled
-                                title="You cannot delete your own active logged-in administrator account"
-                                className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')}
+                                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_12px_rgba(147,51,234,0.3)] transition-all hover:scale-105 active:scale-95"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                Approve
                               </button>
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setDeleteUserError(null);
-                                  setUserToDelete(u);
-                                }}
-                                title={`Delete account for ${u.name}`}
-                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-800/60 transition cursor-pointer"
+                                onClick={() => handleUpdateUserStatus(u.id, 'PENDING')}
+                                className="bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 text-slate-700 dark:text-purple-200 hover:text-slate-900 border border-slate-200 dark:border-purple-800/60 px-3 py-1.5 font-semibold rounded-lg cursor-pointer text-xs transition-colors"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                Suspend
                               </button>
-                            );
-                          })()}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }))}
-              </tbody>
-            </table>
+                            )}
+
+                            {(() => {
+                              const isSelf =
+                                (currentUser?.id && u.id && Number(currentUser.id) === Number(u.id)) ||
+                                (currentUser?.email && u.email && currentUser.email.trim().toLowerCase() === u.email.trim().toLowerCase());
+
+                              return isSelf ? (
+                                <button
+                                  type="button"
+                                  disabled
+                                  title="You cannot delete your own active logged-in administrator account"
+                                  className="p-1.5 rounded-lg text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteUserError(null);
+                                    setUserToDelete(u);
+                                  }}
+                                  title={`Delete account for ${u.name}`}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-800/60 transition cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Add Staff / Cashier Modal */}
@@ -2843,7 +2954,7 @@ setFormErrors(errors);
           <AnimatePresence>
             {userToDelete && (
               <div
-                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
                 onClick={() => !isDeletingUser && setUserToDelete(null)}
               >
                 <motion.div
@@ -2851,7 +2962,7 @@ setFormErrors(errors);
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 16 }}
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-md overflow-hidden"
+                  className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-md max-h-[92vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Header */}
@@ -2926,7 +3037,7 @@ setFormErrors(errors);
                   </div>
 
                   {/* Footer */}
-                  <div className="px-5 py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-100 dark:border-purple-800/80 flex items-center justify-end space-x-2">
+                  <div className="px-4 sm:px-5 py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-100 dark:border-purple-800/80 flex flex-wrap items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setUserToDelete(null)}
@@ -2987,7 +3098,7 @@ setFormErrors(errors);
           )}
 
           {/* Top Banner & Action Bar */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center space-x-3.5">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 flex items-center justify-center font-bold shrink-0 shadow-xs">
                 <Sliders className="w-6 h-6" />
@@ -3028,7 +3139,7 @@ setFormErrors(errors);
           </div>
 
           {/* UNIFIED SERVICES & INTEGRATIONS (EMAIL & FCM NOTIFICATIONS) */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5">
             {/* Header & Tabs */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100 dark:border-purple-900/40">
               <div className="flex items-center space-x-3">
@@ -3048,7 +3159,7 @@ setFormErrors(errors);
               </div>
 
               {/* Two Tabs Navigation */}
-              <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-900/90 rounded-xl border border-slate-200 dark:border-purple-900/50 self-start sm:self-auto">
+              <div className="inline-flex flex-wrap gap-1 p-1 bg-slate-100 dark:bg-slate-900/90 rounded-xl border border-slate-200 dark:border-purple-900/50 self-start sm:self-auto max-w-full">
                 <button
                   type="button"
                   onClick={() => setServicesIntegrationsTab('email')}
@@ -3178,11 +3289,11 @@ setFormErrors(errors);
 
               {/* Sub-tabs Header for Provider Configuration */}
               <div>
-                <div className="flex items-center border-b border-slate-200 dark:border-purple-900/50 space-x-2">
+                <div className="flex items-center border-b border-slate-200 dark:border-purple-900/50 space-x-2 overflow-x-auto no-scrollbar">
                   <button
                     type="button"
                     onClick={() => setEmailProviderTab('resend')}
-                    className={`pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer ${
+                    className={`pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
                       emailProviderTab === 'resend'
                         ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
                         : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -3200,7 +3311,7 @@ setFormErrors(errors);
                   <button
                     type="button"
                     onClick={() => setEmailProviderTab('gmail')}
-                    className={`pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer ${
+                    className={`pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
                       emailProviderTab === 'gmail'
                         ? 'border-rose-600 text-rose-600 dark:text-rose-400 dark:border-rose-400'
                         : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -3591,19 +3702,19 @@ setFormErrors(errors);
                       via {(appSettingsForm.ACTIVE_EMAIL_PROVIDER || 'resend').toLowerCase() === 'gmail' ? 'Gmail SMTP' : 'Resend API'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                     <input
                       type="email"
                       value={testEmailRecipient}
                       onChange={(e) => setTestEmailRecipient(e.target.value)}
                       placeholder="Enter recipient email address"
-                      className="h-8.5 px-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-white placeholder-slate-400 w-48 sm:w-56"
+                      className="h-9 sm:h-8.5 px-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-white placeholder-slate-400 w-full sm:w-56"
                     />
                     <button
                       type="button"
                       onClick={handleSendTestEmail}
                       disabled={isSendingTestEmail}
-                      className="h-8.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
+                      className="h-9 sm:h-8.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 shadow-xs w-full sm:w-auto"
                     >
                       <Send className={`w-3.5 h-3.5 ${isSendingTestEmail ? 'animate-spin' : ''}`} />
                       <span>{isSendingTestEmail ? 'Dispatching...' : `Send Test (${(appSettingsForm.ACTIVE_EMAIL_PROVIDER || 'resend').toLowerCase() === 'gmail' ? 'Gmail' : 'Resend'})`}</span>
@@ -3653,7 +3764,7 @@ setFormErrors(errors);
           </div>
 
           {/* CATEGORY 4: SUPERADMIN NATIVE PUSH NOTIFICATION EVENT TRIGGERS */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 flex items-center justify-center shrink-0 shadow-xs">
@@ -3738,8 +3849,8 @@ setFormErrors(errors);
                       <label htmlFor="push-new-trial-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
                         New Free Trial Store Registrations
                       </label>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
                           SUPERADMIN_PUSH_ON_NEW_TRIAL
                         </span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
@@ -3789,8 +3900,8 @@ setFormErrors(errors);
                       <label htmlFor="push-renewal-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
                         Subscription Renewals &amp; Plan Upgrades
                       </label>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
                           SUPERADMIN_PUSH_ON_RENEWAL
                         </span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300">
@@ -3840,8 +3951,8 @@ setFormErrors(errors);
                       <label htmlFor="push-expired-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
                         Store Expirations &amp; Grace Periods
                       </label>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
                           SUPERADMIN_PUSH_ON_EXPIRED_STORE
                         </span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
@@ -3891,8 +4002,8 @@ setFormErrors(errors);
                       <label htmlFor="push-security-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
                         Security &amp; System Health Alerts
                       </label>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
                           SUPERADMIN_PUSH_ON_SECURITY_ALERT
                         </span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300">
@@ -3942,8 +4053,8 @@ setFormErrors(errors);
                       <label htmlFor="push-sales-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
                         POS Sales &amp; High-Value Platform Auditing Feed
                       </label>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
                           SUPERADMIN_PUSH_ON_SALES
                         </span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -4007,7 +4118,7 @@ setFormErrors(errors);
           </div>
 
           {/* CATEGORY 5: SYSTEM RUNTIME CONTROLS */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-4">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-4">
             <div className="flex items-center space-x-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
               <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
                 <Cpu className="w-5 h-5" />
@@ -4083,7 +4194,7 @@ setFormErrors(errors);
 
       {/* TAB 4: HARDWARE & PRINTERS (Store Admin & Cashiers) */}
       {!isSuperAdmin && activeTab === 'printers' && (
-        <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
+        <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
           <PrinterHardwareSettings />
         </div>
       )}
@@ -4110,7 +4221,7 @@ setFormErrors(errors);
       {(isStoreAdmin || isSuperAdmin) && activeTab === 'notifications' && (
         <div className="space-y-6">
           {/* Card 1: Enable / Disable Device Push Notifications */}
-          <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5 transition-colors">
+          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5 transition-colors">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-purple-900/40">
               <div className="flex items-center space-x-3.5">
                 <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs border ${
@@ -4155,7 +4266,7 @@ setFormErrors(errors);
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => void handleCheckDeviceNotifStatus()}
@@ -4195,7 +4306,7 @@ setFormErrors(errors);
                   {isNotifBlocked && (
                     <div
                       role="tooltip"
-                      className="pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity absolute right-0 top-full mt-2 w-72 z-40 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[11px] leading-relaxed p-3 shadow-xl border border-slate-700"
+                      className="hidden lg:block pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity absolute right-0 top-full mt-2 w-72 z-40 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[11px] leading-relaxed p-3 shadow-xl border border-slate-700"
                     >
                       {isNotifAndroidBlocked
                         ? 'Permissions are disabled in Android Settings. Open Apps → SarbaazSoft POS → Notifications → Allow, then click Check Status.'
@@ -4278,7 +4389,7 @@ setFormErrors(errors);
           {/* Card 2: Send Test Notification Message */}
           <form
             onSubmit={handleSendSettingsTestNotification}
-            className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-4 transition-colors"
+            className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-4 transition-colors"
           >
             <div className="flex items-center space-x-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
               <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-400/30 flex items-center justify-center shrink-0">
@@ -4424,7 +4535,7 @@ setFormErrors(errors);
 
       {/* TAB 5: SERVER INSTALLER & ROUTE LOCKDOWN */}
       {isSuperAdmin && activeTab === 'install' && (
-        <div className="bg-white dark:bg-[#131B2E] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-6 transition-colors">
+        <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-6 transition-colors">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 dark:border-purple-900/40 pb-4 gap-4">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center font-bold shrink-0 shadow-2xs">
@@ -4560,8 +4671,8 @@ setFormErrors(errors);
           </div>
 
           {/* Recommissioning & Unlock Installer Form */}
-          <div className="p-5 rounded-2xl border border-slate-200 dark:border-purple-800/60 bg-slate-50 dark:bg-purple-950/20 space-y-4">
-            <div className="flex items-start justify-between gap-4">
+          <div className="p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/60 bg-slate-50 dark:bg-purple-950/20 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center font-bold shrink-0 mt-0.5">
                   <Lock className="w-4 h-4" />
@@ -4741,13 +4852,13 @@ setFormErrors(errors);
       {isRenewModalOpen && (
         <div
           id="renew-subscription-modal"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsRenewModalOpen(false);
           }}
         >
           <div
-            className="relative w-full max-w-xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-200"
+            className="relative w-full max-w-xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[94vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header matching ProductFormModal dark gradient */}
@@ -4764,7 +4875,7 @@ setFormErrors(errors);
 
               return (
                 <>
-                  <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-6 py-4 flex items-center justify-between">
+                  <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
                       <div
                         className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold shadow-2xs ${
@@ -4810,7 +4921,7 @@ setFormErrors(errors);
                     </button>
                   </div>
 
-                  <form onSubmit={handleRequestSubscriptionRenewal} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+                  <form onSubmit={handleRequestSubscriptionRenewal} className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4">
                     {/* Expired Alert Banner inside Modal */}
                     {isExpired && (
                       <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-700/60 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
@@ -4825,12 +4936,12 @@ setFormErrors(errors);
                     )}
 
                     {/* Grouped rounded container: Current License Summary */}
-                    <div className="p-4 rounded-2xl bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 border border-gray-200 dark:border-[#1A263D] shadow-xs">
+                    <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 border border-gray-200 dark:border-[#1A263D] shadow-xs">
                       <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-purple-300 mb-2.5 flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-purple-500" />
                         <span>Current License Details</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs">
                         <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
                           <span className="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 block">
                             Current Plan
@@ -5074,7 +5185,7 @@ setFormErrors(errors);
                   </form>
 
                   {/* Modal Footer Buttons matching ProductFormModal */}
-                  <div className="px-6 py-4 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-[#0D1322]/70 flex items-center justify-end gap-3">
+                  <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-[#0D1322]/70 flex flex-wrap items-center justify-end gap-2.5">
                     <button
                       type="button"
                       onClick={() => setIsRenewModalOpen(false)}
@@ -5114,9 +5225,9 @@ setFormErrors(errors);
 
       {/* Camera Capture Modal for Store Receipt Logo */}
       {isCameraOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-purple-900/50">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl max-w-md w-full max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 dark:border-purple-900/50">
               <div className="flex items-center space-x-2">
                 <Camera className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Capture Store Receipt Logo</h3>
@@ -5129,7 +5240,7 @@ setFormErrors(errors);
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-3.5 sm:p-4 space-y-4">
               <div className="relative aspect-4/3 w-full bg-black rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 flex items-center justify-center">
                 <video
                   ref={videoRef}
@@ -5142,7 +5253,7 @@ setFormErrors(errors);
               {cameraError && (
                 <p className="text-xs text-rose-600 dark:text-rose-400">{cameraError}</p>
               )}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => {

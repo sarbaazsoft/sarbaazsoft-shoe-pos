@@ -17,6 +17,7 @@ import {
 import { api } from '../../services/api.ts';
 import { SammiQuestionIndexSidebar } from './SammiQuestionIndexSidebar.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 const TYPING_HINTS = [
   { text: 'Thinking & retrieving knowledge...', icon: Bot },
@@ -54,6 +55,7 @@ interface SammiAssistantViewProps {
 export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
   storeName,
 }) => {
+  const isDesktop = useIsDesktop();
   const { isActive } = useRouteActivity();
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
@@ -320,24 +322,24 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
   };
 
   return (
-    <div className="w-full min-h-full bg-[#F8FAFC] dark:bg-[#0A0E1A] pt-5 sm:pt-7 pb-10 flex flex-col relative">
+    <div className="w-full min-h-full bg-[#F8FAFC] dark:bg-[#0A0E1A] pt-3 sm:pt-7 pb-6 sm:pb-10 flex flex-col relative">
       {/* TOP HEADER: Clean, pristine, minimalist */}
-      <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto px-4 sm:px-6 mb-6">
-        <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border border-slate-200 dark:border-purple-800/80 rounded-2xl p-4 sm:p-5 shadow-xs text-slate-800 dark:text-white flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-xs shrink-0">
-              <Bot className="w-6 h-6 text-purple-600 dark:text-purple-300" />
+      <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto px-2.5 sm:px-6 mb-4 sm:mb-6">
+        <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border border-slate-200 dark:border-purple-800/80 rounded-2xl p-3.5 sm:p-5 shadow-xs text-slate-800 dark:text-white flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-xs shrink-0">
+              <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-300" />
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-bold text-lg sm:text-xl text-slate-900 dark:text-white tracking-tight">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h1 className="font-bold text-base sm:text-xl text-slate-900 dark:text-white tracking-tight">
                   Sammi — AI Assistant
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 flex items-center gap-1.5 shadow-2xs">
+                <span className="px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 flex items-center gap-1.5 shadow-2xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   Live AI
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300/80 dark:border-blue-700/60 flex items-center gap-1.5 shadow-2xs">
+                <span className="px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300/80 dark:border-blue-700/60 flex items-center gap-1.5 shadow-2xs">
                   <Globe className="w-3 h-3 text-blue-500" />
                   Search Grounded
                 </span>
@@ -349,7 +351,7 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
           </div>
 
           {/* Right Controls: Model Mode & Clear Chat */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <div className="flex items-center gap-1.5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-purple-800/80 rounded-xl px-2.5 py-1.5 shadow-2xs">
               <Cpu className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
               <span className="text-xs font-bold text-slate-400 dark:text-purple-300/80 hidden sm:inline">
@@ -414,7 +416,7 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
       </div>
 
       {/* CHAT MESSAGES STREAM: Clean, open, natural page flow */}
-      <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto px-4 sm:px-6 flex-1 space-y-5 mb-6">
+      <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto px-2.5 sm:px-6 flex-1 space-y-4 sm:space-y-5 mb-4 sm:mb-6">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -424,7 +426,7 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
             }`}
           >
             <div
-              className={`w-full sm:max-w-[85%] lg:max-w-[80%] rounded-2xl p-4 sm:p-6 transition-all ${
+              className={`w-full sm:max-w-[85%] lg:max-w-[80%] rounded-2xl p-3.5 sm:p-6 transition-all ${
                 highlightedMsgId === msg.id
                   ? 'ring-2 ring-purple-500 dark:ring-purple-400 shadow-xl shadow-purple-500/20 ring-offset-2 dark:ring-offset-slate-900'
                   : ''
@@ -638,8 +640,8 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
       </div>
 
       {/* STICKY BOTTOM INPUT: ChatGPT / Gemini Style Centered Dock */}
-      <div className="sticky bottom-0 z-30 pt-3 pb-4 sm:pb-6 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC]/95 to-transparent dark:from-[#0A0E1A] dark:via-[#0A0E1A]/95 dark:to-transparent backdrop-blur-xs">
-        <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto px-4 sm:px-6">
+      <div className="sticky bottom-0 z-30 pt-2.5 sm:pt-3 pb-3 sm:pb-6 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC]/95 to-transparent dark:from-[#0A0E1A] dark:via-[#0A0E1A]/95 dark:to-transparent backdrop-blur-xs">
+        <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto px-2.5 sm:px-6">
           {/* Quick suggested category tabs & chips with Retail Trends & Shoe Care */}
           <div className="space-y-2 mb-2">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-bold">
@@ -702,7 +704,7 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
                 e.preventDefault();
                 handleSendMessage();
               }}
-              className="flex items-end gap-2.5"
+              className="flex items-end gap-2 sm:gap-2.5"
             >
               <div className="relative flex-1">
                 <textarea
@@ -725,16 +727,16 @@ export const SammiAssistantView: React.FC<SammiAssistantViewProps> = ({
               <button
                 type="submit"
                 disabled={!inputMessage.trim() || isLoading}
-                className="px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 text-white font-bold text-sm transition cursor-pointer disabled:cursor-not-allowed shadow-md shadow-purple-600/25 active:scale-95 shrink-0 flex items-center gap-2"
-                title="Send message (Enter)"
+                className="px-4 sm:px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 text-white font-bold text-sm transition cursor-pointer disabled:cursor-not-allowed shadow-md shadow-purple-600/25 active:scale-95 shrink-0 flex items-center gap-2"
+                title={isDesktop ? 'Send message (Enter)' : 'Send message'}
               >
                 <Send className="w-4 h-4" />
                 <span className="hidden sm:inline">Send</span>
               </button>
             </form>
 
-            <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 mt-2 px-1.5">
-              <span>Press <strong>Enter</strong> to send • <strong>Shift+Enter</strong> for newline</span>
+            <div className="flex items-center justify-end lg:justify-between text-xs text-slate-400 dark:text-slate-500 mt-2 px-1.5">
+              <span className="hidden lg:inline">Press <strong>Enter</strong> to send • <strong>Shift+Enter</strong> for newline</span>
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                 Sammi AI Assistant

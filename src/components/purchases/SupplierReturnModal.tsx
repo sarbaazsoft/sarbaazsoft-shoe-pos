@@ -321,33 +321,33 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-4xl overflow-hidden my-4">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
         {/* Header */}
-        <div className="p-5 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-          <div className="flex items-center space-x-3">
-            <span className="p-2.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-100 dark:border-rose-900/50 shadow-2xs">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-5 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between gap-2 bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <span className="p-2 sm:p-2.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-100 dark:border-rose-900/50 shadow-2xs shrink-0">
               <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
             </span>
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight truncate">
                 Return Defective Footwear to Supplier
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Issue Supplier Debit Note &amp; deduct defective pairs from inventory
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
+            className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5 sm:space-y-6 flex-1 overflow-y-auto">
           {formError && (
             <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-semibold flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -356,29 +356,29 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
           )}
 
           {/* Return Mode Selection */}
-          <div className="p-1 bg-slate-100 dark:bg-[#0B1120] rounded-xl flex max-w-md border border-slate-200 dark:border-[#1A263D]">
+          <div className="p-1 bg-slate-100 dark:bg-[#0B1120] rounded-xl flex flex-col sm:flex-row max-w-md gap-1 sm:gap-0 border border-slate-200 dark:border-[#1A263D]">
             <button
               type="button"
               onClick={() => setReturnMode('invoice')}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+              className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 ${
                 returnMode === 'invoice'
                   ? 'bg-white dark:bg-[#131D33] text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+              <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
               <span>Return from Purchase Invoice</span>
             </button>
             <button
               type="button"
               onClick={() => setReturnMode('direct')}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+              className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 ${
                 returnMode === 'direct'
                   ? 'bg-white dark:bg-[#131D33] text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Package className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+              <Package className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
               <span>Direct Defective Stock Return</span>
             </button>
           </div>
@@ -430,7 +430,7 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
                   <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                   <span>Original Purchase Invoice #</span>
                 </label>
-                <div className="flex space-x-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     placeholder="e.g. PUR-000001"
@@ -448,7 +448,7 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
                     type="button"
                     onClick={() => handleVerifyPurchase()}
                     disabled={isVerifyingPurchase}
-                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 transition disabled:opacity-50 cursor-pointer active:scale-95"
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 transition disabled:opacity-50 cursor-pointer active:scale-95 shrink-0"
                   >
                     {isVerifyingPurchase ? 'Verifying...' : 'Verify'}
                   </button>
@@ -707,14 +707,14 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
                       </div>
 
                       {/* Defect Type Dropdown */}
-                      <div className="flex items-center space-x-2 pt-1 border-t border-slate-100 dark:border-[#1A263D]">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 pt-1.5 border-t border-slate-100 dark:border-[#1A263D]">
                         <span className="text-[11px] font-semibold text-rose-800 dark:text-rose-400 shrink-0">
                           Defect Classification:
                         </span>
                         <select
                           value={item.defectType}
                           onChange={(e) => updateItem(idx, { defectType: e.target.value })}
-                          className="capitalize flex-1 text-xs border border-slate-200 dark:border-purple-400/40 rounded-md px-2 py-1 bg-white dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                          className="capitalize flex-1 w-full text-xs border border-slate-200 dark:border-purple-400/40 rounded-md px-2 py-1.5 sm:py-1 bg-white dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:ring-1 focus:ring-purple-500 cursor-pointer"
                         >
                           {COMMON_DEFECT_TYPES.map((d, dIdx) => (
                             <option key={`defect-type-${d}-${dIdx}`} value={d} className="dark:bg-[#120726] dark:text-purple-100">
@@ -765,8 +765,8 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
           </div>
 
           {/* Financial & Inventory Impact Preview Card */}
-          <div className="p-4.5 bg-slate-50 dark:bg-[#0B1120] rounded-2xl border border-rose-200/90 dark:border-rose-900/40 space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="p-3.5 sm:p-4.5 bg-slate-50 dark:bg-[#0B1120] rounded-2xl border border-rose-200/90 dark:border-rose-900/40 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <span className="text-xs font-black uppercase tracking-wider text-rose-900 dark:text-rose-300 block">
                   Supplier Account Debit Impact
@@ -775,7 +775,7 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
                   Debits supplier ledger, generates Debit Note, and restores accurate inventory.
                 </p>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">Total Debit Amount</span>
                 <span className="text-xl sm:text-2xl font-black font-mono text-rose-700 dark:text-rose-400">
                   {currencySymbol} {formatStockPrice(totalReturnDebit)}
@@ -783,7 +783,7 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-rose-200/60 dark:border-rose-900/40 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-3 border-t border-rose-200/60 dark:border-rose-900/40 text-xs">
               <div className="p-2.5 bg-white dark:bg-[#0E1628] rounded-xl border border-slate-200 dark:border-[#1A263D]">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Defective Shoe Units</span>
                 <span className="font-bold text-slate-900 dark:text-white">
@@ -796,7 +796,7 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
                   {currencySymbol} {formatStockPrice(supplierBalance)}
                 </span>
               </div>
-              <div className="p-2.5 bg-white dark:bg-[#0E1628] rounded-xl border border-rose-200 dark:border-rose-900/60">
+              <div className="col-span-2 sm:col-span-1 p-2.5 bg-white dark:bg-[#0E1628] rounded-xl border border-rose-200 dark:border-rose-900/60">
                 <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold block">
                   Net Balance after Debit
                 </span>
@@ -808,7 +808,7 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
           </div>
 
           {/* Modal Actions */}
-          <div className="px-6 py-4 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5">
             <button
               type="button"
               onClick={onClose}

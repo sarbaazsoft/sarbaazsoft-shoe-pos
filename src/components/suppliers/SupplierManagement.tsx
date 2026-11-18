@@ -214,22 +214,22 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
   }
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
+    <div className="space-y-3 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto text-xs">
       {/* Top Header Card */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 dark:text-white transition-colors"
+        className="bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 dark:text-white transition-colors"
       >
         <div>
-          <div className="flex items-center space-x-3 text-slate-900 dark:text-white">
-            <span className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0 shadow-2xs">
-              <Building2 className="w-5 h-5 stroke-[2.2]" />
+          <div className="flex items-center space-x-2.5 sm:space-x-3 text-slate-900 dark:text-white">
+            <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-100 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0 shadow-2xs">
+              <Building2 className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
             </span>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Supplier & Vendor Management</h2>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">Supplier & Vendor Management</h2>
                 <span className="bg-blue-100 dark:bg-purple-500/30 text-blue-700 dark:text-purple-200 border border-blue-200 dark:border-purple-400/40 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full tracking-wide">
                   {suppliers.length} Registered
                 </span>
@@ -241,7 +241,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {suppliers.length > 0 && (
             <button
               onClick={() => {
@@ -297,7 +297,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
       </motion.div>
 
       {/* KPI Stats Banner with Animated Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         <StatCard
           id="stat-registered-vendors"
           layout="horizontal"
@@ -396,7 +396,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
         transition={{ duration: 0.35, delay: 0.16 }}
         className="bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200/90 dark:border-purple-800/60 shadow-xs overflow-hidden transition-colors"
       >
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-purple-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900">
+        <div className="p-3.5 sm:p-5 border-b border-slate-200 dark:border-purple-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-200 dark:border-purple-400/30 rounded-xl shadow-2xs">
               <Building2 className="w-4 h-4" />
@@ -415,7 +415,143 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile Cards (< 640px) */}
+        <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-900/30">
+          {isLoading ? (
+            <div className="py-10 text-center text-slate-400 dark:text-slate-500 space-y-2">
+              <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
+              <p className="font-medium text-xs">Loading suppliers directory...</p>
+            </div>
+          ) : suppliers.length === 0 ? (
+            <div className="py-10 px-4 text-center text-slate-400 dark:text-slate-500">
+              {searchTerm ? 'No suppliers match your search filter.' : 'No suppliers registered yet. Click "Add New Supplier" to get started.'}
+            </div>
+          ) : (
+            suppliers.slice(0, visibleCount).map((sup) => {
+              const totalPurchases = parseInt(sup.total_purchases || 0, 10);
+              const totalAmount = parseFloat(sup.total_purchased_amount || 0);
+              const totalPaid = parseFloat(sup.total_paid_amount || 0);
+              const totalReturns = parseInt(sup.total_returns || 0, 10);
+              const totalDebit = parseFloat(sup.total_debit_amount || 0);
+              const netPayable = parseFloat(sup.net_payable_balance ?? sup.balance ?? (totalAmount - totalDebit - totalPaid));
+
+              return (
+                <div key={sup.id} className="p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-purple-500/20 border border-blue-200 dark:border-purple-400/30 text-blue-600 dark:text-purple-300 flex items-center justify-center shrink-0 font-bold text-xs">
+                        {sup.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 dark:text-white text-xs truncate">{sup.name}</div>
+                        {sup.phone && (
+                          <a href={`tel:${sup.phone}`} className="text-[11px] font-mono text-slate-500 dark:text-purple-200/80 block">
+                            {sup.phone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="text-[9.5px] uppercase font-bold text-slate-400">Net Payable</div>
+                      <div className={`text-xs font-mono font-black ${netPayable > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {currencySymbol} {formatStockPrice(netPayable)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => handleViewSupplierHistory(sup)}
+                      className="px-2 py-0.5 rounded-full font-semibold bg-blue-50 dark:bg-purple-500/30 text-blue-700 dark:text-purple-200 border border-blue-200/80 dark:border-purple-400/40"
+                    >
+                      {totalPurchases} orders ({currencySymbol} {formatStockPrice(totalAmount)})
+                    </button>
+                    {totalReturns > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleViewSupplierHistory(sup);
+                          setSupplierModalTab('returns');
+                        }}
+                        className="px-2 py-0.5 rounded-full font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-900/60"
+                      >
+                        {totalReturns} returns
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-purple-900/30">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentModalSupplier(sup);
+                        setIsPaymentModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Pay</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLedgerModalSupplierId(sup.id);
+                        setIsLedgerModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[11px] font-bold"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Ledger</span>
+                    </button>
+                    {onNavigateToPurchase && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToPurchase(sup.id, sup.name)}
+                        aria-label="Record New Purchase"
+                        className="p-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnSupplierId(sup.id);
+                        setIsReturnModalOpen(true);
+                      }}
+                      aria-label="Return Defective Items"
+                      className="p-2 rounded-lg bg-rose-50 text-rose-600 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/60"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(sup)}
+                      aria-label="Edit Supplier Info"
+                      className="p-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setDeletingSupplierId(sup.id)}
+                        aria-label="Delete Supplier"
+                        className="p-2 rounded-lg bg-slate-50 text-slate-600 hover:text-rose-600 border border-slate-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-slate-50/90 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-600 dark:text-white font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-purple-800/80">
               <tr>
@@ -625,9 +761,9 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* ADD / EDIT SUPPLIER MODAL */}
       {isModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative w-full max-w-lg bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-lg max-h-[92vh] bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2 bg-blue-500/10 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 rounded-lg">
                   <Building2 className="w-5 h-5" />
@@ -644,7 +780,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveSupplier} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleSaveSupplier} className="p-4 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
               {error && (
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl flex items-center space-x-2 text-rose-700 dark:text-rose-300">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
@@ -741,7 +877,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                 )}
               </div>
 
-              <div className="px-6 py-4 -mx-6 -mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-2.5">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -767,31 +903,31 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* VIEW SUPPLIER PURCHASES HISTORY MODAL */}
       {viewSupplierModalOpen && selectedSupplier && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 dark:border-purple-800/80">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-200 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-sm shadow-2xs">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] border border-slate-200 dark:border-purple-800/80">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 gap-2">
+              <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-200 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs sm:text-sm shadow-2xs shrink-0">
                   {selectedSupplier.name.slice(0, 2).toUpperCase()}
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white">{selectedSupplier.name}</h3>
-                  <div className="flex items-center space-x-3 text-[11px] text-slate-500 dark:text-purple-200/70 mt-0.5">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate">{selectedSupplier.name}</h3>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500 dark:text-purple-200/70 mt-0.5">
                     {selectedSupplier.phone && <span>📞 {selectedSupplier.phone}</span>}
-                    {selectedSupplier.email && <span>✉️ {selectedSupplier.email}</span>}
+                    {selectedSupplier.email && <span className="truncate">✉️ {selectedSupplier.email}</span>}
                   </div>
                 </div>
               </div>
 
               <button
                 onClick={() => setViewSupplierModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:text-purple-300/70 dark:hover:text-white p-1 rounded-lg transition cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 dark:text-purple-300/70 dark:hover:text-white p-1.5 rounded-lg transition cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-5">
+            <div className="p-3.5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5">
               {/* Financial Balance Breakdown */}
               {(() => {
                 const totalPurchasesAmount = supplierPurchases.reduce((acc, p) => acc + parseFloat(p.total_amount || 0), 0);
@@ -800,34 +936,34 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                 const netPayable = parseFloat(selectedSupplier.net_payable_balance ?? selectedSupplier.balance ?? (totalPurchasesAmount - totalReturnsAmount - totalPaidAmount));
 
                 return (
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div className="p-3 bg-slate-50 dark:bg-purple-950/30 border border-slate-200 dark:border-purple-800/60 rounded-xl">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                    <div className="p-2.5 sm:p-3 bg-slate-50 dark:bg-purple-950/30 border border-slate-200 dark:border-purple-800/60 rounded-xl">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-purple-300/80">Gross Procured</div>
-                      <div className="text-base font-black text-slate-900 dark:text-white mt-1 font-mono">
+                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mt-1 font-mono">
                         {currencySymbol} {formatStockPrice(totalPurchasesAmount)}
                       </div>
                       <div className="text-[10px] text-slate-500 dark:text-purple-300/70 mt-0.5">{supplierPurchases.length} purchase orders</div>
                     </div>
 
-                    <div className="p-3 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-xl">
+                    <div className="p-2.5 sm:p-3 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-xl">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Returns & Debits</div>
-                      <div className="text-base font-black text-rose-700 dark:text-rose-300 mt-1 font-mono">
+                      <div className="text-sm sm:text-base font-black text-rose-700 dark:text-rose-300 mt-1 font-mono">
                         - {currencySymbol} {formatStockPrice(totalReturnsAmount)}
                       </div>
                       <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">{supplierReturns.length} return slips</div>
                     </div>
 
-                    <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 rounded-xl">
+                    <div className="p-2.5 sm:p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 rounded-xl">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Total Paid</div>
-                      <div className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-1 font-mono">
+                      <div className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300 mt-1 font-mono">
                         - {currencySymbol} {formatStockPrice(totalPaidAmount)}
                       </div>
                       <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Cleared via payments</div>
                     </div>
 
-                    <div className="p-3 bg-amber-50/70 dark:bg-purple-900/40 border border-amber-200 dark:border-purple-500/40 rounded-xl">
+                    <div className="p-2.5 sm:p-3 bg-amber-50/70 dark:bg-purple-900/40 border border-amber-200 dark:border-purple-500/40 rounded-xl">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-purple-300">Net Khata Balance</div>
-                      <div className="text-base font-black text-amber-700 dark:text-purple-100 mt-1 font-mono">
+                      <div className="text-sm sm:text-base font-black text-amber-700 dark:text-purple-100 mt-1 font-mono">
                         {currencySymbol} {formatStockPrice(netPayable)}
                       </div>
                       <div className="text-[10px] text-amber-600 dark:text-purple-300/80 mt-0.5">Purchases - Returns - Paid</div>
@@ -925,7 +1061,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                     No purchases recorded yet for {selectedSupplier.name}.
                   </div>
                 ) : (
-                  <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-hidden shadow-xs">
+                  <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-x-auto shadow-xs">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead className="bg-slate-50/90 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-600 dark:text-white font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-purple-800/80">
                         <tr>
@@ -968,7 +1104,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                     No returns or debit notes recorded for {selectedSupplier.name}.
                   </div>
                 ) : (
-                  <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-hidden shadow-xs">
+                  <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-x-auto shadow-xs">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead className="bg-rose-50/50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-purple-800/80">
                         <tr>
@@ -1025,7 +1161,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
               )}
             </div>
 
-            <div className="px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex justify-end">
+            <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex justify-end">
               <button
                 onClick={() => setViewSupplierModalOpen(false)}
                 className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-purple-950/40 hover:bg-slate-200 dark:hover:bg-purple-900/50 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-800/60 transition cursor-pointer"
@@ -1039,7 +1175,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* DELETE CONFIRMATION DIALOG */}
       {deletingSupplierId && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
               <AlertCircle className="w-5 h-5" />

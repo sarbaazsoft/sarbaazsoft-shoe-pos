@@ -78,7 +78,7 @@ export const SammiQuestionIndexSidebar: React.FC<SammiQuestionIndexSidebarProps>
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 20, scale: 0.95 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed right-3 sm:right-6 top-24 sm:top-28 z-30 group flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white/95 dark:bg-[#0D1527]/95 text-slate-800 dark:text-slate-100 border border-slate-200/90 dark:border-purple-800/80 shadow-xl shadow-purple-950/10 hover:shadow-2xl hover:border-purple-400 dark:hover:border-purple-500/80 transition-all cursor-pointer backdrop-blur-md"
+            className="fixed right-2.5 sm:right-6 top-20 sm:top-28 z-30 group flex items-center gap-2.5 px-2.5 sm:px-3.5 py-2 rounded-2xl bg-white/95 dark:bg-[#0D1527]/95 text-slate-800 dark:text-slate-100 border border-slate-200/90 dark:border-purple-800/80 shadow-xl shadow-purple-950/10 hover:shadow-2xl hover:border-purple-400 dark:hover:border-purple-500/80 transition-all cursor-pointer backdrop-blur-md"
             title="Open Inquiry Index"
             aria-label="Open Inquiry Index"
           >
@@ -128,7 +128,7 @@ export const SammiQuestionIndexSidebar: React.FC<SammiQuestionIndexSidebarProps>
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -15, scale: 0.96 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed right-3 sm:right-6 top-20 sm:top-24 bottom-4 sm:bottom-6 w-[92vw] sm:w-84 xl:w-92 z-40 flex flex-col bg-white/95 dark:bg-[#0D1527]/95 border border-purple-200/80 dark:border-purple-800/80 rounded-2xl sm:rounded-3xl shadow-2xl shadow-purple-950/15 dark:shadow-[0_16px_48px_rgba(0,0,0,0.6)] backdrop-blur-xl overflow-hidden font-sans ring-1 ring-purple-500/10 dark:ring-purple-400/20"
+            className="fixed right-2.5 sm:right-6 top-16 sm:top-24 bottom-3 sm:bottom-6 w-[calc(100vw-1.25rem)] sm:w-84 xl:w-92 z-40 flex flex-col bg-white/95 dark:bg-[#0D1527]/95 border border-purple-200/80 dark:border-purple-800/80 rounded-2xl sm:rounded-3xl shadow-2xl shadow-purple-950/15 dark:shadow-[0_16px_48px_rgba(0,0,0,0.6)] backdrop-blur-xl overflow-hidden font-sans ring-1 ring-purple-500/10 dark:ring-purple-400/20"
             aria-label="Inquiry History Index"
           >
             {/* Header: Toast Notification Styled (Clean, uncolored, matching PosToast header) */}

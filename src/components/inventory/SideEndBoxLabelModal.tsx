@@ -121,7 +121,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -135,7 +135,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - Purple/Violet theme for Side-End Box Label in Dark Mode, crisp slate styling in Light Mode */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white border-b border-slate-200 dark:border-purple-800/80">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white border-b border-slate-200 dark:border-purple-800/80 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 rounded-xl shadow-2xs">
               <Box className="w-5 h-5" />
@@ -287,7 +287,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
               Target Printer: <strong>3&quot; x 4&quot; / 76mm x 102mm</strong> (Xprinter, Zebra, TSC, Dymo, Gprinter)
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* PDF Download */}
               <button
                 type="button"
@@ -368,8 +368,8 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                 key={idx}
                 className={`physical-label-preview bg-white dark:bg-[#111C30] border border-gray-200 dark:border-slate-800/90 rounded-md shadow-md p-4 flex flex-col justify-between text-center select-none relative transition-all duration-200 font-mono text-xs leading-tight ${
                   orientation === 'portrait'
-                    ? 'w-[280px] h-[375px]'
-                    : 'w-[375px] h-[280px]'
+                    ? 'w-full max-w-[280px] h-[375px]'
+                    : 'w-full max-w-[375px] min-h-[280px]'
                 }`}
                 style={{
                   boxSizing: 'border-box',
@@ -506,7 +506,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           <div className="text-xs text-slate-500 dark:text-slate-400">
             Previewing {copies} copy/copies • 3&quot; × 4&quot; Shelf Box Format
           </div>

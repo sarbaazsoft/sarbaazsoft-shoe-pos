@@ -147,9 +147,9 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
 
   // Tag styling dimensions for preview
   const previewDimensions = {
-    '50x30': { widthClass: 'w-[280px]', heightClass: 'min-h-[165px]', label: '50 × 30 mm (Standard)' },
-    '40x25': { widthClass: 'w-[240px]', heightClass: 'min-h-[145px]', label: '40 × 25 mm (Compact)' },
-    '60x40': { widthClass: 'w-[320px]', heightClass: 'min-h-[195px]', label: '60 × 40 mm (Large)' },
+    '50x30': { widthClass: 'w-full max-w-[280px]', heightClass: 'min-h-[165px]', label: '50 × 30 mm (Standard)' },
+    '40x25': { widthClass: 'w-full max-w-[240px]', heightClass: 'min-h-[145px]', label: '40 × 25 mm (Compact)' },
+    '60x40': { widthClass: 'w-full max-w-[320px]', heightClass: 'min-h-[195px]', label: '60 × 40 mm (Large)' },
   }[tagSize];
 
   return (
@@ -158,7 +158,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -173,7 +173,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
       >
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-200 dark:border-purple-400/30 rounded-xl shadow-2xs">
               <Tag className="w-4 h-4" />
@@ -511,7 +511,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-3.5 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           <div className="text-xs text-slate-500 dark:text-slate-400">
             Thermal Label Roll • Size: {tagSize} mm
           </div>

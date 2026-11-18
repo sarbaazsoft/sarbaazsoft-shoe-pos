@@ -8,6 +8,7 @@ import { exportBatchStickersToPdf, exportStickersToImage } from '../../utils/pdf
 import { generateCode128Barcode } from '../../utils/barcode.ts';
 import { playAudioFeedback } from '../../utils/audio.ts';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 export type LabelFormatType = 'roll_50x30' | 'roll_60x40' | 'a4_sheet';
 
@@ -26,6 +27,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
   onClose,
   onRefreshProducts: _onRefreshProducts,
 }) => {
+  const isDesktop = useIsDesktop();
   const storeName =
     companySettings?.name ||
     companySettings?.company_name ||
@@ -354,7 +356,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-5 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -369,31 +371,31 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* MODAL TOP HEADER */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-cyan-400 border border-blue-200 dark:border-blue-900/50 rounded-xl shadow-2xs">
-              <Barcode className="w-6 h-6" />
+        <div className="flex items-center justify-between gap-2 px-3.5 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="p-2 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-cyan-400 border border-blue-200 dark:border-blue-900/50 rounded-xl shadow-2xs shrink-0">
+              <Barcode className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                   Barcode Generator &amp; Physical Label Tool
                 </h2>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
                   Hardware Ready
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
                 Generate high-density scannable barcodes for shoe products &amp; print physical adhesive labels
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl transition cursor-pointer"
-              title="Close Tool (Esc)"
+              title={isDesktop ? "Close Tool (Esc)" : "Close Tool"}
             >
               <X className="w-5 h-5" />
             </button>
@@ -401,7 +403,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
         </div>
 
         {/* MODE TABS & SUMMARY BAR */}
-        <div className="px-6 py-2.5 bg-slate-100 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-3.5 sm:px-6 py-2 sm:py-2.5 bg-slate-100 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs">
           <div 
             ref={barcodeTabContainerRef}
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -496,7 +498,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
         {/* MAIN BODY: 2-COLUMN LAYOUT */}
         <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
           {/* LEFT COLUMN: SELECTION & GENERATOR CONTROLS (7 COLS) */}
-          <div className="lg:col-span-7 p-5 flex flex-col min-h-0 overflow-y-auto space-y-4">
+          <div className="lg:col-span-7 p-3.5 sm:p-5 flex flex-col min-h-0 overflow-y-auto space-y-3.5 sm:space-y-4">
             {activeTab === 'catalog' ? (
               /* TAB 1: CATALOG INVENTORY MULTI-SELECT */
               <div className="space-y-3">
@@ -583,7 +585,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                 </div>
 
                 {/* Catalog Product List */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden max-h-[380px] overflow-y-auto">
+                <div className="border border-gray-200 rounded-xl overflow-x-auto max-h-[380px] overflow-y-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead className="sticky top-0 bg-slate-100 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-gray-700 dark:text-white font-semibold border-b border-gray-200 dark:border-purple-800/80 z-10">
                       <tr>
@@ -733,8 +735,8 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
               </div>
             ) : (
               /* TAB 2: CUSTOM BARCODE GENERATOR ON-THE-FLY */
-              <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-gray-200">
-                <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <div className="space-y-4 bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-gray-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-3">
                   <div className="flex items-center space-x-2">
                     <Sparkles className="w-4 h-4 text-amber-600" />
                     <h3 className="font-bold text-gray-900 text-sm">
@@ -809,7 +811,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <input
                       type="text"
                       value={customBarcode}
@@ -820,7 +822,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                     <select
                       value={customBarcodeFormat}
                       onChange={(e: any) => setCustomBarcodeFormat(e.target.value)}
-                      className="px-3 py-2 bg-slate-50 dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg text-xs font-semibold outline-none focus:border-purple-400 cursor-pointer"
+                      className="w-full sm:w-auto px-3 py-2 bg-slate-50 dark:bg-purple-500/20 border border-gray-300 dark:border-purple-400/40 text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] rounded-lg text-xs font-semibold outline-none focus:border-purple-400 cursor-pointer"
                     >
                       <option value="CODE128" className="dark:bg-[#120726] dark:text-purple-100">Code-128 (Alphanumeric)</option>
                       <option value="EAN13" className="dark:bg-[#120726] dark:text-purple-100">EAN-13 (Numeric)</option>
@@ -832,9 +834,9 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                 </div>
 
                 {/* Copies Counter */}
-                <div className="flex items-center space-x-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
                   <span className="font-semibold text-gray-700">Number of Label Copies:</span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     {[1, 2, 4, 8, 12, 24].map((n) => (
                       <button
                         key={n}
@@ -864,7 +866,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
 
             {/* PHYSICAL HARDWARE SCANNER TEST VERIFICATION BOX */}
             <div className="p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-2 select-none">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1">
                 <div className="flex items-center space-x-2">
                   <ScanLine className="w-4 h-4 text-emerald-400" />
                   <span className="font-bold text-xs text-white">
@@ -915,7 +917,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
           </div>
 
           {/* RIGHT COLUMN: LABEL DESIGN, LIVE PREVIEW & PRINT ACTIONS (5 COLS) */}
-          <div className="lg:col-span-5 p-5 bg-slate-50 flex flex-col justify-between space-y-4 overflow-y-auto">
+          <div className="lg:col-span-5 p-3.5 sm:p-5 bg-slate-50 flex flex-col justify-between space-y-4 overflow-y-auto">
             <div className="space-y-4">
               {/* Physical Label Format Options */}
               <div className="space-y-1.5">
@@ -923,7 +925,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                   <span>Physical Label Sheet / Roll Format</span>
                   <Tag className="w-3.5 h-3.5 text-blue-600" />
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setLabelFormat('roll_50x30')}

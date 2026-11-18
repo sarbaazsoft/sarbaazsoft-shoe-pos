@@ -15,6 +15,7 @@ import type { PlatformNotification, PlatformNotificationType } from '../../types
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { connectRealtimeNotificationStream } from '../../services/pushNotificationClient.ts';
 import { navigateToNotificationUrl } from '../../utils/notificationActions.ts';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 export interface PosNotificationBannerProps {
   currentUser: any;
@@ -41,6 +42,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
   companySettings,
   onNavigateTab: _onNavigateTab,
 }) => {
+  const isDesktop = useIsDesktop();
   const userId = currentUser?.id || currentUser?.userId || 0;
   const userRole = String(currentUser?.role || '').toUpperCase();
   const isCashier = userRole === 'CASHIER';
@@ -218,8 +220,9 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
         list.unshift({
           id: 'welcome-cashier',
           title: canonicalWelcomeTitle,
-          message:
-            'Your Cashier counter account is ready. Ring up footwear sales, scan shoe barcodes, or use the F-key shortcuts (F1 Barcode, F2 Search, F4 Return/Exchange, F9 Fullscreen).',
+          message: isDesktop
+            ? 'Your Cashier counter account is ready. Ring up footwear sales, scan shoe barcodes, or use the F-key shortcuts (F1 Barcode, F2 Search, F4 Return/Exchange, F9 Fullscreen).'
+            : 'Your Cashier counter account is ready. Ring up footwear sales or scan shoe barcodes directly from the terminal.',
           type: 'SUCCESS',
           targetRole: 'CASHIER',
           isWelcome: true,
@@ -229,7 +232,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
     }
 
     return list;
-  }, [rawServerNotices, dismissedIds, isWelcomeDismissed, storeName, cashierName, isCashier]);
+  }, [rawServerNotices, dismissedIds, isWelcomeDismissed, storeName, cashierName, isCashier, isDesktop]);
 
   // Keep currentIndex valid when active notices change
   useEffect(() => {
@@ -430,7 +433,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
           </div>
 
           {/* RIGHT: Action Link, Pagination controls, and Dismiss Button */}
-          <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-slate-200/60 dark:border-purple-800/40">
+          <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 shrink-0 pt-1.5 md:pt-0 border-t md:border-t-0 border-slate-200/60 dark:border-purple-800/40">
             {/* Optional Action Button for announcements */}
             {(currentNotice.actionUrl || currentNotice.rawId) && (
               <button
@@ -446,7 +449,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
                     actionUrl: currentNotice.actionUrl,
                   });
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-50 dark:hover:bg-purple-800/80 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-600/60 shadow-xs cursor-pointer transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-semibold bg-white dark:bg-purple-900/60 hover:bg-slate-50 dark:hover:bg-purple-800/80 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-600/60 shadow-xs cursor-pointer transition-colors"
               >
                 <span>Read More</span>
                 <ExternalLink className="w-3 h-3" />
@@ -463,11 +466,11 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
                     e.stopPropagation();
                     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : activeNotices.length - 1));
                   }}
-                  className="p-1 rounded-md text-slate-600 dark:text-purple-300 hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors"
+                  className="p-1.5 sm:p-1 rounded-md text-slate-600 dark:text-purple-300 hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors"
                   title="Previous notice"
                   aria-label="Previous notice"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <ChevronLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
 
                 <div className="flex items-center gap-1 px-1">
@@ -494,11 +497,11 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
                     e.stopPropagation();
                     setCurrentIndex((prev) => (prev < activeNotices.length - 1 ? prev + 1 : 0));
                   }}
-                  className="p-1 rounded-md text-slate-600 dark:text-purple-300 hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors"
+                  className="p-1.5 sm:p-1 rounded-md text-slate-600 dark:text-purple-300 hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors"
                   title="Next notice"
                   aria-label="Next notice"
                 >
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
             )}
@@ -509,11 +512,11 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
                 type="button"
                 id={`pos-banner-hide-btn-${currentNotice.id}`}
                 onClick={(e) => handleDismiss(currentNotice, e)}
-                className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-purple-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                className="p-1.5 sm:p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-purple-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
                 title="Hide announcement banner"
                 aria-label="Hide announcement banner"
               >
-                <X className="w-3.5 h-3.5 stroke-[2.2]" />
+                <X className="w-4 h-4 sm:w-3.5 sm:h-3.5 stroke-[2.2]" />
               </button>
             </div>
           </div>

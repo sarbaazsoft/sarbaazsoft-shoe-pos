@@ -326,7 +326,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         role="dialog"
         aria-modal="true"
         aria-labelledby="free-trial-title"
-        className={`form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto transition-colors duration-200 ${
+        className={`form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto transition-colors duration-200 ${
           isDark ? 'dark bg-black/80' : 'light bg-slate-900/60'
         } backdrop-blur-xs`}
         data-theme={isDark ? 'dark' : 'light'}
@@ -340,7 +340,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className={`relative w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
+          className={`relative w-full max-w-xl max-h-[92vh] sm:max-h-[94vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
             isDark
               ? 'bg-[#131B2E] text-white border border-purple-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.8)]'
               : 'bg-white text-slate-900 border border-slate-200 shadow-2xl'
@@ -349,22 +349,22 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         >
           {/* MODAL HEADER - Soft Pastel Gradient & Subtle Indigo Divider */}
           <div
-            className={`px-6 py-4.5 sm:px-7 sm:py-5 transition-colors duration-200 border-b ${
+            className={`px-4 py-3.5 sm:px-7 sm:py-5 shrink-0 transition-colors duration-200 border-b ${
               isDark
                 ? 'bg-gradient-to-b from-purple-950/40 via-indigo-950/30 to-[#131B2E] border-purple-800/60 text-white'
                 : 'bg-gradient-to-b from-indigo-50/50 via-purple-50/30 to-white border-indigo-100/60 text-slate-800'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-purple-400/40 bg-white dark:bg-slate-900 flex items-center justify-center font-bold shadow-2xs shrink-0 overflow-hidden">
+            <div className="flex items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl border border-purple-400/40 bg-white dark:bg-slate-900 flex items-center justify-center font-bold shadow-2xs shrink-0 overflow-hidden">
                   <ShoeIcon className="w-full h-full object-cover rounded-xl" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <h3
                       id="free-trial-title"
-                      className={`font-bold text-base sm:text-lg tracking-tight ${
+                      className={`font-bold text-sm sm:text-lg tracking-tight ${
                         isDark ? 'text-white' : 'text-slate-900'
                       }`}
                     >
@@ -408,8 +408,8 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           </div>
 
           {/* MODAL BODY FORM */}
-          <form onSubmit={handleSubmit} noValidate className="flex flex-col">
-            <div className="p-5 sm:p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 min-h-0">
+            <div className="p-3.5 sm:p-6 space-y-3.5 sm:space-y-4 flex-1 overflow-y-auto">
               {/* Alert Error Box */}
               {errorMessage && (
                 <div
@@ -427,7 +427,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
               {/* Card Container for Inputs */}
               <div
-                className={`p-4 sm:p-5 rounded-2xl border shadow-xs space-y-4 transition-colors duration-200 ${
+                className={`p-3.5 sm:p-5 rounded-2xl border shadow-xs space-y-3.5 sm:space-y-4 transition-colors duration-200 ${
                   isDark
                     ? 'bg-[#0E1528] border-purple-900/50 shadow-inner'
                     : 'bg-slate-50/70 border-slate-200'
@@ -435,7 +435,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
               >
                 {/* 1. Full Name */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
                     <label
                       htmlFor="trial-fullname"
                       className={`block font-bold text-xs ${
@@ -510,7 +510,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
                 {/* 2. Email Address */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
                     <label
                       htmlFor="trial-email"
                       className={`block font-bold text-xs ${
@@ -594,7 +594,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
                 {/* 3. Phone / WhatsApp Number */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
                     <label
                       htmlFor="trial-phone"
                       className={`block font-bold text-xs ${
@@ -897,7 +897,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
             {/* MODAL FOOTER ACTION BAR - Soft Pastel Gradient & Subtle Indigo Divider */}
             <div
-              className={`px-6 py-4 sm:px-7 sm:py-4.5 border-t flex items-center justify-between gap-3 transition-colors duration-200 ${
+              className={`px-4 py-3.5 sm:px-7 sm:py-4.5 border-t flex flex-wrap items-center justify-between gap-2.5 shrink-0 transition-colors duration-200 ${
                 isDark
                   ? 'bg-gradient-to-b from-purple-950/40 via-indigo-950/30 to-[#131B2E] border-purple-800/60'
                   : 'bg-gradient-to-b from-indigo-50/50 via-purple-50/30 to-white border-indigo-100/60'

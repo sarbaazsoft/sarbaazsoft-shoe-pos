@@ -1180,20 +1180,37 @@ aside {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: 0.625rem;
+    overflow-y: auto;
     background-color: rgba(11, 15, 23, 0.8);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+  }
+  @media (min-width: 640px) {
+    .app-modal-overlay {
+      padding: 1rem;
+    }
   }
 
   /* 7. .app-stat-card */
   .app-stat-card {
     background-color: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 1rem;
-    padding: 1.125rem;
+    border-radius: 0.875rem;
+    padding: 0.75rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (min-width: 640px) {
+    .app-stat-card {
+      padding: 0.875rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .app-stat-card {
+      border-radius: 1rem;
+      padding: 1.125rem;
+    }
   }
   .app-stat-card:hover {
     border-color: #cbd5e1;
@@ -3302,7 +3319,6 @@ html.dark .saas-panel :is(span, div):is([class*="text-[9px]"], [class*="text-[10
 /* ========================================================================= */
 :root:not(.dark) .saas-panel .app-stat-card.app-stat-card {
   border: 1px solid #e2e8f0;
-  border-radius: 1rem;
   background-color: #f8fafc;
   background-image: none;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
@@ -3315,7 +3331,6 @@ html.dark .saas-panel :is(span, div):is([class*="text-[9px]"], [class*="text-[10
 }
 html.dark .saas-panel .app-stat-card.app-stat-card {
   border: 1px solid rgba(var(--brand-companion-rgb, 79, 70, 229), 0.4);
-  border-radius: 1rem;
   background-color: var(--brand-companion-dark, #1E1B4B);
   background-image: linear-gradient(to bottom right, #0F172A, var(--brand-companion-dark, #1E1B4B), var(--color-purple-950, #3B0764));
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);

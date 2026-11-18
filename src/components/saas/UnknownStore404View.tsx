@@ -11,27 +11,27 @@ export const UnknownStore404View: React.FC<UnknownStore404ViewProps> = ({
   onGoToSuperAdmin,
 }) => {
   return (
-    <div className="min-h-[calc(100vh-3rem)] bg-slate-950 text-slate-100 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-3rem)] bg-slate-950 text-slate-100 flex items-center justify-center p-3.5 sm:p-6 relative overflow-hidden">
       {/* Subtle radial glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(124,58,237,0.16),transparent_60%)] pointer-events-none" />
 
-      <div className="max-w-xl w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-8 md:p-10 shadow-2xl relative z-10">
-        <div className="flex items-center justify-between mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono uppercase tracking-wider">
-            <AlertTriangle className="w-3.5 h-3.5" />
+      <div className="max-w-xl w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-8 md:p-10 shadow-2xl relative z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-5 sm:mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] sm:text-xs font-mono uppercase tracking-wider">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             HTTP 404 • Tenant Not Found
           </div>
         </div>
 
-        <div className="w-14 h-14 rounded-xl bg-violet-600/15 border border-violet-500/30 flex items-center justify-center mb-6">
-          <Store className="w-7 h-7 text-violet-400" />
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-violet-600/15 border border-violet-500/30 flex items-center justify-center mb-4 sm:mb-6">
+          <Store className="w-6 h-6 sm:w-7 sm:h-7 text-violet-400" />
         </div>
 
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mb-3">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-white mb-2.5 sm:mb-3">
           Store Not Found
         </h1>
 
-        <p className="text-base text-slate-300 leading-relaxed mb-6">
+        <p className="text-sm sm:text-base text-slate-300 leading-relaxed mb-5 sm:mb-6">
           This store link is invalid or the store is no longer available. Return to the store directory or contact your platform administrator.
         </p>
 

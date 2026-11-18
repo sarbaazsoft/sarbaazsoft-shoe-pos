@@ -219,7 +219,7 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({
   if (snapshot?.effectiveStatus === 'granted' && snapshot.canReceiveSystemNotifications) {
     return (
       <div
-        className={`rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 flex items-center justify-between gap-3 ${className}`}
+        className={`rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 ${className}`}
       >
         <div className="flex items-center gap-2.5 text-xs text-emerald-900 dark:text-emerald-200">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -289,7 +289,7 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({
         </p>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => void acceptAndEnable()}

@@ -35,7 +35,7 @@ export const PosToast: React.FC<PosToastProps> = ({ toast, onDismiss }) => {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-          className="fixed top-5 right-5 sm:right-8 z-50 max-w-md w-full no-print shadow-2xl rounded-2xl pointer-events-auto"
+          className="fixed top-3 left-3 right-3 sm:top-5 sm:left-auto sm:right-8 z-50 w-auto sm:w-full sm:max-w-md no-print shadow-2xl rounded-2xl pointer-events-auto"
         >
           <div
             className={`p-4 rounded-2xl border backdrop-blur-md flex items-start gap-3 text-sm shadow-xl transition-all ${

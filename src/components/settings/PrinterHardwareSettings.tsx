@@ -83,9 +83,9 @@ export const PrinterHardwareSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header Banner with Bilingual Explanation */}
-      <div className="rounded-2xl p-5 shadow-xs border border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/60 dark:via-indigo-950/80 dark:to-slate-900 relative overflow-hidden transition-colors">
+      <div className="rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/60 dark:via-indigo-950/80 dark:to-slate-900 relative overflow-hidden transition-colors">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
             <div className="p-3 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 rounded-xl shadow-2xs">
@@ -147,13 +147,13 @@ export const PrinterHardwareSettings: React.FC = () => {
       )}
 
       {/* Main Grid: 2 Hardware Destinations */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Destination 1: Thermal Receipt Printer */}
         <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-xs overflow-hidden flex flex-col justify-between transition-colors">
-          <div className="p-5 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-            <div className="flex items-center justify-between">
+          <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-blue-500/10 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 rounded-xl">
+                <div className="p-2.5 bg-blue-500/10 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 rounded-xl shrink-0">
                   <Printer className="w-5 h-5" />
                 </div>
                 <div>
@@ -167,7 +167,7 @@ export const PrinterHardwareSettings: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-6 space-y-5 flex-1">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1">
             {/* Mode selection */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2.5">
@@ -227,12 +227,12 @@ export const PrinterHardwareSettings: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handlePairReceipt}
                     disabled={isPairingReceipt || !webUsbAvailable}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer disabled:opacity-50 active:scale-95"
+                    className="flex-1 min-w-[180px] flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer disabled:opacity-50 active:scale-95"
                   >
                     <Usb className="w-3.5 h-3.5" />
                     <span>
@@ -265,7 +265,7 @@ export const PrinterHardwareSettings: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Paper Roll Width:
                 </label>
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap gap-2.5 sm:gap-4">
                   <label className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                     <input
                       type="radio"
@@ -344,10 +344,10 @@ export const PrinterHardwareSettings: React.FC = () => {
 
         {/* Destination 2: Barcode Sticker / Label Printer */}
         <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-xs overflow-hidden flex flex-col justify-between transition-colors">
-          <div className="p-5 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-            <div className="flex items-center justify-between">
+          <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 rounded-xl">
+                <div className="p-2.5 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 rounded-xl shrink-0">
                   <Tag className="w-5 h-5" />
                 </div>
                 <div>
@@ -361,7 +361,7 @@ export const PrinterHardwareSettings: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-6 space-y-5 flex-1">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1">
             {/* Mode selection */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2.5">
@@ -421,12 +421,12 @@ export const PrinterHardwareSettings: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handlePairSticker}
                     disabled={isPairingSticker || !webUsbAvailable}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer disabled:opacity-50 active:scale-95"
+                    className="flex-1 min-w-[180px] flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] transition cursor-pointer disabled:opacity-50 active:scale-95"
                   >
                     <Usb className="w-3.5 h-3.5" />
                     <span>

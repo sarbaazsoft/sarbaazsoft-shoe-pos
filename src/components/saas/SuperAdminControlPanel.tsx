@@ -1999,9 +1999,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                 {(item as any).badge}
                               </span>
                             )}
-                            {item.shortcut && (
+                            {!isMobile && item.shortcut && (
                               <kbd
-                                className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md transition ${
+                                className={`hidden lg:inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md transition ${
                                   isActive
                                     ? 'bg-white/20 text-white border border-white/30'
                                     : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-indigo-500/20'
@@ -2041,8 +2041,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 <Plus className="w-4 h-4 shrink-0 text-purple-600 dark:text-purple-400" />
                 {!collapsed && <span className="truncate">Provision New Store</span>}
               </div>
-              {!collapsed && (
-                <kbd className="text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white dark:bg-white/10 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-700/50">
+              {!collapsed && !isMobile && (
+                <kbd className="hidden lg:inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white dark:bg-white/10 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-700/50">
                   F3
                 </kbd>
               )}
@@ -2187,8 +2187,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               )}
             </div>
 
-            {!collapsed && (
-              <div className="flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+            {!collapsed && !isMobile && (
+              <div className="hidden lg:flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-1.5">
                   <Keyboard className="w-3 h-3 text-slate-400" />
                   <span>Shortcuts:</span>
@@ -2870,13 +2870,13 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         <main className="flex-1 min-w-0 overflow-x-hidden bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors">
           <div
             ref={superAdminWorkspaceRef}
-            className="p-4 sm:p-6 lg:p-7 space-y-6 max-w-7xl mx-auto select-none"
+            className="p-3 sm:p-6 lg:p-7 space-y-4 sm:space-y-6 max-w-7xl mx-auto select-none"
           >
             {/* DASHBOARD HEADER ROW (Shown on Dashboard & Manifests tabs; Stores, Requests & Reports use Product-route Top Banner Card) */}
             {(activeTab === 'dashboard' || activeTab === 'manifests') && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                 <div>
-                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                     {activeTab === 'dashboard' && 'Dashboard'}
                     {activeTab === 'manifests' && 'Scoped Store & Admin PWA Manifests'}
                   </h1>
@@ -2885,8 +2885,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1628] border border-slate-200/90 dark:border-[#1A263D] text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1628] border border-slate-200/90 dark:border-[#1A263D] text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
                     <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                     <span>{formattedDate}</span>
                   </div>
@@ -2909,7 +2909,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* Error Alert Banner */}
             {error && (
-              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between shadow-xs">
+              <div className="p-3 sm:p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex flex-wrap items-center justify-between gap-2 shadow-xs">
                 <div className="flex items-center gap-2.5 font-medium">
                   <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                   <span>{error}</span>
@@ -2926,7 +2926,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* Success Notification Banner */}
             {successMessage && (
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs flex items-center justify-between shadow-xs">
+              <div className="p-3 sm:p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs flex flex-wrap items-center justify-between gap-2 shadow-xs">
                 <div className="flex items-center gap-2.5 font-medium">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>{successMessage}</span>
@@ -2943,7 +2943,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* Newly Provisioned Store Credentials Banner */}
             {provisionedBanner && (
-              <div className="app-card bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-500/40 rounded-2xl p-5 sm:p-6 shadow-lg">
+              <div className="app-card bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-500/40 rounded-2xl p-3.5 sm:p-6 shadow-lg">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-base">
@@ -3323,9 +3323,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               };
 
               return (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* ROW 1: 5 KPI METRIC CARDS WITH ANIMATED COUNTER */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4">
                     <StatCard
                       id="superadmin-stat-total-stores"
                       title="Deployed Stores"
@@ -3395,23 +3395,25 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       duration={1200}
                     />
 
-                    <StatCard
-                      id="superadmin-stat-platform-revenue"
-                      title="Platform Sales"
-                      value={Math.round(metrics.totalPlatformRevenue)}
-                      prefix="Rs. "
-                      icon={TrendingUp}
-                      iconColor="sky"
-                      sparkline="sky"
-                      trendIndicator={{
-                        value: `${metrics.totalPlatformProducts.toLocaleString()} Products`,
-                        direction: 'up',
-                        label: 'catalog',
-                      }}
-                      loading={loading}
-                      delay={0}
-                      duration={1200}
-                    />
+                    <div className="col-span-2 lg:col-span-1">
+                      <StatCard
+                        id="superadmin-stat-platform-revenue"
+                        title="Platform Sales"
+                        value={Math.round(metrics.totalPlatformRevenue)}
+                        prefix="Rs. "
+                        icon={TrendingUp}
+                        iconColor="sky"
+                        sparkline="sky"
+                        trendIndicator={{
+                          value: `${metrics.totalPlatformProducts.toLocaleString()} Products`,
+                          direction: 'up',
+                          label: 'catalog',
+                        }}
+                        loading={loading}
+                        delay={0}
+                        duration={1200}
+                      />
+                    </div>
                   </div>
 
                   {/* DYNAMIC RETAIL SHOE METRICS (Sales Target, Category Breakdown, Inventory Clearance) WITH INTERSECTION OBSERVER ANIMATION */}
@@ -3430,15 +3432,15 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   />
 
                   {/* ROW 2: 3 GRAPHICAL CARDS (Platform Sales Overview + Top Revenue Stores Donut Gauges + Best Selling Products) */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3.5 sm:gap-5">
                     {/* Card 1: Platform Sales Overview Dual-Spline Area Chart (Span 5 on xl) */}
-                    <div className="md:col-span-2 lg:col-span-12 xl:col-span-5 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+                    <div className="md:col-span-2 lg:col-span-12 xl:col-span-5 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between shadow-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                           Platform Sales Overview
                         </h2>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           {/* Chart Legend */}
                           <div className="flex items-center gap-2.5 text-[11px]">
                             <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
@@ -3609,7 +3611,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     </div>
 
                     {/* Card 2: Top Performing Stores Donut Gauges (Span 4 on xl, matching Store Best Selling Brands) */}
-                    <div className="md:col-span-1 lg:col-span-6 xl:col-span-4 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-5 flex flex-col justify-between min-w-0 shadow-xs">
+                    <div className="md:col-span-1 lg:col-span-6 xl:col-span-4 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between min-w-0 shadow-xs">
                       <div className="flex items-center justify-between mb-2">
                         <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                           Top Performing Stores
@@ -3699,7 +3701,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
                       {/* Bottom Store Status Graphical Distribution Bar */}
                       <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-mono">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10.5px] sm:text-[11px] font-mono">
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                             ● {metrics.activeStores} Active
                           </span>
@@ -3736,9 +3738,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     </div>
 
                     {/* Card 3: Tenant SaaS Subscription & Renewal Health (Focus on Tenant SaaS Metrics) */}
-                    <div className="md:col-span-1 lg:col-span-6 xl:col-span-3 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-5 flex flex-col justify-between min-w-0 shadow-xs">
+                    <div className="md:col-span-1 lg:col-span-6 xl:col-span-3 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between min-w-0 shadow-xs">
                       <div>
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/60 border border-purple-200/80 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
                               <ShieldCheck className="w-3.5 h-3.5" />
@@ -3883,12 +3885,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   </div>
 
                   {/* ROW 3: STORE REVENUE GRAPHICAL BARS & LATEST TRANSACTIONS (Left Span 7) + QUICK ACTIONS (Right Span 5) */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-5">
                     {/* Left: Graphical Store Revenue Comparison + Latest Platform Transactions (Span 7) */}
-                    <div className="lg:col-span-7 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-5 flex flex-col justify-between gap-5 shadow-xs">
+                    <div className="lg:col-span-7 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between gap-4 sm:gap-5 shadow-xs">
                       {/* Top Half: Store Revenue & Catalog Graphical Bars */}
                       <div>
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <div>
                             <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                               Store Revenue &amp; Catalog Graphical Comparison
@@ -3922,7 +3924,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                 onClick={() => onOpenStore(st.id)}
                                 className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-500/40 transition cursor-pointer"
                               >
-                                <div className="flex items-center justify-between text-xs mb-1.5">
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs mb-1.5">
                                   <div className="flex items-center gap-2 min-w-0">
                                     <span
                                       className="w-2.5 h-2.5 rounded-full shrink-0 bg-purple-600"
@@ -3931,7 +3933,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                       {st.name}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2.5 font-mono text-xs shrink-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 font-mono text-[11px] sm:text-xs shrink-0">
                                     <span className="text-slate-500 dark:text-slate-400">
                                       {st.productCount} Products • {st.salesCount} inv
                                     </span>
@@ -3970,7 +3972,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
                       {/* Bottom Half: Latest Platform Transactions (matching Store Dashboard) */}
                       <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                             Latest Platform Transactions
                           </h2>
@@ -3983,7 +3985,42 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           </button>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/60">
+                          {recentTransactions.length === 0 ? (
+                            <div className="py-5 text-center text-xs text-slate-400 dark:text-slate-500">
+                              No platform transactions recorded yet.
+                            </div>
+                          ) : (
+                            recentTransactions.slice(0, 5).map((tx, idx) => (
+                              <div key={`m-${tx.reference}-${idx}`} className="py-2.5 flex items-center justify-between gap-2 text-xs">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-mono font-semibold text-purple-600 dark:text-cyan-400">
+                                      {tx.reference}
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold ${
+                                        tx.type === 'Return'
+                                          ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
+                                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
+                                      }`}
+                                    >
+                                      {tx.status}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate mt-0.5">
+                                    {tx.storeName} · <span className="font-normal text-slate-500 dark:text-slate-400">{tx.customerName}</span>
+                                  </div>
+                                </div>
+                                <div className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
+                                  {tx.currency} {Math.round(tx.amount).toLocaleString()}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="hidden sm:block overflow-x-auto">
                           <table className="w-full text-left text-xs">
                             <thead className="dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
                               <tr className="border-b border-slate-100 dark:border-purple-800/80 text-slate-400 dark:text-white font-semibold">
@@ -4037,32 +4074,32 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     </div>
 
                     {/* Right: Quick Actions (Span 5, matching Store Dashboard Quick Actions) */}
-                    <div className="lg:col-span-5 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-5 flex flex-col justify-between shadow-xs">
-                      <div className="flex items-center justify-between gap-2 mb-4">
+                    <div className="lg:col-span-5 app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between shadow-xs">
+                      <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
                         <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                           Quick Actions
                         </h2>
-                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                        <span className="hidden lg:inline text-[11px] font-medium text-slate-400 dark:text-slate-500">
                           Shortcuts F1–F5
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 flex-1">
+                      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 flex-1">
                         {/* Action 1: Deployed Stores (F1) */}
                         <button
                           type="button"
                           onClick={() => setActiveTab('stores')}
-                          className="quick-action-btn p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
                               <Store className="w-4 h-4" />
                             </div>
-                            <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
+                            <kbd className="hidden lg:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
                               F1
                             </kbd>
                           </div>
-                          <div className="mt-3">
+                          <div className="mt-2.5 sm:mt-3">
                             <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
                               Deployed Stores
                             </div>
@@ -4076,17 +4113,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => setActiveTab('trials')}
-                          className="quick-action-btn p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
                               <Sparkles className="w-4 h-4" />
                             </div>
-                            <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
+                            <kbd className="hidden lg:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
                               F2
                             </kbd>
                           </div>
-                          <div className="mt-3">
+                          <div className="mt-2.5 sm:mt-3">
                             <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
                               30-Day Free Trials
                             </div>
@@ -4100,17 +4137,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => setCreateModalOpen(true)}
-                          className="quick-action-btn p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
                               <Plus className="w-4 h-4" />
                             </div>
-                            <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
+                            <kbd className="hidden lg:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
                               F3
                             </kbd>
                           </div>
-                          <div className="mt-3">
+                          <div className="mt-2.5 sm:mt-3">
                             <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
                               Provision Store
                             </div>
@@ -4124,17 +4161,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => setActiveTab('reports')}
-                          className="quick-action-btn p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
                               <BarChart3 className="w-4 h-4" />
                             </div>
-                            <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
+                            <kbd className="hidden lg:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
                               F4
                             </kbd>
                           </div>
-                          <div className="mt-3">
+                          <div className="mt-2.5 sm:mt-3">
                             <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
                               Platform Reports
                             </div>
@@ -4148,17 +4185,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => setActiveTab('manifests')}
-                          className="quick-action-btn p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
                               <FileCode2 className="w-4 h-4" />
                             </div>
-                            <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
+                            <kbd className="hidden lg:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
                               F5
                             </kbd>
                           </div>
-                          <div className="mt-3">
+                          <div className="mt-2.5 sm:mt-3">
                             <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
                               PWA Manifests
                             </div>
@@ -4175,17 +4212,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                             setImportSqlError(null);
                             setImportSqlModalOpen(true);
                           }}
-                          className="quick-action-btn p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
                               <Upload className="w-4 h-4" />
                             </div>
                             <kbd className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
                               .SQL
                             </kbd>
                           </div>
-                          <div className="mt-3">
+                          <div className="mt-2.5 sm:mt-3">
                             <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
                               Import SQL Script
                             </div>
@@ -4209,10 +4246,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
                 >
                   <div>
-                    <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                    <h2 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                       Deployed Stores &amp; Middleware Control
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-purple-200/80 font-medium mt-0.5">
@@ -4220,14 +4257,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
                         setImportSqlError(null);
                         setImportSqlModalOpen(true);
                       }}
-                      className="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500/20 dark:hover:bg-indigo-500/30 text-white dark:text-indigo-200 border border-indigo-500 dark:border-indigo-400/40 shadow-sm font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer"
+                      className="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500/20 dark:hover:bg-indigo-500/30 text-white dark:text-indigo-200 border border-indigo-500 dark:border-indigo-400/40 shadow-sm font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer"
                       title="Import Multi-Store Data File"
                     >
                       <Upload className="w-4 h-4" />
@@ -4238,7 +4275,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       type="button"
                       disabled={exportingPlatform}
                       onClick={handleExportPlatformSql}
-                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
+                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer disabled:opacity-50"
                       title="Export All Stores & Platform Backup"
                     >
                       <Download className="w-4 h-4" />
@@ -4248,7 +4285,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveTab('trials')}
-                      className="bg-purple-600 hover:bg-purple-700 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-purple-500 dark:border-purple-400/40 shadow-sm font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+                      className="bg-purple-600 hover:bg-purple-700 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-purple-500 dark:border-purple-400/40 shadow-sm font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
                       title="View 30-Day Free Trial Activations"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -4258,7 +4295,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setCreateModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add New Store</span>
@@ -4271,9 +4308,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: 0.25 }}
-                  className="app-card p-4 flex flex-wrap items-center gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
+                  className="app-card p-3 sm:p-4 flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
                 >
-                  <div className="flex-1 min-w-[240px] relative">
+                  <div className="w-full sm:w-auto flex-1 min-w-0 sm:min-w-[240px] relative">
                     <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
@@ -4347,7 +4384,158 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   transition={{ duration: 0.35, delay: 0.3 }}
                   className="app-card overflow-hidden transition-colors dark:border-purple-800/60"
                 >
-                  <div className="overflow-x-auto">
+                  {/* Mobile Stacked Cards (< sm) */}
+                  <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {loading ? (
+                      <div className="py-10 text-center text-slate-400 dark:text-slate-500">
+                        <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto mb-2" />
+                        <p className="font-medium text-xs">Loading deployed stores...</p>
+                      </div>
+                    ) : filteredStores.length === 0 ? (
+                      <div className="py-10 text-center text-slate-400 text-xs">
+                        No stores match your current filter criteria.
+                      </div>
+                    ) : (
+                      filteredStores.map((store) => {
+                        const effectiveStatus =
+                          store.subscriptionStatus === 'EXPIRED' || store.status === 'EXPIRED'
+                            ? 'EXPIRED'
+                            : store.status === 'SUSPENDED' || store.subscriptionStatus === 'SUSPENDED'
+                            ? 'SUSPENDED'
+                            : 'ACTIVE';
+                        const isActive = effectiveStatus === 'ACTIVE';
+                        const isExpired = effectiveStatus === 'EXPIRED';
+
+                        return (
+                          <div key={`m-store-${store.id}`} className="p-3.5 space-y-2.5 text-xs">
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                                  {(store.name || 'ST').slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                                    {store.name}
+                                  </div>
+                                  <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                                    ID #{store.id} · {store.ownerEmail}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                                    isActive
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
+                                      : isExpired
+                                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60'
+                                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
+                                  }`}
+                                >
+                                  {effectiveStatus}
+                                </span>
+                                {isActive && store.isOnline !== false && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 font-mono">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                                    ONLINE
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border font-mono ${
+                                store.businessType === 'WHOLESALE'
+                                  ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/40'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40'
+                              }`}>
+                                {store.businessType === 'WHOLESALE' ? 'Wholesale' : 'Retail'}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-[#1E3A8A]/50 text-blue-800 dark:text-[#93C5FD] border border-blue-200 dark:border-[#3B82F6]/40">
+                                {store.subscriptionPlan === 'free_tier' ? '30-Day Free Tier' : store.subscriptionPlan === '6_MONTHS' ? '6 Months Plan' : 'Yearly Plan'}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                {store.subscriptionEndDate
+                                  ? `Exp: ${new Date(store.subscriptionEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                                  : 'Exp: N/A'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60 font-mono text-[11px]">
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {store.currency} {Math.round(store.totalSales).toLocaleString()}
+                                </span>
+                                <span className="text-slate-400 ml-1.5">({store.salesCount} inv)</span>
+                              </div>
+                              <div className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                {store.productCount.toLocaleString()} Products
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditSubscription(store)}
+                                className="px-2.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] text-purple-700 dark:text-purple-400 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>Plan</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={togglingId === store.id}
+                                onClick={() => handleToggleStoreStatus(store)}
+                                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer ${
+                                  isActive
+                                    ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-[#0E1628] text-amber-700 dark:text-amber-400'
+                                    : 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-[#0E1628] text-emerald-700 dark:text-emerald-400'
+                                }`}
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                                <span>{togglingId === store.id ? '...' : isActive ? 'Suspend' : 'Activate'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={exportingStoreId === store.id}
+                                onClick={() => handleExportStoreSql(store)}
+                                className="p-1.5 rounded-xl border border-purple-200 dark:border-purple-400/40 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-200 cursor-pointer disabled:opacity-50"
+                                title={`Export ${store.name} Store Backup File`}
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenOnboarding(store.id)}
+                                className="p-1.5 rounded-xl border border-purple-200 dark:border-purple-500/30 bg-purple-50/80 dark:bg-[#0E1628] text-purple-600 dark:text-purple-400 cursor-pointer"
+                                title={store.onboardingCompleted ? 'Initial Store Setup & POS Defaults Locked' : 'Open Initial Store Setup'}
+                              >
+                                {store.onboardingCompleted ? <Lock className="w-3.5 h-3.5" /> : <Wand2 className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStoreToDelete(store)}
+                                className="p-1.5 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-[#0E1628] text-rose-600 dark:text-rose-400 cursor-pointer"
+                                title={`Delete Store '${store.name}'`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenStore(store.id)}
+                                className="ml-auto px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Open POS</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
                         <tr>
@@ -4645,14 +4833,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
                 >
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 font-mono mb-2">
                       <Sparkles className="w-3 h-3" />
                       30-Day Free Trial Model
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                    <h2 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                       Trial Activations &amp; Extensions
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-purple-200/80 font-medium mt-0.5">
@@ -4660,11 +4848,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                     <button
                       type="button"
                       onClick={() => setActiveTab('stores')}
-                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer"
+                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer"
                       title="View Deployed Stores Directory"
                     >
                       <Store className="w-4 h-4" />
@@ -4674,7 +4862,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => setCreateModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
+                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(147,51,234,0.3)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add New Store</span>
@@ -4687,9 +4875,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: 0.25 }}
-                  className="app-card p-4 flex flex-wrap items-center gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
+                  className="app-card p-3 sm:p-4 flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
                 >
-                  <div className="flex-1 min-w-[240px] relative">
+                  <div className="w-full sm:w-auto flex-1 min-w-0 sm:min-w-[240px] relative">
                     <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
@@ -4755,7 +4943,108 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   transition={{ duration: 0.35, delay: 0.3 }}
                   className="app-card overflow-hidden transition-colors dark:border-purple-800/60"
                 >
-                  <div className="overflow-x-auto">
+                  {/* Mobile Stacked Cards (< sm) */}
+                  <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {loading ? (
+                      <div className="py-10 text-center text-slate-400 dark:text-slate-500">
+                        <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto mb-2" />
+                        <p className="font-medium text-xs">Loading trial activations...</p>
+                      </div>
+                    ) : filteredTrials.length === 0 ? (
+                      <div className="py-10 text-center text-slate-400 text-xs">
+                        No trial activations match the selected filter.
+                      </div>
+                    ) : (
+                      filteredTrials.map((trial) => {
+                        const now = Date.now();
+                        const trialEnd = trial.trialEndDate ? new Date(trial.trialEndDate).getTime() : 0;
+                        const msDiff = trialEnd - now;
+                        const computedDays = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+                        const daysRemaining = trial.daysRemaining !== undefined ? trial.daysRemaining : computedDays;
+                        const isExpired = trial.status === 'EXPIRED' || daysRemaining <= 0;
+                        const isConverting = trial.status === 'CONVERTED';
+
+                        return (
+                          <div key={`m-trial-${trial.id}`} className="p-3.5 space-y-2.5 text-xs">
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shrink-0">
+                                  {(trial.storeName || 'TS').slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                                    {trial.storeName}
+                                  </div>
+                                  <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                                    {trial.email}
+                                  </div>
+                                </div>
+                              </div>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono shrink-0 ${
+                                  isExpired
+                                    ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
+                                    : isConverting
+                                    ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60'
+                                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
+                                }`}
+                              >
+                                {isExpired ? 'EXPIRED' : isConverting ? 'CONVERTED' : 'ACTIVE'}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-[#312E81]/60 text-indigo-700 dark:text-[#A5B4FC] border border-indigo-200 dark:border-[#6366F1]/40 font-bold">
+                                TRIAL #{trial.id}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/40 font-bold">
+                                {(trial.businessType || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'Wholesale' : 'Retail'}
+                              </span>
+                              <span className="text-slate-600 dark:text-slate-300 font-semibold">
+                                Exp: {new Date(trial.trialEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                              <span className={`font-bold ${isExpired ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                {isExpired ? `(${Math.abs(daysRemaining)}d ago)` : `(${daysRemaining}d left)`}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                disabled={extendingTrialId === trial.id}
+                                onClick={() => handleExtendTrial(trial.id, 30)}
+                                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>{extendingTrialId === trial.id ? 'Extending...' : '+30 Days'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={extendingTrialId === trial.id}
+                                onClick={() => handleExtendTrial(trial.id, 15)}
+                                className="px-2.5 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-[#0E1628] text-indigo-700 dark:text-indigo-400 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+15 Days</span>
+                              </button>
+                              {trial.tenantId && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenStore(trial.tenantId!)}
+                                  className="ml-auto px-2.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] text-purple-700 dark:text-purple-400 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Store className="w-3.5 h-3.5" />
+                                  <span>Open POS</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
                         <tr>
@@ -4982,8 +5271,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* SECTION 4: SCOPED PWA MANIFEST REGISTRY VIEW */}
             {activeTab === 'manifests' && (
-              <div className="app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-6 space-y-4 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-indigo-500/20 pb-4">
+              <div className="app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-6 space-y-4 shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 dark:border-indigo-500/20 pb-3 sm:pb-4">
                   <div>
                     <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <FileCode2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -5052,16 +5341,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* SECTION 6: CUSTOM NOTIFICATIONS & BROADCAST SYSTEM */}
             {activeTab === 'notifications' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
                 {/* Top Banner Card */}
-                <div className="p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/25 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/25 border border-purple-400/30">
-                      <Megaphone className="w-6 h-6" />
+                <div className="p-3.5 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/25 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-start gap-3 sm:gap-3.5">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/25 border border-purple-400/30">
+                      <Megaphone className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                           Custom Notifications &amp; Store Broadcasts
                         </h3>
                         <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300 text-[10px] font-mono font-bold">
@@ -5150,18 +5439,18 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 </div>
 
                 {/* SuperAdmin Device Push Alert Status Ribbon */}
-                <div className="p-3.5 rounded-2xl bg-white dark:bg-[#131B2E] border border-purple-200/80 dark:border-purple-800/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-[#131B2E] border border-purple-200/80 dark:border-purple-800/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
                       isPushSubscribed
                         ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300'
                         : 'bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300'
                     }`}>
-                      <Radio className={`w-5 h-5 ${isPushSubscribed ? 'animate-pulse text-emerald-500' : ''}`} />
+                      <Radio className={`w-4 h-4 sm:w-5 sm:h-5 ${isPushSubscribed ? 'animate-pulse text-emerald-500' : ''}`} />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
                           SuperAdmin Device Push Alerts
                         </span>
                         <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
@@ -5191,7 +5480,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -5233,65 +5522,84 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 </div>
 
                 {/* 4 Metric Summary Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                  <div className="p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider">Total Dispatched</span>
-                      <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300 flex items-center justify-center">
-                        <Send className="w-3.5 h-3.5" />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                  <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
+                    <div className="flex items-center justify-between gap-1 text-slate-500 dark:text-slate-400 mb-1.5 sm:mb-2">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Total Dispatched</span>
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0">
+                        <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                     </div>
-                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                    <div className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white font-mono">
                       {notificationsList.length}
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Platform notifications sent</p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 truncate">Platform notifications sent</p>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider">All Stores Broadcast</span>
-                      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
-                        <Globe className="w-3.5 h-3.5" />
+                  <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
+                    <div className="flex items-center justify-between gap-1 text-slate-500 dark:text-slate-400 mb-1.5 sm:mb-2">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">All Stores Broadcast</span>
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                        <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                     </div>
-                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                    <div className="text-lg sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
                       {notificationsList.filter((n) => !n.tenantId).length}
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Global platform broadcasts</p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 truncate">Global platform broadcasts</p>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider">Targeted Store Alerts</span>
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-300 flex items-center justify-center">
-                        <Store className="w-3.5 h-3.5" />
+                  <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
+                    <div className="flex items-center justify-between gap-1 text-slate-500 dark:text-slate-400 mb-1.5 sm:mb-2">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Targeted Store Alerts</span>
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0">
+                        <Store className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                     </div>
-                    <div className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
+                    <div className="text-lg sm:text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
                       {notificationsList.filter((n) => Boolean(n.tenantId)).length}
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Targeted single store notices</p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 truncate">Targeted single store notices</p>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider">Store Reads</span>
-                      <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
-                        <Eye className="w-3.5 h-3.5" />
+                  <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs">
+                    <div className="flex items-center justify-between gap-1 text-slate-500 dark:text-slate-400 mb-1.5 sm:mb-2">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Store Reads</span>
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                        <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                     </div>
-                    <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                    <div className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
                       {notificationsList.reduce((acc, curr) => acc + (curr.readCount || 0), 0)}
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Total views &amp; dismissals</p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 truncate">Total views &amp; dismissals</p>
                   </div>
                 </div>
 
                 {/* Filters & Search Toolbar */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-xs flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+                  <div className="lg:hidden relative w-full">
+                    <Search className="w-4 h-4 text-slate-400 dark:text-purple-300/70 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search announcements or stores..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-100/90 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Target Filter Tabs */}
-                    <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 text-xs font-semibold">
+                    <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 text-xs font-semibold max-w-full">
                       <button
                         type="button"
                         onClick={() => setNotifFilterTarget('ALL')}
@@ -5578,30 +5886,30 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Add New Store Modal (Aligned with ProductFormModal Header, Cards & Footer) */}
       {createModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => setCreateModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* MODAL HEADER ALIGNED WITH PRODUCT FORM MODAL */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-6 py-4 shrink-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4 shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-purple-500/20 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
                     <Store className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                       Add New Store
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-purple-200/80">
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
                       Provision a new Store Tenant entity &amp; primary Owner Administrator account
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => setCreateModalOpen(false)}
@@ -5617,7 +5925,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <form
               id="add-new-store-form"
               onSubmit={handleCreateStore}
-              className="flex-1 overflow-y-auto p-6 space-y-5 text-xs bg-slate-50/50 dark:bg-[#070B14]"
+              className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4 sm:space-y-5 text-xs bg-slate-50/50 dark:bg-[#070B14]"
             >
               {createStoreError && (
                 <div
@@ -5631,7 +5939,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               )}
 
               {/* CARD 1: STORE & OWNER IDENTITY */}
-              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
+              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-3.5 sm:p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-3.5 sm:space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
                   <h5 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <Building2 className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
@@ -5701,7 +6009,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
 
               {/* CARD 2: BUSINESS MODEL & PRICING POLICY */}
-              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
+              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-3.5 sm:p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-3.5 sm:space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
                   <h5 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <Store className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
@@ -5914,7 +6222,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
 
               {/* CARD 3: OWNER SECURITY CREDENTIALS */}
-              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
+              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-3.5 sm:p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-3.5 sm:space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
                   <h5 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <Lock className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
@@ -6038,7 +6346,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
 
               {/* CARD 4: SUBSCRIPTION PLAN & TENANT PROVISIONING */}
-              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-4">
+              <div className="bg-white dark:bg-gradient-to-b dark:from-[#131B2E]/90 dark:to-[#0A0E1A]/80 p-3.5 sm:p-5 rounded-2xl border border-gray-200 dark:border-[#1A263D] shadow-xs dark:shadow-[0_0_20px_rgba(59,130,246,0.05)] space-y-3.5 sm:space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
                   <h5 className="font-bold text-gray-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <KeyRound className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
@@ -6104,7 +6412,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </form>
 
             {/* MODAL FOOTER ALIGNED WITH PRODUCT FORM MODAL */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-gray-200 dark:border-purple-800/80 px-6 py-4 flex items-center justify-between shrink-0">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-gray-200 dark:border-purple-800/80 px-4 sm:px-6 py-3.5 sm:py-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setCreateModalOpen(false)}
@@ -6118,7 +6426,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 form="add-new-store-form"
                 disabled={creatingStore}
                 style={{ color: '#ffffff' }}
-                className="btn-primary btn-pure-white px-6 py-2.5 text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-md disabled:opacity-50"
+                className="btn-primary btn-pure-white px-5 sm:px-6 py-2.5 text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-md disabled:opacity-50"
               >
                 {creatingStore ? (
                   <>
@@ -6143,8 +6451,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* Edit Store Subscription Modal */}
       {storeToEditSub && (
-        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-900 dark:text-white">
+        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
@@ -6200,11 +6508,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
               {/* Manual Expiry Date & Quick Renewal Presets */}
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                     Subscription Expiry Date
                   </label>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => {
@@ -6284,7 +6592,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200/80 dark:border-slate-800">
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-200/80 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setStoreToEditSub(null)}
@@ -6307,8 +6615,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* Confirm Delete Store Modal */}
       {storeToDelete && (
-        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-900 dark:text-white">
+        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
                 <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
@@ -6389,7 +6697,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* SuperAdmin Platform SQL Import Modal */}
       {importSqlModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => !importingPlatformSql && setImportSqlModalOpen(false)}
         >
           <div
@@ -6397,16 +6705,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-purple-600/10 dark:bg-purple-500/20 border border-purple-500/25 dark:border-purple-400/40 flex items-center justify-center text-purple-600 dark:text-purple-300 shrink-0">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-600/10 dark:bg-purple-500/20 border border-purple-500/25 dark:border-purple-400/40 flex items-center justify-center text-purple-600 dark:text-purple-300 shrink-0">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                     SuperAdmin Platform Data Import &amp; Multi-Store Seed
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-purple-200/80">
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
                     Upload a data import file or 1-click import the 24-store, 2,400-product dataset
                   </p>
                 </div>
@@ -6415,14 +6723,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 type="button"
                 disabled={importingPlatformSql}
                 onClick={() => setImportSqlModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Body */}
-            <div className="p-6 overflow-y-auto space-y-4 text-xs bg-slate-50/50 dark:bg-[#070B14]">
+            <div className="p-3.5 sm:p-6 overflow-y-auto space-y-4 text-xs bg-slate-50/50 dark:bg-[#070B14]">
               {importSqlError && (
                 <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-200 flex items-start gap-2.5 font-medium">
                   <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -6431,7 +6739,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               )}
 
               {/* Quick Actions Bar: Upload .SQL, 1-Click Load & Import 24-Store SQL, Download Sample .SQL */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-indigo-500/25 space-y-3 shadow-2xs">
+              <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-indigo-500/25 space-y-3 shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
@@ -6525,7 +6833,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 px-6 py-4 flex items-center justify-between shrink-0">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 px-4 sm:px-6 py-3.5 sm:py-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
                 disabled={importingPlatformSql}
@@ -6565,7 +6873,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             initial={{ opacity: 0, y: -16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -16, scale: 0.96 }}
-            className="fixed top-16 right-4 z-50 max-w-md bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl border border-emerald-400/40 flex items-center gap-3 text-xs font-bold"
+            className="fixed top-16 left-3 right-3 sm:left-auto sm:right-4 z-50 sm:max-w-md bg-emerald-600 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-2xl border border-emerald-400/40 flex items-center gap-3 text-xs font-bold"
           >
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span className="flex-1">{successMessage}</span>
@@ -6583,27 +6891,27 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Compose Custom Notification Modal */}
       {notificationModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
           onClick={() => {
             if (!sendingNotif) setNotificationModalOpen(false);
           }}
         >
           <div
-            className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-6 py-4 shrink-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4 shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
                     <Megaphone className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                       Send Custom Notification
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-purple-200/80">
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
                       Deliver real-time announcements &amp; Web Push alerts to all stores or a specific store
                     </p>
                   </div>
@@ -6612,7 +6920,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   type="button"
                   disabled={sendingNotif}
                   onClick={() => setNotificationModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -6623,7 +6931,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <form
               id="send-custom-notification-form"
               onSubmit={handleSendNotification}
-              className="flex-1 overflow-y-auto p-6 space-y-4 text-xs bg-slate-50/50 dark:bg-[#070B14]"
+              className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-3.5 sm:space-y-4 text-xs bg-slate-50/50 dark:bg-[#070B14]"
             >
               {notifError && (
                 <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-200 text-xs font-semibold flex items-center gap-2">
@@ -6633,7 +6941,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               )}
 
               {/* CARD 1: TARGET RECIPIENT */}
-              <div className="bg-white dark:bg-[#131B2E] p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-3">
+              <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <Store className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -6702,7 +7010,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
 
               {/* CARD 2: NOTIFICATION TYPE / PRIORITY */}
-              <div className="bg-white dark:bg-[#131B2E] p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-3">
+              <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <Radio className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -6738,7 +7046,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
 
               {/* CARD 3: CONTENT (TITLE & MESSAGE) */}
-              <div className="bg-white dark:bg-[#131B2E] p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-3">
+              <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <h5 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider flex items-center gap-2">
                     <FileText className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -6820,7 +7128,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
 
               {/* CARD 4: LIVE STORE PREVIEW */}
-              <div className="bg-white dark:bg-[#131B2E] p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-2">
+              <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-4.5 rounded-2xl border border-slate-200 dark:border-[#1A263D] shadow-xs space-y-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Store POS Live Preview
                 </div>
@@ -6858,7 +7166,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </form>
 
             {/* Modal Footer */}
-            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 px-6 py-4 flex items-center justify-between shrink-0">
+            <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 px-4 sm:px-6 py-3.5 sm:py-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
                 disabled={sendingNotif}
@@ -6898,15 +7206,15 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Confirm Revoke Notification Modal */}
       {notifToRevoke && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => !revokingNotif && setNotifToRevoke(null)}
         >
           <div
-            className="relative w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-rose-200 dark:border-rose-500/40 animate-in fade-in zoom-in-95 duration-150 text-slate-900 dark:text-white"
+            className="relative w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] overflow-y-auto border border-rose-200 dark:border-rose-500/40 animate-in fade-in zoom-in-95 duration-150 text-slate-900 dark:text-white my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-rose-50/80 dark:bg-rose-950/30 border-b border-rose-100 dark:border-rose-900/40 px-5 py-4 flex items-start justify-between gap-3">
+            <div className="bg-rose-50/80 dark:bg-rose-950/30 border-b border-rose-100 dark:border-rose-900/40 px-4 sm:px-5 py-3.5 sm:py-4 flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0 shadow-2xs">
                   <Trash2 className="w-5 h-5" />
@@ -6931,7 +7239,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </div>
 
             {/* Body */}
-            <div className="p-5 space-y-3.5 text-xs">
+            <div className="p-4 sm:p-5 space-y-3.5 text-xs">
               <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
                 Are you sure you want to revoke and delete this notification? Store terminals and users will immediately stop seeing this announcement.
               </p>
@@ -6953,7 +7261,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   </p>
                 )}
 
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                   <span>Scope: {notifToRevoke.storeName || (notifToRevoke.tenantId ? `Store #${notifToRevoke.tenantId}` : 'All Stores Broadcast')}</span>
                   <span>{notifToRevoke.createdAt ? new Date(notifToRevoke.createdAt).toLocaleDateString() : 'Active'}</span>
                 </div>
@@ -6968,7 +7276,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50 dark:bg-[#0E1628] border-t border-slate-200/80 dark:border-slate-800 px-5 py-3.5 flex items-center justify-end gap-2.5">
+            <div className="bg-slate-50 dark:bg-[#0E1628] border-t border-slate-200/80 dark:border-slate-800 px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
               <button
                 type="button"
                 disabled={revokingNotif}

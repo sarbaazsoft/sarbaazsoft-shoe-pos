@@ -1535,7 +1535,7 @@ export const Header: React.FC<HeaderProps> = ({
                 fetchLiveNotifications();
               }
             }}
-            className={`h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs relative ${
+            className={`h-9 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs relative ${
               showNotifications
                 ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.4)]'
                 : isBellPulsing
@@ -1995,7 +1995,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setShowThemeDropdown(false);
                 setShowNotifications(false);
               }}
-              className={`h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
+              className={`h-9 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
                 showUserDropdown
                   ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(147,51,234,0.4)]'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(147,51,234,0.2)]'
@@ -2028,7 +2028,7 @@ export const Header: React.FC<HeaderProps> = ({
                   exit={{ opacity: 0, scale: 0.94, y: -8 }}
                   transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                   style={{ transformOrigin: 'top right' }}
-                  className="absolute right-0 left-auto top-full mt-2 w-68 sm:w-76 bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(147,51,234,0.25)] p-2.5 z-50 backdrop-blur-md space-y-1.5"
+                  className="absolute right-0 left-auto top-full mt-2 w-68 max-w-[calc(100vw-1rem)] sm:w-76 bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-400/40 rounded-xl shadow-2xl dark:shadow-[0_0_25px_rgba(147,51,234,0.25)] p-2.5 z-50 backdrop-blur-md space-y-1.5"
                 >
                   {/* Unified Identity & Role Card: User info DP + Role card wrapped in one card with dark mode gradient */}
                   <div className="p-2.5 rounded-lg bg-slate-50/80 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border border-slate-100 dark:border-purple-800/80 dark:text-white transition-colors mb-0.5 space-y-2">
@@ -2275,7 +2275,7 @@ export const Header: React.FC<HeaderProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -24, scale: 0.94 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed top-16 right-4 z-50 max-w-sm sm:max-w-md w-full bg-white dark:bg-[#120726] border-2 border-purple-500/80 rounded-2xl shadow-2xl p-3.5 backdrop-blur-xl ring-4 ring-purple-500/10 no-print"
+            className="fixed top-16 left-3 right-3 sm:left-auto sm:right-4 z-50 w-auto sm:w-full sm:max-w-md bg-white dark:bg-[#120726] border-2 border-purple-500/80 rounded-2xl shadow-2xl p-3 sm:p-3.5 backdrop-blur-xl ring-4 ring-purple-500/10 no-print"
           >
             <div className="flex items-start gap-3">
               <div

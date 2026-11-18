@@ -270,7 +270,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
 
   const content = (
     <div
-      className={`relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-purple-200/90 dark:border-purple-800/60 shadow-2xl shadow-purple-500/15 dark:shadow-purple-950/50 p-4 sm:p-5 text-slate-800 dark:text-slate-100 ${className}`}
+      className={`relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-purple-200/90 dark:border-purple-800/60 shadow-2xl shadow-purple-500/15 dark:shadow-purple-950/50 p-3.5 sm:p-5 text-slate-800 dark:text-slate-100 ${className}`}
     >
       {/* Decorative subtle ambient gradient accent */}
       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500" />
@@ -363,7 +363,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
         {isGrantedState ? (
           <button
             type="button"
@@ -375,7 +375,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
           </button>
         ) : isDeniedState ? (
           <>
-            <div className="relative group flex-1">
+            <div className="relative group flex-1 min-w-[180px]">
               <button
                 type="button"
                 onClick={() => void handleInspectPermissionStatus()}
@@ -387,7 +387,7 @@ export const PushNotificationSoftPrompt: React.FC<PushNotificationSoftPromptProp
               </button>
               <div
                 role="tooltip"
-                className="pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity absolute left-0 right-0 bottom-full mb-2 z-50 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[11px] leading-snug p-2.5 shadow-xl border border-slate-700"
+                className="hidden lg:block pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity absolute left-0 right-0 bottom-full mb-2 z-50 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[11px] leading-snug p-2.5 shadow-xl border border-slate-700"
               >
                 {deniedHelpTooltip}
               </div>

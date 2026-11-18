@@ -144,23 +144,23 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
       subtitle="Complete email confirmation to activate your store"
       dbText="Account Safeguard Active"
     >
-      <div className="w-full max-w-lg bg-white/95 dark:bg-[#11162B]/95 backdrop-blur-xl border border-slate-200/80 dark:border-purple-800/50 rounded-3xl p-6 sm:p-8 shadow-2xl transition-all duration-200 mx-auto">
+      <div className="w-full max-w-lg bg-white/95 dark:bg-[#11162B]/95 backdrop-blur-xl border border-slate-200/80 dark:border-purple-800/50 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl transition-all duration-200 mx-auto">
         {verificationSuccess ? (
-          <div className="text-center space-y-5 animate-in fade-in duration-300">
+          <div className="text-center space-y-4 sm:space-y-5 animate-in fade-in duration-300">
             <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/30">
               <CheckCircle2 className="w-9 h-9 stroke-[2.5]" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                 Account Verified!
               </h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                 {successData?.message || 'Your email has been confirmed and your 30-day free trial has been successfully activated.'}
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-left space-y-1">
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-left space-y-1">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 Next Step
               </span>
@@ -197,7 +197,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
                 <Mail className="w-6 h-6 stroke-[2]" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                   Verify Your Email
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">

@@ -286,10 +286,10 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
         dbText="Secure Store Setup"
       />
 
-      <main className="relative z-10 w-full flex-1 py-8 px-4 sm:px-6">
+      <main className="relative z-10 w-full flex-1 py-5 sm:py-8 px-3 sm:px-6">
         <div className="max-w-4xl mx-auto">
           {loading ? (
-            <div className="bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md rounded-3xl p-8 sm:p-10 shadow-2xl border border-white/30 dark:border-purple-800/60 flex flex-col items-center max-w-sm w-full mx-auto text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md rounded-3xl p-6 sm:p-10 shadow-2xl border border-white/30 dark:border-purple-800/60 flex flex-col items-center max-w-sm w-full mx-auto text-center animate-in fade-in zoom-in-95 duration-200">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white mb-4 shadow-lg shadow-purple-600/30 ring-2 ring-indigo-400/30">
                 <div className="w-7 h-7 border-3 border-white border-t-transparent rounded-full animate-spin" />
               </div>
@@ -303,19 +303,19 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
           ) : alreadyCompleted ? (
             <div
               id="tenant-onboarding-locked-card"
-              className="app-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-emerald-200/80 dark:border-emerald-800/70 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6"
+              className="app-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-emerald-200/80 dark:border-emerald-800/70 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl space-y-5 sm:space-y-6"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200/80 dark:border-slate-800">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-700/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-sm">
-                    <Lock className="w-7 h-7" />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-700/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-sm">
+                    <Lock className="w-6 h-6 sm:w-7 sm:h-7" />
                   </div>
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-mono font-bold mb-1.5">
                       <Lock className="w-3 h-3" />
                       <span>Initial Store Setup &amp; POS Defaults Locked</span>
                     </div>
-                    <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                    <h1 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                       Initial Store Setup &amp; POS Defaults
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
@@ -327,7 +327,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="self-start sm:self-center inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md transition cursor-pointer shrink-0"
+                  className="self-start sm:self-center inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md transition cursor-pointer shrink-0"
                 >
                   <span>Open Store POS Portal</span>
                   <ArrowRight className="w-4 h-4" />
@@ -335,7 +335,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
               </div>
 
               {/* Locked POS Defaults Summary Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <div className="p-4 rounded-2xl bg-slate-50/90 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
                   <div className="flex items-center justify-between text-[11px] font-mono font-bold uppercase text-slate-500 dark:text-slate-400">
                     <span>Store Identity</span>
@@ -409,17 +409,17 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
           ) : (
             <>
               {/* Top Welcome & Required Setup Notice */}
-              <div className="app-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 rounded-2xl sm:rounded-3xl p-5 sm:p-6 mb-5 shadow-xl">
+              <div className="app-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-5 shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/25">
-                      <ShieldCheck className="w-6 h-6" />
+                  <div className="flex items-start gap-3 sm:gap-3.5">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/25">
+                      <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
                       <div className="text-xs font-mono font-semibold text-purple-600 dark:text-purple-300">
                         Store Onboarding
                       </div>
-                      <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      <h1 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                         Initial Store Setup &amp; POS Defaults
                       </h1>
                       <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
@@ -531,7 +531,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
 
               <form
                 onSubmit={handleFinishOnboarding}
-                className="app-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl text-slate-900 dark:text-slate-100"
+                className="app-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl text-slate-900 dark:text-slate-100"
               >
                 {/* STEP 1: STORE DETAILS & MASTER ADMINISTRATOR ACCOUNT */}
                 {step === 1 && (
@@ -730,7 +730,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
                       <button
                         type="button"
                         onClick={onCancel}
@@ -739,7 +739,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                         Cancel Setup
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="submit"
                           disabled={saving}
@@ -758,10 +758,10 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                               setStep(2);
                             }
                           }}
-                          className="btn-primary px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold"
+                          className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold whitespace-normal text-center"
                         >
                           <span>Next: Cashier Account Setup (Recommended)</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                         </button>
                       </div>
                     </div>
@@ -971,7 +971,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
                     )}
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
                       <button
                         type="button"
                         onClick={() => {
@@ -984,7 +984,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                         <span>Back</span>
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="submit"
                           disabled={saving}
@@ -1003,10 +1003,10 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                               setStep(3);
                             }
                           }}
-                          className="btn-primary px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold"
+                          className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold whitespace-normal text-center"
                         >
                           <span>Next: Invoices, Taxes &amp; Receipts</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                         </button>
                       </div>
                     </div>
@@ -1351,7 +1351,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
                       <button
                         type="button"
                         onClick={() => {
@@ -1364,7 +1364,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                         <span>Back</span>
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="submit"
                           disabled={saving}
@@ -1381,10 +1381,10 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                             setError(null);
                             setStep(4);
                           }}
-                          className="btn-primary px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold"
+                          className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold whitespace-normal text-center"
                         >
                           <span>Next: Branding &amp; Catalog</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                         </button>
                       </div>
                     </div>
@@ -1463,7 +1463,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
 
                     {/* Optional Starter Footwear Articles */}
                     <div className="space-y-3 pt-2 border-t border-slate-200/80 dark:border-purple-900/40">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                           <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -1568,7 +1568,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                                 />
                               </div>
 
-                              <div className="sm:col-span-1 flex justify-end pt-3">
+                              <div className="sm:col-span-1 flex justify-end pt-1 sm:pt-3">
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveProductRow(idx)}
@@ -1583,7 +1583,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
                       <button
                         type="button"
                         onClick={() => {
@@ -1596,20 +1596,20 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                         <span>Back</span>
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="submit"
                           disabled={saving}
-                          className="btn-primary px-6 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50"
+                          className="btn-primary px-4 sm:px-6 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50 whitespace-normal text-center"
                         >
                           {saving ? (
                             <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
                               <span>Finalizing Store Setup...</span>
                             </>
                           ) : (
                             <>
-                              <Check className="w-4 h-4 stroke-[2.5]" />
+                              <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
                               <span>Complete Store Setup &amp; Unlock Owner Portal</span>
                             </>
                           )}

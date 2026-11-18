@@ -6,6 +6,7 @@ import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
 import { customerOpeningBalanceSchema } from '../../schemas/openingBalanceSchema.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface CustomerPickerProps {
   customers: any[];
@@ -67,6 +68,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
   onModalOpenChange,
   isWholesaleStore = false,
 }) => {
+  const isDesktop = useIsDesktop();
   // Combobox state (suggestions only open while typing)
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -599,7 +601,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                   setIsDropdownOpen(val.trim().length > 0);
                 }}
                 onKeyDown={handleComboboxKeyDown}
-                className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs font-semibold outline-none transition border ${
+                className={`w-full pl-9 pr-8 py-2.5 sm:py-2 rounded-xl text-xs font-semibold outline-none transition border ${
                   hasSelection && !isInputFocused && !searchQuery
                     ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700/70 text-emerald-950 dark:text-emerald-200 focus:bg-white dark:focus:bg-slate-900/80 focus:border-indigo-500'
                     : 'bg-slate-50/90 dark:bg-slate-900/60 border-slate-200/90 dark:border-indigo-500/20 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20'
@@ -614,7 +616,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                   onClick={handleClearSelection}
                   title="Clear selected customer"
                   aria-label="Clear selected customer"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200/70 dark:hover:bg-white/10 transition cursor-pointer font-bold text-sm leading-none"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-5 sm:h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-200/70 dark:hover:bg-white/10 transition cursor-pointer font-bold text-sm leading-none"
                 >
                   ×
                 </button>
@@ -627,9 +629,9 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
               onClick={openFindCustomerModal}
               title="Find Customer (Lookup Modal)"
               aria-label="Open Find Customer Modal"
-              className="px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 border border-slate-200/90 dark:border-indigo-500/20 shadow-2xs transition cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
+              className="px-3 sm:px-2.5 py-2.5 sm:py-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 border border-slate-200/90 dark:border-indigo-500/20 shadow-2xs transition cursor-pointer active:scale-95 flex items-center justify-center shrink-0"
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
 
             <button
@@ -638,9 +640,9 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
               onClick={() => openQuickAdd(false, searchQuery)}
               title="Register New Customer"
               aria-label="Register New Customer"
-              className="px-2.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 text-xs font-bold shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
+              className="px-3 sm:px-2.5 py-2.5 sm:py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 text-xs font-bold shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
             >
-              <UserPlus className="w-3.5 h-3.5" />
+              <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               <span className="hidden sm:inline">New</span>
             </button>
           </div>
@@ -792,38 +794,38 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
       {/* FIND CUSTOMER LOOKUP MODAL */}
       {isModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 sm:p-4"
+          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4"
           onKeyDown={handleModalKeyDown}
         >
-          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[88vh]">
-            <div className="px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300">
-                  <Users className="w-5 h-5" />
+          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh]">
+            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0">
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-base text-slate-900 dark:text-white tracking-tight">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                       Find Customer
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-blue-100 dark:bg-purple-950/80 text-blue-700 dark:text-purple-300 border border-blue-200 dark:border-purple-700/70">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-mono font-bold bg-blue-100 dark:bg-purple-950/80 text-blue-700 dark:text-purple-300 border border-blue-200 dark:border-purple-700/70">
                       {indexedCustomers.length} Registered
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-purple-200/80">
-                    Search by Name, Phone, Shop, or Customer Code/ID • Use ↑↓ and Enter to select
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
+                    Search by Name, Phone, Shop, or Customer Code/ID<span className="hidden lg:inline"> • Use ↑↓ and Enter to select</span>
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     if (quickAddInModal) setQuickAddInModal(false);
                     else openQuickAdd(true, modalSearchQuery);
                   }}
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 text-xs font-bold shadow-sm shadow-purple-600/25 flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                  className="px-3 sm:px-3.5 py-2 sm:py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 text-xs font-bold shadow-sm shadow-purple-600/25 flex items-center gap-1.5 transition cursor-pointer active:scale-95"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>{quickAddInModal ? 'Back to Customer List' : '+ New Customer'}</span>
@@ -831,8 +833,8 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
-                  title="Close (Esc)"
+                  className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+                  title={isDesktop ? 'Close (Esc)' : 'Close'}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -881,7 +883,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
               </div>
             ) : (
               <>
-                <div className="p-4 bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-purple-900/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="p-3 sm:p-4 bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-purple-900/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
                   <div className="relative flex-1">
                     <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
@@ -907,7 +909,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11px] shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] shrink-0">
                     <span className="text-slate-400 dark:text-slate-500 font-semibold mr-1 hidden md:inline">Sort:</span>
                     {(
                       [
@@ -958,10 +960,10 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-[#0D1425]/95 backdrop-blur-xs text-slate-600 dark:text-purple-200 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 dark:border-purple-800/80">
                         <tr>
-                          <th className="py-3 px-4">Customer Name &amp; Code</th>
-                          <th className="py-3 px-4">Phone</th>
-                          <th className="py-3 px-4 text-right">Balance Due / Spent</th>
-                          <th className="py-3 px-4 text-right w-28">Action</th>
+                          <th className="py-2.5 px-3 sm:py-3 sm:px-4">Customer Name &amp; Code</th>
+                          <th className="hidden sm:table-cell py-3 px-4">Phone</th>
+                          <th className="py-2.5 px-2.5 sm:py-3 sm:px-4 text-right">Balance / Spent</th>
+                          <th className="py-2.5 px-3 sm:py-3 sm:px-4 text-right sm:w-28">Action</th>
                         </tr>
                       </thead>
                       <tbody ref={modalTableBodyRef} className="divide-y divide-slate-100 dark:divide-purple-900/30">
@@ -983,13 +985,13 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                                   : 'hover:bg-slate-50 dark:hover:bg-purple-950/20'
                               }`}
                             >
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-3">
+                              <td className="py-2.5 px-3 sm:py-3 sm:px-4">
+                                <div className="flex items-center gap-2 sm:gap-3">
                                   <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-purple-950/70 border border-blue-200/80 dark:border-purple-800/70 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs shrink-0">
                                     {getInitials(item.raw.name)}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                       <span className="font-bold text-slate-900 dark:text-white truncate">
                                         {item.raw.name}
                                       </span>
@@ -1000,10 +1002,16 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                                     {shop && (
                                       <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{shop}</div>
                                     )}
+                                    {item.raw.phone && (
+                                      <div className="sm:hidden text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                                        <Phone className="w-2.5 h-2.5 shrink-0" />
+                                        <span>{item.raw.phone}</span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-3 px-4 font-mono text-slate-800 dark:text-slate-200">
+                              <td className="hidden sm:table-cell py-3 px-4 font-mono text-slate-800 dark:text-slate-200">
                                 {item.raw.phone ? (
                                   <div className="inline-flex items-center gap-1.5">
                                     <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -1013,7 +1021,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                                   <span className="text-slate-400 dark:text-slate-600">-</span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-right">
+                              <td className="py-2.5 px-2.5 sm:py-3 sm:px-4 text-right">
                                 <div className="flex flex-col items-end">
                                   <div
                                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border ${
@@ -1038,7 +1046,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-3 px-4 text-right">
+                              <td className="py-2.5 px-3 sm:py-3 sm:px-4 text-right">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1083,8 +1091,8 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                   )}
                 </div>
 
-                <div className="px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-purple-200/80">
-                  <div className="flex items-center gap-3">
+                <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-purple-200/80">
+                  <div className="hidden lg:flex items-center gap-3">
                     <span className="inline-flex items-center gap-1">
                       <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-mono text-[10px] inline-flex items-center">
                         <ArrowUp className="w-2.5 h-2.5" />
@@ -1105,14 +1113,14 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                       <span>Close</span>
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:w-auto">
                     <span>
                       Showing <strong>{modalVisibleRows.length}</strong> of <strong>{modalFilteredMatches.length}</strong> matches
                     </span>
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="btn-secondary px-3.5 py-1.5 text-xs font-semibold cursor-pointer"
+                      className="btn-secondary px-3.5 py-2 sm:py-1.5 text-xs font-semibold cursor-pointer"
                     >
                       Close
                     </button>

@@ -461,12 +461,12 @@ export const RetailShoeMetrics: React.FC<RetailShoeMetricsProps> = ({
     <section
       ref={sectionRef}
       aria-label="Dynamic Retail Shoe Metrics"
-      className="grid grid-cols-1 lg:grid-cols-3 gap-5"
+      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 lg:gap-5"
     >
       {/* CARD 1: SALES TARGET */}
-      <div className="app-card p-5 flex flex-col justify-between border border-slate-200/90 dark:border-purple-800/60 shadow-2xs transition-colors">
+      <div className="app-card p-3.5 sm:p-4 lg:p-5 flex flex-col justify-between border border-slate-200/90 dark:border-purple-800/60 shadow-2xs transition-colors">
         <div>
-          <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center justify-between gap-2 pb-2.5 lg:pb-3 mb-3 lg:mb-4 border-b border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-cyan-400 shrink-0">
                 <Target className="w-4 h-4" />
@@ -573,9 +573,9 @@ export const RetailShoeMetrics: React.FC<RetailShoeMetricsProps> = ({
       </div>
 
       {/* CARD 2: CATEGORY BREAKDOWN */}
-      <div className="app-card p-5 flex flex-col justify-between border border-slate-200/90 dark:border-purple-800/60 shadow-2xs transition-colors">
+      <div className="app-card p-3.5 sm:p-4 lg:p-5 flex flex-col justify-between border border-slate-200/90 dark:border-purple-800/60 shadow-2xs transition-colors">
         <div>
-          <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center justify-between gap-2 pb-2.5 lg:pb-3 mb-3 lg:mb-4 border-b border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-100 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
                 <Layers className="w-4 h-4" />
@@ -686,9 +686,9 @@ export const RetailShoeMetrics: React.FC<RetailShoeMetricsProps> = ({
       </div>
 
       {/* CARD 3: INVENTORY CLEARANCE / SAAS RETENTION */}
-      <div className="app-card p-5 flex flex-col justify-between border border-slate-200/90 dark:border-purple-800/60 shadow-2xs transition-colors">
+      <div className="app-card p-3.5 sm:p-4 lg:p-5 md:col-span-2 lg:col-span-1 flex flex-col justify-between border border-slate-200/90 dark:border-purple-800/60 shadow-2xs transition-colors">
         <div>
-          <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center justify-between gap-2 pb-2.5 lg:pb-3 mb-3 lg:mb-4 border-b border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                 <Sparkles className="w-4 h-4" />

@@ -704,7 +704,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     <div
       data-landing-theme={landingTheme}
       style={{ colorScheme: landingTheme }}
-      className="min-h-screen bg-[#070A24] lt:bg-[#F7F8FF] text-slate-100 lt:text-slate-800 font-sans selection:bg-violet-500 selection:text-white"
+      className="min-h-screen overflow-x-hidden bg-[#070A24] lt:bg-[#F7F8FF] text-slate-100 lt:text-slate-800 font-sans selection:bg-violet-500 selection:text-white"
     >
       {/* 1. TOP NAVIGATION BAR */}
       <Navbar
@@ -753,17 +753,17 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       {/* 2. HERO */}
       <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0B0C38_0%,#080A2C_60%,#070A24_100%)] lt:bg-[linear-gradient(180deg,#EEF0FF_0%,#F7F8FF_100%)]">
         <div className="pointer-events-none absolute -top-24 right-[-6%] h-[460px] w-[460px] rounded-full bg-[radial-gradient(circle,rgba(124,108,255,0.55),rgba(91,75,255,0.1)_60%,transparent_70%)] lt:opacity-40 blur-2xl" aria-hidden="true" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-24 lg:pt-14 lg:pb-28">
-          <div className="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-16 lg:gap-6 items-center">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16 sm:pt-10 sm:pb-20 lg:pt-14 lg:pb-28">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-12 sm:gap-14 lg:gap-6 items-center">
             <div>
               <div
-                className="font-roboto brand-subtitle-roboto inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3.5 py-1.5 text-xs text-violet-100 lt:text-indigo-700"
+                className="font-roboto brand-subtitle-roboto inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3 sm:px-3.5 py-1 sm:py-1.5 text-[11px] sm:text-xs text-violet-100 lt:text-indigo-700"
                 style={{ fontFamily: "'Roboto', system-ui, -apple-system, sans-serif" }}
               >
-                <Zap className="w-3.5 h-3.5 text-violet-300 lt:text-[#5B4BFF]" aria-hidden="true" />
+                <Zap className="w-3.5 h-3.5 shrink-0 text-violet-300 lt:text-[#5B4BFF]" aria-hidden="true" />
                 Dual-Engine Wholesale & Retail POS Solution for Shoe Stores
               </div>
-              <h1 className="mt-5 text-[40px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.05] text-white lt:text-slate-900">
+              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.05] text-white lt:text-slate-900">
                 Grow your shoe<br />
                 business <span className="font-courgette font-normal tracking-normal text-[#8B7CFF] lt:text-[#5B4BFF]" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>smarter</span> &amp;<br />
                 <span className="font-courgette font-normal tracking-normal bg-gradient-to-r from-[#8B7CFF] lt:from-[#5B4BFF] to-[#B9A9FF] lt:to-[#8B7CFF] bg-clip-text text-transparent" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>faster</span>
@@ -813,8 +813,8 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 3. FEATURES */}
-      <section id="features" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-16 lg:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+      <section id="features" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           <div className="lg:col-span-5">
             <div
               className="font-courgette inline-flex items-center gap-2 rounded-full border border-indigo-400/40 lt:border-indigo-200 bg-indigo-500/10 lt:bg-indigo-50 px-3.5 py-1.5 text-xs text-violet-200 lt:text-indigo-700"
@@ -822,7 +822,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> Features
             </div>
-            <h2 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.15] text-white lt:text-slate-900">
+            <h2 className="mt-5 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.15] text-white lt:text-slate-900">
               Everything you need to run your shoe store
             </h2>
             <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300 lt:text-slate-600">
@@ -860,7 +860,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               <div className="text-center">
                 <div className="flex h-28 flex-col justify-between rounded-xl border border-indigo-400/25 bg-gradient-to-b from-[#12154A]/70 to-[#0A0C2E]/80 p-2 text-left">
                   <div className="flex items-center justify-between rounded bg-indigo-500/15 px-1.5 py-0.5 text-[7px] font-bold text-white">
-                    <span>POS terminal</span><span className="text-emerald-400">F9</span>
+                    <span>POS terminal</span><span className="hidden lg:inline text-emerald-400">F9</span>
                   </div>
                   <div className="grid grid-cols-3 gap-1">
                     {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -912,7 +912,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 4. TRUST + STATS */}
-      <section id="stores" ref={statsSectionRef} className="bg-gradient-to-b from-[#0B0D38] lt:from-[#EEF0FF] to-[#080A2A] lt:to-[#F7F8FF] py-16 lg:py-20">
+      <section id="stores" ref={statsSectionRef} className="bg-gradient-to-b from-[#0B0D38] lt:from-[#EEF0FF] to-[#080A2A] lt:to-[#F7F8FF] py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="flex flex-col items-center">
             <div
@@ -921,21 +921,21 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
             >
               <Store className="w-3.5 h-3.5" aria-hidden="true" /> Trusted by shoe businesses
             </div>
-            <h2 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight text-white lt:text-slate-900">
+            <h2 className="mt-5 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-tight text-white lt:text-slate-900">
               Join the shoe stores already running on SarbaazSoft POS
             </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 lt:text-slate-600">
+            <p className="mt-4 max-w-xl text-sm sm:text-base leading-relaxed text-slate-300 lt:text-slate-600">
               From small boutiques to growing chains, shop owners use SarbaazSoft POS to streamline operations and grow their business.
             </p>
-            <dl className="mt-9 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4 gap-y-6">
+            <dl className="mt-8 sm:mt-9 grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-5 sm:gap-x-0 sm:gap-y-6 px-2 sm:px-0">
               {[
                 { label: 'Active stores', value: publicStats?.stores, prefix: '', suffix: '+' },
                 { label: 'Products tracked', value: publicStats?.products, prefix: '', suffix: '+' },
                 { label: 'Invoices today', value: publicStats?.invoicesToday, prefix: '', suffix: '+' },
                 { label: 'Platform revenue', value: publicStats?.platformRevenue, prefix: 'Rs. ', suffix: '' },
               ].map(({ label, value, prefix, suffix }, i) => (
-                <div key={label} className={`pr-4 ${i > 0 ? 'sm:pl-5 sm:border-l sm:border-white/10 lt:sm:border-slate-200' : ''}`}>
-                  <dd className="order-1 text-2xl font-extrabold tabular-nums text-[#9B8CFF] lt:text-[#5B4BFF]">
+                <div key={label} className={`sm:pr-4 ${i > 0 ? 'sm:pl-5 sm:border-l sm:border-white/10 lt:sm:border-slate-200' : ''}`}>
+                  <dd className="order-1 text-xl sm:text-2xl font-extrabold tabular-nums text-[#9B8CFF] lt:text-[#5B4BFF]">
                     {typeof value === 'number'
                       ? <AnimatedCounter target={value} startTime={statsAnimationStartTime} prefix={prefix} suffix={suffix} />
                       : <span aria-label="Loading statistic">—</span>}
@@ -949,7 +949,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 4b. SHOPS USING SARBAAZSOFT POS */}
-      <section id="shops" className="bg-[#0B0D38] lt:bg-[#EEF0FF] border-y border-white/10 lt:border-slate-200 py-12 lg:py-14 overflow-hidden">
+      <section id="shops" className="bg-[#0B0D38] lt:bg-[#EEF0FF] border-y border-white/10 lt:border-slate-200 py-10 sm:py-12 lg:py-14 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-7 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
@@ -1057,7 +1057,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 5. PRICING */}
-      <section id="pricing" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-16 lg:py-20">
+      <section id="pricing" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div
@@ -1066,11 +1066,11 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
             >
               Simple, transparent pricing
             </div>
-            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight text-white lt:text-slate-900">Choose the plan that fits your business</h2>
+            <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white lt:text-slate-900">Choose the plan that fits your business</h2>
             <p className="mt-2 text-sm sm:text-base text-slate-300 lt:text-slate-600">No hidden fees. Full access to every feature on both plans.</p>
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+          <div className="mx-auto mt-8 sm:mt-12 grid max-w-5xl grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 items-stretch">
             {[
               { id: 'TRIAL', name: '30-Day Free Trial', price: 'Free', note: 'Instant 30-day access. No credit card required.', popular: true },
               { id: '6_MONTHS_RS_10000', name: '6 months', price: 'Rs. 10,000', note: 'Perfect for established stores or short-term needs.', popular: false },
@@ -1078,7 +1078,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
             ].map((p) => (
               <div
                 key={p.id}
-                className={`relative flex flex-col rounded-2xl p-7 ${p.popular
+                className={`relative flex flex-col rounded-2xl p-5 sm:p-7 ${p.popular
                   ? 'border-2 border-[#7C6CFF] bg-gradient-to-b from-[#1A1A66]/70 lt:from-[#EEEBFF] to-[#0A0C2E] lt:to-white shadow-[0_24px_70px_-20px_rgba(109,92,255,0.7)]'
                   : 'border border-indigo-400/25 lt:border-indigo-200 bg-gradient-to-b from-[#12154A]/60 lt:from-white to-[#0A0C2E] lt:to-white'}`}
               >
@@ -1094,7 +1094,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   <Calendar className="w-5 h-5 text-violet-300 lt:text-[#5B4BFF]" aria-hidden="true" /> {p.name}
                 </h3>
                 <div className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-4xl font-extrabold tabular-nums text-white lt:text-slate-900">{p.price}</span>
+                  <span className="text-3xl sm:text-4xl font-extrabold tabular-nums text-white lt:text-slate-900">{p.price}</span>
                 </div>
                 <ul className="mt-6 space-y-3 text-sm text-slate-200 lt:text-slate-700">
                   {planFeatures.map((f) => (
@@ -1123,7 +1123,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       {/* 6. ABOUT / CTA BANNER */}
       <section
         id="about"
-        className="relative overflow-hidden border-y border-indigo-400/20 lt:border-indigo-200 bg-gradient-to-r from-[#080A2A] via-[#0B0E36] to-[#0A0C2E] lt:from-[#EEF0FF] lt:via-[#F1F3FF] lt:to-[#F7F8FF] py-12"
+        className="relative overflow-hidden border-y border-indigo-400/20 lt:border-indigo-200 bg-gradient-to-r from-[#080A2A] via-[#0B0E36] to-[#0A0C2E] lt:from-[#EEF0FF] lt:via-[#F1F3FF] lt:to-[#F7F8FF] py-10 sm:py-12"
       >
         {/* Showroom background overlay */}
         <div className="absolute inset-y-0 left-0 w-80 md:w-[36rem] opacity-60 lt:opacity-50 pointer-events-none" aria-hidden="true">

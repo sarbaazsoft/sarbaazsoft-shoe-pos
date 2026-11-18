@@ -75,12 +75,12 @@ export const StockLedgerView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto">
+    <div className="space-y-3 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs dark:text-white transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-purple-800/80 shadow-xs dark:text-white transition-colors">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-200 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs">
-            <BookOpen className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-200 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -110,7 +110,7 @@ export const StockLedgerView: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="p-4 flex flex-wrap gap-3 items-center text-xs bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border border-slate-200/90 dark:border-purple-800/80 shadow-xs rounded-2xl transition-colors dark:text-white">
+      <div className="p-3 sm:p-4 flex flex-wrap gap-2.5 sm:gap-3 items-center text-xs bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border border-slate-200/90 dark:border-purple-800/80 shadow-xs rounded-2xl transition-colors dark:text-white">
         <div className="flex items-center space-x-2 text-slate-700 dark:text-purple-200 font-bold">
           <div className="p-1.5 bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-400/30 rounded-lg shadow-2xs">
             <Filter className="w-3.5 h-3.5" />
@@ -121,7 +121,7 @@ export const StockLedgerView: React.FC = () => {
         <select
           value={selectedProduct}
           onChange={(e) => setSelectedProduct(e.target.value ? Number(e.target.value) : '')}
-          className="px-3.5 py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
+          className="w-full sm:w-auto max-w-full px-3.5 py-2.5 sm:py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
         >
           <option value="" className="dark:bg-[#120726] dark:text-purple-100">All Products</option>
           {products.map((p) => (
@@ -134,7 +134,7 @@ export const StockLedgerView: React.FC = () => {
         <select
           value={movementType}
           onChange={(e) => setMovementType(e.target.value)}
-          className="px-3.5 py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
+          className="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 bg-slate-50 dark:bg-purple-500/20 border border-slate-200 dark:border-purple-400/40 rounded-xl text-xs font-medium text-slate-800 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(147,51,234,0.2)] focus:border-blue-600 dark:focus:border-purple-400 cursor-pointer transition shadow-2xs"
         >
           <option value="" className="dark:bg-[#120726] dark:text-purple-100">All Movement Types</option>
           <option value="SALE" className="dark:bg-[#120726] dark:text-purple-100">POS Sales</option>
@@ -178,7 +178,68 @@ export const StockLedgerView: React.FC = () => {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-900/30">
+          {isLoading ? (
+            <div className="py-10 text-center text-slate-400 dark:text-slate-500">
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
+                <p className="font-medium text-xs">Loading stock movements...</p>
+              </div>
+            </div>
+          ) : movements.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 text-xs">
+              No movements recorded yet.
+            </div>
+          ) : (
+            movements.slice(0, visibleCount).map((m) => {
+              const isPositive = m.quantityDelta > 0;
+              return (
+                <div key={`mobile-ledger-${m.id}`} className="p-3.5 space-y-2 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 dark:text-white truncate">
+                        {m.article || m.productName}
+                      </div>
+                      <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        {new Date(m.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="shrink-0">{getBadge(m.movementType)}</div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-purple-900/30 text-center font-mono">
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-sans">Prev</span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">{m.previousStock}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-sans">Delta</span>
+                      <span className={`font-bold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {isPositive ? `+${m.quantityDelta}` : m.quantityDelta}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] uppercase text-slate-400 font-sans">New</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{m.newStock}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>Ref: <strong className="font-mono text-blue-600 dark:text-purple-300">{m.referenceNumber || '-'}</strong></span>
+                    <span>By: <strong className="text-slate-700 dark:text-slate-300">{m.userName || 'System'}</strong></span>
+                  </div>
+                  {m.notes && (
+                    <p className="text-[11px] italic text-slate-500 dark:text-slate-400 truncate">
+                      {m.notes}
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Tablet & Desktop Table View */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
               <tr>

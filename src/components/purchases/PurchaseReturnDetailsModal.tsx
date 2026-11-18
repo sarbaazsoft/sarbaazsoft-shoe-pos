@@ -35,24 +35,24 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
   );
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-3xl overflow-hidden my-6">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-          <div className="flex items-center space-x-3">
-            <span className="p-2.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-100 dark:border-rose-900/50 shadow-2xs">
+        <div className="p-3.5 sm:p-5 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <span className="p-2 sm:p-2.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-100 dark:border-rose-900/50 shadow-2xs shrink-0">
               <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
             </span>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight">
                   Supplier Debit Note / Purchase Return
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/60">
+                <span className="px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold font-mono bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/60">
                   {returnRecord.return_number || returnRecord.returnNumber}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Defective Footwear Return Voucher &amp; Supplier Account Debit
               </p>
             </div>
@@ -67,7 +67,7 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
+              className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -75,7 +75,7 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
         </div>
 
         {/* Printable / Viewable Voucher Body */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto text-slate-800 dark:text-slate-200">
+        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6 flex-1 overflow-y-auto text-slate-800 dark:text-slate-200">
           {/* Top Info Bar */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-purple-800/80 text-xs">
             <div>
@@ -101,7 +101,7 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
           </div>
 
           {/* Metadata Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 text-xs">
             <div className="p-3 bg-white dark:bg-[#0E1628] rounded-xl border border-slate-200 dark:border-purple-800/80">
               <span className="text-[11px] text-slate-500 dark:text-slate-400 block flex items-center space-x-1">
                 <Calendar className="w-3 h-3 text-slate-400" />
@@ -163,7 +163,7 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
               <Package className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span>Returned Defective Shoe Items</span>
             </h4>
-            <div className="border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-hidden shadow-xs">
+            <div className="border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-x-auto shadow-xs">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-100 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80">
                   <tr>
@@ -242,12 +242,12 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
           </div>
 
           {/* Signatures for formal voucher */}
-          <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-200 dark:border-purple-800/80 text-xs">
-            <div className="text-center pt-8 border-t border-slate-300 dark:border-purple-800/80">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 pt-6 border-t border-slate-200 dark:border-purple-800/80 text-xs">
+            <div className="text-center pt-6 sm:pt-8 border-t border-slate-300 dark:border-purple-800/80">
               <p className="font-bold text-slate-800 dark:text-slate-200">Authorized Store Officer</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Shoe Store Quality Inspection</p>
             </div>
-            <div className="text-center pt-8 border-t border-slate-300 dark:border-purple-800/80">
+            <div className="text-center pt-6 sm:pt-8 border-t border-slate-300 dark:border-purple-800/80">
               <p className="font-bold text-slate-800 dark:text-slate-200">Supplier / Vendor Representative</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Defective Return Pickup Acknowledgment</p>
             </div>
@@ -255,7 +255,7 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-between">
+        <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center space-x-1">
             <User className="w-3.5 h-3.5 text-slate-400" />
             <span>Issued by: {returnRecord.created_by_name || returnRecord.createdByName || 'Admin'}</span>

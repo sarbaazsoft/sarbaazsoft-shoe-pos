@@ -65,19 +65,19 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative w-full max-w-md bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-md max-h-[92vh] flex flex-col bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden"
           role="dialog"
           aria-modal="true"
         >
           {/* Header Accent Bar */}
           <div
-            className={`h-1.5 w-full ${
+            className={`h-1.5 w-full shrink-0 ${
               type === 'success'
                 ? 'bg-emerald-500'
                 : type === 'warning'
@@ -88,7 +88,7 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
             }`}
           />
 
-          <div className="p-5 sm:p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
             {/* Top Row: Icon + Title + Close Button */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -170,7 +170,7 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
             )}
 
             {/* Action Buttons */}
-            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="pt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800/80">
               <button
                 type="button"
                 onClick={onClose}

@@ -137,7 +137,7 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
   return (
     <div
       onTransitionEnd={handleTransitionEnd}
-      className={`p-4 rounded-2xl border notif-slide-item ${slideStateClass} ${
+      className={`p-3.5 sm:p-4 rounded-2xl border notif-slide-item ${slideStateClass} ${
         isUnread
           ? `shadow-xs ${badge.cardBg} ring-1 ring-purple-400/20`
           : 'bg-white/80 dark:bg-[#120726]/40 border-slate-200/80 dark:border-purple-900/30 opacity-85 hover:opacity-100 hover:bg-white dark:hover:bg-[#120726]/60'
@@ -216,7 +216,7 @@ const NotificationFeedItem: React.FC<NotificationFeedItemProps> = ({
         </div>
 
         {/* Right Column / Footer: Dynamic Primary Action + Persistent Open POS (Max 2, no Dismiss/Unsubscribe) */}
-        <div className="flex items-center sm:flex-col gap-2 shrink-0 self-end sm:self-end">
+        <div className="flex flex-wrap items-center sm:flex-col gap-2 shrink-0 self-start sm:self-end">
           {actions.map((btn) => {
             const isPrimary = btn.action !== 'open_pos';
             return (
@@ -630,16 +630,16 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="p-2.5 sm:p-6 lg:p-7 space-y-4 sm:space-y-5 max-w-7xl mx-auto select-none bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-screen text-slate-800 dark:text-slate-100 transition-colors">
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-purple-900/30">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4 pb-2 border-b border-slate-200/80 dark:border-purple-900/30">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-800 flex items-center justify-center text-white shadow-md shadow-purple-600/20">
-              <Bell className="w-5 h-5 stroke-[2.2]" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-800 flex items-center justify-center text-white shadow-md shadow-purple-600/20 shrink-0">
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight font-heading flex items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight font-heading flex flex-wrap items-center gap-2">
                 <span>Notification History & Activity Logs</span>
                 {totalUnreadCount > 0 && (
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
@@ -706,53 +706,53 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       )}
 
       {/* STATS OVERVIEW CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-purple-300/70 mb-1">
-            <span className="font-medium">Total Alerts</span>
-            <Layers className="w-3.5 h-3.5 text-purple-500" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
+            <span className="font-medium truncate">Total Alerts</span>
+            <Layers className="w-3.5 h-3.5 text-purple-500 shrink-0" />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-white font-heading">
+          <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-heading">
             {stats.totalNotices + stats.totalOperational}
           </div>
-          <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">All captured events</div>
+          <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">All captured events</div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-purple-300/70 mb-1">
-            <span className="font-medium">Announcements</span>
-            <Globe className="w-3.5 h-3.5 text-indigo-500" />
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
+            <span className="font-medium truncate">Announcements</span>
+            <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-white font-heading">
+          <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-heading">
             {stats.totalNotices}
           </div>
-          <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium">
+          <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5 font-medium truncate">
             {stats.unreadNotices} unread
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-purple-300/70 mb-1">
-            <span className="font-medium">POS Activities</span>
-            <ShoppingBag className="w-3.5 h-3.5 text-emerald-500" />
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
+            <span className="font-medium truncate">POS Activities</span>
+            <ShoppingBag className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-white font-heading">
+          <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-heading">
             {stats.totalOperational}
           </div>
-          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">
+          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium truncate">
             {stats.unreadOperational} active in drawer
           </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-purple-300/70 mb-1">
-            <span className="font-medium">Unread Total</span>
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+        <div className="p-2.5 sm:p-3.5 rounded-2xl bg-white dark:bg-[#120726]/60 border border-slate-200/80 dark:border-purple-900/40 shadow-xs">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-purple-300/70 mb-1">
+            <span className="font-medium truncate">Unread Total</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-white font-heading">
+          <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-heading">
             {totalUnreadCount}
           </div>
-          <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 font-medium">
+          <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 font-medium truncate">
             Requires acknowledgment
           </div>
         </div>
@@ -923,21 +923,21 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {/* ANNOUNCEMENT DETAIL MODAL (/announcements/:id) */}
       {(selectedAnnouncement || pendingAnnouncementId) && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
-            <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600" />
+          <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[#120726] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 shrink-0" />
             {selectedAnnouncement ? (
-              <div className="p-5 sm:p-6 space-y-4">
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider bg-indigo-100 text-indigo-800 dark:bg-purple-900/60 dark:text-purple-200 border border-indigo-200 dark:border-purple-700">
                       <Globe className="w-3 h-3" />
                       <span>{selectedAnnouncement.tenantId ? 'Direct Store Alert' : 'Platform Announcement'}</span>
                     </span>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white font-heading">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-heading">
                       {selectedAnnouncement.title}
                     </h3>
                   </div>
@@ -950,7 +950,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                         window.history.replaceState({}, '', '/notifications');
                       }
                     }}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-purple-900/50 cursor-pointer shrink-0"
                     aria-label="Close announcement"
                   >
                     <X className="w-4 h-4" />
@@ -961,7 +961,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                   <ClickableMessage text={selectedAnnouncement.message} />
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-purple-900/40 gap-2">
+                <div className="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 dark:border-purple-900/40 gap-2">
                   <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
                     <span>{formatFullDate(selectedAnnouncement.createdAt)}</span>

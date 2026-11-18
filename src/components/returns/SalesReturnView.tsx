@@ -187,9 +187,9 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 p-4 max-w-7xl mx-auto text-xs">
+    <div className="space-y-3.5 sm:space-y-4 p-2.5 sm:p-4 max-w-7xl mx-auto text-xs">
       {/* Header */}
-      <div className="bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-xs flex items-center justify-between dark:text-white transition-colors">
+      <div className="bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-xs flex items-center justify-between dark:text-white transition-colors">
         <div>
           <div className="flex items-center space-x-3 text-gray-900 dark:text-white">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-400/30 flex items-center justify-center shrink-0 shadow-2xs">
@@ -211,8 +211,8 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
       </div>
 
       {/* Invoice Search Input */}
-      <div className="bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-xs space-y-3 transition-colors dark:text-white">
-        <form onSubmit={handleVerifyInvoice} className="flex items-center gap-2.5">
+      <div className="bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-xs space-y-3 transition-colors dark:text-white">
+        <form onSubmit={handleVerifyInvoice} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-gray-400 dark:text-purple-300/70 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -220,7 +220,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
               placeholder="Scan Invoice Barcode or enter Invoice # (e.g. INV-20260906-0001)..."
               value={invoiceSearch}
               onChange={(e) => setInvoiceSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-3 border-2 border-indigo-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 dark:bg-purple-950/40 dark:text-purple-100 dark:placeholder-purple-300/50 dark:border-purple-700/60 dark:focus:border-purple-400 dark:focus:ring-purple-500/40 rounded-xl font-mono font-bold text-sm outline-none transition shadow-2xs"
+              className="w-full h-11 pl-10 pr-3 border-2 border-indigo-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 dark:bg-purple-950/40 dark:text-purple-100 dark:placeholder-purple-300/50 dark:border-purple-700/60 dark:focus:border-purple-400 dark:focus:ring-purple-500/40 rounded-xl font-mono font-bold text-xs sm:text-sm outline-none transition shadow-2xs"
             />
           </div>
           <button
@@ -264,12 +264,12 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
 
       {/* Verified Invoice Items Table for Return Selection */}
       {verifiedSale && (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-xs space-y-5">
+        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-xs space-y-4 sm:space-y-5">
           {/* Sale Summary Header */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-slate-50 dark:bg-purple-950/30 border border-slate-200 dark:border-purple-800/60 rounded-xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 p-3 sm:p-4 bg-slate-50 dark:bg-purple-950/30 border border-slate-200 dark:border-purple-800/60 rounded-xl">
             <div>
               <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-purple-300/80">Invoice Number</span>
-              <p className="font-mono font-bold text-indigo-600 dark:text-purple-300 mt-0.5">{verifiedSale.invoiceNumber || verifiedSale.invoice_number}</p>
+              <p className="font-mono font-bold text-indigo-600 dark:text-purple-300 mt-0.5 truncate">{verifiedSale.invoiceNumber || verifiedSale.invoice_number}</p>
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-purple-300/80">Date Sold</span>
@@ -277,16 +277,60 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-purple-300/80">Customer</span>
-              <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{verifiedSale.customerName || verifiedSale.customer_name || 'Walk-in'}</p>
+              <p className="font-semibold text-gray-900 dark:text-white mt-0.5 truncate">{verifiedSale.customerName || verifiedSale.customer_name || 'Walk-in'}</p>
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-purple-300/80">Cashier</span>
-              <p className="font-semibold text-gray-900 dark:text-white mt-0.5">{verifiedSale.cashierName || verifiedSale.cashier_name || 'Counter'}</p>
+              <p className="font-semibold text-gray-900 dark:text-white mt-0.5 truncate">{verifiedSale.cashierName || verifiedSale.cashier_name || 'Counter'}</p>
             </div>
           </div>
 
-          {/* Items Return Table */}
-          <div className="border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-hidden shadow-2xs">
+          {/* Mobile Return Items Cards */}
+          <div className="sm:hidden border border-slate-200 dark:border-purple-800/80 rounded-xl divide-y divide-slate-100 dark:divide-purple-900/40 overflow-hidden">
+            {(verifiedSale.items || []).map((item: any) => {
+              const { soldQty, alreadyReturned, maxReturnable, netUnitPrice } = getItemMetrics(item);
+              const selectedQty = Number(returnQtys[item.id] || 0) || 0;
+              const refundLine = selectedQty * netUnitPrice;
+
+              return (
+                <div key={`m-ret-${item.id}`} className="p-3 space-y-2.5 bg-white dark:bg-slate-900">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-bold text-gray-900 dark:text-white text-xs">
+                      {item.article || item.productName || item.product_name}
+                    </div>
+                    <span className="font-mono font-bold text-xs text-gray-900 dark:text-purple-200 shrink-0">
+                      {currencySymbol} {formatStockPrice(refundLine)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-purple-300/80">
+                    <span>Sold: <strong className="font-mono text-gray-900 dark:text-white">{soldQty}</strong> • Ret: {alreadyReturned} • Avail: <strong className="font-mono text-indigo-600 dark:text-purple-300">{maxReturnable}</strong></span>
+                    <span className="font-mono">@ {currencySymbol} {formatStockPrice(netUnitPrice)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-[11px] font-semibold text-gray-600 dark:text-purple-200">Return Qty:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={String(maxReturnable)}
+                      value={String(selectedQty)}
+                      disabled={maxReturnable <= 0}
+                      onChange={(e) =>
+                        handleQtyChange(
+                          item.id,
+                          parseInt(e.target.value, 10) || 0,
+                          maxReturnable
+                        )
+                      }
+                      className="w-20 px-2.5 py-1.5 text-center font-bold font-mono border border-gray-300 dark:border-purple-700/70 dark:bg-purple-950/50 dark:text-white rounded-lg focus:border-indigo-600 dark:focus:border-purple-400 outline-none disabled:bg-gray-100 dark:disabled:bg-slate-800 text-gray-900"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Items Return Table (sm+ and Desktop) */}
+          <div className="hidden sm:block border border-slate-200 dark:border-purple-800/80 rounded-xl overflow-x-auto shadow-2xs">
             <table className="w-full text-left border-collapse">
               <thead className="bg-slate-50/90 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-semibold border-b border-slate-200 dark:border-purple-800/80 text-[11px]">
                 <tr>
@@ -386,7 +430,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
               Cancel
             </button>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               {onStartExchange && (
                 <button
                   type="button"
@@ -428,7 +472,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
                       items: exchangeItems,
                     });
                   }}
-                  className="px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-slate-900 bg-amber-400 hover:bg-amber-500 border border-amber-500/30"
+                  className="px-4 sm:px-5 py-2.5 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-slate-900 bg-amber-400 hover:bg-amber-500 border border-amber-500/30"
                   title="Forward returned shoe to POS to pick replacement and settle net difference"
                 >
                   <Repeat className="w-4 h-4 text-slate-900" />
@@ -440,7 +484,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
                 type="button"
                 disabled={isSubmitting || totalRefundAmount <= 0}
                 onClick={handleSubmitReturn}
-                className="btn-primary px-6 py-2.5 text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="btn-primary px-4 sm:px-6 py-2.5 text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isSubmitting ? 'Processing Return...' : 'Authorize Refund & Restock Inventory'}</span>

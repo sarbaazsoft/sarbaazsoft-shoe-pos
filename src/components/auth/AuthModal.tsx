@@ -337,7 +337,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       {activeTenantId && (
         <div
           id="auth-tenant-scope-banner"
-          className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-2 px-4 text-xs select-none"
+          className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-2 px-3 sm:px-4 text-xs select-none"
         >
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium">
@@ -398,7 +398,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   ? 'linear-gradient(to bottom, rgba(15,23,42,0.92), rgba(30,27,75,0.86), rgba(15,23,42,0.92))'
                   : 'none',
               }}
-              className={`w-full backdrop-blur-xl border rounded-2xl sm:rounded-3xl p-6 sm:p-7 transition-all duration-200 ${
+              className={`w-full backdrop-blur-xl border rounded-2xl sm:rounded-3xl p-4 sm:p-7 transition-all duration-200 ${
                 isDark
                   ? 'border-purple-800/80 shadow-[0_10px_35px_rgba(15,23,42,0.8),0_0_25px_rgba(147,51,234,0.2)] text-slate-100'
                   : 'bg-white border-purple-200/90 shadow-2xl shadow-purple-950/10 text-slate-800'
@@ -607,7 +607,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
 
                   {/* Beneath Password Field: Remember Me & Keep me logged in on a single line (Left-and-Right Split) */}
-                  <div className="flex items-center justify-between pt-0.5 text-xs text-slate-600 dark:text-purple-200/80 font-medium select-none">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5 text-xs text-slate-600 dark:text-purple-200/80 font-medium select-none">
                     <label
                       htmlFor="remember-me-checkbox"
                       className="flex items-center gap-2 cursor-pointer hover:text-slate-900 dark:hover:text-purple-100 transition-colors"
@@ -728,7 +728,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -823,7 +823,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     )}
                   </div>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
                     <button
                       type="button"
                       onClick={() => {

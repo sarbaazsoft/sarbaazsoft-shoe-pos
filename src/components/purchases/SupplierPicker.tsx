@@ -5,6 +5,7 @@ import { api } from '../../services/api.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
 import type { Supplier } from '../../types.ts';
+import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface SupplierPickerProps {
   suppliers: Supplier[];
@@ -86,6 +87,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
   allowCustomSupplier = true,
   placeholder,
 }) => {
+  const isDesktop = useIsDesktop();
   // Combobox autocomplete state — suggestions only open when typing (searchQuery.trim().length > 0)
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -870,32 +872,33 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
       {/* DEDICATED "FIND SUPPLIER" LOOKUP MODAL */}
       {isModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 sm:p-4"
+          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4"
           onKeyDown={handleModalKeyDown}
         >
-          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[88vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shadow-2xs">
-                  <Building2 className="w-5 h-5" />
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shadow-2xs shrink-0">
+                  <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-base text-slate-900 dark:text-white tracking-tight">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
                       Find Supplier / Vendor
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-blue-100 dark:bg-purple-950/80 text-blue-700 dark:text-purple-300 border border-blue-200 dark:border-purple-700/70">
                       {indexedSuppliers.length} Registered
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-purple-200/80">
-                    Search by Name, Phone, Email, or Supplier Code/ID • Use ↑↓ and Enter to select
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
+                    Search by Name, Phone, Email, or Supplier Code/ID
+                    <span className="hidden lg:inline"> • Use ↑↓ and Enter to select</span>
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -905,7 +908,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                       openQuickAdd(true, modalSearchQuery);
                     }
                   }}
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 text-xs font-bold shadow-sm shadow-purple-600/25 flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                  className="px-3 sm:px-3.5 py-2 sm:py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 text-xs font-bold shadow-sm shadow-purple-600/25 flex items-center gap-1.5 transition cursor-pointer active:scale-95"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>{quickAddInModal ? 'Back to Supplier List' : '+ New Supplier'}</span>
@@ -914,8 +917,9 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
-                  title="Close (Esc)"
+                  className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+                  title={isDesktop ? 'Close (Esc)' : 'Close'}
+                  aria-label="Close supplier modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -932,9 +936,9 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                     handleCreateNewSupplier(e);
                   }
                 }}
-                className="p-6 space-y-4 text-xs flex-1 overflow-y-auto"
+                className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto"
               >
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-purple-800/60 pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-purple-800/60 pb-3">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                     <h4 className="font-bold text-sm text-slate-900 dark:text-white">
@@ -1035,7 +1039,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
             ) : (
               <>
                 {/* Search & Sort Controls Bar */}
-                <div className="p-4 bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-purple-900/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="p-3 sm:p-4 bg-white dark:bg-[#0F172A] border-b border-slate-200 dark:border-purple-900/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
                   <div className="relative flex-1">
                     <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
@@ -1043,7 +1047,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                       type="text"
                       value={modalSearchQuery}
                       onChange={(e) => setModalSearchQuery(e.target.value)}
-                      placeholder="Type supplier Name, Phone, Email, or Supplier Code/ID (#4, SUP-0004)..."
+                      placeholder="Type supplier Name, Phone, Email, or Code/ID..."
                       className="w-full pl-10 pr-9 py-2.5 bg-slate-50 dark:bg-[#090E1A] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-purple-300/50 border border-slate-200 dark:border-purple-800/70 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition"
                     />
                     {modalSearchQuery && (
@@ -1062,7 +1066,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                   </div>
 
                   {/* Quick Sort Pills */}
-                  <div className="flex items-center gap-1.5 text-[11px] shrink-0">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] shrink-0">
                     <span className="text-slate-400 dark:text-slate-500 font-semibold mr-1 hidden md:inline">
                       Sort:
                     </span>
@@ -1107,7 +1111,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                             : 'No registered suppliers yet.'}
                         </p>
                       </div>
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => openQuickAdd(true, modalSearchQuery)}
@@ -1129,6 +1133,79 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                       </div>
                     </div>
                   ) : (
+                    <>
+                    {/* Mobile Cards (< 640px) */}
+                    <div className="sm:hidden divide-y divide-slate-100 dark:divide-purple-900/30">
+                      {modalVisibleRows.map((item) => {
+                        const isSelected = Number(selectedSupplierId) === item.raw.id;
+                        const initials = (item.raw.name || 'S')
+                          .split(' ')
+                          .map((w: string) => w[0])
+                          .slice(0, 2)
+                          .join('')
+                          .toUpperCase();
+
+                        return (
+                          <div
+                            key={item.raw.id}
+                            onClick={() => handleChooseSupplier(item.raw)}
+                            className={`p-3 space-y-2 cursor-pointer transition ${
+                              isSelected ? 'bg-emerald-50/60 dark:bg-emerald-950/25' : 'active:bg-slate-50 dark:active:bg-purple-950/20'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-purple-950/70 border border-blue-200/80 dark:border-purple-800/70 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs shrink-0">
+                                  {initials}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                                      {item.raw.name}
+                                    </span>
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-purple-950/80 text-blue-600 dark:text-purple-300 border border-slate-200 dark:border-purple-800/60">
+                                      {item.displayCode}
+                                    </span>
+                                  </div>
+                                  {item.raw.phone && (
+                                    <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                      {item.raw.phone}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleChooseSupplier(item.raw);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-blue-600 dark:bg-purple-600 text-white'
+                                }`}
+                              >
+                                {isSelected ? 'Selected' : 'Select'}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-mono pt-1">
+                              <span className={item.payableBalance > 0 ? 'text-amber-600 dark:text-amber-300 font-bold' : 'text-emerald-600 dark:text-emerald-300 font-bold'}>
+                                {item.payableBalance > 0
+                                  ? `Due: ${currencySymbol} ${formatStockPrice(item.payableBalance)}`
+                                  : 'Settled'}
+                              </span>
+                              <span className="text-slate-500 dark:text-slate-400">
+                                {item.totalPurchases} {item.totalPurchases === 1 ? 'order' : 'orders'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Desktop/Tablet Table (>= 640px) */}
+                    <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="sticky top-0 z-10 bg-slate-100/95 dark:bg-[#0D1425]/95 backdrop-blur-xs text-slate-600 dark:text-purple-200 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 dark:border-purple-800/80">
                         <tr>
@@ -1282,6 +1359,8 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                         })}
                       </tbody>
                     </table>
+                    </div>
+                    </>
                   )}
 
                   {/* Load More Button if results exceed initial render window */}
@@ -1299,8 +1378,8 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                 </div>
 
                 {/* Modal Footer with Keyboard Hints */}
-                <div className="px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-purple-200/80">
-                  <div className="flex items-center gap-3">
+                <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-purple-200/80">
+                  <div className="hidden lg:flex items-center gap-3">
                     <span className="inline-flex items-center gap-1">
                       <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-mono text-[10px] inline-flex items-center">
                         <ArrowUp className="w-2.5 h-2.5" />
@@ -1322,7 +1401,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 w-full lg:w-auto">
                     <span>
                       Showing <strong>{modalVisibleRows.length}</strong> of{' '}
                       <strong>{modalFilteredMatches.length}</strong> matches

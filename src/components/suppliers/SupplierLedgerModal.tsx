@@ -110,23 +110,23 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+      <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 16 }}
           transition={{ duration: 0.2 }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col my-6 max-h-[92vh]"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col my-auto sm:my-6 max-h-[92vh]"
         >
           {/* Top Header matching ProductFormModal */}
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-purple-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">
-            <div className="flex items-start space-x-3">
-              <span className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
-                <FileText className="w-5 h-5 stroke-[2.2]" />
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">
+            <div className="flex items-start space-x-2.5 sm:space-x-3">
+              <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                     {supplier?.name || 'Supplier'} — Account Ledger
                   </h3>
                   <span className="text-[10px] uppercase font-bold tracking-wide px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
@@ -178,51 +178,51 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
           </div>
 
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 sm:p-5 border-b border-slate-100 dark:border-purple-900/30">
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-purple-900/40">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 p-3 sm:p-5 border-b border-slate-100 dark:border-purple-900/30">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-purple-900/40">
               <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Total Purchases (+ Credit)
               </div>
-              <div className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-white mt-0.5">
+              <div className="text-sm sm:text-lg font-black font-mono text-slate-900 dark:text-white mt-0.5">
                 {currencySymbol} {formatStockPrice(summary.totalPurchased)}
               </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              <div className="text-[10.5px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {summary.totalPurchasesCount} orders received
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40">
               <div className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
                 Total Returns (- Debit)
               </div>
-              <div className="text-base sm:text-lg font-black font-mono text-rose-700 dark:text-rose-400 mt-0.5">
+              <div className="text-sm sm:text-lg font-black font-mono text-rose-700 dark:text-rose-400 mt-0.5">
                 {currencySymbol} {formatStockPrice(summary.totalDebitReturned)}
               </div>
-              <div className="text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-0.5">
+              <div className="text-[10.5px] sm:text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-0.5">
                 {summary.totalReturnsCount} debit returns
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
               <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
                 Total Paid (- Debit)
               </div>
-              <div className="text-base sm:text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 mt-0.5">
+              <div className="text-sm sm:text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 mt-0.5">
                 {currencySymbol} {formatStockPrice(summary.totalPaymentsPaid)}
               </div>
-              <div className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
+              <div className="text-[10.5px] sm:text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">
                 {summary.totalPaymentsCount} payment vouchers
               </div>
             </div>
 
-            <div className={`p-3 rounded-xl border ${summary.netBalance > 0 ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60' : 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'}`}>
+            <div className={`p-2.5 sm:p-3 rounded-xl border ${summary.netBalance > 0 ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60' : 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'}`}>
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Net Balance Payable
               </div>
-              <div className={`text-base sm:text-lg font-black font-mono mt-0.5 ${summary.netBalance > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+              <div className={`text-sm sm:text-lg font-black font-mono mt-0.5 ${summary.netBalance > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
                 {currencySymbol} {formatStockPrice(summary.netBalance)}
               </div>
-              <div className="text-[11px] font-semibold mt-0.5">
+              <div className="text-[10.5px] sm:text-[11px] font-semibold mt-0.5">
                 {summary.netBalance > 0 ? (
                   <span className="text-amber-700 dark:text-amber-400">Amount owed to supplier</span>
                 ) : (
@@ -236,7 +236,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
           <div 
             ref={supplierTabContainerRef}
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            className="px-5 border-b border-slate-200 dark:border-purple-900/40 flex items-center space-x-2 overflow-x-auto no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden bg-slate-50/50 dark:bg-slate-900"
+            className="px-3 sm:px-5 border-b border-slate-200 dark:border-purple-900/40 flex items-center space-x-2 overflow-x-auto no-scrollbar scrollbar-none tab-scrollbar-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-thumb]:hidden [&::-webkit-scrollbar-track]:hidden bg-slate-50/50 dark:bg-slate-900"
           >
             {[
               { id: 'statement', label: 'All Transactions (Ledger)', count: transactions.length },
@@ -279,7 +279,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
           </div>
 
           {/* Tab Content Table */}
-          <div className="p-4 sm:p-5 flex-1 overflow-y-auto min-h-[280px]">
+          <div className="p-3 sm:p-5 flex-1 overflow-y-auto min-h-[240px]">
             {isLoading ? (
               <div className="py-16 text-center text-slate-400 dark:text-slate-500">
                 <RefreshCw className="w-7 h-7 animate-spin mx-auto text-purple-500 mb-2" />
@@ -553,7 +553,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
           </div>
 
           {/* Footer Bar */}
-          <div className="p-4 border-t border-slate-200 dark:border-purple-900/40 bg-slate-50 dark:bg-purple-950/20 flex items-center justify-between">
+          <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-purple-900/40 bg-slate-50 dark:bg-purple-950/20 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-slate-500 dark:text-slate-400">
               Showing statement transactions for <span className="font-bold text-slate-800 dark:text-white">{supplier?.name}</span>
             </div>

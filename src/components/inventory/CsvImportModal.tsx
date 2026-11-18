@@ -212,7 +212,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-5 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -226,22 +226,22 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-600/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 Bulk CSV Inventory Import
               </h3>
-              <p className="text-xs text-slate-500 dark:text-purple-200/80">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80">
                 Upload shoe inventory CSV • Blank fields auto-populate using store prefixes &amp; pricing policy
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-between sm:justify-end gap-2.5">
             <button
               type="button"
               onClick={handleDownloadSampleCsv}
@@ -254,7 +254,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-2 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -262,7 +262,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1">
           {/* Schema Keys Reference & Drag-and-Drop Upload Area */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Drag & Drop Zone */}
@@ -611,7 +611,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200 dark:border-purple-800/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200 dark:border-purple-800/80">
           <div className="text-xs text-slate-500 dark:text-slate-400">
             {rows.length > 0 ? (
               <span>
@@ -627,7 +627,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
