@@ -819,6 +819,11 @@ export const api = {
       apiFetch('/auth/change-password', { method: 'PUT', body: data }),
     me: () => apiFetch('/auth/me'),
     updateProfile: (data: any) => apiFetch('/auth/profile', { method: 'PUT', body: data }),
+    saveTheme: (themeColor: string) =>
+      apiFetch<{ success: boolean; themeColor: string; user: any }>('/auth/theme', {
+        method: 'PUT',
+        body: { themeColor },
+      }),
     verifyEmail: (token: string) =>
       apiFetch<{
         success: boolean;
@@ -1206,6 +1211,13 @@ export const api = {
       apiFetch('/settings/app', { method: 'PUT', body: { appSettings } }).catch(() =>
         apiFetch('/settings', { method: 'POST', body: { appSettings } })
       ),
+    getScreenImages: () =>
+      apiFetch<{ screenImages: { login: string; registration: string; auth: string; loading: string } }>('/settings/screen-images'),
+    saveScreenImages: (screenImages: Partial<{ login: string; registration: string; auth: string; loading: string }>) =>
+      apiFetch<{ success: boolean; message: string; screenImages: { login: string; registration: string; auth: string; loading: string } }>('/settings/screen-images', {
+        method: 'PUT',
+        body: { screenImages },
+      }),
     testEmail: (recipientEmail?: string) =>
       apiFetch<{
         success: boolean;

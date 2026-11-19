@@ -358,6 +358,7 @@ const DATABASE_TABLE_DDL: string[] = [
     role user_role_enum NOT NULL DEFAULT 'CASHIER',
     status user_status_enum NOT NULL DEFAULT 'PENDING',
     active BOOLEAN NOT NULL DEFAULT true,
+    theme_color TEXT DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
@@ -1255,6 +1256,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
           END;
           BEGIN
             ALTER TABLE users ALTER COLUMN tenant_id SET DEFAULT 0;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_color TEXT DEFAULT '';
           EXCEPTION WHEN OTHERS THEN NULL;
           END;
           BEGIN

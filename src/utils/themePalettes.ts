@@ -33,6 +33,10 @@ export interface AccentThemePalette {
   primaryRgb: string;
   companionRgb: string;
   darkSurfaceBg: string;
+  contrastText: string;
+  companionContrastText: string;
+  softSurfaceLight: string;
+  softSurfaceDark: string;
   primaryScale: ShadeScale;
   companionScale: ShadeScale;
   buttonGradient: string;
@@ -43,6 +47,31 @@ export interface AccentThemePalette {
   cardHeaderGradientLight: string;
   cardFooterGradientDark: string;
   cardFooterGradientLight: string;
+}
+
+export function getRelativeLuminance(hex: string): number {
+  const clean = hex.replace('#', '');
+  if (!/^[0-9A-F]{6}$/i.test(clean)) return 0.5;
+  const channels = [
+    parseInt(clean.slice(0, 2), 16) / 255,
+    parseInt(clean.slice(2, 4), 16) / 255,
+    parseInt(clean.slice(4, 6), 16) / 255,
+  ].map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+export function getWcagContrastRatio(hexA: string, hexB: string): number {
+  const lumA = getRelativeLuminance(hexA);
+  const lumB = getRelativeLuminance(hexB);
+  const bright = Math.max(lumA, lumB);
+  const dark = Math.min(lumA, lumB);
+  return (bright + 0.05) / (dark + 0.05);
+}
+
+export function getAccessibleTextColor(bgHex: string): string {
+  const whiteContrast = getWcagContrastRatio(bgHex, '#FFFFFF');
+  const darkContrast = getWcagContrastRatio(bgHex, '#0F172A');
+  return whiteContrast >= darkContrast ? '#FFFFFF' : '#0F172A';
 }
 
 function buildPalette(config: {
@@ -60,6 +89,10 @@ function buildPalette(config: {
   const { primaryScale: p, companionScale: c } = config;
   return {
     ...config,
+    contrastText: getAccessibleTextColor(p[600]),
+    companionContrastText: getAccessibleTextColor(c[600]),
+    softSurfaceLight: p[50],
+    softSurfaceDark: p[950],
     buttonGradient: `linear-gradient(135deg, ${p[600]} 0%, ${c[600]} 50%, ${p[700]} 100%)`,
     buttonGradientHover: `linear-gradient(135deg, ${p[700]} 0%, ${c[700]} 50%, ${p[800]} 100%)`,
     buttonGradientDark: `linear-gradient(135deg, ${p[600]} 0%, ${c[600]} 100%)`,
@@ -373,11 +406,49 @@ export const ACCENT_THEME_LIST: AccentThemePalette[] = [
   ACCENT_THEME_PALETTES.pink,
 ];
 
+export interface CuratedAppearancePalette {
+  key: string;
+  name: string;
+  companionName: string;
+  hex: string;
+}
+
+export const CURATED_APPEARANCE_PALETTES: CuratedAppearancePalette[] = [
+  { key: 'emerald', name: 'Emerald Forest', companionName: 'Jade Canopy', hex: '#059669' },
+  { key: 'sapphire', name: 'Sapphire Blue', companionName: 'Oceanic Royal', hex: '#2563EB' },
+  { key: 'amber', name: 'Amber Gold', companionName: 'Burnished Honey', hex: '#D97706' },
+  { key: 'rose', name: 'Rose Velvet', companionName: 'Berry Silk', hex: '#E11D48' },
+  { key: 'lavender', name: 'Electric Violet', companionName: 'Neon Iris', hex: '#7C3AED' },
+  { key: 'cobalt', name: 'Cobalt Sky', companionName: 'Cerulean', hex: '#0284C7' },
+  { key: 'crimson', name: 'Crimson Ruby', companionName: 'Garnet Spark', hex: '#B91C1C' },
+  { key: 'bronze', name: 'Espresso Bronze', companionName: 'Roasted Copper', hex: '#B45309' },
+  { key: 'mint', name: 'Arctic Mint', companionName: 'Seafoam Pulse', hex: '#10B981' },
+  { key: 'plum', name: 'Midnight Plum', companionName: 'Mulberry Dusk', hex: '#86198F' },
+];
+
+export type ThemeModePreference = 'light' | 'dark' | 'system';
+
+export interface ThemePreferencesSnapshot {
+  themeMode: ThemeModePreference;
+  accentTheme: AccentThemeId;
+  customAccentHex: string;
+}
+
 export const THEME_MODE_STORAGE_KEY = 'pos_theme';
 export const ACCENT_THEME_STORAGE_KEY = 'pos_accent_theme';
 export const CUSTOM_ACCENT_HEX_STORAGE_KEY = 'pos_custom_accent_hex';
+
+export const GUEST_THEME_MODE_STORAGE_KEY = 'pos_guest_theme';
+export const GUEST_ACCENT_THEME_STORAGE_KEY = 'pos_guest_accent_theme';
+export const GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY = 'pos_guest_custom_accent_hex';
+
+export const DEFAULT_THEME_MODE: ThemeModePreference = 'system';
 export const DEFAULT_ACCENT_THEME: AccentThemeId = 'purple';
 export const DEFAULT_CUSTOM_ACCENT_HEX = '#2563EB';
+
+export function getUserThemeCacheKey(userId: number | string): string {
+  return `pos_user_theme_cache_${String(userId).trim()}`;
+}
 
 const LEGACY_ACCENT_ALIASES: Record<string, PresetAccentThemeId> = {
   violet: 'purple',
@@ -396,12 +467,27 @@ const LEGACY_ACCENT_ALIASES: Record<string, PresetAccentThemeId> = {
 };
 
 const HEX_COLOR_RE = /^#[0-9A-F]{6}$/i;
+const SHORT_HEX_COLOR_RE = /^#[0-9A-F]{3}$/i;
+
+export function isValidHexColor(hex?: string | null): boolean {
+  if (typeof hex !== 'string') return false;
+  const trimmed = hex.trim();
+  const normalized = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  return HEX_COLOR_RE.test(normalized) || SHORT_HEX_COLOR_RE.test(normalized);
+}
 
 export function normalizeHexColor(hex?: string | null, fallback = DEFAULT_CUSTOM_ACCENT_HEX): string {
   if (typeof hex !== 'string') return fallback;
   const trimmed = hex.trim();
   const normalized = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
-  return HEX_COLOR_RE.test(normalized) ? normalized.toUpperCase() : fallback;
+  if (HEX_COLOR_RE.test(normalized)) {
+    return normalized.toUpperCase();
+  }
+  if (SHORT_HEX_COLOR_RE.test(normalized)) {
+    const [, r, g, b] = normalized;
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  return fallback;
 }
 
 function hexToRgbTuple(hex: string): [number, number, number] {
@@ -659,6 +745,10 @@ export function applyAccentThemeToDOM(
   root.style.setProperty('--primary-subtle', p[50]);
   root.style.setProperty('--primary-border', p[200]);
   root.style.setProperty('--primary-ring', `rgba(${palette.primaryRgb}, 0.25)`);
+  root.style.setProperty('--primary-contrast', palette.contrastText);
+  root.style.setProperty('--companion-contrast', palette.companionContrastText);
+  root.style.setProperty('--brand-soft-surface-light', palette.softSurfaceLight);
+  root.style.setProperty('--brand-soft-surface-dark', palette.softSurfaceDark);
 
   // Semantic Tailwind @theme primary tokens
   root.style.setProperty('--color-primary', p[600]);
@@ -670,6 +760,7 @@ export function applyAccentThemeToDOM(
   root.style.setProperty('--color-primary-subtle', p[50]);
   root.style.setProperty('--color-primary-border', p[200]);
   root.style.setProperty('--color-primary-ring', `rgba(${palette.primaryRgb}, 0.25)`);
+  root.style.setProperty('--color-primary-contrast', palette.contrastText);
 
   // Companion & surface tokens
   root.style.setProperty('--brand-companion', c[600]);
@@ -703,4 +794,181 @@ export function applyAccentThemeToDOM(
   updatePwaThemeColorMeta(palette.baseHex);
 
   return palette;
+}
+
+export function normalizeThemeMode(value: unknown, fallback: ThemeModePreference = DEFAULT_THEME_MODE): ThemeModePreference {
+  if (typeof value !== 'string') return fallback;
+  const clean = value.trim().toLowerCase();
+  if (clean === 'light' || clean === 'dark' || clean === 'system') return clean;
+  return fallback;
+}
+
+/**
+ * Serializes theme mode + accent palette + custom hex into a compact string
+ * suitable for `users.theme_color` database column.
+ */
+export function serializeUserThemePreference(prefs: Partial<ThemePreferencesSnapshot>): string {
+  const mode = normalizeThemeMode(prefs.themeMode, DEFAULT_THEME_MODE);
+  const accent = normalizeAccentThemeId(prefs.accentTheme) ?? DEFAULT_ACCENT_THEME;
+  const hex = normalizeHexColor(prefs.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+  return accent === 'custom' ? `${mode}|custom|${hex}` : `${mode}|${accent}`;
+}
+
+/**
+ * Parses `users.theme_color` value supporting structured `"mode|accent|hex"`, JSON,
+ * and legacy plain values like `"purple"`, `"violet"`, or `"#1E88E5"`.
+ */
+export function parseUserThemePreference(
+  raw: unknown,
+  fallback?: Partial<ThemePreferencesSnapshot>
+): ThemePreferencesSnapshot {
+  const baseMode = normalizeThemeMode(fallback?.themeMode, DEFAULT_THEME_MODE);
+  const baseAccent = normalizeAccentThemeId(fallback?.accentTheme) ?? DEFAULT_ACCENT_THEME;
+  const baseHex = normalizeHexColor(fallback?.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return { themeMode: baseMode, accentTheme: baseAccent, customAccentHex: baseHex };
+  }
+
+  const trimmed = raw.trim();
+
+  // JSON format
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const parsedAccent = normalizeAccentThemeId(parsed.accentTheme ?? parsed.accent ?? parsed.color);
+      const parsedHex = isValidHexColor(parsed.customAccentHex ?? parsed.hex)
+        ? normalizeHexColor(parsed.customAccentHex ?? parsed.hex, baseHex)
+        : baseHex;
+      return {
+        themeMode: normalizeThemeMode(parsed.themeMode ?? parsed.mode, baseMode),
+        accentTheme: parsedAccent ?? (isValidHexColor(parsed.hex) ? 'custom' : baseAccent),
+        customAccentHex: parsedHex,
+      };
+    } catch {
+      // fall through
+    }
+  }
+
+  // Pipe-delimited format: "mode|accent|hex"
+  if (trimmed.includes('|')) {
+    const [rawMode, rawAccent, rawHex] = trimmed.split('|').map((s) => s.trim());
+    const accent = normalizeAccentThemeId(rawAccent);
+    const hex = isValidHexColor(rawHex) ? normalizeHexColor(rawHex, baseHex) : baseHex;
+    return {
+      themeMode: normalizeThemeMode(rawMode, baseMode),
+      accentTheme: accent ?? (isValidHexColor(rawHex) ? 'custom' : baseAccent),
+      customAccentHex: hex,
+    };
+  }
+
+  // Legacy raw HEX string (e.g. "#2563EB")
+  if (isValidHexColor(trimmed)) {
+    return {
+      themeMode: baseMode,
+      accentTheme: 'custom',
+      customAccentHex: normalizeHexColor(trimmed, baseHex),
+    };
+  }
+
+  // Legacy preset or alias string (e.g. "purple", "violet", "teal")
+  const legacyAccent = normalizeAccentThemeId(trimmed.toLowerCase());
+  if (legacyAccent) {
+    return {
+      themeMode: baseMode,
+      accentTheme: legacyAccent,
+      customAccentHex: baseHex,
+    };
+  }
+
+  return { themeMode: baseMode, accentTheme: baseAccent, customAccentHex: baseHex };
+}
+
+export function migrateLegacyGuestThemeIfNeeded(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const hasGuestMode = window.localStorage?.getItem(GUEST_THEME_MODE_STORAGE_KEY) !== null;
+    const hasGuestAccent = window.localStorage?.getItem(GUEST_ACCENT_THEME_STORAGE_KEY) !== null;
+    if (hasGuestMode || hasGuestAccent) return;
+
+    const legacyMode = window.localStorage?.getItem(THEME_MODE_STORAGE_KEY);
+    const legacyAccent = window.localStorage?.getItem(ACCENT_THEME_STORAGE_KEY);
+    const legacyHex = window.localStorage?.getItem(CUSTOM_ACCENT_HEX_STORAGE_KEY);
+
+    if (legacyMode || legacyAccent || legacyHex) {
+      window.localStorage?.setItem(
+        GUEST_THEME_MODE_STORAGE_KEY,
+        normalizeThemeMode(legacyMode, 'light')
+      );
+      window.localStorage?.setItem(
+        GUEST_ACCENT_THEME_STORAGE_KEY,
+        normalizeAccentThemeId(legacyAccent) ?? DEFAULT_ACCENT_THEME
+      );
+      window.localStorage?.setItem(
+        GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY,
+        normalizeHexColor(legacyHex, DEFAULT_CUSTOM_ACCENT_HEX)
+      );
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function getStoredGuestThemePreferences(): ThemePreferencesSnapshot {
+  if (typeof window === 'undefined') {
+    return {
+      themeMode: 'light',
+      accentTheme: DEFAULT_ACCENT_THEME,
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+    };
+  }
+  try {
+    const guestModeRaw = window.localStorage?.getItem(GUEST_THEME_MODE_STORAGE_KEY);
+    const guestAccentRaw = window.localStorage?.getItem(GUEST_ACCENT_THEME_STORAGE_KEY);
+    const guestHexRaw = window.localStorage?.getItem(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY);
+
+    const mode = normalizeThemeMode(guestModeRaw, 'light');
+    const accent = normalizeAccentThemeId(guestAccentRaw) ?? DEFAULT_ACCENT_THEME;
+    const hex = normalizeHexColor(guestHexRaw, DEFAULT_CUSTOM_ACCENT_HEX);
+
+    return { themeMode: mode, accentTheme: accent, customAccentHex: hex };
+  } catch {
+    return {
+      themeMode: 'light',
+      accentTheme: DEFAULT_ACCENT_THEME,
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+    };
+  }
+}
+
+export function persistGuestThemePreferences(prefs: ThemePreferencesSnapshot): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const mode = normalizeThemeMode(prefs.themeMode, 'light');
+    const accent = normalizeAccentThemeId(prefs.accentTheme) ?? DEFAULT_ACCENT_THEME;
+    const hex = normalizeHexColor(prefs.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+    window.localStorage?.setItem(GUEST_THEME_MODE_STORAGE_KEY, mode);
+    window.localStorage?.setItem(GUEST_ACCENT_THEME_STORAGE_KEY, accent);
+    window.localStorage?.setItem(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
+    // Keep pre-hydration keys in sync for guest reload without flash
+    window.localStorage?.setItem(THEME_MODE_STORAGE_KEY, mode);
+    window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, accent);
+    window.localStorage?.setItem(CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function persistActiveHydrationMirror(prefs: ThemePreferencesSnapshot): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const mode = normalizeThemeMode(prefs.themeMode, 'light');
+    const accent = normalizeAccentThemeId(prefs.accentTheme) ?? DEFAULT_ACCENT_THEME;
+    const hex = normalizeHexColor(prefs.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+    window.localStorage?.setItem(THEME_MODE_STORAGE_KEY, mode);
+    window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, accent);
+    window.localStorage?.setItem(CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
+  } catch {
+    // ignore storage errors
+  }
 }

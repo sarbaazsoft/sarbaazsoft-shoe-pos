@@ -23,6 +23,7 @@ export interface AuthUser {
   avatarUrl?: string;
   role: 'SUPERADMIN' | 'ADMIN' | 'CASHIER';
   status: 'PENDING' | 'APPROVED';
+  themeColor?: string;
   onboardingCompleted?: boolean;
   tenantName?: string;
   storeName?: string;
@@ -204,7 +205,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
     const isJwtSuperAdmin = String(decoded.role || '').toUpperCase() === 'SUPERADMIN';
     const expectedJwtTenantId = isJwtSuperAdmin ? 0 : (Number(decoded.tenantId) > 0 ? Number(decoded.tenantId) : 1);
     const userRes = await pgClient.query<any>(
-      `SELECT id, tenant_id, name, email, phone, avatar_url, role, status
+      `SELECT id, tenant_id, name, email, phone, avatar_url, role, status, theme_color
        FROM users
        WHERE id = $1 AND (UPPER(role::text) = 'SUPERADMIN' OR tenant_id = $2)
        LIMIT 1`,
@@ -344,6 +345,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
       avatarUrl: row.avatar_url || '',
       role: resolvedRole,
       status: row.status,
+      themeColor: row.theme_color || '',
     };
 
     next();

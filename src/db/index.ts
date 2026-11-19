@@ -127,6 +127,7 @@ const mockStore: Record<string, any[]> = {
       role: 'SUPERADMIN',
       status: 'APPROVED',
       active: true,
+      theme_color: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -142,6 +143,7 @@ const mockStore: Record<string, any[]> = {
       role: 'ADMIN',
       status: 'APPROVED',
       active: true,
+      theme_color: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -157,6 +159,7 @@ const mockStore: Record<string, any[]> = {
       role: 'ADMIN',
       status: 'APPROVED',
       active: true,
+      theme_color: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -172,6 +175,7 @@ const mockStore: Record<string, any[]> = {
       role: 'ADMIN',
       status: 'APPROVED',
       active: true,
+      theme_color: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -187,6 +191,7 @@ const mockStore: Record<string, any[]> = {
       role: 'ADMIN',
       status: 'APPROVED',
       active: true,
+      theme_color: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
@@ -1830,76 +1835,77 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
   // USERS queries (SELECT, INSERT, UPDATE, DELETE)
   if (upper.startsWith('SELECT') && upper.includes('FROM USERS')) {
     let rows = [...mockStore.users];
-    if (upper.includes('WHERE ID = $1')) {
+    const whereClause = upper.split(/\bORDER\s+BY\b|\bLIMIT\b/)[0] || upper;
+    if (whereClause.includes('WHERE ID = $1')) {
       const targetId = Number(params[0]);
       const targetTenantId = params.length >= 2 ? Number(params[1]) : null;
       rows = rows.filter((u) => {
         if (Number(u.id) !== targetId) return false;
-        if (targetTenantId !== null && (upper.includes('TENANT_ID = $2') || upper.includes('OR TENANT_ID = $2'))) {
+        if (targetTenantId !== null && (whereClause.includes('TENANT_ID = $2') || whereClause.includes('OR TENANT_ID = $2'))) {
           if (String(u.role).toUpperCase() !== 'SUPERADMIN' && Number(u.tenant_id) !== targetTenantId) {
             return false;
           }
         }
         return true;
       });
-    } else if (upper.includes('COALESCE(TENANT_ID, 1) = $2') && upper.includes('LOWER(EMAIL) = LOWER($1)')) {
+    } else if (whereClause.includes('COALESCE(TENANT_ID, 1) = $2') && whereClause.includes('LOWER(EMAIL) = LOWER($1)')) {
       rows = rows.filter(
         (u) =>
           String(u.email).toLowerCase() === String(params[0] || '').toLowerCase() &&
           Number(u.tenant_id) === Number(params[1])
       );
     } else if (
-      (upper.includes("ROLE = 'ADMIN'") || upper.includes("UPPER(COALESCE(ROLE::TEXT, '')) IN ('ADMIN', 'OWNER')") || upper.includes("UPPER(ROLE::TEXT) IN ('ADMIN', 'OWNER')")) &&
-      upper.includes('TENANT_ID = $1')
+      (whereClause.includes("ROLE = 'ADMIN'") || whereClause.includes("UPPER(COALESCE(ROLE::TEXT, '')) IN ('ADMIN', 'OWNER')") || whereClause.includes("UPPER(ROLE::TEXT) IN ('ADMIN', 'OWNER')")) &&
+      whereClause.includes('TENANT_ID = $1')
     ) {
       rows = rows.filter(
         (u) =>
           Number(u.tenant_id) === Number(params[0]) &&
           ['ADMIN', 'OWNER'].includes(String(u.role || '').toUpperCase()) &&
-          (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
-          (!upper.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
+          (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
+          (!whereClause.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
       );
-    } else if (upper.includes("ROLE = 'CASHIER'") && upper.includes('TENANT_ID = $1')) {
+    } else if (whereClause.includes("ROLE = 'CASHIER'") && whereClause.includes('TENANT_ID = $1')) {
       rows = rows.filter(
         (u) =>
           Number(u.tenant_id) === Number(params[0]) &&
           u.role === 'CASHIER' &&
-          (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
-          (!upper.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
+          (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
+          (!whereClause.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
       );
-    } else if (upper.includes("ROLE = 'ADMIN'")) {
-      rows = rows.filter((u) => u.role === 'ADMIN' && (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
-    } else if (upper.includes("ROLE = 'CASHIER'")) {
-      rows = rows.filter((u) => u.role === 'CASHIER' && (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
-    } else if (upper.includes("ROLE = 'SUPERADMIN'") && upper.includes('LOWER(EMAIL) = LOWER($1)')) {
+    } else if (whereClause.includes("ROLE = 'ADMIN'")) {
+      rows = rows.filter((u) => u.role === 'ADMIN' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
+    } else if (whereClause.includes("ROLE = 'CASHIER'")) {
+      rows = rows.filter((u) => u.role === 'CASHIER' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
+    } else if (whereClause.includes("ROLE = 'SUPERADMIN'") && whereClause.includes('LOWER(EMAIL) = LOWER($1)')) {
       rows = rows.filter(
         (u) =>
           String(u.role).toUpperCase() === 'SUPERADMIN' &&
           String(u.email).toLowerCase() === String(params[0] || '').toLowerCase()
       );
-    } else if (upper.includes("ROLE = 'SUPERADMIN'")) {
-      rows = rows.filter((u) => String(u.role).toUpperCase() === 'SUPERADMIN' && (!upper.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
-    } else if (upper.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))') && upper.includes('ID != COALESCE($2, 0)')) {
+    } else if (whereClause.includes("ROLE = 'SUPERADMIN'")) {
+      rows = rows.filter((u) => String(u.role).toUpperCase() === 'SUPERADMIN' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
+    } else if (whereClause.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))') && whereClause.includes('ID != COALESCE($2, 0)')) {
       rows = rows.filter(
         (u) =>
           String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase() &&
           Number(u.id) !== Number(params[1] || 0)
       );
-    } else if (upper.includes('LOWER(EMAIL) = LOWER($1)') && params.length >= 2) {
+    } else if (whereClause.includes('LOWER(EMAIL) = LOWER($1)') && params.length >= 2) {
       rows = rows.filter(
         (u) =>
           String(u.email).toLowerCase() === String(params[0] || '').toLowerCase() &&
           Number(u.tenant_id) === Number(params[1])
       );
     } else if (
-      upper.includes('LOWER(EMAIL) = LOWER($1)') ||
-      upper.includes('LOWER(BTRIM(EMAIL)) = $1') ||
-      upper.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))')
+      whereClause.includes('LOWER(EMAIL) = LOWER($1)') ||
+      whereClause.includes('LOWER(BTRIM(EMAIL)) = $1') ||
+      whereClause.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))')
     ) {
       rows = rows.filter((u) => String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase());
-    } else if (upper.includes("UPPER(ROLE) = 'SUPERADMIN'") || (upper.includes('SUPERADMIN') && upper.includes('ROLE'))) {
+    } else if (whereClause.includes("UPPER(ROLE) = 'SUPERADMIN'") || (whereClause.includes('SUPERADMIN') && whereClause.includes('ROLE'))) {
       rows = rows.filter((u) => String(u.role).toUpperCase() === 'SUPERADMIN');
-    } else if (upper.includes('TENANT_ID = $1') || upper.includes('COALESCE(TENANT_ID, 1) = $1')) {
+    } else if (whereClause.includes('TENANT_ID = $1') || whereClause.includes('COALESCE(TENANT_ID, 1) = $1')) {
       rows = rows.filter((u) => Number(u.tenant_id) === Number(params[0]));
     }
     return { rows: rows as unknown as T[], rowCount: rows.length };
@@ -1931,6 +1937,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       role: upper.includes("'SUPERADMIN'") ? 'SUPERADMIN' : upper.includes("'CASHIER'") ? 'CASHIER' : 'ADMIN',
       status: upper.includes("'PENDING'") ? 'PENDING' : 'APPROVED',
       active: true,
+      theme_color: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -2053,6 +2060,21 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     if (upper.includes('SET PHONE = $1 WHERE ID = $2')) {
       const u = mockStore.users.find((x) => Number(x.id) === Number(params[1]));
       if (u) u.phone = String(params[0]);
+      return { rows: u ? ([u] as unknown as T[]) : [], rowCount: u ? 1 : 0 };
+    }
+    if (upper.includes('SET THEME_COLOR = $1')) {
+      const themeVal = String(params[0] ?? '');
+      const uid = Number(params[1]);
+      const tid = params.length >= 3 ? Number(params[2]) : null;
+      const u = mockStore.users.find(
+        (x) =>
+          Number(x.id) === uid &&
+          (tid === null || !upper.includes('TENANT_ID = $3') || Number(x.tenant_id) === tid)
+      );
+      if (u) {
+        u.theme_color = themeVal;
+        u.updated_at = new Date().toISOString();
+      }
       return { rows: u ? ([u] as unknown as T[]) : [], rowCount: u ? 1 : 0 };
     }
     return { rows: [], rowCount: 0 };

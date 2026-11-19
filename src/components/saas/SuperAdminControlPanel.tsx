@@ -71,7 +71,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   onOpenProfile,
   layoutMeta: layoutMetaOverride,
 }) => {
-  const { theme, toggleTheme, accentPalette } = useTheme();
+  const { theme, toggleTheme, accentPalette, syncUserThemeFromAuth } = useTheme();
   const isSuperAdmin = currentUser?.role === 'SUPERADMIN';
 
   // SuperAdmin user menu dropdown & profile modal states
@@ -101,7 +101,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
   const isSendingTestPushRef = useRef(false);
   const [notificationModalData, setNotificationModalData] = useState<NotificationModalData | null>(null);
-  const [superAdminSettingsTab, setSuperAdminSettingsTab] = useState<'app_settings' | 'notifications' | 'backup' | 'install'>('app_settings');
+  const [superAdminSettingsTab, setSuperAdminSettingsTab] = useState<'app_settings' | 'notifications' | 'backup' | 'install' | 'appearance'>('app_settings');
 
   // SuperAdmin Platform Tools Dropdown state (Send Notification, Import Data, Export Platform Backup)
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
@@ -1027,6 +1027,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       }
       setAuthSession(res.token, res.user);
       account.remember(res.user?.email || loginEmail);
+      syncUserThemeFromAuth(res.user);
       onUserAuthenticated(res.user, res.token);
     } catch (err: any) {
       setAuthError(err.message || 'SuperAdmin login failed.');
@@ -1355,7 +1356,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       <BodyLayoutWrapper
         layoutMeta={superAdminAuthLayoutMeta}
         className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
-        backdrop={<ShowroomBackground />}
+        backdrop={<ShowroomBackground screen="login" />}
         header={
           <PublicHeader
             storeName="POS SaaS C-Panel"

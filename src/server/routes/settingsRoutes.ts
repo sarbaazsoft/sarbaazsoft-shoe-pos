@@ -7,7 +7,7 @@ import { ensureSaasControlPlane, normalizeSubscriptionPlan, normalizeSubscriptio
 import { requireAuth, requireAdmin, requireSuperAdmin, getJwtSecret } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
-import { getAllAppSettings, updateAppSettings } from '../services/appSettingsService.ts';
+import { getAllAppSettings, updateAppSettings, getScreenImageSettings, updateScreenImageSettings } from '../services/appSettingsService.ts';
 import { notifyPlatformAnnouncement } from '../pushNotificationService.ts';
 import { sendStaffWelcomeNotification } from '../services/welcomeService.ts';
 import { testEmailConfiguration } from '../utils/email.ts';
@@ -464,6 +464,49 @@ router.patch('/app', requireAuth, requireSuperAdmin, async (req: AuthenticatedRe
     return res.status(status).json({ error: 'Failed to update app settings: ' + err.message });
   }
 });
+
+// GET /api/settings/screen-images - Public screen background images (Login, Registration, Auth, Loading)
+router.get('/screen-images', async (_req: Request, res: Response) => {
+  try {
+    const screenImages = await getScreenImageSettings();
+    return res.json({ screenImages });
+  } catch (err: any) {
+    return res.status(200).json({
+      screenImages: { login: '', registration: '', auth: '', loading: '' },
+    });
+  }
+});
+
+// PUT/PATCH /api/settings/screen-images - Admin & SuperAdmin manage customized auth & loading screen images
+const handleUpdateScreenImages = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const role = String(req.user?.role || '').toUpperCase();
+    if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
+      return res.status(403).json({
+        error: 'Forbidden: Only Store Administrators or SuperAdmin can update authentication and loading screen images.',
+        code: 'FORBIDDEN_ROLE',
+      });
+    }
+    const payload = req.body?.screenImages && typeof req.body.screenImages === 'object'
+      ? req.body.screenImages
+      : req.body;
+    if (!payload || typeof payload !== 'object') {
+      return res.status(400).json({ error: 'screenImages payload object is required.' });
+    }
+    const screenImages = await updateScreenImageSettings(payload, role);
+    return res.json({
+      success: true,
+      message: 'Screen images updated successfully.',
+      screenImages,
+    });
+  } catch (err: any) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ error: err.message || 'Failed to update screen images.' });
+  }
+};
+
+router.put('/screen-images', requireAuth, handleUpdateScreenImages);
+router.patch('/screen-images', requireAuth, handleUpdateScreenImages);
 
 // POST /api/settings/test-email - Trigger live Resend test email to verify credentials and sender domain
 router.post('/test-email', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {

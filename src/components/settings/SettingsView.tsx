@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame } from 'lucide-react';
+import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { PrinterHardwareSettings } from './PrinterHardwareSettings.tsx';
 import { DataBackupRestore } from './DataBackupRestore.tsx';
+import { AppearanceSettingsTab } from './AppearanceSettingsTab.tsx';
 import { UserAvatar } from '../common/UserAvatar.tsx';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,7 +30,7 @@ import {
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
 
-type SettingsTabId = 'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install';
+type SettingsTabId = 'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install' | 'appearance';
 
 interface SettingsViewProps {
   currentUser: any;
@@ -54,15 +55,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const isAdmin = isStoreAdmin;
 
   // Strict role-based active tab initialization:
-  // - Platform Owner (SUPERADMIN): app-level configs + notifications ('app_settings', 'notifications', 'backup', 'install')
-  // - Store Owner (ADMIN): store management tabs + notifications ('store', 'users', 'notifications', 'printers')
-  // - Cashiers: strictly constrained to 'printers'
+  // - Platform Owner (SUPERADMIN): app-level configs + notifications + appearance
+  // - Store Owner (ADMIN): store management tabs + notifications + appearance
+  // - Cashiers: printers + personal appearance preferences
   const [activeTab, setActiveTab] = useState<SettingsTabId>(() => {
     if (isSuperAdmin) {
-      if (initialTab && ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab)) {
+      if (initialTab && (initialTab === 'appearance' || ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab))) {
         return initialTab;
       }
       return 'app_settings';
+    }
+    if (initialTab === 'appearance') {
+      return 'appearance';
     }
     if (isCashier) {
       return 'printers';
@@ -76,7 +80,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSelectTab = (tab: SettingsTabId) => {
     if (isSuperAdmin) {
-      if (['app_settings', 'notifications', 'backup', 'install'].includes(tab)) {
+      if (tab === 'appearance' || ['app_settings', 'notifications', 'backup', 'install'].includes(tab)) {
         setActiveTab(tab);
       } else {
         setActiveTab('app_settings');
@@ -84,11 +88,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     }
     if (isCashier) {
-      setActiveTab('printers');
+      setActiveTab(tab === 'appearance' ? 'appearance' : 'printers');
       return;
     }
     // Store Admin (ADMIN)
-    if (['store', 'users', 'notifications', 'printers'].includes(tab)) {
+    if (tab === 'appearance' || ['store', 'users', 'notifications', 'printers'].includes(tab)) {
       setActiveTab(tab);
     } else {
       setActiveTab('store');
@@ -102,20 +106,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   useEffect(() => {
     if (isSuperAdmin) {
-      if (initialTab && ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab)) {
+      if (initialTab && (initialTab === 'appearance' || ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab))) {
         setActiveTab(initialTab);
-      } else if (!['app_settings', 'notifications', 'backup', 'install'].includes(activeTab)) {
+      } else if (activeTab !== 'appearance' && !['app_settings', 'notifications', 'backup', 'install'].includes(activeTab)) {
         setActiveTab('app_settings');
       }
     } else if (isCashier) {
-      if (activeTab !== 'printers') {
+      if (initialTab === 'appearance') {
+        setActiveTab('appearance');
+      } else if (activeTab !== 'printers' && activeTab !== 'appearance') {
         setActiveTab('printers');
       }
     } else {
       // Store Admin (ADMIN)
-      if (initialTab && ['store', 'users', 'notifications', 'printers'].includes(initialTab)) {
+      if (initialTab && (initialTab === 'appearance' || ['store', 'users', 'notifications', 'printers'].includes(initialTab))) {
         setActiveTab(initialTab);
-      } else if (!['store', 'users', 'notifications', 'printers'].includes(activeTab)) {
+      } else if (activeTab !== 'appearance' && !['store', 'users', 'notifications', 'printers'].includes(activeTab)) {
         setActiveTab('store');
       }
     }
@@ -125,6 +131,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const handleNavigateSettingsTab = (event: any) => {
       const requested = event?.detail?.tab as SettingsTabId | undefined;
       if (!requested) return;
+      if (requested === 'appearance') {
+        setActiveTab('appearance');
+        return;
+      }
       if (isSuperAdmin && ['app_settings', 'notifications', 'backup', 'install'].includes(requested)) {
         setActiveTab(requested);
       } else if (isStoreAdmin && ['store', 'users', 'notifications', 'printers'].includes(requested)) {
@@ -1698,6 +1708,29 @@ setFormErrors(errors);
             )}
           </button>
         )}
+
+        <button
+          id="settings-tab-appearance"
+          type="button"
+          data-active={activeTab === 'appearance'}
+          data-tab="appearance"
+          onClick={() => handleSelectTab('appearance')}
+          className={`tab-underline-link relative px-3.5 sm:px-4 py-3.5 text-xs sm:text-sm font-semibold transition-colors duration-300 flex items-center space-x-2 whitespace-nowrap cursor-pointer shrink-0 ${
+            activeTab === 'appearance'
+              ? 'active text-purple-600 dark:text-purple-400 font-bold'
+              : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300'
+          }`}
+        >
+          <Palette className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'appearance' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
+          <span>Appearance &amp; Colors</span>
+          {activeTab === 'appearance' && (
+            <motion.div
+              layoutId="settingsActiveUnderline"
+              className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            />
+          )}
+        </button>
 
         {/* Scroll End Buffer Spacer: Ensures the last tab is 100% visible and never clipped or flush against right edge */}
         <div className="tab-end-spacer shrink-0 w-8 sm:w-10 h-1 pointer-events-none self-stretch" aria-hidden="true" role="presentation" />
@@ -4203,8 +4236,8 @@ setFormErrors(errors);
         </div>
       )}
 
-      {/* Fallback Guard: Cashiers attempting to access unauthorized non-printer tabs */}
-      {isCashier && activeTab !== 'printers' && (
+      {/* Fallback Guard: Cashiers attempting to access unauthorized non-printer/non-appearance tabs */}
+      {isCashier && activeTab !== 'printers' && activeTab !== 'appearance' && (
         <div className="p-8 text-center bg-white dark:bg-[#131B2E] rounded-2xl border border-amber-200 dark:border-amber-900/60 shadow-sm max-w-xl mx-auto my-6">
           <ShieldAlert className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto mb-3" />
           <h3 className="text-base font-bold text-slate-900 dark:text-white">Store Configuration Access Restricted</h3>
@@ -4859,6 +4892,11 @@ setFormErrors(errors);
             )}
           </div>
         </div>
+      )}
+
+      {/* TAB: APPEARANCE & COLORS (All Authenticated Roles) */}
+      {activeTab === 'appearance' && (
+        <AppearanceSettingsTab currentUser={currentUser} />
       )}
 
       {/* Renew Subscription Modal (Auto-displayed when status is EXPIRED or triggered via Renew Subscription button) */}

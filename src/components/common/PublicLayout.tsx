@@ -4,11 +4,13 @@ import { PublicHeader, PublicHeaderProps } from './PublicHeader.tsx';
 import { PublicFooter } from './PublicFooter.tsx';
 import { BodyLayoutWrapper } from './BodyLayoutWrapper.tsx';
 import type { RouteLayoutMetadata } from '../../config/routeLayoutMetadata.ts';
+import type { ScreenImageSlot } from '../../utils/screenImages.ts';
 
 export interface PublicLayoutProps extends PublicHeaderProps {
   children: React.ReactNode;
   contentClassName?: string;
   layoutMeta?: Partial<RouteLayoutMetadata>;
+  bgScreen?: ScreenImageSlot;
 }
 
 /**
@@ -25,6 +27,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
   dbText,
   contentClassName = '',
   layoutMeta,
+  bgScreen = 'auth',
   ...rest
 }) => {
   return (
@@ -37,7 +40,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
         centerMain: true,
         ...layoutMeta,
       }}
-      backdrop={<ShowroomBackground />}
+      backdrop={<ShowroomBackground screen={bgScreen} />}
       header={
         <PublicHeader
           storeName={storeName}

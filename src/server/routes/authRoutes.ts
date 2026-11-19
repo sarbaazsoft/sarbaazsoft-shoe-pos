@@ -156,7 +156,7 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
       // Strictly query users belonging ONLY to this specific store (WHERE tenant_id = $2 AND LOWER(email) = LOWER($1))
       // Even if Store 1 and Store 2 share identical email & password, only Store 2's rows (with tenant_id = verifiedTenantId) are inspected.
       const storeUsersRes = await pgClient.query(
-        `SELECT id, tenant_id, name, email, phone, avatar_url, password_hash, role, status
+        `SELECT id, tenant_id, name, email, phone, avatar_url, password_hash, role, status, theme_color
          FROM users
          WHERE COALESCE(tenant_id, 1) = $2 AND LOWER(email) = LOWER($1)
          ORDER BY CASE WHEN role = 'ADMIN' THEN 0 ELSE 1 END, id ASC`,
@@ -175,7 +175,7 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
       // Only if no store user matched in this tenant, check if global SUPERADMIN is logging in
       if (!matchedUser) {
         const saRes = await pgClient.query(
-          `SELECT id, tenant_id, name, email, phone, avatar_url, password_hash, role, status
+          `SELECT id, tenant_id, name, email, phone, avatar_url, password_hash, role, status, theme_color
            FROM users
            WHERE role = 'SUPERADMIN' AND LOWER(email) = LOWER($1)
            ORDER BY id ASC
@@ -198,7 +198,7 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
     } else {
       // Shared platform login resolves the account by its credentials.
       const candidatesRes = await pgClient.query(
-        `SELECT id, tenant_id, name, email, phone, avatar_url, password_hash, role, status
+        `SELECT id, tenant_id, name, email, phone, avatar_url, password_hash, role, status, theme_color
          FROM users
          WHERE LOWER(email) = LOWER($1)
          ORDER BY CASE WHEN role = 'SUPERADMIN' THEN 0 ELSE 1 END, id ASC`,
@@ -358,6 +358,7 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
       role: user.role,
       originalRole: user.role,
       status: user.status,
+      themeColor: user.theme_color || '',
       onboardingCompleted,
       subscriptionStatus,
     };
@@ -422,7 +423,7 @@ router.all('/verify-email', async (req: Request, res: Response) => {
 
     const tokenRes = await pgClient.query(
       `SELECT evt.id, evt.user_id, evt.tenant_id, evt.expires_at,
-              u.id as user_id, u.tenant_id, u.name, u.email, u.phone, u.avatar_url, u.role, u.status,
+              u.id as user_id, u.tenant_id, u.name, u.email, u.phone, u.avatar_url, u.role, u.status, u.theme_color,
               t.name as store_name, t.onboarding_completed, t.subscription_status
        FROM email_verification_tokens evt
        JOIN users u ON u.id = evt.user_id
@@ -458,6 +459,7 @@ router.all('/verify-email', async (req: Request, res: Response) => {
       avatarUrl: row.avatar_url || '',
       role: row.role,
       status: 'APPROVED',
+      themeColor: row.theme_color || '',
       onboardingCompleted: Boolean(row.onboarding_completed),
       subscriptionStatus: row.subscription_status || 'ACTIVE',
     };
@@ -577,7 +579,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
     const isSuperAdmin = String(req.user!.role).toUpperCase() === 'SUPERADMIN';
     const userTenantId = isSuperAdmin ? 0 : (Number(req.user!.tenantId) > 0 ? Number(req.user!.tenantId) : 1);
     const userRes = await pgClient.query(
-      `SELECT id, tenant_id, name, email, phone, avatar_url, role, status
+      `SELECT id, tenant_id, name, email, phone, avatar_url, role, status, theme_color
        FROM users
        WHERE id = $1 AND (UPPER(role::text) = 'SUPERADMIN' OR tenant_id = $2)`,
       [req.user!.id, userTenantId]
@@ -609,6 +611,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
         role: row.role,
         originalRole: row.role,
         status: row.status,
+        themeColor: row.theme_color || '',
         onboardingCompleted,
       },
     });
@@ -637,7 +640,7 @@ router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
       `UPDATE users
        SET name = $1, phone = $2, avatar_url = $3, updated_at = NOW()
        WHERE id = $4 AND (UPPER(role::text) = 'SUPERADMIN' OR tenant_id = $5)
-       RETURNING id, tenant_id, name, email, phone, avatar_url, role, status`,
+       RETURNING id, tenant_id, name, email, phone, avatar_url, role, status, theme_color`,
       [trimmedName, trimmedPhone, sanitizedAvatarUrl, userId, userTenantId]
     );
 
@@ -656,6 +659,7 @@ router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
       avatarUrl: row.avatar_url || '',
       role: row.role,
       status: row.status,
+      themeColor: row.theme_color || '',
     };
     const token = generateToken(updatedUser);
 
@@ -669,6 +673,63 @@ router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
     res.status(500).json({ error: 'Failed to update profile: ' + err.message });
   }
 });
+
+// Save authenticated user's personal theme preference into users.theme_color
+const handleSaveUserTheme = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const rawThemeColor = req.body?.themeColor ?? req.body?.theme_color;
+    if (rawThemeColor === undefined || rawThemeColor === null) {
+      return res.status(400).json({ error: 'themeColor value is required.' });
+    }
+    const serialized = String(rawThemeColor).trim();
+    if (serialized.length > 256) {
+      return res.status(400).json({ error: 'Theme preference payload exceeds allowed length.' });
+    }
+    if (serialized && /[<>\x00-\x1F]/.test(serialized)) {
+      return res.status(400).json({ error: 'Theme preference contains invalid characters.' });
+    }
+
+    const isSuperAdmin = String(req.user!.role).toUpperCase() === 'SUPERADMIN';
+    const userTenantId = isSuperAdmin ? 0 : (Number(req.user!.tenantId) > 0 ? Number(req.user!.tenantId) : 1);
+
+    const result = await pgClient.query(
+      isSuperAdmin
+        ? `UPDATE users SET theme_color = $1, updated_at = NOW() WHERE id = $2 RETURNING id, tenant_id, name, email, phone, avatar_url, role, status, theme_color`
+        : `UPDATE users SET theme_color = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3 RETURNING id, tenant_id, name, email, phone, avatar_url, role, status, theme_color`,
+      isSuperAdmin ? [serialized, userId] : [serialized, userId, userTenantId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    const row: any = result.rows[0];
+    const rowTid = Number(row.tenant_id);
+    return res.json({
+      success: true,
+      themeColor: row.theme_color || '',
+      user: {
+        id: row.id,
+        tenantId: isSuperAdmin ? 0 : (req.user!.tenantId || (Number.isInteger(rowTid) && rowTid > 0 ? rowTid : 1)),
+        name: row.name,
+        email: row.email,
+        phone: row.phone || '',
+        avatarUrl: row.avatar_url || '',
+        role: row.role,
+        originalRole: row.role,
+        status: row.status,
+        themeColor: row.theme_color || '',
+      },
+    });
+  } catch (err: any) {
+    console.error('Theme preference update error:', err);
+    return res.status(500).json({ error: 'Failed to save theme preference: ' + err.message });
+  }
+};
+
+router.put('/theme', requireAuth, handleSaveUserTheme);
+router.patch('/theme', requireAuth, handleSaveUserTheme);
 
 // Change Password
 router.put('/change-password', requireAuth, async (req: AuthenticatedRequest, res: Response) => {

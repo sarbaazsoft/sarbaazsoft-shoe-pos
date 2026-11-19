@@ -265,7 +265,79 @@ export const APP_SETTINGS_DEFAULTS: AppSettingDefinition[] = [
     description: 'Comma-separated SHA-256 certificate fingerprints for Android Digital Asset Links',
     isSecret: false,
   },
+  {
+    key: 'SCREEN_BG_LOGIN',
+    defaultValue: '',
+    category: 'system',
+    description: 'Custom background image URL or uploaded image for the Login screen',
+    isSecret: false,
+  },
+  {
+    key: 'SCREEN_BG_REGISTRATION',
+    defaultValue: '',
+    category: 'system',
+    description: 'Custom background image URL or uploaded image for the Store Registration / Onboarding screens',
+    isSecret: false,
+  },
+  {
+    key: 'SCREEN_BG_AUTH',
+    defaultValue: '',
+    category: 'system',
+    description: 'Custom background image URL or uploaded image for Authentication & Verification screens',
+    isSecret: false,
+  },
+  {
+    key: 'SCREEN_BG_LOADING',
+    defaultValue: '',
+    category: 'system',
+    description: 'Custom background image URL or uploaded image for the Loading splash screen',
+    isSecret: false,
+  },
 ];
+
+export const SCREEN_IMAGE_KEYS = {
+  login: 'SCREEN_BG_LOGIN',
+  registration: 'SCREEN_BG_REGISTRATION',
+  auth: 'SCREEN_BG_AUTH',
+  loading: 'SCREEN_BG_LOADING',
+} as const;
+
+export type ScreenImageSlot = keyof typeof SCREEN_IMAGE_KEYS;
+export type ScreenImagesMap = Record<ScreenImageSlot, string>;
+
+const MAX_SCREEN_IMAGE_DATA_URI_LENGTH = 4_500_000;
+const MAX_SCREEN_IMAGE_URL_LENGTH = 2048;
+
+export function validateScreenImageInput(raw: unknown): { valid: boolean; value: string; error?: string } {
+  if (raw === undefined || raw === null) {
+    return { valid: true, value: '' };
+  }
+  const str = String(raw).trim();
+  if (!str) {
+    return { valid: true, value: '' };
+  }
+  if (/^data:image\/(png|jpeg|jpg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/i.test(str)) {
+    if (str.length > MAX_SCREEN_IMAGE_DATA_URI_LENGTH) {
+      return { valid: false, value: '', error: 'Uploaded image is too large (max ~3 MB after compression).' };
+    }
+    return { valid: true, value: str };
+  }
+  if (str.startsWith('data:')) {
+    return { valid: false, value: '', error: 'Only raster image uploads (PNG, JPG, WEBP, GIF, AVIF) are supported.' };
+  }
+  if (str.length > MAX_SCREEN_IMAGE_URL_LENGTH) {
+    return { valid: false, value: '', error: 'Image URL exceeds maximum length (2048 characters).' };
+  }
+  try {
+    const parsed = new URL(str);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return { valid: false, value: '', error: 'Only http:// or https:// image URLs are allowed.' };
+    }
+    return { valid: true, value: parsed.toString() };
+  } catch {
+    return { valid: false, value: '', error: 'Please enter a valid http(s) image URL or upload an image file.' };
+  }
+}
 
 export interface AppSettingItem {
   key: string;
@@ -596,5 +668,62 @@ export async function updateAppSettings(
   }
 
   return cleanUpdates;
+}
+
+export async function getScreenImageSettings(): Promise<ScreenImagesMap> {
+  await ensureAppSettingsSchema();
+  const empty: ScreenImagesMap = {
+    login: '',
+    registration: '',
+    auth: '',
+    loading: '',
+  };
+  try {
+    const res = await pgClient.query<{ key: string; value: string }>(
+      `SELECT key, value FROM public.app_settings WHERE key IN ('SCREEN_BG_LOGIN', 'SCREEN_BG_REGISTRATION', 'SCREEN_BG_AUTH', 'SCREEN_BG_LOADING')`
+    );
+    for (const row of res.rows) {
+      const k = String(row.key || '').toUpperCase();
+      const val = String(row.value || '').trim();
+      if (k === 'SCREEN_BG_LOGIN') empty.login = val;
+      else if (k === 'SCREEN_BG_REGISTRATION') empty.registration = val;
+      else if (k === 'SCREEN_BG_AUTH') empty.auth = val;
+      else if (k === 'SCREEN_BG_LOADING') empty.loading = val;
+    }
+  } catch (err) {
+    console.warn('Notice reading screen image settings:', err);
+  }
+  return empty;
+}
+
+export async function updateScreenImageSettings(
+  updates: Partial<Record<ScreenImageSlot, unknown>>,
+  userRole?: string
+): Promise<ScreenImagesMap> {
+  const cleanRole = String(userRole || '').toUpperCase();
+  if (cleanRole !== 'SUPERADMIN' && cleanRole !== 'ADMIN') {
+    const err: any = new Error('Forbidden: Store Admin or SuperAdmin permission required to customize screen images.');
+    err.statusCode = 403;
+    err.code = 'FORBIDDEN_ROLE';
+    throw err;
+  }
+
+  const mapped: Record<string, string> = {};
+  (Object.keys(SCREEN_IMAGE_KEYS) as ScreenImageSlot[]).forEach((slot) => {
+    if (Object.prototype.hasOwnProperty.call(updates, slot)) {
+      const checked = validateScreenImageInput(updates[slot]);
+      if (!checked.valid) {
+        const err: any = new Error(checked.error || `Invalid image for ${slot} screen.`);
+        err.statusCode = 400;
+        throw err;
+      }
+      mapped[SCREEN_IMAGE_KEYS[slot]] = checked.value;
+    }
+  });
+
+  if (Object.keys(mapped).length > 0) {
+    await updateAppSettings(mapped, cleanRole, { allowInternal: true });
+  }
+  return getScreenImageSettings();
 }
 

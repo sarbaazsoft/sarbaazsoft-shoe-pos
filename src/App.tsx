@@ -11,6 +11,7 @@ import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
 import { BodyLayoutWrapper } from './components/common/BodyLayoutWrapper.tsx';
 import { resolveRouteLayoutMetadata, type SaasRouteMode } from './config/routeLayoutMetadata.ts';
 import { emitDataSync } from './utils/dataSyncBus.ts';
+import { useTheme } from './context/ThemeContext.tsx';
 
 const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
 const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: memo(m.ProductManagement) })));
@@ -403,6 +404,7 @@ function detectInitialRouteFromLocation(): {
 }
 
 export default function App() {
+  const { syncUserThemeFromAuth, restoreGuestThemeOnLogout } = useTheme();
   const initialRoute = detectInitialRouteFromLocation();
   const [saasMode, setSaasMode] = useState<SaasRouteMode>(initialRoute.mode);
   const [activeTenant, setActiveTenant] = useState<TenantInfo | null>(null);
@@ -442,7 +444,7 @@ export default function App() {
     }
   });
 
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install' | undefined>(undefined);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install' | 'appearance' | undefined>(undefined);
 
   useEffect(() => {
     const handleNavigateSettingsTab = (event: any) => {
@@ -767,6 +769,7 @@ export default function App() {
         try {
           localStorage.setItem('pos_current_user', JSON.stringify(verifiedUser));
         } catch {}
+        syncUserThemeFromAuth(verifiedUser);
 
         if (normalizedRole === 'SUPERADMIN' && !tenantIdForInit) {
           setSaasMode('SUPERADMIN');
@@ -783,6 +786,7 @@ export default function App() {
       } else if (navigator.onLine) {
         removeAuthToken();
         setCurrentUser(null);
+        restoreGuestThemeOnLogout();
         const fallbackUrl = tenantIdForInit ? `/auth?tenantId=${encodeURIComponent(tenantIdForInit)}` : '/';
         window.history.replaceState({}, '', fallbackUrl);
         setIsLoginModalOpen(Boolean(tenantIdForInit));
@@ -921,6 +925,7 @@ export default function App() {
       setCurrentUser(null);
       setCompanySettings(null);
       setCachedStoreName('');
+      restoreGuestThemeOnLogout();
       setAuthSessionNotice('Your session has expired. Please sign in again.');
       const targetTid = Number(activeTenant?.id || getActiveTenantId() || 0);
       setActiveTenantId(null);
@@ -938,7 +943,7 @@ export default function App() {
     };
     window.addEventListener('auth:session-expired', handleSessionExpired);
     return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
-  }, [activeTenant?.id]);
+  }, [activeTenant?.id, restoreGuestThemeOnLogout]);
 
   // Automatically restrict access to POS/Dashboard if any API request reports SUBSCRIPTION_EXPIRED
   useEffect(() => {
@@ -1590,6 +1595,7 @@ export default function App() {
     try {
       localStorage.setItem('pos_current_user', JSON.stringify(authUser));
     } catch {}
+    syncUserThemeFromAuth(authUser);
     if (role === 'CASHIER') {
       setCurrentTab('pos');
       void import('./components/pos/PosTerminal.tsx');
@@ -1635,7 +1641,7 @@ export default function App() {
       handleNavigateDomain({ mode: 'TENANT', tenantId: userTenantId, authenticated: true, tab: nextTab });
       return;
     }
-  }, [availableTenants, companySettings, handleNavigateDomain]);
+  }, [availableTenants, companySettings, handleNavigateDomain, syncUserThemeFromAuth]);
 
   const handleLogout = (options?: { reason?: 'idle' | 'manual' } | unknown) => {
     // Immediate logout, no prompt. The remembered login email is stored under its own key
@@ -1667,6 +1673,7 @@ export default function App() {
     setCurrentUser(null);
     setCompanySettings(null);
     setCachedStoreName('');
+    restoreGuestThemeOnLogout();
     setActiveExchangeForPos(null);
     setSelectedSupplierForPurchase(null);
     setTenantIdNotice('');
@@ -2057,6 +2064,7 @@ export default function App() {
                 try {
                   localStorage.setItem('pos_current_user', JSON.stringify(authUser));
                 } catch {}
+                syncUserThemeFromAuth(authUser);
               }
               setSaasMode('SUPERADMIN');
               window.history.replaceState({}, '', '/admin');
@@ -2152,6 +2160,7 @@ export default function App() {
               if (token && user) {
                 setAuthSession(token, user);
                 setCurrentUser(user);
+                syncUserThemeFromAuth(user);
                 if (user.onboardingCompleted === false) {
                   handleNavigateDomain({ mode: 'ONBOARDING', tenantId });
                 } else {
@@ -2179,6 +2188,7 @@ export default function App() {
               if (sessionData?.token && sessionData?.user) {
                 setAuthSession(sessionData.token, sessionData.user);
                 setCurrentUser(sessionData.user);
+                syncUserThemeFromAuth(sessionData.user);
                 const targetTenantId = Number(
                   sessionData.user.tenantId ||
                   sessionData.tenantId ||
@@ -2230,6 +2240,7 @@ export default function App() {
               currentUser={currentUser}
               onUserAuthenticated={(user) => {
                 setCurrentUser(user);
+                syncUserThemeFromAuth(user);
               }}
               onLogout={handleLogout}
               onOpenStore={(tenantId) => handleNavigateDomain({ mode: 'TENANT', tenantId })}

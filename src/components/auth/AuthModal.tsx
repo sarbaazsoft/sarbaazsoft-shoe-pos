@@ -329,7 +329,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       className={`bg-slate-200 dark:bg-[#0A0E1A] ${
         isDark ? 'dark text-slate-100' : 'light text-slate-900'
       } font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200`}
-      backdrop={<ShowroomBackground />}
+      backdrop={<ShowroomBackground screen={tab === 'login' ? 'login' : 'auth'} />}
       header={
         <PublicHeader
           storeName={storeName}

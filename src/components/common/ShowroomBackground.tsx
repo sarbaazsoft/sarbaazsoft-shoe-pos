@@ -1,31 +1,58 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
+import { useTheme } from '../../context/ThemeContext.tsx';
+import type { ScreenImageSlot } from '../../utils/screenImages.ts';
 
 interface ShowroomBackgroundProps {
   className?: string;
+  screen?: ScreenImageSlot;
 }
 
 /**
  * ShowroomBackground
- * Aligned showroom background layer with 95% high visibility (`opacity-95`) as `bg-cover`
- * across AuthModal, Loading Platform, InstallationWizard, TenantOnboardingWizard,
- * SuperAdmin Login, SuspendedStoreView, and UnknownStore404View routes.
+ * Responsive customizable showroom backdrop layer supporting per-screen images
+ * (login, registration, auth, loading) with automatic fallback to the built-in showroom asset
+ * and adaptive light/dark legibility scrim.
  */
-export const ShowroomBackground: React.FC<ShowroomBackgroundProps> = ({ className = '' }) => {
+export const ShowroomBackground: React.FC<ShowroomBackgroundProps> = ({
+  className = '',
+  screen = 'auth',
+}) => {
+  const { getEffectiveScreenImage, theme } = useTheme();
+  const customImageUrl = getEffectiveScreenImage(screen);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFailedUrl(null);
+  }, [customImageUrl]);
+
+  const activeImageUrl = customImageUrl && failedUrl !== customImageUrl ? customImageUrl : shoeStoreBg;
+
   return (
-    <>
-      {/* Showroom Background Image Layer (70% opacity) */}
-      <div
-        id="showroom-bg-image-layer"
-        className={`fixed inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-70 pointer-events-none transition-opacity duration-300 ${className}`}
-        style={{
-          backgroundImage: `url(${shoeStoreBg})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          opacity: 0.70,
+    <div
+      id="showroom-bg-image-layer"
+      data-screen={screen}
+      className={`fixed inset-0 z-0 pointer-events-none overflow-hidden transition-opacity duration-300 ${className}`}
+      aria-hidden="true"
+    >
+      <img
+        src={activeImageUrl}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={() => {
+          if (customImageUrl && failedUrl !== customImageUrl) {
+            setFailedUrl(customImageUrl);
+          }
         }}
-        aria-hidden="true"
+        className="w-full h-full object-cover object-center opacity-70 transition-opacity duration-300 select-none"
       />
-    </>
+      <div
+        className={`absolute inset-0 transition-colors duration-300 ${
+          theme === 'dark'
+            ? 'bg-gradient-to-b from-[#0A0E1A]/45 via-[#0A0E1A]/25 to-[#0A0E1A]/60'
+            : 'bg-gradient-to-b from-slate-200/35 via-transparent to-slate-200/45'
+        }`}
+      />
+    </div>
   );
 };

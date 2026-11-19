@@ -282,7 +282,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
     <BodyLayoutWrapper
       layoutMeta={onboardingLayoutMeta}
       className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200"
-      backdrop={<ShowroomBackground />}
+      backdrop={<ShowroomBackground screen="registration" />}
       header={
         <PublicHeader
           storeName={`${storeName || 'Store'} — Initial Store Setup`}
