@@ -152,8 +152,8 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             <ShoeIcon src={logoSrc || '/pwa-192x192.png'} alt={`${storeName} Logo`} className="w-full h-full object-cover rounded-xl" />
           </div>
         )}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base tracking-tight leading-tight truncate block">
               {renderBrandName(storeName)}
             </span>
@@ -163,13 +163,13 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
               </div>
             )}
           </div>
-          <span className="text-[11px] sm:text-xs text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1.5 truncate mt-0.5">
+          <span className="text-[11px] sm:text-xs text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1.5 min-w-0 mt-0.5">
             {isSuperAdminView ? (
               <img src="/admin/pwa-192x192.png" alt="" className="w-3.5 h-3.5 shrink-0 object-contain" />
             ) : (
               <TinyShoeIcon className="w-3.5 h-3.5 shrink-0" />
             )}
-            <span>{subtitle}</span>
+            <span className="truncate">{subtitle}</span>
           </span>
         </div>
       </button>

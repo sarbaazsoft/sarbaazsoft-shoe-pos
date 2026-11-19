@@ -123,6 +123,7 @@ test('Touch-friendly control sizing, wrapping toolbars, and responsive scanner i
   const themeSrc = readProjectFile('src/components/common/ThemeDropdown.tsx');
   assert.ok(themeSrc.includes('h-10 min-w-[40px] sm:min-w-0 sm:h-8.5'));
   assert.ok(themeSrc.includes('max-h-[calc(100dvh-5.5rem)]'));
+  assert.ok(themeSrc.includes('max-w-[calc(100vw-2rem)]'));
 
   const posSrc = readProjectFile('src/components/pos/PosTerminal.tsx');
   assert.ok(posSrc.includes('min-w-[36px] min-h-[36px]'));
@@ -142,4 +143,36 @@ test('Touch-friendly control sizing, wrapping toolbars, and responsive scanner i
   assert.ok(superAdminSrc.includes('w-11 h-11 flex items-center justify-center'));
   assert.ok(superAdminSrc.includes('min-h-[44px]'));
   assert.equal(superAdminSrc.includes('<kbd className="text-[10px] font-mono font-bold'), false);
+});
+
+test('SaaS landing Navbar maintains balanced margins, shortened mobile subtitle, and overflow-free mobile/tablet/desktop layout', () => {
+  const navbarSrc = readProjectFile('src/components/saas/Navbar.tsx');
+
+  // Left brand column must shrink cleanly on mobile/tablet so right-side ThemeDropdown is never clipped
+  assert.ok(
+    navbarSrc.includes('flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:flex-initial lg:shrink-0'),
+    'Navbar left column must use flex-1 min-w-0 on mobile/tablet'
+  );
+  assert.equal(
+    navbarSrc.includes('flex items-center gap-2.5 sm:gap-3 shrink-0 min-w-0'),
+    false,
+    'Navbar left column must not trap width with shrink-0 on small screens'
+  );
+
+  // Mobile/tablet drawer threshold moves to lg (1024px) so 768px tablet portrait never overflows
+  assert.ok(navbarSrc.includes('window.innerWidth >= 1024'));
+  assert.ok(navbarSrc.includes('className="flex lg:hidden shrink-0"'));
+  assert.ok(navbarSrc.includes('className="hidden lg:flex items-center gap-0.5 xl:gap-2 shrink-0'));
+  assert.ok(navbarSrc.includes('className="hidden lg:flex items-center gap-2 xl:gap-2.5 font-courgette"'));
+  assert.ok(navbarSrc.includes('max-h-[calc(100dvh-4.5rem)]'));
+
+  // Balanced outer container & symmetric right action spacing (no mr-0.5 or space-x-*)
+  assert.ok(navbarSrc.includes('max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'));
+  assert.ok(navbarSrc.includes('className="flex items-center gap-2 lg:gap-2.5 shrink-0"'));
+  assert.equal(navbarSrc.includes('mr-0.5'), false);
+
+  // Mobile subtitle is shortened while full subtitle remains visible on sm+ screens
+  assert.ok(navbarSrc.includes('resolveMobileSubtitle'));
+  assert.ok(navbarSrc.includes('<span className="sm:hidden truncate">{compactSubtitle}</span>'));
+  assert.ok(navbarSrc.includes('<span className="hidden sm:inline truncate lg:max-w-[180px] xl:max-w-none">{subtitle}</span>'));
 });

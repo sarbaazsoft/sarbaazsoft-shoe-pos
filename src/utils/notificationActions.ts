@@ -149,6 +149,7 @@ export function resolveNotificationActions(
 
   const isReturn = type === 'RETURN' || itemType === 'RETURN';
   const isPurchase = type === 'PURCHASE' || itemType === 'PURCHASE';
+  const hasExplicitInvoiceId = Boolean(cleanIdValue(input.invoiceId));
 
   const tagStr = cleanIdValue(input.tag).toLowerCase();
 
@@ -162,25 +163,33 @@ export function resolveNotificationActions(
     (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn && !isPurchase);
 
   const isInvoice =
-    !isLowStock &&
-    !isPurchase &&
-    (type === 'INVOICE' ||
-      type === 'SALE' ||
-      type === 'RETURN' ||
-      type === 'EXCHANGE' ||
-      type === 'SALE_RETURN' ||
-      type === 'SALE_EXCHANGE' ||
-      itemType === 'INVOICE' ||
-      itemType === 'SALE' ||
-      itemType === 'RETURN' ||
-      itemType === 'EXCHANGE' ||
-      itemType === 'SALE_RETURN' ||
-      itemType === 'SALE_EXCHANGE' ||
-      combinedUrl.includes('/invoices/') ||
-      combinedUrl.includes('viewinvoice=') ||
-      combinedUrl.includes('invoice='));
+    hasExplicitInvoiceId ||
+    (!isLowStock &&
+      !isPurchase &&
+      (type === 'INVOICE' ||
+        type === 'SALE' ||
+        type === 'RETURN' ||
+        type === 'EXCHANGE' ||
+        type === 'SALE_RETURN' ||
+        type === 'SALE_EXCHANGE' ||
+        itemType === 'INVOICE' ||
+        itemType === 'SALE' ||
+        itemType === 'RETURN' ||
+        itemType === 'EXCHANGE' ||
+        itemType === 'SALE_RETURN' ||
+        itemType === 'SALE_EXCHANGE' ||
+        combinedUrl.includes('/invoices/') ||
+        combinedUrl.includes('viewinvoice=') ||
+        combinedUrl.includes('invoice=')));
 
-  if (isLowStock) {
+  if (isInvoice) {
+    const invoiceId = extractInvoiceId(input, candidateUrls);
+    primaryAction = {
+      action: 'view_invoice',
+      label: 'View Invoice',
+      url: invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : isReturn ? '/returns' : '/reports',
+    };
+  } else if (isLowStock) {
     primaryAction = {
       action: 'view_stock',
       label: 'View Stock',
@@ -191,13 +200,6 @@ export function resolveNotificationActions(
       action: 'view_purchase',
       label: 'View Purchase',
       url: '/?tab=purchases',
-    };
-  } else if (isInvoice) {
-    const invoiceId = extractInvoiceId(input, candidateUrls);
-    primaryAction = {
-      action: 'view_invoice',
-      label: 'View Invoice',
-      url: invoiceId ? `/invoices/${encodeURIComponent(invoiceId)}` : isReturn ? '/returns' : '/reports',
     };
   } else if (hasAnnouncementHint) {
     const announcementId = extractAnnouncementId(input, candidateUrls);

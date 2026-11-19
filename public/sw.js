@@ -254,6 +254,7 @@ function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
 
   const isReturn = type === 'RETURN' || itemType === 'RETURN';
   const isPurchase = type === 'PURCHASE' || itemType === 'PURCHASE';
+  const hasExplicitInvoiceId = Boolean(cleanSwIdValue(data.invoiceId));
 
   const hasAnnouncementHint =
     type === 'ANNOUNCEMENT' ||
@@ -265,32 +266,33 @@ function resolveSwNotificationActions(data = {}, fallbackUserRole = '') {
     (['INFO', 'WARNING', 'URGENT', 'SUCCESS'].includes(type) && !isLowStock && !isReturn && !isPurchase);
 
   const isInvoice =
-    !isLowStock &&
-    !isPurchase &&
-    (type === 'INVOICE' ||
-      type === 'SALE' ||
-      type === 'RETURN' ||
-      type === 'EXCHANGE' ||
-      type === 'SALE_RETURN' ||
-      type === 'SALE_EXCHANGE' ||
-      itemType === 'INVOICE' ||
-      itemType === 'SALE' ||
-      itemType === 'RETURN' ||
-      itemType === 'EXCHANGE' ||
-      itemType === 'SALE_RETURN' ||
-      itemType === 'SALE_EXCHANGE' ||
-      combinedUrl.includes('/invoices/') ||
-      combinedUrl.includes('viewinvoice=') ||
-      combinedUrl.includes('invoice='));
+    hasExplicitInvoiceId ||
+    (!isLowStock &&
+      !isPurchase &&
+      (type === 'INVOICE' ||
+        type === 'SALE' ||
+        type === 'RETURN' ||
+        type === 'EXCHANGE' ||
+        type === 'SALE_RETURN' ||
+        type === 'SALE_EXCHANGE' ||
+        itemType === 'INVOICE' ||
+        itemType === 'SALE' ||
+        itemType === 'RETURN' ||
+        itemType === 'EXCHANGE' ||
+        itemType === 'SALE_RETURN' ||
+        itemType === 'SALE_EXCHANGE' ||
+        combinedUrl.includes('/invoices/') ||
+        combinedUrl.includes('viewinvoice=') ||
+        combinedUrl.includes('invoice=')));
 
   let primaryAction = null;
 
-  if (isLowStock) {
+  if (isInvoice) {
+    primaryAction = { action: 'view_invoice', title: 'View Invoice' };
+  } else if (isLowStock) {
     primaryAction = { action: 'view_stock', title: 'View Stock' };
   } else if (isPurchase) {
     primaryAction = { action: 'view_purchase', title: 'View Purchase' };
-  } else if (isInvoice) {
-    primaryAction = { action: 'view_invoice', title: 'View Invoice' };
   } else if (hasAnnouncementHint) {
     primaryAction = { action: 'read_more', title: 'Read More' };
   } else {

@@ -18,10 +18,10 @@ function readSrc(relPath: string): string {
 }
 
 describe('SuperAdmin & Store Loading UI Alignment', () => {
-  it('renders unified LoadingWindow visual card structure without divergent SuperAdmin Shield styling', () => {
+  it('renders unified minimal LoadingWindow without extra captions, technical jargon, or divergent Shield styling', () => {
     const loadingSrc = readSrc('src/components/common/LoadingWindow.tsx');
 
-    // Unified rounded-2xl ShoeIcon container & live green dot used for both Store and SuperAdmin
+    // Unified rounded-2xl ShoeIcon container used for both Store and SuperAdmin
     assert.ok(loadingSrc.includes('<ShoeIcon'));
     assert.ok(
       loadingSrc.includes("src={logoSrc || (isSuperAdminView ? '/admin/pwa-192x192.png' : '/pwa-192x192.png')}")
@@ -30,14 +30,55 @@ describe('SuperAdmin & Store Loading UI Alignment', () => {
       loadingSrc.includes('w-16 h-16 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-lg border border-purple-500/25')
     );
 
-    // Unified indigo Sparkles pill badge & Sparkles spinner center icon
-    assert.ok(loadingSrc.includes('bg-indigo-500/15 dark:bg-indigo-900/40 border border-indigo-400/30 text-indigo-700 dark:text-indigo-300'));
-    assert.ok(loadingSrc.includes('<Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-pulse" />'));
+    // Minimal subtle loader + short friendly copy
+    assert.ok(loadingSrc.includes('animate-spin'));
+    assert.ok(loadingSrc.includes('<Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />'));
+    assert.ok(loadingSrc.includes("'Opening your dashboard...'"));
+    assert.ok(loadingSrc.includes("'Opening your store...'"));
     assert.ok(!loadingSrc.includes('<Shield'), 'LoadingWindow should not render divergent Shield icon visuals for SuperAdmin');
+
+    // Strip out extra captions & technical/framework terminology from visible UI
+    const jsxStart = loadingSrc.indexOf('return (');
+    const loadingJsx = jsxStart !== -1 ? loadingSrc.slice(jsxStart) : loadingSrc;
+    for (const forbidden of [
+      'Laravel',
+      'Node.js',
+      'PostgreSQL',
+      'Control Plane',
+      'telemetry',
+      'protocols',
+      'Offline Resilient',
+      'Database Scoped',
+      'Tenant Scoped',
+      'Multi-Tenant',
+      'Dual-engine',
+      'Wholesale & Retail POS Suite',
+      'offline sales cache',
+    ]) {
+      assert.equal(
+        loadingJsx.toLowerCase().includes(forbidden.toLowerCase()),
+        false,
+        `LoadingWindow JSX must not contain technical/extra caption "${forbidden}"`
+      );
+    }
   });
 
-  it('uses LoadingWindow as the post-login Suspense fallback for SuperAdminControlPanel in App.tsx', () => {
+  it('uses LoadingWindow only after successful login and as the post-login Suspense fallback for SuperAdminControlPanel in App.tsx', () => {
     const appSrc = readSrc('src/App.tsx');
+
+    // Unauthenticated routes must never render LoadingWindow
+    const installerStart = appSrc.indexOf("{saasMode === 'INSTALLER'");
+    const authStart = appSrc.indexOf('{/* 0. AUTH ROUTE');
+    const verifyStart = appSrc.indexOf('{/* EMAIL VERIFICATION REQUIRED');
+    assert.ok(installerStart !== -1 && authStart !== -1 && verifyStart !== -1);
+
+    const preLoginSection = appSrc.slice(installerStart, verifyStart);
+    assert.equal(
+      preLoginSection.includes('<LoadingWindow'),
+      false,
+      'INSTALLER, AUTH, and LANDING routes must not show LoadingWindow before login'
+    );
+
     const superAdminSectionStart = appSrc.indexOf('{/* 2. SUPERADMIN CONTROL PANEL (`/admin`) */}');
     const superAdminSectionEnd = appSrc.indexOf('{/* 3. UNKNOWN STORE FALLBACK SCREEN', superAdminSectionStart);
     assert.ok(superAdminSectionStart !== -1 && superAdminSectionEnd !== -1);
@@ -48,6 +89,11 @@ describe('SuperAdmin & Store Loading UI Alignment', () => {
       'SuperAdmin Suspense fallback must not use plain PortalRouteFallback'
     );
     assert.ok(superAdminBlock.includes('<LoadingWindow'), 'SuperAdmin Suspense fallback must render LoadingWindow');
+    assert.equal(
+      appSrc.includes('telemetry') || appSrc.includes('SuperAdmin Control Plane'),
+      false,
+      'App.tsx loading messages must stay friendly and free of telemetry/control-plane jargon'
+    );
   });
 
   it('renders route-specific skeletons in SuperAdminControlPanel while keeping header, sidebar, and footer mounted', () => {

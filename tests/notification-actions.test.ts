@@ -183,13 +183,41 @@ test('resolveNotificationActions produces dynamic primary + persistent Open POS 
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
-  // 3. Low Stock
+  // 3. Low Stock (without invoiceId, including batched alert carrying saleId/invoiceNumber)
   const lowStockBtns = resolveNotificationActions(
     { type: 'LOW_STOCK', itemType: 'LOW_STOCK' },
     'ADMIN'
   );
   assert.deepEqual(lowStockBtns, [
     { action: 'view_stock', label: 'View Stock', url: '/inventory?filter=low-stock' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  const batchedLowStockBtns = resolveNotificationActions(
+    { type: 'STOCK', itemType: 'LOW_STOCK', saleId: '42', invoiceNumber: 'INV-100' },
+    'OWNER'
+  );
+  assert.deepEqual(batchedLowStockBtns, [
+    { action: 'view_stock', label: 'View Stock', url: '/inventory?filter=low-stock' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  // 3b. Explicit invoiceId on non-INVOICE or LOW_STOCK notification resolves View Invoice
+  const explicitInvoiceOnSystem = resolveNotificationActions(
+    { type: 'SYSTEM', invoiceId: 'INV-888' },
+    'CASHIER'
+  );
+  assert.deepEqual(explicitInvoiceOnSystem, [
+    { action: 'view_invoice', label: 'View Invoice', url: '/invoices/INV-888' },
+    { action: 'open_pos', label: 'Open POS', url: '/pos' },
+  ]);
+
+  const explicitInvoiceOnLowStock = resolveNotificationActions(
+    { type: 'LOW_STOCK', invoiceId: 'INV-99' },
+    'ADMIN'
+  );
+  assert.deepEqual(explicitInvoiceOnLowStock, [
+    { action: 'view_invoice', label: 'View Invoice', url: '/invoices/INV-99' },
     { action: 'open_pos', label: 'Open POS', url: '/pos' },
   ]);
 
@@ -311,7 +339,7 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
   await harness.dispatchClick(annNotif, 'read_more');
   assert.equal(harness.openWindows.pop(), '/announcements/77');
 
-  // Low stock push
+  // Low stock push (without invoiceId)
   await harness.dispatchPush({
     title: 'Low Stock Alert',
     body: 'Nike Air is below threshold.',
@@ -324,6 +352,20 @@ test('public/sw.js renders dynamic actions (<= 2) across push events and routes 
   ]);
   await harness.dispatchClick(stockNotif, 'view_stock');
   assert.equal(harness.openWindows.pop(), '/inventory?filter=low-stock');
+
+  // Explicit invoiceId push on arbitrary type routes to View Invoice
+  await harness.dispatchPush({
+    title: 'Invoice Adjustment',
+    body: 'Invoice updated.',
+    data: { type: 'SYSTEM', invoiceId: 'INV-888', tag: 'notif-sys-inv' },
+  });
+  const sysInvNotif = harness.activeNotifications.get('notif-sys-inv');
+  assert.deepEqual(toPlain(sysInvNotif.actions), [
+    { action: 'view_invoice', title: 'View Invoice' },
+    { action: 'open_pos', title: 'Open POS' },
+  ]);
+  await harness.dispatchClick(sysInvNotif, 'view_invoice');
+  assert.equal(harness.openWindows.pop(), '/invoices/INV-888');
 
   // Return push resolves View Invoice + Open POS
   await harness.dispatchPush({

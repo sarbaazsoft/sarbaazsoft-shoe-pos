@@ -14,6 +14,7 @@ export interface NavItem {
 export interface NavbarProps {
   storeName?: string;
   subtitle?: string;
+  mobileSubtitle?: string;
   badgeText?: string;
   badgeVariant?: 'online' | 'wizard' | 'connecting' | 'locked';
   activeNav?: string;
@@ -33,6 +34,25 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { key: 'about', label: 'About', section: 'about' },
 ];
 
+function resolveMobileSubtitle(fullSubtitle: string, explicitMobileSubtitle?: string): string {
+  if (explicitMobileSubtitle && explicitMobileSubtitle.trim()) {
+    return explicitMobileSubtitle.trim();
+  }
+  const clean = String(fullSubtitle || '').trim();
+  if (!clean) return 'Footwear POS';
+  if (/retail\s*&\s*wholesale/i.test(clean) && /dual/i.test(clean)) {
+    return 'Dual-Engine POS';
+  }
+  if (/retail\s*&\s*wholesale\s*footwear\s*pos/i.test(clean)) {
+    return 'Footwear POS';
+  }
+  const bulletParts = clean.split(/[•|·]/).map((s) => s.trim()).filter(Boolean);
+  if (bulletParts.length > 1) {
+    return bulletParts[0];
+  }
+  return clean.length > 22 ? `${clean.slice(0, 20).trim()}…` : clean;
+}
+
 const renderBrandName = (name: string) => {
   return (
     <span className="font-bold text-slate-900 dark:text-white tracking-tight">
@@ -44,6 +64,7 @@ const renderBrandName = (name: string) => {
 export const Navbar: React.FC<NavbarProps> = ({
   storeName = 'SarbaazSoft Shoe POS',
   subtitle = 'Retail & Wholesale Footwear POS',
+  mobileSubtitle,
   activeNav = 'home',
   navItems = DEFAULT_NAV_ITEMS,
   onNavigate,
@@ -53,14 +74,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, themeMode, setThemeMode } = useTheme();
+  const compactSubtitle = resolveMobileSubtitle(subtitle, mobileSubtitle);
 
   // Determine effective theme mode (light vs dark)
   const isDark = (landingTheme ?? theme) === 'dark';
 
-  // Close mobile menu on desktop breakpoint resize
+  // Close mobile/tablet drawer on desktop breakpoint resize (>= lg)
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 1024) {
         setMobileMenuOpen(false);
       }
     };
@@ -105,19 +127,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       aria-label="Main Navigation"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between min-h-[3.8rem] py-2 gap-2 sm:gap-4">
+        <div className="flex items-center justify-between min-h-[3.75rem] sm:min-h-[4rem] py-2 gap-2.5 sm:gap-4">
           
           {/* ========================================================
-              LEFT: BRANDING & LOGO (Clean wordmark + no status badge)
+              LEFT: HAMBURGER + BRANDING (Shrink-safe on mobile/tablet)
              ======================================================== */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 min-w-0">
-            {/* Mobile Hamburger Button (Screens < md) */}
-            <div className="flex md:hidden mr-0.5">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:flex-initial lg:shrink-0">
+            {/* Mobile & Tablet Hamburger Button (Screens < lg) */}
+            <div className="flex lg:hidden shrink-0">
               <button
                 type="button"
                 id="landing-mobile-menu-toggle"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className={`p-2 rounded-xl transition-all cursor-pointer border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                className={`h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl transition-all cursor-pointer border focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
                   isDark
                     ? 'bg-slate-800/80 text-slate-200 hover:text-white border-slate-700/60'
                     : 'bg-slate-100 text-slate-800 hover:text-slate-900 border-slate-200'
@@ -126,23 +148,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
               >
                 {/* Morphing hamburger lines */}
-                <div className="w-5 h-4 relative flex flex-col justify-between items-center" aria-hidden="true">
+                <div className="w-4.5 h-3.5 sm:w-5 sm:h-4 relative flex flex-col justify-between items-center" aria-hidden="true">
                   <span
-                    className={`block h-0.5 w-5 rounded-full transition-all duration-300 ease-out origin-center ${
+                    className={`block h-0.5 w-full rounded-full transition-all duration-300 ease-out origin-center ${
                       mobileMenuOpen
-                        ? 'rotate-45 translate-y-[7px] bg-purple-600 dark:bg-purple-400'
+                        ? 'rotate-45 translate-y-[6px] sm:translate-y-[7px] bg-purple-600 dark:bg-purple-400'
                         : isDark ? 'bg-slate-200' : 'bg-slate-800'
                     }`}
                   />
                   <span
-                    className={`block h-0.5 w-5 rounded-full transition-all duration-200 ease-out ${
+                    className={`block h-0.5 w-full rounded-full transition-all duration-200 ease-out ${
                       mobileMenuOpen ? 'opacity-0 scale-x-0' : isDark ? 'bg-slate-200' : 'bg-slate-800'
                     }`}
                   />
                   <span
-                    className={`block h-0.5 w-5 rounded-full transition-all duration-300 ease-out origin-center ${
+                    className={`block h-0.5 w-full rounded-full transition-all duration-300 ease-out origin-center ${
                       mobileMenuOpen
-                        ? '-rotate-45 -translate-y-[7px] bg-purple-600 dark:bg-purple-400'
+                        ? '-rotate-45 -translate-y-[6px] sm:-translate-y-[7px] bg-purple-600 dark:bg-purple-400'
                         : isDark ? 'bg-slate-200' : 'bg-slate-800'
                     }`}
                   />
@@ -154,32 +176,33 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => handleNavClick('top', 'home')}
-              className="flex items-center gap-2.5 sm:gap-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg p-0.5 sm:p-1 cursor-pointer min-w-0 hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 sm:gap-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg py-0.5 px-0.5 sm:p-1 cursor-pointer min-w-0 max-w-full hover:opacity-90 transition-opacity"
               aria-label={`${storeName} Home`}
             >
               {/* Brand Emblem matching PublicHeader and store sidebars */}
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden">
+              <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden">
                 <ShoeIcon src="/pwa-192x192.png" alt={`${storeName} Logo`} className="w-full h-full object-cover rounded-xl" />
               </div>
 
               {/* Brand Typography aligned with PublicHeader */}
-              <div className="min-w-0">
-                <div className="font-bold text-slate-900 dark:text-white text-sm sm:text-base tracking-tight leading-tight truncate block">
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-slate-900 dark:text-white text-[13px] min-[375px]:text-sm sm:text-base tracking-tight leading-tight truncate block">
                   {renderBrandName(storeName)}
                 </div>
-                <div className="text-[11px] sm:text-xs text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1.5 truncate mt-0.5 tracking-normal">
-                  <TinyShoeIcon className="w-3.5 h-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
-                  <span>{subtitle}</span>
+                <div className="text-[10.5px] sm:text-xs text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1 sm:gap-1.5 min-w-0 mt-0.5 tracking-normal">
+                  <TinyShoeIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                  <span className="sm:hidden truncate">{compactSubtitle}</span>
+                  <span className="hidden sm:inline truncate lg:max-w-[180px] xl:max-w-none">{subtitle}</span>
                 </div>
               </div>
             </button>
           </div>
 
           {/* ========================================================
-              CENTER: NAVIGATION LINKS (Courgette / Courgate Font, Desktop >= md)
+              CENTER: NAVIGATION LINKS (Courgette / Courgate Font, Desktop >= lg)
               Clean, medium-weight links with app purple/indigo accent
              ======================================================== */}
-          <nav className="hidden md:flex items-center space-x-1 lg:space-x-3 shrink-0 font-courgette font-courgate nav-link-courgette">
+          <nav className="hidden lg:flex items-center gap-0.5 xl:gap-2 shrink-0 font-courgette font-courgate nav-link-courgette">
             {navItems.map((item) => {
               const isActive = activeNav === item.key;
               return (
@@ -188,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => handleNavClick(item.section, item.key)}
                   style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
-                  className={`nav-link relative px-3.5 py-2 text-base lg:text-lg font-normal tracking-wide transition-colors duration-200 rounded-lg cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 font-courgette font-courgate nav-link-courgette ${
+                  className={`nav-link relative px-2.5 xl:px-3.5 py-2 text-[15px] xl:text-lg font-normal tracking-wide transition-colors duration-200 rounded-lg cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 font-courgette font-courgate nav-link-courgette ${
                     isActive
                       ? isDark
                         ? 'text-white font-bold'
@@ -226,9 +249,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* ========================================================
               RIGHT: 3-WAY THEME DROPDOWN + CTAs
-              (Unified 3-way theme switcher like PublicHeader / Header)
+              (Symmetric outer margin matching mobile hamburger)
              ======================================================== */}
-          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+          <div className="flex items-center gap-2 lg:gap-2.5 shrink-0">
             {/* 3-Way Theme Dropdown Menu (Light, Dark, System) */}
             <div
               className="relative font-courgette font-courgate theme-dropdown-courgette"
@@ -241,7 +264,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 font="courgette"
                 className="font-courgette font-courgate theme-dropdown-courgette"
                 triggerClassName={(open) =>
-                  `h-9 lg:h-9.5 flex items-center gap-1.5 lg:gap-2 px-3 lg:px-3.5 rounded-xl border text-xs lg:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] ${
+                  `h-9 sm:h-10 lg:h-9.5 min-w-[44px] sm:min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-3.5 rounded-xl border text-xs lg:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] ${
                     open
                       ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25 ring-2 ring-purple-400/40'
                       : isDark
@@ -252,19 +275,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </div>
 
-            {/* Desktop Action Buttons (>= md) */}
-            <div className="hidden md:flex items-center gap-2 lg:gap-2.5 font-courgette">
+            {/* Desktop Action Buttons (>= lg) */}
+            <div className="hidden lg:flex items-center gap-2 xl:gap-2.5 font-courgette">
               {onLogin && (
                 <button
                   type="button"
                   onClick={onLogin}
-                  className={`inline-flex items-center justify-center gap-1.5 lg:gap-2 rounded-xl h-9 lg:h-9.5 px-3.5 lg:px-4 text-xs lg:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap border active:scale-[0.98] font-courgette ${
+                  className={`inline-flex items-center justify-center gap-1.5 xl:gap-2 rounded-xl h-9.5 px-3 xl:px-4 text-xs xl:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap border active:scale-[0.98] font-courgette ${
                     isDark
                       ? 'border-slate-700/80 bg-slate-800/50 hover:bg-slate-800 text-white hover:border-purple-500/50'
                       : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900 hover:border-purple-300'
                   }`}
                 >
-                  <LogIn className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
+                  <LogIn className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
                   <span>Login</span>
                 </button>
               )}
@@ -273,10 +296,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onStartFreeTrial}
-                  className="inline-flex items-center justify-center gap-1.5 lg:gap-2 rounded-xl h-9 lg:h-9.5 px-3.5 lg:px-4 text-xs lg:text-sm font-semibold tracking-normal bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 text-white border border-purple-400/40 shadow-md shadow-purple-600/25 transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] font-courgette"
+                  className="inline-flex items-center justify-center gap-1.5 xl:gap-2 rounded-xl h-9.5 px-3 xl:px-4 text-xs xl:text-sm font-semibold tracking-normal bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 text-white border border-purple-400/40 shadow-md shadow-purple-600/25 transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] font-courgette"
                 >
                   <span>Free Trial</span>
-                  <ArrowRight className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
+                  <ArrowRight className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
                 </button>
               )}
             </div>
@@ -286,7 +309,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* ========================================================
-          MOBILE VIEWPORT: Responsive Animated Drawer & Backdrop
+          MOBILE & TABLET VIEWPORT: Responsive Animated Drawer & Backdrop
          ======================================================== */}
       <AnimatePresence>
         {mobileMenuOpen && (
@@ -298,17 +321,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-x-0 top-16 sm:top-18 bottom-0 bg-black/60 backdrop-blur-xs z-30 md:hidden"
+              className="fixed inset-x-0 top-[3.75rem] sm:top-[4rem] bottom-0 bg-black/60 backdrop-blur-xs z-30 lg:hidden"
               aria-hidden="true"
             />
 
-            {/* Slide-down mobile drawer */}
+            {/* Slide-down mobile & tablet drawer */}
             <motion.div
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className={`absolute top-full left-0 right-0 z-40 md:hidden border-b shadow-2xl px-4 pt-3.5 pb-6 space-y-4 max-h-[calc(100vh-4.5rem)] overflow-y-auto font-courgette ${
+              className={`absolute top-full left-0 right-0 z-40 lg:hidden border-b shadow-2xl px-4 sm:px-6 pt-3.5 pb-6 space-y-4 max-h-[calc(100dvh-4.5rem)] overflow-y-auto font-courgette ${
                 isDark
                   ? 'bg-[#070A24] border-indigo-950/70 text-[#f8fafc]'
                   : 'bg-white border-slate-200 text-black'

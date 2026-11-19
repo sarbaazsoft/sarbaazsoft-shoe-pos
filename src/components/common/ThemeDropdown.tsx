@@ -204,7 +204,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
             }}
             className={`absolute ${
               dropdownAlign === 'right' ? 'right-0 left-auto' : 'left-0 right-auto'
-            } top-full mt-2 w-64 sm:w-72 max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white/95 dark:bg-[var(--brand-dark-surface,#120726)]/95 border border-slate-200/90 dark:border-purple-400/35 rounded-2xl shadow-xl shadow-slate-900/10 dark:shadow-[0_14px_34px_rgba(var(--primary-rgb,147,51,234),0.28)] p-2.5 z-50 backdrop-blur-xl list-none space-y-2.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+            } top-full mt-2 w-[min(17.5rem,calc(100vw-2rem))] sm:w-72 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white/95 dark:bg-[var(--brand-dark-surface,#120726)]/95 border border-slate-200/90 dark:border-purple-400/35 rounded-2xl shadow-xl shadow-slate-900/10 dark:shadow-[0_14px_34px_rgba(var(--primary-rgb,147,51,234),0.28)] p-2.5 z-50 backdrop-blur-xl list-none space-y-2.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
             role="menu"
             aria-orientation="vertical"
           >

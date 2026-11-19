@@ -469,10 +469,6 @@ export default function App() {
   const isRequestedTenantVerified = !tenantIdParam || Boolean(
     storeLoginTarget && Number(storeLoginTarget.id) === Number(tenantIdParam)
   );
-  // Only show the blocking loading screen when bootstrapping an authenticated session on initial startup;
-  // unauthenticated visitors on the landing page or sign-in screen render immediately.
-  const shouldShowTenantLoading =
-    isInitializing && hasStoredAuthToken && Boolean(currentUser);
 
   const currentTargetTenantId = Number(
     activeTenant?.id ||
@@ -2028,8 +2024,7 @@ export default function App() {
         isLoading:
           (saasMode === 'TENANT_ACTIVE' && isInitializing && hasStoredAuthToken && Boolean(currentUser)) ||
           (saasMode === 'SUPERADMIN' && isInitializing && hasStoredAuthToken && isCurrentUserSuperAdmin) ||
-          (saasMode === 'TENANT_ONBOARDING' && isInitializing && hasStoredAuthToken && canAccessOnboarding) ||
-          ((saasMode === 'AUTH' || (saasMode === 'LANDING' && isLoginModalOpen)) && shouldShowTenantLoading),
+          (saasMode === 'TENANT_ONBOARDING' && isInitializing && hasStoredAuthToken && canAccessOnboarding),
       }),
     [
       saasMode,
@@ -2040,26 +2035,13 @@ export default function App() {
       isInitializing,
       hasStoredAuthToken,
       canAccessOnboarding,
-      shouldShowTenantLoading,
     ]
   );
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col bg-slate-100 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
       {saasMode === 'INSTALLER' && (
-        <Suspense
-          fallback={
-            isInitializing ? (
-              <LoadingWindow
-                isAdmin={false}
-                storeName="SarbaazSoft Shoe POS"
-                statusMessage="Checking installation..."
-              />
-            ) : (
-              <PortalRouteFallback label="Loading installer..." />
-            )
-          }
-        >
+        <Suspense fallback={<PortalRouteFallback label="Loading..." />}>
           <InstallationWizard
             layoutMeta={activeRouteLayoutMeta}
             onCompleted={(superAdminUser) => {
@@ -2085,73 +2067,32 @@ export default function App() {
 
       {/* 0. AUTH ROUTE (/auth?tenantId=...) */}
       {saasMode === 'AUTH' && (
-        shouldShowTenantLoading ? (
-          <LoadingWindow
-            isAdmin={false}
-            storeName={
-              isRequestedTenantVerified
-                ? storeLoginTarget?.name || effectiveStoreName
-                : (tenantIdParam ? `Store #${tenantIdParam}` : 'Store Workspace')
-            }
-            statusMessage={
-              isRequestedTenantVerified
-                ? `Loading ${storeLoginTarget?.name || 'Store'}...`
-                : (tenantIdParam ? `Connecting to store #${tenantIdParam}...` : 'Loading sign in...')
-            }
-            logoSrc={
-              storeLoginTarget
-                ? ((storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl)
-                : null
-            }
+        <>
+          {tenantIdNotice && (
+            <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+              {tenantIdNotice}
+            </div>
+          )}
+          <AuthModal
+            layoutMeta={activeRouteLayoutMeta}
+            companySettings={storeLoginTarget
+              ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
+              : (activeTenant
+                  ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
+                  : (tenantIdParam
+                      ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
+                      : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
+            onBack={handleBackToStoreDirectory}
+            onClearTenantScope={handleClearAuthTenantScope}
+            onSuccess={handleAuthSuccess}
+            sessionNotice={authSessionNotice}
           />
-        ) : (
-          <>
-            {tenantIdNotice && (
-              <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
-                {tenantIdNotice}
-              </div>
-            )}
-            <AuthModal
-              layoutMeta={activeRouteLayoutMeta}
-              companySettings={storeLoginTarget
-                ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
-                : (activeTenant
-                    ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
-                    : (tenantIdParam
-                        ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
-                        : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
-              onBack={handleBackToStoreDirectory}
-              onClearTenantScope={handleClearAuthTenantScope}
-              onSuccess={handleAuthSuccess}
-              sessionNotice={authSessionNotice}
-            />
-          </>
-        )
+        </>
       )}
 
       {/* 1. ROOT DOMAIN SAAS LANDING PAGE */}
       {saasMode === 'LANDING' && (
         isLoginModalOpen ? (
-          shouldShowTenantLoading ? (
-            <LoadingWindow
-              isAdmin={false}
-              storeName={
-                isRequestedTenantVerified
-                  ? storeLoginTarget?.name || effectiveStoreName
-                  : (tenantIdParam ? `Store #${tenantIdParam}` : 'Store Workspace')
-              }
-              statusMessage={
-                isRequestedTenantVerified
-                  ? `Loading ${storeLoginTarget?.name || 'Store'}...`
-                  : `Connecting to store #${tenantIdParam}...`
-              }
-              logoSrc={
-                storeLoginTarget
-                  ? ((storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl)
-                  : null
-              }
-            />
-          ) : (
           <>
             {tenantIdNotice && (
               <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
@@ -2173,7 +2114,6 @@ export default function App() {
               sessionNotice={authSessionNotice}
             />
           </>
-          )
         ) : (
           <SaasLandingPage
             layoutMeta={activeRouteLayoutMeta}
@@ -2272,18 +2212,16 @@ export default function App() {
         isInitializing && hasStoredAuthToken && isCurrentUserSuperAdmin ? (
           <LoadingWindow
             isAdmin={true}
-            storeName="POS SaaS C-Panel"
-            statusMessage="Loading SuperAdmin Control Plane..."
-            subtitle="Loading platform telemetry, tenant directory, and security controls..."
+            storeName="Super Admin"
+            statusMessage="Opening your dashboard..."
           />
         ) : !isInitializing && isCurrentUserSuperAdmin ? (
           <Suspense
             fallback={
               <LoadingWindow
                 isAdmin={true}
-                storeName="POS SaaS C-Panel"
-                statusMessage="Loading SuperAdmin Control Plane..."
-                subtitle="Loading platform telemetry, tenant directory, and security controls..."
+                storeName="Super Admin"
+                statusMessage="Opening your dashboard..."
               />
             }
           >
@@ -2319,7 +2257,7 @@ export default function App() {
 
       {/* 4. SUSPENDED OR EXPIRED STORE SCREEN (when status = SUSPENDED or EXPIRED) */}
       {(saasMode === 'TENANT_SUSPENDED' || saasMode === 'TENANT_EXPIRED') && (
-        <Suspense fallback={<PortalRouteFallback label="Loading store status..." />}>
+        <Suspense fallback={<PortalRouteFallback label="Loading..." />}>
           <SuspendedStoreView
             layoutMeta={activeRouteLayoutMeta}
             tenant={activeTenant}
@@ -2344,11 +2282,11 @@ export default function App() {
           <LoadingWindow
             isAdmin={false}
             storeName={effectiveStoreName || 'Store Setup'}
-            statusMessage="Preparing store onboarding..."
+            statusMessage="Opening store setup..."
             logoSrc={(activeTenant as any)?.logo || (activeTenant as any)?.logo_url || activeTenant?.logoUrl}
           />
         ) : !isInitializing && canAccessOnboarding ? (
-          <Suspense fallback={<PortalRouteFallback label="Loading onboarding setup..." />}>
+          <Suspense fallback={<PortalRouteFallback label="Loading..." />}>
             <TenantOnboardingWizard
               layoutMeta={activeRouteLayoutMeta}
               tenantId={Number(activeTenant?.id || currentUser?.tenantId || 0)}
@@ -2401,8 +2339,8 @@ export default function App() {
           {isInitializing && hasStoredAuthToken && Boolean(currentUser) ? (
             <LoadingWindow
               isAdmin={false}
-              storeName={effectiveStoreName || (activeTenant?.name ? activeTenant.name : 'Store Workspace')}
-              statusMessage={effectiveStoreName ? `Loading ${effectiveStoreName} Workspace...` : 'Synchronizing Store Workspace...'}
+              storeName={effectiveStoreName || (activeTenant?.name ? activeTenant.name : 'Store')}
+              statusMessage={effectiveStoreName ? `Opening ${effectiveStoreName}...` : 'Opening your store...'}
               logoSrc={(activeTenant as any)?.logo || (activeTenant as any)?.logo_url || activeTenant?.logoUrl}
             />
           ) : !isInitializing && currentUser ? (
