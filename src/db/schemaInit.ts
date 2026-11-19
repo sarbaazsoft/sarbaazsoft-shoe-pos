@@ -1256,6 +1256,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
           END;
           BEGIN
             ALTER TABLE users ALTER COLUMN tenant_id SET DEFAULT 0;
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END;
+          BEGIN
             ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_color TEXT DEFAULT '';
           EXCEPTION WHEN OTHERS THEN NULL;
           END;
@@ -1828,6 +1831,10 @@ export async function ensureSaasControlPlane(): Promise<void> {
                    AND EXISTS (
                      SELECT 1 FROM information_schema.columns
                      WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'low_stock_threshold'
+                   )
+                   AND EXISTS (
+                     SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'theme_color'
                    )) as has_core_tables
            FROM app_settings
            WHERE key = '__schema_v17_product_low_stock_alerts__'`
@@ -1841,6 +1848,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
       ) {
         await pgClient.query(`UPDATE tenants SET onboarding_completed = true WHERE onboarding_completed = false`).catch(() => {});
         await pgClient.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS welcome_dismissed BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+        await pgClient.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_color TEXT DEFAULT ''`).catch(() => {});
         await syncExpiredTenantSubscriptions();
         saasControlPlaneInitialized = true;
         return;
