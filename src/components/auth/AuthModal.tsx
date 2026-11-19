@@ -371,7 +371,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     } catch {}
                     onClearTenantScope?.();
                   }}
-                  className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-purple-900 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
+                  className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-100 dark:bg-white/10 dark:hover:bg-white/20 text-purple-900 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border-2 border-purple-400/55 shadow-sm hover:shadow-md"
                   title="Clear tenant scope and sign in without a store lock"
                 >
                   Clear Store Scope
@@ -487,7 +487,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         type="button"
                         disabled={isLoading}
                         onClick={() => handleStoreChoice(store)}
-                        className="flex items-center justify-between rounded-lg border border-blue-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-800 hover:border-blue-400 disabled:opacity-60 dark:border-blue-800 dark:bg-slate-900 dark:text-slate-100"
+                        className="flex items-center justify-between rounded-lg border-2 border-blue-300 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-800 shadow-sm hover:shadow-md hover:border-blue-500 transition-all cursor-pointer disabled:opacity-60 dark:border-blue-700 dark:bg-slate-900 dark:text-slate-100"
                       >
                         <span>{store.name}</span>
                       </button>

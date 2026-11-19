@@ -281,10 +281,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onLogin}
-                  className={`inline-flex items-center justify-center gap-1.5 xl:gap-2 rounded-xl h-9.5 px-3 xl:px-4 text-xs xl:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap border active:scale-[0.98] font-courgette ${
+                  className={`inline-flex items-center justify-center gap-1.5 xl:gap-2 rounded-xl h-9.5 px-3 xl:px-4 text-xs xl:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap border-2 shadow-sm hover:shadow-md active:scale-[0.98] font-courgette ${
                     isDark
-                      ? 'border-slate-700/80 bg-slate-800/50 hover:bg-slate-800 text-white hover:border-purple-500/50'
-                      : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900 hover:border-purple-300'
+                      ? 'border-indigo-400/60 bg-slate-800/60 hover:bg-slate-800 text-white hover:border-purple-400/80 shadow-indigo-950/30 hover:shadow-purple-500/20'
+                      : 'border-indigo-300 bg-white/90 hover:bg-indigo-50 text-slate-900 hover:border-indigo-400 shadow-indigo-900/10 hover:shadow-indigo-900/15'
                   }`}
                 >
                   <LogIn className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
@@ -413,10 +413,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setMobileMenuOpen(false);
                       onLogin();
                     }}
-                    className={`w-full h-11 text-sm font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border transition-all cursor-pointer active:scale-[0.98] font-courgette ${
+                    className={`w-full h-11 text-sm font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] font-courgette ${
                       isDark
-                        ? 'border-slate-700 bg-slate-800/50 text-white hover:bg-slate-800'
-                        : 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200'
+                        ? 'border-indigo-400/60 bg-slate-800/60 text-white hover:bg-slate-800 hover:border-purple-400/80 shadow-indigo-950/30'
+                        : 'border-indigo-300 bg-white/90 text-slate-900 hover:bg-indigo-50 hover:border-indigo-400 shadow-indigo-900/10'
                     }`}
                   >
                     <LogIn className="w-4 h-4 shrink-0" />

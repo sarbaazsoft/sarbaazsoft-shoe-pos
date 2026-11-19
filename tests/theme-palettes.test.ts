@@ -458,6 +458,51 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       assert.ok(src.includes('dark:text-primary-400'), `${file} should use dark:text-primary-400 in dark mode`);
     }
   });
+
+  it('applies 2px borders and visible shadows to outline and secondary buttons across landing, public/auth, and panel routes', () => {
+    const cssSource = readFileSync('src/index.css', 'utf8');
+    assert.ok(cssSource.includes('border-width: 2px;'), 'index.css outline/secondary buttons should use 2px borders');
+    assert.equal(
+      cssSource.includes('.btn-outline-landing,\n.saas-panel .btn-secondary {\n  background-color: transparent;\n  background-image: none;\n  border-width: 1px;'),
+      false,
+      '.btn-outline-landing and .saas-panel .btn-secondary must not force 1px borders'
+    );
+    assert.equal(
+      /\.btn-outline-landing,\s*\.saas-panel \.btn-secondary\s*\{[^}]*box-shadow:\s*none;/s.test(cssSource),
+      false,
+      '.btn-outline-landing and .saas-panel .btn-secondary must not strip box-shadow'
+    );
+
+    const landingSrc = readFileSync('src/components/saas/SaasLandingPage.tsx', 'utf8');
+    const outlineMatch = landingSrc.match(/const outlineBtn =\s*'([^']+)'/);
+    assert.ok(outlineMatch, 'SaasLandingPage should define outlineBtn');
+    assert.ok(outlineMatch[1].includes('border-2'), 'SaasLandingPage outlineBtn should use border-2');
+    assert.ok(outlineMatch[1].includes('shadow-md'), 'SaasLandingPage outlineBtn should apply shadow-md');
+
+    const navbarSrc = readFileSync('src/components/saas/Navbar.tsx', 'utf8');
+    assert.ok(
+      navbarSrc.includes('border-2 shadow-sm hover:shadow-md'),
+      'Navbar outline Login buttons should use border-2 and shadows'
+    );
+
+    const authSrc = readFileSync('src/components/auth/AuthModal.tsx', 'utf8');
+    assert.ok(
+      authSrc.includes('border-2 border-purple-400/55 shadow-sm hover:shadow-md'),
+      'AuthModal outline button should use border-2 and shadow'
+    );
+
+    const verifySrc = readFileSync('src/components/auth/VerifyEmailNoticeView.tsx', 'utf8');
+    assert.ok(
+      verifySrc.includes('border-2 border-slate-300 dark:border-slate-600'),
+      'VerifyEmailNoticeView outline button should use border-2 and shadow'
+    );
+
+    const suspendedSrc = readFileSync('src/components/saas/SuspendedStoreView.tsx', 'utf8');
+    assert.ok(
+      suspendedSrc.includes('border-2 border-slate-600/80'),
+      'SuspendedStoreView secondary Home button should use border-2 and shadow'
+    );
+  });
 });
 
 

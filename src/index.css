@@ -2541,28 +2541,34 @@ aside {
 
   /* Secondary Neutral Function: Cancel, Dismiss, Secondary Actions */
   .btn-secondary {
-    background: #f1f5f9;
-    color: #334155;
-    border-color: #e2e8f0;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-    font-weight: 500;
+    background: #f8fafc;
+    color: #1e293b;
+    border-width: 2px;
+    border-style: solid;
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+    font-weight: 600;
   }
   .btn-secondary:hover {
-    background: #e2e8f0;
+    background: #f1f5f9;
     color: #0f172a;
-    border-color: #cbd5e1;
+    border-color: #94a3b8;
+    box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.12), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
   }
   .dark .btn-secondary {
-    background: rgba(var(--primary-rgb, 147, 51, 234), 0.2);
+    background: rgba(var(--primary-rgb, 147, 51, 234), 0.18);
     color: var(--color-purple-200, #e9d5ff);
-    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.4);
-    box-shadow: 0 0 14px rgba(var(--primary-rgb, 147, 51, 234), 0.2);
-    font-weight: 500;
+    border-width: 2px;
+    border-style: solid;
+    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.55);
+    box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.35), 0 0 14px rgba(var(--primary-rgb, 147, 51, 234), 0.22);
+    font-weight: 600;
   }
   .dark .btn-secondary:hover {
-    background: rgba(var(--primary-rgb, 147, 51, 234), 0.3);
+    background: rgba(var(--primary-rgb, 147, 51, 234), 0.28);
     color: #ffffff;
-    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.6);
+    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.78);
+    box-shadow: 0 4px 14px -1px rgba(0, 0, 0, 0.45), 0 0 18px rgba(var(--primary-rgb, 147, 51, 234), 0.32);
   }
 
   /* Danger Function: Delete, Void, Revoke, Clear */
@@ -2671,134 +2677,168 @@ aside {
   }
 
   /* Outlines */
+  .btn-outline-primary,
+  .btn-outline-danger,
+  .btn-outline-secondary,
+  .btn-outline-dark,
+  .btn-outline-warning,
+  .btn-outline-info,
+  .btn-outline-success {
+    border-width: 2px;
+    border-style: solid;
+    box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  }
+  .btn-outline-primary:hover,
+  .btn-outline-danger:hover,
+  .btn-outline-secondary:hover,
+  .btn-outline-dark:hover,
+  .btn-outline-warning:hover,
+  .btn-outline-info:hover,
+  .btn-outline-success:hover {
+    box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.14), 0 2px 4px -2px rgba(15, 23, 42, 0.07);
+  }
+  .dark .btn-outline-primary,
+  .dark .btn-outline-danger,
+  .dark .btn-outline-secondary,
+  .dark .btn-outline-dark,
+  .dark .btn-outline-warning,
+  .dark .btn-outline-info,
+  .dark .btn-outline-success {
+    box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.35);
+  }
+
   .btn-outline-primary {
     background: transparent;
     color: var(--primary, #9333EA);
-    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.4);
+    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.6);
+    box-shadow: 0 2px 6px -1px rgba(var(--primary-rgb, 147, 51, 234), 0.14), 0 1px 3px -1px rgba(15, 23, 42, 0.06);
   }
   .btn-outline-primary:hover {
     background: rgba(var(--primary-rgb, 147, 51, 234), 0.08);
     color: var(--primary-hover, #7E22CE);
-    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.7);
+    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.85);
+    box-shadow: 0 4px 12px -2px rgba(var(--primary-rgb, 147, 51, 234), 0.22);
   }
   .dark .btn-outline-primary {
     background: transparent;
     color: var(--primary-400, #C084FC);
-    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.4);
+    border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.6);
+    box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.35), 0 0 14px rgba(var(--primary-rgb, 147, 51, 234), 0.2);
   }
   .dark .btn-outline-primary:hover {
     background: rgba(var(--primary-rgb, 147, 51, 234), 0.18);
     color: var(--color-purple-200, #E9D5FF);
     border-color: var(--primary-400, #C084FC);
+    box-shadow: 0 4px 14px -1px rgba(0, 0, 0, 0.45), 0 0 18px rgba(var(--primary-rgb, 147, 51, 234), 0.32);
   }
 
   .btn-outline-danger {
     background: transparent;
     color: #e11d48;
-    border-color: #fecdd3;
+    border-color: #fda4af;
   }
   .btn-outline-danger:hover {
     background: #fff1f2;
     color: #be123c;
-    border-color: #fda4af;
+    border-color: #fb7185;
   }
   .dark .btn-outline-danger {
     background: transparent;
     color: #fb7185;
-    border-color: #9f1239;
+    border-color: #be123c;
   }
   .dark .btn-outline-danger:hover {
     background: rgba(225, 29, 72, 0.15);
     color: #fda4af;
-    border-color: #e11d48;
+    border-color: #f43f5e;
   }
 
   .btn-outline-secondary,
   .btn-outline-dark {
     background: transparent;
-    color: #475569;
-    border-color: #e2e8f0;
+    color: #334155;
+    border-color: #cbd5e1;
   }
   .btn-outline-secondary:hover,
   .btn-outline-dark:hover {
     background: #f8fafc;
     color: #0f172a;
-    border-color: #cbd5e1;
+    border-color: #94a3b8;
   }
   .dark .btn-outline-secondary,
   .dark .btn-outline-dark {
     background: transparent;
     color: #cbd5e1;
-    border-color: #1A263D;
+    border-color: #334155;
   }
   .dark .btn-outline-secondary:hover,
   .dark .btn-outline-dark:hover {
     background: #131F38;
     color: #ffffff;
-    border-color: #233454;
+    border-color: #475569;
   }
 
   .btn-outline-warning {
     background: transparent;
     color: #d97706;
-    border-color: #fde68a;
+    border-color: #fcd34d;
   }
   .btn-outline-warning:hover {
     background: #fffbeb;
     color: #b45309;
-    border-color: #fcd34d;
+    border-color: #f59e0b;
   }
   .dark .btn-outline-warning {
     background: transparent;
     color: #fbbf24;
-    border-color: #78350f;
+    border-color: #b45309;
   }
   .dark .btn-outline-warning:hover {
     background: rgba(217, 119, 6, 0.15);
     color: #fde68a;
-    border-color: #d97706;
+    border-color: #f59e0b;
   }
 
   .btn-outline-info {
     background: transparent;
     color: #0284c7;
-    border-color: #bae6fd;
+    border-color: #7dd3fc;
   }
   .btn-outline-info:hover {
     background: #f0f9ff;
     color: #0369a1;
-    border-color: #7dd3fc;
+    border-color: #38bdf8;
   }
   .dark .btn-outline-info {
     background: transparent;
     color: #38bdf8;
-    border-color: #075985;
+    border-color: #0369a1;
   }
   .dark .btn-outline-info:hover {
     background: rgba(2, 132, 199, 0.15);
     color: #bae6fd;
-    border-color: #0284c7;
+    border-color: #38bdf8;
   }
 
   .btn-outline-success {
     background: transparent;
     color: #059669;
-    border-color: #a7f3d0;
+    border-color: #6ee7b7;
   }
   .btn-outline-success:hover {
     background: #ecfdf5;
     color: #047857;
-    border-color: #6ee7b7;
+    border-color: #34d399;
   }
   .dark .btn-outline-success {
     background: transparent;
     color: #34d399;
-    border-color: #064e3b;
+    border-color: #047857;
   }
   .dark .btn-outline-success:hover {
     background: rgba(5, 150, 105, 0.15);
     color: #a7f3d0;
-    border-color: #059669;
+    border-color: #10b981;
   }
 
   /* ========================================================================= */
@@ -4174,32 +4214,31 @@ div:has(> button[data-tab]) {
 }
 
 /* ========================================================================= */
-/* SECONDARY / OUTLINE BUTTONS: aligned with the landing hero "Watch Demo"   */
-/* Landing recipe: transparent bg, 1px indigo border (indigo-300 light /     */
-/* indigo-400@50% dark), rounded-xl, semibold, indigo-tint hover.            */
-/* Applied to Refresh + every no-bg / soft-bg secondary button (tagged with  */
-/* .btn-outline-landing) and the shared .btn-secondary class.                */
+/* SECONDARY / OUTLINE BUTTONS: shared across landing, Store & SuperAdmin    */
+/* Visible 2px themed border, balanced light/dark shadow, indigo-tint hover. */
+/* Applied to Refresh + secondary buttons (.btn-outline-landing / .btn-secondary). */
 /* ========================================================================= */
 .btn-outline-landing,
 .saas-panel .btn-secondary {
   background-color: transparent;
   background-image: none;
-  border-width: 1px;
+  border-width: 2px;
   border-style: solid;
   border-radius: 0.75rem;
   font-weight: 600;
-  box-shadow: none;
 }
 html:not(.dark) .btn-outline-landing,
 html:not(.dark) .saas-panel .btn-secondary {
   border-color: var(--color-indigo-300, #A5B4FC);
   color: #0F172A;
+  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08), 0 1px 3px -1px rgba(var(--brand-companion-rgb, 79, 70, 229), 0.16);
 }
 html:not(.dark) .btn-outline-landing:hover:not(:disabled),
 html:not(.dark) .saas-panel .btn-secondary:hover:not(:disabled) {
   background-color: var(--color-indigo-50, #EEF2FF);
-  border-color: var(--color-indigo-400, #818CF8);
+  border-color: var(--color-indigo-500, #6366F1);
   color: #0F172A;
+  box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.12), 0 2px 5px -1px rgba(var(--brand-companion-rgb, 79, 70, 229), 0.24);
 }
 html:not(.dark) .btn-outline-landing svg,
 html:not(.dark) .saas-panel .btn-secondary svg {
@@ -4207,15 +4246,16 @@ html:not(.dark) .saas-panel .btn-secondary svg {
 }
 html.dark .btn-outline-landing,
 html.dark .saas-panel .btn-secondary {
-  border-color: rgba(var(--brand-companion-rgb, 79, 70, 229), 0.5);
+  border-color: rgba(var(--brand-companion-rgb, 79, 70, 229), 0.65);
   color: #FFFFFF;
-  box-shadow: none;
+  box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.35), 0 0 14px -2px rgba(var(--primary-rgb, 147, 51, 234), 0.22);
 }
 html.dark .btn-outline-landing:hover:not(:disabled),
 html.dark .saas-panel .btn-secondary:hover:not(:disabled) {
-  background-color: rgba(var(--brand-companion-rgb, 79, 70, 229), 0.12);
-  border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.65);
+  background-color: rgba(var(--brand-companion-rgb, 79, 70, 229), 0.16);
+  border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.85);
   color: #FFFFFF;
+  box-shadow: 0 4px 14px -1px rgba(0, 0, 0, 0.45), 0 0 18px -2px rgba(var(--primary-rgb, 147, 51, 234), 0.32);
 }
 html.dark .btn-outline-landing svg,
 html.dark .saas-panel .btn-secondary svg {
