@@ -683,7 +683,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   const primaryBtn =
     'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white font-semibold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(var(--primary-rgb,147,51,234),0.35)] transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
   const outlineBtn =
-    'inline-flex items-center justify-center gap-2 rounded-xl border-2 border-indigo-400/75 hover:border-purple-400 lt:border-indigo-300 lt:hover:border-indigo-500 bg-white/[0.04] hover:bg-indigo-500/15 lt:bg-white/85 lt:hover:bg-indigo-50 text-white lt:text-slate-900 font-semibold shadow-md shadow-indigo-950/35 hover:shadow-lg hover:shadow-purple-500/25 lt:shadow-md lt:shadow-indigo-900/10 lt:hover:shadow-indigo-900/15 transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
+    'inline-flex items-center justify-center gap-2 rounded-xl border-2 border-indigo-400/75 hover:border-purple-400 lt:border-indigo-400 lt:hover:border-indigo-600 bg-indigo-500/10 hover:bg-indigo-500/20 lt:bg-indigo-50/75 lt:hover:bg-indigo-100/80 text-indigo-200 hover:text-white lt:text-indigo-700 lt:hover:text-indigo-800 font-semibold shadow-md shadow-indigo-950/35 hover:shadow-lg hover:shadow-purple-500/25 lt:shadow-md lt:shadow-indigo-900/10 lt:hover:shadow-indigo-900/15 transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
 
   const handleStoreCreated = (tenantId: number, loginUrl: string, user?: any, token?: string) => {
     const createdStoreName = user?.storeName || 'New Registered Store';
@@ -1043,7 +1043,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   type="button"
                   onClick={handlePrevSlide}
                   aria-label="Previous store"
-                  className="w-10 h-10 rounded-xl border-2 border-indigo-400/65 lt:border-indigo-300 bg-white/5 lt:bg-white text-white lt:text-slate-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-10 h-10 rounded-xl border-2 border-indigo-400/65 lt:border-indigo-400 bg-indigo-500/10 lt:bg-indigo-50/75 text-indigo-200 lt:text-indigo-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -1052,7 +1052,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   type="button"
                   onClick={handleNextSlide}
                   aria-label="Next store"
-                  className="w-10 h-10 rounded-xl border-2 border-indigo-400/65 lt:border-indigo-300 bg-white/5 lt:bg-white text-white lt:text-slate-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-10 h-10 rounded-xl border-2 border-indigo-400/65 lt:border-indigo-400 bg-indigo-500/10 lt:bg-indigo-50/75 text-indigo-200 lt:text-indigo-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -1191,29 +1191,29 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       {/* 6. ABOUT / CTA BANNER */}
       <section
         id="about"
-        className="relative overflow-hidden border-y border-indigo-400/20 lt:border-indigo-200 bg-gradient-to-r from-[#080A2A] via-[#0B0E36] to-[#0A0C2E] lt:from-[#EEF0FF] lt:via-[#F1F3FF] lt:to-[#F7F8FF] py-10 sm:py-12"
+        className="relative overflow-hidden border-y border-indigo-400/20 lt:border-indigo-300/60 bg-[#080A2A] py-10 sm:py-12"
       >
-        {/* Showroom background overlay */}
-        <div className="absolute inset-y-0 left-0 w-80 md:w-[36rem] opacity-60 lt:opacity-50 pointer-events-none" aria-hidden="true">
+        {/* Full-width darkened showroom background */}
+        <div className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
           <img
             src={shoeStoreBg}
             alt=""
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center opacity-70 lt:opacity-75"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#080A2A]/25 to-[#080A2A] lt:via-[#EEF0FF]/25 lt:to-[#EEF0FF]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55" />
         </div>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(var(--primary-rgb,147,51,234),0.12),transparent_60%)] lt:opacity-40" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(var(--primary-rgb,147,51,234),0.14),transparent_60%)] opacity-60" aria-hidden="true" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="text-center md:text-left max-w-2xl">
             <h2
-              className="font-courgette text-xl sm:text-2xl lg:text-[28px] lt:text-2xl lt:sm:text-3xl lt:lg:text-4xl font-extrabold tracking-tight text-purple-400 lt:text-purple-600 dark:text-purple-400 [text-shadow:0_1px_14px_rgba(8,10,42,0.9)] lt:[text-shadow:none]"
+              className="font-courgette text-xl sm:text-2xl lg:text-[28px] lt:text-2xl lt:sm:text-3xl lt:lg:text-4xl font-extrabold tracking-tight text-white [text-shadow:0_2px_14px_rgba(5,7,27,0.95)]"
               style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
             >
               Modernize your shoe counter, stockroom, and khata today
             </h2>
-            <p className="mt-2 text-xs sm:text-sm font-medium leading-relaxed text-slate-200 lt:text-slate-600 [text-shadow:0_1px_10px_rgba(8,10,42,0.9)] lt:[text-shadow:none]">
+            <p className="mt-2 text-xs sm:text-sm font-medium leading-relaxed text-slate-200 [text-shadow:0_1px_10px_rgba(5,7,27,0.9)]">
               Create your dedicated store workspace in minutes—install on Android, Apple iOS, or Windows, bill offline or online, print barcode labels and thermal receipts, and track every pair, carton, and rupee in real time.
             </p>
           </div>

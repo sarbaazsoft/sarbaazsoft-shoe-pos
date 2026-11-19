@@ -478,23 +478,24 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     assert.ok(outlineMatch, 'SaasLandingPage should define outlineBtn');
     assert.ok(outlineMatch[1].includes('border-2'), 'SaasLandingPage outlineBtn should use border-2');
     assert.ok(outlineMatch[1].includes('shadow-md'), 'SaasLandingPage outlineBtn should apply shadow-md');
+    assert.ok(outlineMatch[1].includes('text-indigo-200') && outlineMatch[1].includes('lt:text-indigo-700'), 'SaasLandingPage outlineBtn font color should match border/bg tint');
 
     const navbarSrc = readFileSync('src/components/saas/Navbar.tsx', 'utf8');
     assert.ok(
-      navbarSrc.includes('border-2 shadow-sm hover:shadow-md'),
-      'Navbar outline Login buttons should use border-2 and shadows'
+      navbarSrc.includes('border-2 shadow-sm hover:shadow-md') && navbarSrc.includes('text-indigo-200') && navbarSrc.includes('text-indigo-700'),
+      'Navbar outline Login buttons should use border-2, shadows, and matching font color'
     );
 
     const authSrc = readFileSync('src/components/auth/AuthModal.tsx', 'utf8');
     assert.ok(
-      authSrc.includes('border-2 border-purple-400/55 shadow-sm hover:shadow-md'),
-      'AuthModal outline button should use border-2 and shadow'
+      authSrc.includes('border-2 border-purple-400/70 shadow-sm hover:shadow-md') && authSrc.includes('text-purple-700 dark:text-purple-200'),
+      'AuthModal outline button should use border-2, shadow, and matching font color'
     );
 
     const verifySrc = readFileSync('src/components/auth/VerifyEmailNoticeView.tsx', 'utf8');
     assert.ok(
-      verifySrc.includes('border-2 border-slate-300 dark:border-slate-600'),
-      'VerifyEmailNoticeView outline button should use border-2 and shadow'
+      verifySrc.includes('border-2 border-indigo-400 dark:border-indigo-400/70') && verifySrc.includes('text-indigo-700 dark:text-indigo-200'),
+      'VerifyEmailNoticeView outline button should use border-2, shadow, and matching font color'
     );
 
     const suspendedSrc = readFileSync('src/components/saas/SuspendedStoreView.tsx', 'utf8');

@@ -187,7 +187,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
                 <button
                   type="button"
                   onClick={onNavigateHome}
-                  className="px-4 py-3 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-sm hover:shadow-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  className="px-4 py-3 rounded-xl border-2 border-indigo-400 dark:border-indigo-400/70 bg-indigo-50/75 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-200 font-semibold text-xs shadow-sm hover:shadow-md hover:bg-indigo-100 dark:hover:bg-indigo-500/25 hover:text-indigo-800 dark:hover:text-white transition-all cursor-pointer"
                 >
                   Home
                 </button>
