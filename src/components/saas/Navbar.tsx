@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   landingTheme,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { theme, themeMode, setThemeMode } = useTheme();
+  const { theme, themeMode, setThemeMode, accentPalette } = useTheme();
   const compactSubtitle = resolveMobileSubtitle(subtitle, mobileSubtitle);
 
   // Determine effective theme mode (light vs dark)
@@ -462,6 +462,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }`}
                   >
                     <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    {themeMode === 'light' && (
+                      <span
+                        aria-hidden="true"
+                        className="w-2 h-2 rounded-full shrink-0 ring-1 ring-black/15 dark:ring-white/30"
+                        style={{ backgroundColor: accentPalette.baseHex }}
+                      />
+                    )}
                     <span>Light</span>
                   </button>
                   <button
@@ -477,6 +484,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }`}
                   >
                     <Moon className="w-3.5 h-3.5 text-purple-400" />
+                    {themeMode === 'dark' && (
+                      <span
+                        aria-hidden="true"
+                        className="w-2 h-2 rounded-full shrink-0 ring-1 ring-black/15 dark:ring-white/30"
+                        style={{ backgroundColor: accentPalette.baseHex }}
+                      />
+                    )}
                     <span>Dark</span>
                   </button>
                   <button
@@ -492,6 +506,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }`}
                   >
                     <Monitor className="w-3.5 h-3.5 text-indigo-400" />
+                    {themeMode === 'system' && (
+                      <span
+                        aria-hidden="true"
+                        className="w-2 h-2 rounded-full shrink-0 ring-1 ring-white/80"
+                        style={{ backgroundColor: accentPalette.baseHex }}
+                      />
+                    )}
                     <span>System</span>
                   </button>
                 </div>

@@ -302,7 +302,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     }
   });
 
-  it('renders restyled ThemeDropdown with primary-colored mode icon and no circular primary-color dot', () => {
+  it('renders ThemeDropdown with primary-colored mode icon and primary-color dot next to selected Sun/Moon/System icon across all headers', () => {
     const renderDropdown = (opts: {
       mode: 'light' | 'dark' | 'system';
       accent: AccentThemeId;
@@ -357,34 +357,59 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       }
     };
 
-    // 1. Closed trigger in Light mode with Emerald accent: Sun icon uses emerald[600], no rounded-full dot
+    // 1. Closed trigger in Light mode with Emerald accent: Sun icon uses emerald[600] + primary-color dot
     const lightClosed = renderDropdown({ mode: 'light', accent: 'emerald', isOpen: false });
-    assert.equal(lightClosed.includes('rounded-full'), false, 'Trigger should not render any circular dot');
     assert.ok(lightClosed.includes('lucide-sun'), 'Light mode trigger renders Sun icon');
     assert.ok(
       lightClosed.includes(`color:${ACCENT_THEME_PALETTES.emerald.primaryScale[600]}`),
       'Light mode trigger Sun icon should be colored with selected primaryScale[600]'
     );
+    assert.ok(
+      lightClosed.includes('data-testid="theme-primary-dot"'),
+      'Closed trigger should render primary-color dot next to selected Sun icon'
+    );
+    assert.ok(
+      lightClosed.includes(`background-color:${ACCENT_THEME_PALETTES.emerald.baseHex}`),
+      'Primary-color dot should be filled with selected Emerald baseHex'
+    );
 
-    // 2. Closed trigger in Dark mode with Red accent: Moon icon uses red[400]
+    // 2. Closed trigger in Dark mode with Red accent: Moon icon uses red[400] + primary-color dot
     const darkClosed = renderDropdown({ mode: 'dark', accent: 'red', isOpen: false });
-    assert.equal(darkClosed.includes('rounded-full'), false);
     assert.ok(darkClosed.includes('lucide-moon'), 'Dark mode trigger renders Moon icon');
     assert.ok(
       darkClosed.includes(`color:${ACCENT_THEME_PALETTES.red.primaryScale[400]}`),
       'Dark mode trigger Moon icon should be colored with selected primaryScale[400]'
     );
+    assert.ok(
+      darkClosed.includes(`background-color:${ACCENT_THEME_PALETTES.red.baseHex}`),
+      'Primary-color dot should be filled with selected Red baseHex'
+    );
 
     // 3. Open dropdown in System mode (dark OS) with Cyan accent:
-    //    - 3-way segmented switcher has Light, Dark, System with Monitor icon tinted in cyan[400]
-    //    - Primary Color selector renders all 11 color buttons with rectangular swatches and no circular dots
+    //    - Trigger shows Monitor icon + primary-color dot
+    //    - Only the active System option in the 3-way switcher shows the primary-color dot next to its icon
+    //    - Primary Color selector renders all 11 color buttons
     const systemOpen = renderDropdown({
       mode: 'system',
       accent: 'cyan',
       isOpen: true,
       systemDark: true,
     });
-    assert.equal(systemOpen.includes('rounded-full'), false, 'Open dropdown should contain zero circular dots');
+    assert.ok(systemOpen.includes('lucide-monitor'), 'System mode renders Monitor icon');
+    assert.equal(
+      (systemOpen.match(/data-testid="theme-primary-dot"/g) || []).length,
+      1,
+      'Trigger renders exactly one primary-color dot'
+    );
+    assert.equal(
+      (systemOpen.match(/data-testid="theme-option-primary-dot"/g) || []).length,
+      1,
+      'Open dropdown renders primary-color dot next to only the selected appearance option'
+    );
+    assert.ok(
+      systemOpen.includes(`background-color:${ACCENT_THEME_PALETTES.cyan.baseHex}`),
+      'Primary-color dot should be filled with selected Cyan baseHex'
+    );
     assert.ok(systemOpen.includes('Appearance'));
     assert.ok(systemOpen.includes('Primary Color'));
     assert.ok(systemOpen.includes('System · Dark'));
@@ -401,6 +426,17 @@ describe('Multi-Color Brand Gradient Palettes', () => {
         systemOpen.includes(`id="theme-color-option-${palette.id}"`),
         `Open dropdown should include option button for ${palette.id}`
       );
+    }
+
+    // 4. Verify all headers mount ThemeDropdown (SaaS Landing, Public Auth/Loading, SuperAdmin, Store)
+    for (const headerFile of [
+      'src/components/saas/Navbar.tsx',
+      'src/components/common/PublicHeader.tsx',
+      'src/components/saas/SuperAdminControlPanel.tsx',
+      'src/components/common/Header.tsx',
+    ]) {
+      const headerSrc = readFileSync(headerFile, 'utf8');
+      assert.ok(headerSrc.includes('<ThemeDropdown'), `${headerFile} must mount ThemeDropdown`);
     }
   });
 

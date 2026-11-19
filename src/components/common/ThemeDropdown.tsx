@@ -163,13 +163,21 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
         aria-expanded={open}
         aria-haspopup="true"
       >
-        <span className="shrink-0 flex items-center justify-center">
+        <span className="shrink-0 inline-flex items-center gap-1.5">
           {renderModeIcon(
             themeMode,
             triggerClassName ? 'w-4 h-4' : 'w-4 h-4 sm:w-3.5 sm:h-3.5',
             true,
             open
           )}
+          <span
+            aria-hidden="true"
+            data-testid="theme-primary-dot"
+            className={`w-2 h-2 rounded-full shrink-0 ring-1 ${
+              open ? 'ring-white/80' : 'ring-black/15 dark:ring-white/30'
+            }`}
+            style={{ backgroundColor: accentPalette.baseHex }}
+          />
         </span>
         {showLabel && (
           <span
@@ -254,7 +262,17 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                       role="menuitemradio"
                       aria-checked={isActiveMode}
                     >
-                      {renderModeIcon(option.mode, 'w-4 h-4', isActiveMode)}
+                      <span className="inline-flex items-center justify-center gap-1.5">
+                        {renderModeIcon(option.mode, 'w-4 h-4', isActiveMode)}
+                        {isActiveMode && (
+                          <span
+                            aria-hidden="true"
+                            data-testid="theme-option-primary-dot"
+                            className="w-2 h-2 rounded-full shrink-0 ring-1 ring-black/15 dark:ring-white/30"
+                            style={{ backgroundColor: accentPalette.baseHex }}
+                          />
+                        )}
+                      </span>
                       <span
                         style={courgetteStyle}
                         className={`leading-none ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
