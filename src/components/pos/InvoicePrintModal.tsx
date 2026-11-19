@@ -649,9 +649,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
             /* =============================================================== */
             /* 50MM THERMAL RECEIPT PREVIEW (DEFAULT FOR RETAIL TRANSACTIONS)  */
             /* =============================================================== */
-            <div className="invoice-preview-receipt w-[210px] sm:w-[220px] max-w-[220px] h-fit shrink-0 bg-white p-3 shadow-xl border border-gray-300 font-mono text-[10px] text-gray-900 leading-snug select-all rounded-xs">
+            <div className="invoice-preview-receipt w-[210px] sm:w-[220px] max-w-[220px] h-fit shrink-0 bg-white dark:bg-[#111C30]/80 dark:backdrop-blur-md p-3 shadow-xl border border-gray-300 dark:border-purple-400/25 font-mono text-[10px] text-gray-900 dark:text-slate-100 leading-snug select-all rounded-xs">
               {/* Header */}
-              <div className="text-center pb-2 border-b border-dashed border-gray-500">
+              <div className="text-center pb-2 border-b border-dashed border-gray-500 dark:border-slate-600/80">
                 {showReceiptLogo && receiptLogo && (
                   <div className="flex justify-center mb-1.5">
                     <img
@@ -661,25 +661,25 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     />
                   </div>
                 )}
-                <h3 className="font-black text-xs uppercase tracking-tight text-black">
+                <h3 className="invoice-store-name font-black text-xs uppercase tracking-tight text-gray-950 dark:text-white">
                   {storeName}
                 </h3>
                 {storeAddress && (
-                  <p className="text-[8.5px] text-gray-600 mt-0.5 leading-tight">
+                  <p className="text-[8.5px] text-gray-600 dark:text-slate-300 mt-0.5 leading-tight">
                     {storeAddress}
                   </p>
                 )}
                 {storePhone && (
-                  <p className="text-[8.5px] text-gray-600">Tel: {storePhone}</p>
+                  <p className="text-[8.5px] text-gray-600 dark:text-slate-300">Tel: {storePhone}</p>
                 )}
                 {taxNumber && (
-                  <p className="text-[8.5px] text-gray-600">Tax Reg: {taxNumber}</p>
+                  <p className="text-[8.5px] text-gray-600 dark:text-slate-300">Tax Reg: {taxNumber}</p>
                 )}
               </div>
 
               {/* Meta details */}
-              <div className="py-1.5 border-b border-dashed border-gray-500 text-[9px] space-y-0.5 text-gray-700">
-                <div className="flex justify-between font-bold text-black">
+              <div className="py-1.5 border-b border-dashed border-gray-500 dark:border-slate-600/80 text-[9px] space-y-0.5 text-gray-700 dark:text-slate-300">
+                <div className="flex justify-between font-bold text-gray-950 dark:text-white">
                   <span>Inv:</span>
                   <span>{sale.invoice_number}</span>
                 </div>
@@ -694,34 +694,34 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 {sale.customer_name && (
                   <div className="flex justify-between">
                     <span>Customer:</span>
-                    <span className="font-semibold text-black truncate max-w-[120px]">
+                    <span className="font-semibold text-gray-950 dark:text-white truncate max-w-[120px]">
                       {sale.customer_name}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span>Payment:</span>
-                  <span className="font-semibold">{formatPaymentMethod(sale.payment_method)}</span>
+                  <span className="font-semibold text-gray-900 dark:text-slate-100">{formatPaymentMethod(sale.payment_method)}</span>
                 </div>
               </div>
 
               {/* Items List (Narrow 50mm columns) */}
-              <div className="py-1.5 border-b border-dashed border-gray-500">
-                <div className="flex justify-between font-bold pb-0.5 text-[9px] border-b border-gray-300">
+              <div className="py-1.5 border-b border-dashed border-gray-500 dark:border-slate-600/80">
+                <div className="flex justify-between font-bold pb-0.5 text-[9px] text-gray-900 dark:text-slate-200 border-b border-gray-300 dark:border-slate-700/80">
                   <span className="w-7/12">Item</span>
                   <span className="w-2/12 text-center">Qty</span>
                   <span className="w-3/12 text-right">Total</span>
                 </div>
                 {items.map((item: any, idx: number) => (
-                  <div key={idx} className="py-1 text-[9px] border-b border-gray-100 last:border-b-0">
-                    <p className="font-bold text-black truncate">
+                  <div key={idx} className="py-1 text-[9px] border-b border-gray-100 dark:border-slate-800/80 last:border-b-0">
+                    <p className="invoice-item-article font-bold text-gray-950 dark:text-white truncate">
                       {item.article || item.product_name || item.name}
                     </p>
-                    <div className="flex justify-between text-[8.5px] text-gray-500 pt-0.5">
+                    <div className="flex justify-between text-[8.5px] text-gray-600 dark:text-slate-400 pt-0.5">
                       <span>
                         {item.quantity} × {currencySymbol} {formatStockPrice(item.unit_price)}
                       </span>
-                      <span className="font-bold text-black">
+                      <span className="invoice-item-price font-bold text-gray-950 dark:text-white">
                         {currencySymbol} {formatStockPrice(item.subtotal)}
                       </span>
                     </div>
@@ -730,44 +730,44 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               </div>
 
               {/* Totals */}
-              <div className="py-1.5 space-y-0.5 text-[9.5px] border-b border-dashed border-gray-500">
+              <div className="py-1.5 space-y-0.5 text-[9.5px] text-gray-800 dark:text-slate-200 border-b border-dashed border-gray-500 dark:border-slate-600/80">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
                   <span className="font-mono">{currencySymbol} {formatStockPrice(currentItemsTotal)}</span>
                 </div>
                 {discount > 0 && (
-                  <div className="flex justify-between text-emerald-700">
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                     <span>Discount:</span>
                     <span className="font-mono">-{currencySymbol} {formatStockPrice(discount)}</span>
                   </div>
                 )}
                 {exchangeCredit > 0 && (
-                  <div className="flex justify-between text-indigo-700 font-semibold text-[9px]">
+                  <div className="flex justify-between text-indigo-700 dark:text-indigo-300 font-semibold text-[9px]">
                     <span>{isWholesaleTransaction ? 'Return Credit:' : 'Exchange Credit:'}</span>
                     <span className="font-mono">-{currencySymbol} {formatStockPrice(exchangeCredit)}</span>
                   </div>
                 )}
                 {isWholesaleTransaction && previousBalance !== 0 && (
-                  <div className="flex justify-between font-medium text-slate-700 text-[9px]">
+                  <div className="flex justify-between font-medium text-slate-700 dark:text-slate-300 text-[9px]">
                     <span>Prev Khata:</span>
                     <span className="font-mono">{currencySymbol} {formatStockPrice(previousBalance)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-black text-[11px] text-black pt-1 border-t border-gray-300">
+                <div className="invoice-total-payable flex justify-between font-black text-[11px] text-gray-950 dark:text-white pt-1 border-t border-gray-300 dark:border-slate-700/80">
                   <span>TOTAL DUE:</span>
                   <span className="font-mono">{currencySymbol} {formatStockPrice(isWholesaleTransaction ? grandTotalDue : currentItemsTotal)}</span>
                 </div>
                 <div className="flex justify-between pt-0.5 text-[9px]">
                   <span>Paid:</span>
-                  <span className="font-mono font-bold">{currencySymbol} {formatStockPrice(paidAmount)}</span>
+                  <span className="font-mono font-bold text-gray-950 dark:text-white">{currencySymbol} {formatStockPrice(paidAmount)}</span>
                 </div>
                 {changeGiven > 0 ? (
-                  <div className="flex justify-between font-bold text-emerald-700 text-[9px]">
+                  <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400 text-[9px]">
                     <span>Change:</span>
                     <span className="font-mono">{currencySymbol} {formatStockPrice(changeGiven)}</span>
                   </div>
                 ) : remainingBalance > 0 ? (
-                  <div className="flex justify-between font-bold text-rose-700 text-[9px]">
+                  <div className="flex justify-between font-bold text-rose-700 dark:text-rose-400 text-[9px]">
                     <span>Balance:</span>
                     <span className="font-mono">{currencySymbol} {formatStockPrice(remainingBalance)}</span>
                   </div>
@@ -776,16 +776,16 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
 
               {/* Footer */}
               <div className="pt-2 text-center space-y-1">
-                {invoiceFooter && <p className="text-[8px] text-gray-600 italic px-1">{invoiceFooter}</p>}
+                {invoiceFooter && <p className="text-[8px] text-gray-600 dark:text-slate-400 italic px-1">{invoiceFooter}</p>}
               </div>
             </div>
           ) : (
             /* =============================================================== */
             /* A4 INVOICE PREVIEW (DEFAULT FOR WHOLESALE TRANSACTIONS)         */
             /* =============================================================== */
-            <div className="invoice-preview-receipt w-full min-w-[600px] sm:min-w-0 max-w-[720px] h-fit shrink-0 bg-white p-5 sm:p-7 shadow-xl border border-gray-300 text-gray-800 text-xs rounded-sm">
+            <div className="invoice-preview-receipt w-full min-w-[600px] sm:min-w-0 max-w-[720px] h-fit shrink-0 bg-white dark:bg-[#111C30]/80 dark:backdrop-blur-md p-5 sm:p-7 shadow-xl border border-gray-300 dark:border-purple-400/25 text-gray-800 dark:text-slate-200 text-xs rounded-sm">
               {/* Header */}
-              <div className="flex justify-between items-start pb-5 border-b-2 border-gray-800">
+              <div className="flex justify-between items-start pb-5 border-b-2 border-gray-800 dark:border-slate-600">
                 <div className="flex items-start gap-3.5">
                   {showReceiptLogo && receiptLogo && (
                     <img
@@ -795,96 +795,96 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     />
                   )}
                   <div>
-                    <h1 className="text-xl font-black text-gray-950 tracking-tight uppercase">
+                    <h1 className="invoice-store-name text-xl font-black text-gray-950 dark:text-white tracking-tight uppercase">
                       {storeName}
                     </h1>
-                    {storeAddress && <p className="text-gray-600 mt-0.5 text-xs">{storeAddress}</p>}
-                    <p className="text-gray-600 text-xs">
+                    {storeAddress && <p className="text-gray-600 dark:text-slate-300 mt-0.5 text-xs">{storeAddress}</p>}
+                    <p className="text-gray-600 dark:text-slate-300 text-xs">
                       Phone: {storePhone || 'N/A'} {storeEmail ? `| Email: ${storeEmail}` : ''}
                     </p>
                     {taxNumber && (
-                      <p className="text-gray-800 font-bold text-xs mt-0.5">
+                      <p className="text-gray-800 dark:text-slate-200 font-bold text-xs mt-0.5">
                         STRN / NTN Tax ID: {taxNumber}
                       </p>
                     )}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm sm:text-base font-black tracking-wider uppercase text-gray-900 border-b border-gray-900 pb-0.5 inline-block">
+                  <div className="text-sm sm:text-base font-black tracking-wider uppercase text-gray-900 dark:text-white border-b border-gray-900 dark:border-purple-400/60 pb-0.5 inline-block">
                     TAX INVOICE
                   </div>
-                  <p className="text-gray-950 font-mono font-bold mt-1 text-sm">
+                  <p className="text-gray-950 dark:text-white font-mono font-bold mt-1 text-sm">
                     {sale.invoice_number}
                   </p>
-                  <p className="text-gray-500 text-xs mt-0.5">Date: {sale.sale_date}</p>
+                  <p className="text-gray-500 dark:text-slate-400 text-xs mt-0.5">Date: {sale.sale_date}</p>
                 </div>
               </div>
 
               {/* Dealer Billed To & Payment Details */}
-              <div className="grid grid-cols-2 gap-4 py-4 border-b border-gray-200 text-xs">
+              <div className="grid grid-cols-2 gap-4 py-4 border-b border-gray-200 dark:border-slate-700/70 text-xs">
                 <div>
-                  <span className="font-bold text-gray-500 uppercase tracking-wider text-[10px] block mb-1">
+                  <span className="font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-[10px] block mb-1">
                     DEALER / BILLED TO:
                   </span>
                   {dealerShopName ? (
-                    <p className="font-black text-gray-950 text-sm">{dealerShopName}</p>
+                    <p className="font-black text-gray-950 dark:text-white text-sm">{dealerShopName}</p>
                   ) : null}
-                  <p className="font-bold text-gray-900 mt-0.5">
+                  <p className="font-bold text-gray-900 dark:text-slate-100 mt-0.5">
                     {sale.customer_name || 'Wholesale Client / Walk-in Dealer'}
                   </p>
                   {sale.customer_phone && (
-                    <p className="text-gray-600">Contact: {sale.customer_phone}</p>
+                    <p className="text-gray-600 dark:text-slate-300">Contact: {sale.customer_phone}</p>
                   )}
                   {(dealerMarket || dealerCity || sale.customer_address) && (
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 dark:text-slate-300">
                       Market / City: {[dealerMarket, dealerCity || sale.customer_address].filter(Boolean).join(', ')}
                     </p>
                   )}
                   {dealerNtn && (
-                    <p className="text-gray-700 font-mono font-medium">NTN: {dealerNtn}</p>
+                    <p className="text-gray-700 dark:text-slate-300 font-mono font-medium">NTN: {dealerNtn}</p>
                   )}
                 </div>
                 <div className="text-right">
-                  <span className="font-bold text-gray-500 uppercase tracking-wider text-[10px] block mb-1">
+                  <span className="font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-[10px] block mb-1">
                     PAYMENT &amp; OPERATOR:
                   </span>
-                  <p className="text-gray-800">
+                  <p className="text-gray-800 dark:text-slate-200">
                     <span className="font-medium">Payment Mode:</span>{' '}
-                    <strong className="text-gray-950 font-bold">
+                    <strong className="text-gray-950 dark:text-white font-bold">
                       {formatPaymentMethod(sale.payment_method)}
                     </strong>
                   </p>
-                  <p className="text-gray-800 mt-0.5">
+                  <p className="text-gray-800 dark:text-slate-200 mt-0.5">
                     <span className="font-medium">Cashier / Dispatch:</span>{' '}
-                    {sale.cashier_name || 'Counter Operator'}
+                    <span className="text-gray-900 dark:text-slate-100">{sale.cashier_name || 'Counter Operator'}</span>
                   </p>
                 </div>
               </div>
 
               {/* Wholesale Cargo / Transport Dispatch Card */}
               {(transportName || biltyNumber || bookingDestination || totalCartons > 0) && (
-                <div className="my-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="my-3 p-3 bg-slate-50 dark:bg-slate-800/45 border border-slate-200 dark:border-slate-700/70 rounded-lg text-xs grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase flex items-center gap-1">
-                      <Truck className="w-3 h-3 text-indigo-600" />
+                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase flex items-center gap-1">
+                      <Truck className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                       Transport / Cargo
                     </span>
-                    <strong className="text-gray-900 block mt-0.5">{transportName || 'Direct Delivery'}</strong>
+                    <strong className="text-gray-900 dark:text-white block mt-0.5">{transportName || 'Direct Delivery'}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase block">Bilty / LR #</span>
-                    <strong className="text-gray-900 font-mono block mt-0.5">{biltyNumber || 'N/A'}</strong>
+                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase block">Bilty / LR #</span>
+                    <strong className="text-gray-900 dark:text-white font-mono block mt-0.5">{biltyNumber || 'N/A'}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase block">Destination City</span>
-                    <strong className="text-gray-900 block mt-0.5">{bookingDestination || dealerCity || 'Local'}</strong>
+                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase block">Destination City</span>
+                    <strong className="text-gray-900 dark:text-white block mt-0.5">{bookingDestination || dealerCity || 'Local'}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase flex items-center gap-1">
-                      <Package className="w-3 h-3 text-indigo-600" />
+                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase flex items-center gap-1">
+                      <Package className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                       Total Master Cartons
                     </span>
-                    <strong className="text-indigo-700 font-mono font-black text-sm block mt-0.5">
+                    <strong className="text-indigo-700 dark:text-indigo-300 font-mono font-black text-sm block mt-0.5">
                       {displayTotalCartons} Ctns ({totalPairsDispatched} prs)
                     </strong>
                   </div>
@@ -894,7 +894,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               {/* Wholesale Items Table (Handles carton counts, pairs, and half-carton quantities cleanly) */}
               <table className="w-full mt-3 border-collapse text-xs">
                 <thead>
-                  <tr className="border-y-2 border-gray-800 bg-gray-50 text-gray-800">
+                  <tr className="border-y-2 border-gray-800 dark:border-slate-600 bg-gray-50 dark:bg-slate-800/50 text-gray-800 dark:text-slate-100">
                     <th className="py-2 px-2 text-left font-bold w-8">#</th>
                     <th className="py-2 px-3 text-left font-bold">Article / Item</th>
                     <th className="py-2 px-3 text-center font-bold">Cartons</th>
@@ -904,7 +904,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     <th className="py-2 px-3 text-right font-bold">Total Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-slate-700/70">
                   {items.map((item: any, idx: number) => {
                     const ppc = Number(item.pairs_per_carton || item.pairsPerCarton || 12);
                     const rawCtn = item.carton_quantity !== undefined && item.carton_quantity !== null
@@ -917,14 +917,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     const hasFraction = parsedCtn % 1 !== 0;
 
                     return (
-                      <tr key={idx} className="hover:bg-gray-50/50">
-                        <td className="py-2.5 px-2 text-gray-500 font-mono">{idx + 1}</td>
+                      <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/40">
+                        <td className="py-2.5 px-2 text-gray-500 dark:text-slate-400 font-mono">{idx + 1}</td>
                         <td className="py-2.5 px-3">
-                          <div className="font-bold text-gray-950 text-xs">
+                          <div className="invoice-item-article font-bold text-gray-950 dark:text-white text-xs">
                             {item.article || item.product_name || item.name}
                           </div>
                           {item.brand_name && (
-                            <div className="text-[10px] text-gray-500 font-medium">
+                            <div className="text-[10px] text-gray-500 dark:text-slate-400 font-medium">
                               Brand: {item.brand_name}
                             </div>
                           )}
@@ -932,44 +932,44 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                         {/* Cartons Column with Clean Half-Carton Handling */}
                         <td className="py-2.5 px-3 text-center">
                           {isHalfCarton ? (
-                            <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono">
+                            <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 dark:text-emerald-300 dark:bg-emerald-950/50 dark:border-emerald-700/60 px-2 py-0.5 rounded font-mono">
                               <span>0.5 Ctn</span>
-                              <span className="text-[10px] font-extrabold uppercase tracking-tight text-emerald-700">
+                              <span className="text-[10px] font-extrabold uppercase tracking-tight text-emerald-700 dark:text-emerald-300">
                                 (Half)
                               </span>
                             </span>
                           ) : hasFraction ? (
-                            <span className="font-bold text-gray-950 font-mono">
+                            <span className="font-bold text-gray-950 dark:text-white font-mono">
                               {parsedCtn.toFixed(1)} Ctns{' '}
-                              <span className="text-[10px] text-indigo-700 font-normal">
+                              <span className="text-[10px] text-indigo-700 dark:text-indigo-300 font-normal">
                                 ({Math.floor(parsedCtn)} + ½)
                               </span>
                             </span>
                           ) : (
-                            <span className="font-bold text-gray-950 font-mono">
+                            <span className="font-bold text-gray-950 dark:text-white font-mono">
                               {parsedCtn} {parsedCtn === 1 ? 'Ctn' : 'Ctns'}
                             </span>
                           )}
                         </td>
                         {/* Packing Specification */}
-                        <td className="py-2.5 px-3 text-center text-gray-600 font-mono text-[11px]">
+                        <td className="py-2.5 px-3 text-center text-gray-600 dark:text-slate-300 font-mono text-[11px]">
                           {ppc} pr/ctn
                         </td>
                         {/* Total Pairs */}
-                        <td className="py-2.5 px-3 text-center font-bold text-gray-900 font-mono">
+                        <td className="py-2.5 px-3 text-center font-bold text-gray-900 dark:text-slate-100 font-mono">
                           {item.quantity} pr
                         </td>
                         {/* Wholesale Rate (Pairs & Carton equivalents) */}
-                        <td className="py-2.5 px-3 text-right text-gray-800 font-mono">
+                        <td className="py-2.5 px-3 text-right text-gray-800 dark:text-slate-200 font-mono">
                           <div>
-                            {currencySymbol} {formatStockPrice(item.unit_price)} <span className="text-[10px] text-gray-500">/pr</span>
+                            {currencySymbol} {formatStockPrice(item.unit_price)} <span className="text-[10px] text-gray-500 dark:text-slate-400">/pr</span>
                           </div>
-                          <div className="text-[9.5px] text-gray-500">
+                          <div className="text-[9.5px] text-gray-500 dark:text-slate-400">
                             ({currencySymbol} {formatStockPrice(item.unit_price * ppc)}/ctn)
                           </div>
                         </td>
                         {/* Total Amount */}
-                        <td className="py-2.5 px-3 text-right font-bold text-gray-950 font-mono">
+                        <td className="invoice-item-price py-2.5 px-3 text-right font-bold text-gray-950 dark:text-white font-mono">
                           {currencySymbol} {formatStockPrice(item.subtotal)}
                         </td>
                       </tr>
@@ -979,45 +979,45 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               </table>
 
               {/* Wholesale Dispatched Quantities Summary Card */}
-              <div className="mt-3 p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="mt-3 p-2.5 bg-indigo-50/70 dark:bg-indigo-950/35 border border-indigo-200 dark:border-indigo-700/50 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-indigo-700" />
-                  <span className="font-bold text-indigo-950">Wholesale Dispatch Summary:</span>
+                  <Package className="w-4 h-4 text-indigo-700 dark:text-indigo-300" />
+                  <span className="font-bold text-indigo-950 dark:text-indigo-100">Wholesale Dispatch Summary:</span>
                 </div>
                 <div className="flex items-center gap-4 text-xs font-mono font-bold">
-                  <span className="text-indigo-900">
+                  <span className="text-indigo-900 dark:text-indigo-200">
                     Total Master Cartons:{' '}
-                    <strong className="text-black underline">{displayTotalCartons} Ctns</strong>
+                    <strong className="text-gray-950 dark:text-white underline">{displayTotalCartons} Ctns</strong>
                     {halfCartonItemsCount > 0 && (
-                      <span className="text-[11px] text-emerald-700 ml-1 font-semibold">
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-400 ml-1 font-semibold">
                         (includes {halfCartonItemsCount} half-carton{halfCartonItemsCount > 1 ? 's' : ''})
                       </span>
                     )}
                   </span>
-                  <span className="text-indigo-900">
+                  <span className="text-indigo-900 dark:text-indigo-200">
                     Total Footwear Pairs:{' '}
-                    <strong className="text-black underline">{totalPairsDispatched} Pairs</strong>
+                    <strong className="text-gray-950 dark:text-white underline">{totalPairsDispatched} Pairs</strong>
                   </span>
                 </div>
               </div>
 
               {/* Wholesale Returned Footwear Table (Deducted directly from Balance) */}
               {returnedItems.length > 0 && (
-                <div className="mt-3.5 pt-3 border-t-2 border-indigo-200">
+                <div className="mt-3.5 pt-3 border-t-2 border-indigo-200 dark:border-indigo-800/60">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-black text-xs uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold">
+                    <span className="font-black text-xs uppercase tracking-wider text-indigo-950 dark:text-indigo-100 flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 text-[10px] font-bold">
                         {isWholesaleTransaction ? 'RETURN' : 'EXCHANGE'}
                       </span>
                       {isWholesaleTransaction ? 'Returned Footwear (Deducted directly from Balance)' : 'Exchanged Footwear'}
                     </span>
-                    <span className="text-[11px] font-mono font-bold text-indigo-700">
+                    <span className="text-[11px] font-mono font-bold text-indigo-700 dark:text-indigo-300">
                       Total Credit: -{currencySymbol} {formatStockPrice(exchangeCredit)}
                     </span>
                   </div>
                   <table className="w-full border-collapse text-xs">
                     <thead>
-                      <tr className="border-y border-indigo-200 bg-indigo-50/60 text-indigo-900 font-bold text-[11px]">
+                      <tr className="border-y border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-bold text-[11px]">
                         <th className="py-1.5 px-2 text-left w-8">#</th>
                         <th className="py-1.5 px-2 text-left">Article / Product</th>
                         <th className="py-1.5 px-2 text-center">Returned Pairs</th>
@@ -1027,12 +1027,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     </thead>
                     <tbody>
                       {returnedItems.map((r: any, rIdx: number) => (
-                        <tr key={rIdx} className="border-b border-indigo-100/60 text-slate-800">
-                          <td className="py-1.5 px-2 text-gray-500 font-mono text-[10px]">{rIdx + 1}</td>
-                          <td className="py-1.5 px-2 font-bold text-slate-900">{r.productName || r.product_name}</td>
+                        <tr key={rIdx} className="border-b border-indigo-100/60 dark:border-indigo-900/40 text-slate-800 dark:text-slate-200">
+                          <td className="py-1.5 px-2 text-gray-500 dark:text-slate-400 font-mono text-[10px]">{rIdx + 1}</td>
+                          <td className="py-1.5 px-2 font-bold text-slate-900 dark:text-white">{r.productName || r.product_name}</td>
                           <td className="py-1.5 px-2 text-center font-mono font-bold">{r.quantity} prs</td>
                           <td className="py-1.5 px-2 text-right font-mono">{currencySymbol} {formatStockPrice(r.unitRefundPrice || r.unit_refund_price || 0)}</td>
-                          <td className="py-1.5 px-2 text-right font-mono font-bold text-indigo-700">-{currencySymbol} {formatStockPrice(r.subtotal || 0)}</td>
+                          <td className="py-1.5 px-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300">-{currencySymbol} {formatStockPrice(r.subtotal || 0)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1041,58 +1041,58 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               )}
 
               {/* Financial Summary */}
-              <div className="flex justify-end mt-4 pt-3 border-t border-gray-300">
+              <div className="flex justify-end mt-4 pt-3 border-t border-gray-300 dark:border-slate-700/80">
                 <div className="w-80 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-gray-600">
+                  <div className="flex justify-between text-gray-600 dark:text-slate-300">
                     <span>Current Items Subtotal:</span>
                     <span>{currencySymbol} {formatStockPrice(subtotal > 0 ? subtotal : currentItemsTotal)}</span>
                   </div>
                   {discount > 0 && (
-                    <div className="flex justify-between text-emerald-700">
+                    <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                       <span>Total Discount:</span>
                       <span>-{currencySymbol} {formatStockPrice(discount)}</span>
                     </div>
                   )}
                   {exchangeCredit > 0 && (
-                    <div className="flex justify-between text-indigo-700 font-semibold">
+                    <div className="flex justify-between text-indigo-700 dark:text-indigo-300 font-semibold">
                       <span>{isWholesaleTransaction ? 'Returned Shoes Credit:' : 'Exchange Credit:'}</span>
                       <span className="font-mono">-{currencySymbol} {formatStockPrice(exchangeCredit)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1">
+                  <div className="flex justify-between font-bold text-gray-900 dark:text-slate-100 border-t border-gray-200 dark:border-slate-700/80 pt-1">
                     <span>Current Invoice Total:</span>
                     <span className="font-mono">{currencySymbol} {formatStockPrice(currentItemsTotal)}</span>
                   </div>
 
                   {previousBalance !== 0 && (
-                    <div className="flex justify-between text-gray-700 font-medium">
+                    <div className="flex justify-between text-gray-700 dark:text-slate-300 font-medium">
                       <span>Previous Khata Ledger Balance:</span>
                       <span className="font-mono">{currencySymbol} {formatStockPrice(previousBalance)}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between font-black text-sm text-gray-950 border-t-2 border-gray-800 pt-1.5">
+                  <div className="invoice-total-payable flex justify-between font-black text-sm text-gray-950 dark:text-white border-t-2 border-gray-800 dark:border-slate-500 pt-1.5">
                     <span>GRAND TOTAL DUE:</span>
                     <span className="font-mono">{currencySymbol} {formatStockPrice(grandTotalDue)}</span>
                   </div>
 
-                  <div className="flex justify-between text-gray-800 pt-1">
+                  <div className="flex justify-between text-gray-800 dark:text-slate-200 pt-1">
                     <span>{sale.payment_method === 'KHATA' ? 'Payment Received Now:' : 'Amount Paid:'}</span>
-                    <span className="font-mono font-bold">{currencySymbol} {formatStockPrice(paidAmount)}</span>
+                    <span className="font-mono font-bold text-gray-950 dark:text-white">{currencySymbol} {formatStockPrice(paidAmount)}</span>
                   </div>
 
                   {remainingBalance > 0 ? (
-                    <div className="flex justify-between text-rose-700 font-bold border-t border-dashed border-gray-300 pt-1">
+                    <div className="flex justify-between text-rose-700 dark:text-rose-400 font-bold border-t border-dashed border-gray-300 dark:border-slate-700/80 pt-1">
                       <span>Balance Carried Forward (Khata):</span>
                       <span className="font-mono">{currencySymbol} {formatStockPrice(remainingBalance)}</span>
                     </div>
                   ) : changeGiven > 0 ? (
-                    <div className="flex justify-between text-emerald-700 font-bold border-t border-dashed border-gray-300 pt-1">
+                    <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-bold border-t border-dashed border-gray-300 dark:border-slate-700/80 pt-1">
                       <span>Change Given:</span>
                       <span className="font-mono">{currencySymbol} {formatStockPrice(changeGiven)}</span>
                     </div>
                   ) : (
-                    <div className="flex justify-between text-emerald-700 font-semibold border-t border-dashed border-gray-300 pt-1">
+                    <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-semibold border-t border-dashed border-gray-300 dark:border-slate-700/80 pt-1">
                       <span>Account Status:</span>
                       <span>Paid in Full</span>
                     </div>
@@ -1101,20 +1101,20 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               </div>
 
               {/* Dual Signatures & Acceptance Footer */}
-              <div className="mt-8 pt-6 border-t border-gray-200 grid grid-cols-2 gap-4 items-end">
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-slate-700/70 grid grid-cols-2 gap-4 items-end">
                 <div>
-                  {invoiceFooter && <p className="text-[10px] text-gray-500 max-w-xs">{invoiceFooter}</p>}
+                  {invoiceFooter && <p className="text-[10px] text-gray-500 dark:text-slate-400 max-w-xs">{invoiceFooter}</p>}
                 </div>
                 <div className="flex justify-end gap-8">
                   <div className="text-center">
-                    <div className="w-32 border-b border-gray-500 pb-1 mb-1"></div>
-                    <p className="text-[9px] text-gray-600 uppercase font-bold tracking-wider">
+                    <div className="w-32 border-b border-gray-500 dark:border-slate-600 pb-1 mb-1"></div>
+                    <p className="text-[9px] text-gray-600 dark:text-slate-400 uppercase font-bold tracking-wider">
                       Dealer Stamp &amp; Sign
                     </p>
                   </div>
                   <div className="text-center">
-                    <div className="w-32 border-b border-gray-800 pb-1 mb-1"></div>
-                    <p className="text-[9px] text-gray-950 uppercase font-bold tracking-wider">
+                    <div className="w-32 border-b border-gray-800 dark:border-slate-400 pb-1 mb-1"></div>
+                    <p className="text-[9px] text-gray-950 dark:text-white uppercase font-bold tracking-wider">
                       Authorized Signature
                     </p>
                   </div>

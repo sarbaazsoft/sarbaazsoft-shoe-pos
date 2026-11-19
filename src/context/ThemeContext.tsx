@@ -2,14 +2,19 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import {
   ACCENT_THEME_LIST,
   ACCENT_THEME_STORAGE_KEY,
+  CUSTOM_ACCENT_HEX_STORAGE_KEY,
+  DEFAULT_ACCENT_THEME,
+  DEFAULT_CUSTOM_ACCENT_HEX,
   THEME_MODE_STORAGE_KEY,
   type AccentThemeId,
   type AccentThemePalette,
-  DEFAULT_ACCENT_THEME,
   applyAccentThemeToDOM,
   getStoredAccentTheme,
-  isValidAccentTheme,
+  getStoredCustomAccentHex,
+  normalizeAccentThemeId,
+  normalizeHexColor,
   persistAccentTheme,
+  persistCustomAccentHex,
   resolveAccentPalette,
 } from '../utils/themePalettes.ts';
 
@@ -26,8 +31,10 @@ interface ThemeContextType {
   accentTheme: AccentThemeId;
   accentPalette: AccentThemePalette;
   availableAccents: AccentThemePalette[];
+  customAccentHex: string;
   pwaThemeColor: string;
   setAccentTheme: (accent: AccentThemeId) => void;
+  setCustomAccentColor: (hex: string) => void;
 }
 
 const defaultPalette = resolveAccentPalette(DEFAULT_ACCENT_THEME);
@@ -41,8 +48,10 @@ const ThemeContext = createContext<ThemeContextType>({
   accentTheme: DEFAULT_ACCENT_THEME,
   accentPalette: defaultPalette,
   availableAccents: ACCENT_THEME_LIST,
+  customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
   pwaThemeColor: defaultPalette.baseHex,
   setAccentTheme: () => {},
+  setCustomAccentColor: () => {},
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -82,13 +91,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [accentTheme, setAccentThemeState] = useState<AccentThemeId>(() => getStoredAccentTheme());
+  const [customAccentHex, setCustomAccentHexState] = useState<string>(() => getStoredCustomAccentHex());
 
-  const accentPalette = resolveAccentPalette(accentTheme);
+  const accentPalette = resolveAccentPalette(accentTheme, customAccentHex);
 
   const isFirstMount = useRef(true);
   const transitionTimeoutRef = useRef<number | null>(null);
   const themeModeRef = useRef<ThemeMode>(themeMode);
   const accentThemeRef = useRef<AccentThemeId>(accentTheme);
+  const customAccentHexRef = useRef<string>(customAccentHex);
 
   useEffect(() => {
     themeModeRef.current = themeMode;
@@ -97,6 +108,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     accentThemeRef.current = accentTheme;
   }, [accentTheme]);
+
+  useEffect(() => {
+    customAccentHexRef.current = customAccentHex;
+  }, [customAccentHex]);
 
   const applyThemeToDOM = (resolved: ResolvedTheme, animate = true) => {
     try {
@@ -146,7 +161,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           detail: {
             theme: resolved,
             accentTheme: accentThemeRef.current,
-            pwaThemeColor: resolveAccentPalette(accentThemeRef.current).baseHex,
+            pwaThemeColor: resolveAccentPalette(accentThemeRef.current, customAccentHexRef.current).baseHex,
           },
         })
       );
@@ -178,13 +193,33 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setAccentTheme = (nextAccent: AccentThemeId) => {
     const valid = persistAccentTheme(nextAccent);
     setAccentThemeState(valid);
-    const applied = applyAccentThemeToDOM(valid);
+    const applied = applyAccentThemeToDOM(valid, customAccentHexRef.current);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('pos:theme-changed', {
           detail: {
             theme,
             accentTheme: valid,
+            pwaThemeColor: applied.baseHex,
+          },
+        })
+      );
+    }
+  };
+
+  const setCustomAccentColor = (rawHex: string) => {
+    const validHex = persistCustomAccentHex(rawHex);
+    const validAccent = persistAccentTheme('custom');
+    setCustomAccentHexState(validHex);
+    setAccentThemeState(validAccent);
+    const applied = applyAccentThemeToDOM(validAccent, validHex);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('pos:theme-changed', {
+          detail: {
+            theme,
+            accentTheme: validAccent,
+            customAccentHex: validHex,
             pwaThemeColor: applied.baseHex,
           },
         })
@@ -202,10 +237,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [themeMode]);
 
-  // Apply accent CSS variables + PWA meta[name="theme-color"] on mount and whenever accentTheme changes
+  // Apply accent CSS variables + PWA meta[name="theme-color"] on mount and whenever accentTheme or customAccentHex changes
   useEffect(() => {
-    applyAccentThemeToDOM(accentTheme);
-  }, [accentTheme]);
+    applyAccentThemeToDOM(accentTheme, customAccentHex);
+  }, [accentTheme, customAccentHex]);
 
   // Real-time OS theme change listener when "system" is selected
   useEffect(() => {
@@ -235,6 +270,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (e.key === null) {
         setThemeModeState('light');
         setAccentThemeState(DEFAULT_ACCENT_THEME);
+        setCustomAccentHexState(DEFAULT_CUSTOM_ACCENT_HEX);
         return;
       }
       if (e.key === THEME_MODE_STORAGE_KEY) {
@@ -245,11 +281,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
       if (e.key === ACCENT_THEME_STORAGE_KEY) {
-        if (isValidAccentTheme(e.newValue)) {
-          setAccentThemeState(e.newValue);
+        const normalized = normalizeAccentThemeId(e.newValue);
+        if (normalized) {
+          setAccentThemeState(normalized);
         } else if (e.newValue === null) {
           setAccentThemeState(DEFAULT_ACCENT_THEME);
         }
+      }
+      if (e.key === CUSTOM_ACCENT_HEX_STORAGE_KEY) {
+        setCustomAccentHexState(normalizeHexColor(e.newValue, DEFAULT_CUSTOM_ACCENT_HEX));
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -269,8 +309,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         accentTheme,
         accentPalette,
         availableAccents: ACCENT_THEME_LIST,
+        customAccentHex,
         pwaThemeColor: accentPalette.baseHex,
         setAccentTheme,
+        setCustomAccentColor,
       }}
     >
       {children}

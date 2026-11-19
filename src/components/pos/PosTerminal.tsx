@@ -1259,12 +1259,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       ? splitChangeDue
       : 0;
 
-  // Quick Cash buttons handler
-  const setExactCash = () => setCashReceived(netTotalPayable);
-  const addQuickCash = (amount: number) => {
-    setCashReceived((prev) => (typeof prev === 'number' ? prev + amount : amount));
-  };
-
   // Handle Checkout
   const handleCheckout = async (adminOverrideCreds?: { email: string; pass: string }) => {
     if (checkoutInFlightRef.current || isSubmitting || cart.length === 0) return;
@@ -3479,12 +3473,12 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               /* Shared payment collection block for cash, Khata, card, and digital transfers */
               <div className="space-y-2.5 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#131B2E]">
                 {/* Header label and status badge */}
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label htmlFor="pos-amount-received" className="font-bold text-slate-800 dark:text-slate-100 text-xs flex items-center gap-1.5">
-                    <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <Banknote className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
                     <span>Amount Received (Payment Collected Now)</span>
                   </label>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-100/70 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/70 dark:border-purple-800/50 whitespace-nowrap shrink-0">
                     {paymentMethod === 'KHATA'
                       ? '0 for Full Credit'
                       : customerOutstandingBalance > 0 && isWholesaleTransaction
@@ -3513,7 +3507,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         setCashReceived(isNaN(parsed) ? '' : Math.max(0, Math.round(parsed)));
                       }
                     }}
-                    className="w-full pl-10 pr-20 py-2.5 text-right font-mono font-bold text-base bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 shadow-inner transition"
+                    className="w-full pl-10 pr-20 py-2.5 text-right font-mono font-bold text-base bg-white dark:bg-[#0A0E1A] border border-purple-300/80 dark:border-purple-700/70 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 shadow-inner transition"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     {cashReceived !== '' && (
@@ -3529,7 +3523,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <button
                       type="button"
                       onClick={() => setCashReceived(netTotalPayable)}
-                      className="px-2 py-1 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                      className="px-2 py-1 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-purple-50 dark:bg-slate-800 dark:hover:bg-purple-950/60 text-slate-700 dark:text-slate-200 hover:text-purple-700 dark:hover:text-purple-300 transition cursor-pointer"
                       title="Fill exact bill amount"
                     >
                       Exact
@@ -3561,6 +3555,29 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                   </div>
                 )}
 
+                {/* Cash Exchange / Change Reconciliation inside the single Amount Received block */}
+                {paymentMethod === 'CASH' && (
+                  isEvenExchange ? (
+                    <div className="p-2.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 rounded-xl text-xs font-semibold text-purple-900 dark:text-purple-200 text-center">
+                      ✓ Even shoe exchange: No cash collection or refund needed.
+                    </div>
+                  ) : isCustomerRefund ? (
+                    <div className="flex justify-between items-center p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs font-bold text-amber-950 dark:text-amber-200">
+                      <span>Cash Refund to Customer:</span>
+                      <span className="font-mono text-base font-black text-amber-700 dark:text-amber-400">
+                        {currencySymbol} {formatStockPrice(customerRefundAmount)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center px-3 py-2.5 bg-purple-50/75 dark:bg-purple-950/35 border border-purple-200/80 dark:border-purple-800/60 rounded-xl text-xs font-bold text-purple-950 dark:text-purple-100">
+                      <span>Change Given:</span>
+                      <span className="font-mono text-sm sm:text-base font-black text-purple-700 dark:text-purple-300">
+                        {currencySymbol} {formatStockPrice(changeDue)}
+                      </span>
+                    </div>
+                  )
+                )}
+
                 {/* Online / Bank Transfer Transaction Reference */}
                 {(paymentMethod === 'ONLINE' || paymentMethod === 'BANK_TRANSFER') && (
                   <div className="space-y-1.5 pt-1">
@@ -3574,7 +3591,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                       onChange={(e) => setTransactionId(e.target.value)}
                       placeholder="Enter transaction/reference ID"
                       autoComplete="off"
-                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#0A0E1A] border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 font-mono"
                     />
                   </div>
                 )}
@@ -3592,7 +3609,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <button
                       type="button"
                       onClick={() => setCashReceived(netTotalPayable)}
-                      className="px-2 py-2 sm:py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition cursor-pointer"
+                      className="px-2 py-2 sm:py-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition cursor-pointer"
                     >
                       Bill Only ({formatStockPrice(netTotalPayable)})
                     </button>
@@ -3602,7 +3619,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         onClick={() => {
                           setCashReceived(Math.round((netTotalPayable + customerOutstandingBalance) * 100) / 100);
                         }}
-                        className="px-2 py-2 sm:py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
+                        className="col-span-2 sm:col-span-1 px-2 py-2 sm:py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition cursor-pointer"
                       >
                         Pay All ({formatStockPrice(netTotalPayable + customerOutstandingBalance)})
                       </button>
@@ -3716,75 +3733,13 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               </div>
             )}
 
-            {/* Cash Received Tender & Quick Cash Buttons */}
-            {paymentMethod === 'CASH' && (
-              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                {isEvenExchange ? (
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-semibold text-emerald-900 dark:text-emerald-200 text-center">
-                    ✓ Even shoe exchange: No cash collection or refund needed.
-                  </div>
-                ) : isCustomerRefund ? (
-                  <div className="flex justify-between items-center p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs font-bold text-amber-950 dark:text-amber-200">
-                    <span>Cash Refund to Customer:</span>
-                    <span className="font-mono text-base font-black text-amber-700 dark:text-amber-400">
-                      {currencySymbol} {formatStockPrice(customerRefundAmount)}
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    {/* Quick Add Buttons */}
-                    {isWholesaleStore && (
-                      <div className="grid grid-cols-4 gap-1.5 text-[11px] font-bold">
-                        <button
-                          type="button"
-                          onClick={setExactCash}
-                          className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold shadow-xs active:scale-95 transition cursor-pointer"
-                        >
-                          Exact
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addQuickCash(500)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-[#131B2E] hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-800 rounded-lg font-bold shadow-2xs active:scale-95 transition cursor-pointer"
-                        >
-                          +500
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addQuickCash(1000)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-[#131B2E] hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-800 rounded-lg font-bold shadow-2xs active:scale-95 transition cursor-pointer"
-                        >
-                          +1,000
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addQuickCash(5000)}
-                          className="px-2 py-1.5 bg-slate-100 dark:bg-[#131B2E] hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-800 rounded-lg font-bold shadow-2xs active:scale-95 transition cursor-pointer"
-                        >
-                          +5,000
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Real-time Change Due */}
-                    <div className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-xl text-xs font-bold text-emerald-950 dark:text-emerald-200">
-                      <span>Change Given:</span>
-                      <span className="font-mono text-base font-black">
-                        {currencySymbol} {formatStockPrice(changeDue)}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
             {/* Counter Notes */}
             <input
               type="text"
               placeholder="Sale notes (optional)..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-[#0A0E1A] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-950/40"
+              className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-[#0A0E1A] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-purple-500 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20"
             />
 
             {/* Wholesale B2B Cargo / Bilty Dispatch Card */}

@@ -382,21 +382,6 @@ export function useSaasDirectoryQuery(
   );
 }
 
-export function useStoreSettingsQuery(
-  tenantId?: number | null,
-  options?: { enabled?: boolean }
-) {
-  const effectiveTenantId = tenantId ?? getActiveTenantId();
-  return useLiveFetch(
-    (signal) => api.settings.get({ signal }),
-    `settings:${effectiveTenantId ?? 'none'}`,
-    {
-      enabled: options?.enabled ?? Boolean(effectiveTenantId),
-      syncTopics: ['settings'],
-      scopeKey: String(effectiveTenantId ?? ''),
-    }
-  );
-}
 
 export function useGroupedNotificationsQuery(
   limit: number = 10,

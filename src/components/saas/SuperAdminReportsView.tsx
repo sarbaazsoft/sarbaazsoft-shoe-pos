@@ -152,7 +152,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
   }, [recentTransactions, storeScope, paymentFilter, normalizedSearch]);
 
   const filteredLedgerTotal = useMemo(() => {
-    return filteredTransactions.reduce((acc, tx) => acc + (tx.totalAmount || 0), 0);
+    return filteredTransactions.reduce((acc, tx) => acc + (tx.totalAmount ?? tx.amount ?? 0), 0);
   }, [filteredTransactions]);
 
   const superAdminReportsShoeMetricsData = useMemo<RetailShoeMetricsData>(() => {
@@ -367,13 +367,13 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
         'Total Amount',
       ];
       const rows = filteredTransactions.map((tx) => [
-        tx.invoiceNumber,
-        tx.saleDate,
-        `"${tx.storeName.replace(/"/g, '""')}"`,
+        tx.invoiceNumber || tx.reference || '',
+        tx.saleDate || tx.date || '',
+        `"${(tx.storeName || '').replace(/"/g, '""')}"`,
         `"${(tx.customerName || 'Walk-in').replace(/"/g, '""')}"`,
         `"${(tx.cashierName || 'Counter').replace(/"/g, '""')}"`,
-        tx.paymentMethod || 'CASH',
-        Math.round(tx.totalAmount || 0),
+        tx.paymentMethod || tx.type || 'CASH',
+        Math.round(tx.totalAmount ?? tx.amount ?? 0),
       ]);
       const csvContent =
         'data:text/csv;charset=utf-8,' +
@@ -957,7 +957,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                   <div className="space-y-3">
                     {filteredTopProducts.slice(0, 6).map((item, idx) => (
                       <div
-                        key={`${item.tenantId}-${item.id}`}
+                        key={`overview-top-${item.tenantId ?? 't'}-${item.id ?? item.barcode ?? idx}-${idx}`}
                         className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/70 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 border border-slate-200/60 dark:border-purple-800/50 transition"
                       >
                         <div className="flex items-center space-x-3 min-w-0">
@@ -1050,17 +1050,17 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
             ) : (
               <>
                 <div className="sm:hidden space-y-2">
-                  {filteredTransactions.slice(0, 6).map((tx) => (
+                  {filteredTransactions.slice(0, 6).map((tx, idx) => (
                     <div
-                      key={`mob-recent-${tx.tenantId}-${tx.id}`}
+                      key={`mob-recent-${tx.tenantId ?? 't'}-${tx.id ?? tx.reference ?? tx.invoiceNumber ?? idx}-${idx}`}
                       className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/70 border border-slate-200/60 dark:border-purple-800/50 space-y-1.5"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono font-bold text-blue-600 dark:text-cyan-400 truncate">
-                          {tx.invoiceNumber}
+                          {tx.invoiceNumber || tx.reference || '—'}
                         </span>
                         <span className="font-black text-slate-900 dark:text-white font-mono shrink-0">
-                          {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
+                          {tx.currency} {Math.round(tx.totalAmount ?? tx.amount ?? 0).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -1072,12 +1072,14 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                           {tx.storeName}
                         </button>
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase shrink-0">
-                          {tx.paymentMethod || 'CASH'}
+                          {tx.paymentMethod || tx.type || 'CASH'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
                         <span className="truncate">{tx.customerName || 'Walk-in Customer'}</span>
-                        <span className="font-mono shrink-0">{tx.saleDate}</span>
+                        <span className="font-mono shrink-0">
+                          {tx.saleDate || tx.timeString || (tx.date ? new Date(tx.date).toLocaleDateString() : '—')}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -1096,13 +1098,13 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-purple-800/40">
-                      {filteredTransactions.slice(0, 6).map((tx) => (
+                      {filteredTransactions.slice(0, 6).map((tx, idx) => (
                         <tr
-                          key={`${tx.tenantId}-${tx.id}`}
+                          key={`recent-${tx.tenantId ?? 't'}-${tx.id ?? tx.reference ?? tx.invoiceNumber ?? idx}-${idx}`}
                           className="hover:bg-slate-50/80 dark:hover:bg-purple-900/20"
                         >
                           <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-cyan-400">
-                            {tx.invoiceNumber}
+                            {tx.invoiceNumber || tx.reference || '—'}
                           </td>
                           <td className="py-2.5 px-3">
                             <button
@@ -1114,18 +1116,18 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                             </button>
                           </td>
                           <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono">
-                            {tx.saleDate}
+                            {tx.saleDate || tx.timeString || (tx.date ? new Date(tx.date).toLocaleDateString() : '—')}
                           </td>
                           <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">
                             {tx.customerName || 'Walk-in Customer'}
                           </td>
                           <td className="py-2.5 px-3">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
-                              {tx.paymentMethod || 'CASH'}
+                              {tx.paymentMethod || tx.type || 'CASH'}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-right font-black text-slate-900 dark:text-white font-mono">
-                            {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
+                            {tx.currency} {Math.round(tx.totalAmount ?? tx.amount ?? 0).toLocaleString()}
                           </td>
                         </tr>
                       ))}
@@ -1385,7 +1387,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
               </div>
             ) : (
               filteredTopProducts.map((item, idx) => (
-                <div key={`mob-top-${item.tenantId}-${item.id}`} className="p-3.5 space-y-2">
+                <div key={`mob-top-${item.tenantId ?? 't'}-${item.id ?? item.barcode ?? idx}-${idx}`} className="p-3.5 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-bold text-slate-900 dark:text-white truncate">
@@ -1457,7 +1459,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                 ) : (
                   filteredTopProducts.map((item, idx) => (
                     <tr
-                      key={`${item.tenantId}-${item.id}`}
+                      key={`top-${item.tenantId ?? 't'}-${item.id ?? item.barcode ?? idx}-${idx}`}
                       className="hover:bg-slate-50/80 dark:hover:bg-purple-900/20 transition"
                     >
                       <td className="py-3 px-4 font-mono font-bold text-slate-500 dark:text-slate-300">
@@ -1549,14 +1551,14 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                 No sales match your filter criteria
               </div>
             ) : (
-              filteredTransactions.slice(0, visibleTransactionsCount).map((tx) => (
-                <div key={`mob-ledger-${tx.tenantId}-${tx.id}`} className="p-3.5 space-y-1.5">
+              filteredTransactions.slice(0, visibleTransactionsCount).map((tx, idx) => (
+                <div key={`mob-ledger-${tx.tenantId ?? 't'}-${tx.id ?? tx.reference ?? tx.invoiceNumber ?? idx}-${idx}`} className="p-3.5 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-bold text-blue-600 dark:text-cyan-400 truncate">
-                      {tx.invoiceNumber}
+                      {tx.invoiceNumber || tx.reference || '—'}
                     </span>
                     <span className="font-black text-slate-900 dark:text-white font-mono shrink-0">
-                      {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
+                      {tx.currency} {Math.round(tx.totalAmount ?? tx.amount ?? 0).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -1568,14 +1570,16 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                       {tx.storeName}
                     </button>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 uppercase shrink-0">
-                      {tx.paymentMethod || 'CASH'}
+                      {tx.paymentMethod || tx.type || 'CASH'}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
                     <span className="truncate">
                       {tx.customerName || 'Walk-in Customer'} • {tx.cashierName || 'Counter Staff'}
                     </span>
-                    <span className="font-mono shrink-0">{tx.saleDate}</span>
+                    <span className="font-mono shrink-0">
+                      {tx.saleDate || tx.timeString || (tx.date ? new Date(tx.date).toLocaleDateString() : '—')}
+                    </span>
                   </div>
                 </div>
               ))
@@ -1606,13 +1610,13 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredTransactions.slice(0, visibleTransactionsCount).map((tx) => (
+                  filteredTransactions.slice(0, visibleTransactionsCount).map((tx, idx) => (
                     <tr
-                      key={`${tx.tenantId}-${tx.id}`}
+                      key={`ledger-${tx.tenantId ?? 't'}-${tx.id ?? tx.reference ?? tx.invoiceNumber ?? idx}-${idx}`}
                       className="hover:bg-slate-50/80 dark:hover:bg-purple-900/20 transition"
                     >
                       <td className="py-3 px-4 font-mono font-bold text-blue-600 dark:text-cyan-400">
-                        {tx.invoiceNumber}
+                        {tx.invoiceNumber || tx.reference || '—'}
                       </td>
                       <td className="py-3 px-4">
                         <button
@@ -1624,7 +1628,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                         </button>
                       </td>
                       <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">
-                        {tx.saleDate}
+                        {tx.saleDate || tx.timeString || (tx.date ? new Date(tx.date).toLocaleDateString() : '—')}
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
                         {tx.customerName || 'Walk-in Customer'}
@@ -1634,11 +1638,11 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
                       </td>
                       <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 uppercase">
-                          {tx.paymentMethod || 'CASH'}
+                          {tx.paymentMethod || tx.type || 'CASH'}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white font-mono">
-                        {tx.currency} {Math.round(tx.totalAmount || tx.amount || 0).toLocaleString()}
+                        {tx.currency} {Math.round(tx.totalAmount ?? tx.amount ?? 0).toLocaleString()}
                       </td>
                     </tr>
                   ))

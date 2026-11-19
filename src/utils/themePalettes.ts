@@ -1,15 +1,14 @@
-export type AccentThemeId =
+export type PresetAccentThemeId =
   | 'purple'
-  | 'red'
-  | 'orange'
-  | 'emerald'
+  | 'indigo'
   | 'cyan'
   | 'teal'
-  | 'indigo'
-  | 'violet'
-  | 'pink'
-  | 'fuchsia'
-  | 'stone';
+  | 'orange'
+  | 'red'
+  | 'burgundy'
+  | 'pink';
+
+export type AccentThemeId = PresetAccentThemeId | 'custom';
 
 export type ShadeScale = {
   50: string;
@@ -72,15 +71,15 @@ function buildPalette(config: {
   };
 }
 
-export const ACCENT_THEME_PALETTES: Record<AccentThemeId, AccentThemePalette> = {
+export const ACCENT_THEME_PALETTES: Record<PresetAccentThemeId, AccentThemePalette> = {
   purple: buildPalette({
     id: 'purple',
     name: 'Purple',
-    companionName: 'Indigo',
+    companionName: 'Royal Orchid',
     baseHex: '#9333EA',
-    companionHex: '#4F46E5',
+    companionHex: '#6B21A8',
     primaryRgb: '147, 51, 234',
-    companionRgb: '79, 70, 229',
+    companionRgb: '107, 33, 168',
     darkSurfaceBg: '#120726',
     primaryScale: {
       50: '#FAF5FF',
@@ -96,207 +95,27 @@ export const ACCENT_THEME_PALETTES: Record<AccentThemeId, AccentThemePalette> = 
       950: '#3B0764',
     },
     companionScale: {
-      50: '#EEF2FF',
-      100: '#E0E7FF',
-      200: '#C7D2FE',
-      300: '#A5B4FC',
-      400: '#818CF8',
-      500: '#6366F1',
-      600: '#4F46E5',
-      700: '#4338CA',
-      800: '#3730A3',
-      900: '#312E81',
-      950: '#1E1B4B',
-    },
-  }),
-  red: buildPalette({
-    id: 'red',
-    name: 'Red',
-    companionName: 'Crimson Rose',
-    baseHex: '#F44336',
-    companionHex: '#E11D48',
-    primaryRgb: '244, 67, 54',
-    companionRgb: '225, 29, 72',
-    darkSurfaceBg: '#1D0B0E',
-    primaryScale: {
-      50: '#FEF2F2',
-      100: '#FEE2E2',
-      200: '#FECACA',
-      300: '#FCA5A5',
-      400: '#F87171',
-      500: '#F44336',
-      600: '#DC2626',
-      700: '#B91C1C',
-      800: '#991B1B',
-      900: '#7F1D1D',
-      950: '#450A0A',
-    },
-    companionScale: {
-      50: '#FFF1F2',
-      100: '#FFE4E6',
-      200: '#FECDD3',
-      300: '#FDA4AF',
-      400: '#FB7185',
-      500: '#F43F5E',
-      600: '#E11D48',
-      700: '#BE123C',
-      800: '#9F1239',
-      900: '#881337',
-      950: '#4C0519',
-    },
-  }),
-  orange: buildPalette({
-    id: 'orange',
-    name: 'Orange',
-    companionName: 'Warm Amber',
-    baseHex: '#F97316',
-    companionHex: '#D97706',
-    primaryRgb: '249, 115, 22',
-    companionRgb: '217, 119, 6',
-    darkSurfaceBg: '#1C1007',
-    primaryScale: {
-      50: '#FFF7ED',
-      100: '#FFEDD5',
-      200: '#FED7AA',
-      300: '#FDBA74',
-      400: '#FB923C',
-      500: '#F97316',
-      600: '#EA580C',
-      700: '#C2410C',
-      800: '#9A3412',
-      900: '#7C2D12',
-      950: '#431407',
-    },
-    companionScale: {
-      50: '#FFFBEB',
-      100: '#FEF3C7',
-      200: '#FDE68A',
-      300: '#FCD34D',
-      400: '#FBBF24',
-      500: '#F59E0B',
-      600: '#D97706',
-      700: '#B45309',
-      800: '#92400E',
-      900: '#78350F',
-      950: '#451A03',
-    },
-  }),
-  emerald: buildPalette({
-    id: 'emerald',
-    name: 'Emerald',
-    companionName: 'Deep Teal',
-    baseHex: '#10B981',
-    companionHex: '#0D9488',
-    primaryRgb: '16, 185, 129',
-    companionRgb: '13, 148, 136',
-    darkSurfaceBg: '#061A14',
-    primaryScale: {
-      50: '#ECFDF5',
-      100: '#D1FAE5',
-      200: '#A7F3D0',
-      300: '#6EE7B7',
-      400: '#34D399',
-      500: '#10B981',
-      600: '#059669',
-      700: '#047857',
-      800: '#065F46',
-      900: '#064E3B',
-      950: '#022C22',
-    },
-    companionScale: {
-      50: '#F0FDFA',
-      100: '#CCFBF1',
-      200: '#99F6E4',
-      300: '#5EEAD4',
-      400: '#2DD4BF',
-      500: '#14B8A6',
-      600: '#0D9488',
-      700: '#0F766E',
-      800: '#115E59',
-      900: '#134E4A',
-      950: '#042F2E',
-    },
-  }),
-  cyan: buildPalette({
-    id: 'cyan',
-    name: 'Cyan',
-    companionName: 'Electric Sky',
-    baseHex: '#06B6D4',
-    companionHex: '#0284C7',
-    primaryRgb: '6, 182, 212',
-    companionRgb: '2, 132, 199',
-    darkSurfaceBg: '#061822',
-    primaryScale: {
-      50: '#ECFEFF',
-      100: '#CFFAFE',
-      200: '#A5F3FC',
-      300: '#67E8F9',
-      400: '#22D3EE',
-      500: '#06B6D4',
-      600: '#0891B2',
-      700: '#0E7490',
-      800: '#155E75',
-      900: '#164E63',
-      950: '#083344',
-    },
-    companionScale: {
-      50: '#F0F9FF',
-      100: '#E0F2FE',
-      200: '#BAE6FD',
-      300: '#7DD3FC',
-      400: '#38BDF8',
-      500: '#0EA5E9',
-      600: '#0284C7',
-      700: '#0369A1',
-      800: '#075985',
-      900: '#0C4A6E',
-      950: '#082F49',
-    },
-  }),
-  teal: buildPalette({
-    id: 'teal',
-    name: 'Teal',
-    companionName: 'Ocean Cyan',
-    baseHex: '#14B8A6',
-    companionHex: '#0891B2',
-    primaryRgb: '20, 184, 166',
-    companionRgb: '8, 145, 178',
-    darkSurfaceBg: '#061B1A',
-    primaryScale: {
-      50: '#F0FDFA',
-      100: '#CCFBF1',
-      200: '#99F6E4',
-      300: '#5EEAD4',
-      400: '#2DD4BF',
-      500: '#14B8A6',
-      600: '#0D9488',
-      700: '#0F766E',
-      800: '#115E59',
-      900: '#134E4A',
-      950: '#042F2E',
-    },
-    companionScale: {
-      50: '#ECFEFF',
-      100: '#CFFAFE',
-      200: '#A5F3FC',
-      300: '#67E8F9',
-      400: '#22D3EE',
-      500: '#06B6D4',
-      600: '#0891B2',
-      700: '#0E7490',
-      800: '#155E75',
-      900: '#164E63',
-      950: '#083344',
+      50: '#FAF5FF',
+      100: '#F3E8FF',
+      200: '#E9D5FF',
+      300: '#D8B4FE',
+      400: '#C084FC',
+      500: '#9333EA',
+      600: '#7E22CE',
+      700: '#6B21A8',
+      800: '#581C87',
+      900: '#4C1D95',
+      950: '#2E1065',
     },
   }),
   indigo: buildPalette({
     id: 'indigo',
     name: 'Indigo',
-    companionName: 'Royal Blue',
-    baseHex: '#6366F1',
-    companionHex: '#2563EB',
-    primaryRgb: '99, 102, 241',
-    companionRgb: '37, 99, 235',
+    companionName: 'Twilight Cobalt',
+    baseHex: '#4F46E5',
+    companionHex: '#3730A3',
+    primaryRgb: '79, 70, 229',
+    companionRgb: '55, 48, 163',
     darkSurfaceBg: '#0D1128',
     primaryScale: {
       50: '#EEF2FF',
@@ -312,63 +131,207 @@ export const ACCENT_THEME_PALETTES: Record<AccentThemeId, AccentThemePalette> = 
       950: '#1E1B4B',
     },
     companionScale: {
-      50: '#EFF6FF',
-      100: '#DBEAFE',
-      200: '#BFDBFE',
-      300: '#93C5FD',
-      400: '#60A5FA',
-      500: '#3B82F6',
-      600: '#2563EB',
-      700: '#1D4ED8',
-      800: '#1E40AF',
-      900: '#1E3A8A',
-      950: '#172554',
-    },
-  }),
-  violet: buildPalette({
-    id: 'violet',
-    name: 'Violet',
-    companionName: 'Deep Indigo',
-    baseHex: '#8B5CF6',
-    companionHex: '#4F46E5',
-    primaryRgb: '139, 92, 246',
-    companionRgb: '79, 70, 229',
-    darkSurfaceBg: '#120B2B',
-    primaryScale: {
-      50: '#F5F3FF',
-      100: '#EDE9FE',
-      200: '#DDD6FE',
-      300: '#C4B5FD',
-      400: '#A78BFA',
-      500: '#8B5CF6',
-      600: '#7C3AED',
-      700: '#6D28D9',
-      800: '#5B21B6',
-      900: '#4C1D95',
-      950: '#2E1065',
-    },
-    companionScale: {
       50: '#EEF2FF',
       100: '#E0E7FF',
       200: '#C7D2FE',
       300: '#A5B4FC',
       400: '#818CF8',
-      500: '#6366F1',
-      600: '#4F46E5',
-      700: '#4338CA',
-      800: '#3730A3',
-      900: '#312E81',
-      950: '#1E1B4B',
+      500: '#4F46E5',
+      600: '#3730A3',
+      700: '#312E81',
+      800: '#27246B',
+      900: '#1E1B4B',
+      950: '#141236',
+    },
+  }),
+  cyan: buildPalette({
+    id: 'cyan',
+    name: 'Cyan',
+    companionName: 'Electric Aqua',
+    baseHex: '#06B6D4',
+    companionHex: '#0E7490',
+    primaryRgb: '6, 182, 212',
+    companionRgb: '14, 116, 144',
+    darkSurfaceBg: '#061822',
+    primaryScale: {
+      50: '#ECFEFF',
+      100: '#CFFAFE',
+      200: '#A5F3FC',
+      300: '#67E8F9',
+      400: '#22D3EE',
+      500: '#06B6D4',
+      600: '#0891B2',
+      700: '#0E7490',
+      800: '#155E75',
+      900: '#164E63',
+      950: '#083344',
+    },
+    companionScale: {
+      50: '#ECFEFF',
+      100: '#CFFAFE',
+      200: '#A5F3FC',
+      300: '#67E8F9',
+      400: '#22D3EE',
+      500: '#0891B2',
+      600: '#0E7490',
+      700: '#155E75',
+      800: '#164E63',
+      900: '#0C3E4F',
+      950: '#062633',
+    },
+  }),
+  teal: buildPalette({
+    id: 'teal',
+    name: 'Teal',
+    companionName: 'Deep Pine',
+    baseHex: '#0D9488',
+    companionHex: '#115E59',
+    primaryRgb: '13, 148, 136',
+    companionRgb: '17, 94, 89',
+    darkSurfaceBg: '#061B1A',
+    primaryScale: {
+      50: '#F0FDFA',
+      100: '#CCFBF1',
+      200: '#99F6E4',
+      300: '#5EEAD4',
+      400: '#2DD4BF',
+      500: '#14B8A6',
+      600: '#0D9488',
+      700: '#0F766E',
+      800: '#115E59',
+      900: '#134E4A',
+      950: '#042F2E',
+    },
+    companionScale: {
+      50: '#F0FDFA',
+      100: '#CCFBF1',
+      200: '#99F6E4',
+      300: '#5EEAD4',
+      400: '#2DD4BF',
+      500: '#0D9488',
+      600: '#0F766E',
+      700: '#115E59',
+      800: '#134E4A',
+      900: '#0B3B38',
+      950: '#032221',
+    },
+  }),
+  orange: buildPalette({
+    id: 'orange',
+    name: 'Orange',
+    companionName: 'Tangerine Flame',
+    baseHex: '#F97316',
+    companionHex: '#C2410C',
+    primaryRgb: '249, 115, 22',
+    companionRgb: '194, 65, 12',
+    darkSurfaceBg: '#1C1007',
+    primaryScale: {
+      50: '#FFF7ED',
+      100: '#FFEDD5',
+      200: '#FED7AA',
+      300: '#FDBA74',
+      400: '#FB923C',
+      500: '#F97316',
+      600: '#EA580C',
+      700: '#C2410C',
+      800: '#9A3412',
+      900: '#7C2D12',
+      950: '#431407',
+    },
+    companionScale: {
+      50: '#FFF7ED',
+      100: '#FFEDD5',
+      200: '#FED7AA',
+      300: '#FDBA74',
+      400: '#FB923C',
+      500: '#EA580C',
+      600: '#C2410C',
+      700: '#9A3412',
+      800: '#7C2D12',
+      900: '#5F210D',
+      950: '#330F05',
+    },
+  }),
+  red: buildPalette({
+    id: 'red',
+    name: 'Red',
+    companionName: 'Scarlet Flame',
+    baseHex: '#EF4444',
+    companionHex: '#B91C1C',
+    primaryRgb: '239, 68, 68',
+    companionRgb: '185, 28, 28',
+    darkSurfaceBg: '#1D0B0E',
+    primaryScale: {
+      50: '#FEF2F2',
+      100: '#FEE2E2',
+      200: '#FECACA',
+      300: '#FCA5A5',
+      400: '#F87171',
+      500: '#EF4444',
+      600: '#DC2626',
+      700: '#B91C1C',
+      800: '#991B1B',
+      900: '#7F1D1D',
+      950: '#450A0A',
+    },
+    companionScale: {
+      50: '#FEF2F2',
+      100: '#FEE2E2',
+      200: '#FECACA',
+      300: '#FCA5A5',
+      400: '#F87171',
+      500: '#DC2626',
+      600: '#B91C1C',
+      700: '#991B1B',
+      800: '#7F1D1D',
+      900: '#631515',
+      950: '#380808',
+    },
+  }),
+  burgundy: buildPalette({
+    id: 'burgundy',
+    name: 'Burgundy',
+    companionName: 'Deep Wine',
+    baseHex: '#9F1239',
+    companionHex: '#6D0D2A',
+    primaryRgb: '159, 18, 57',
+    companionRgb: '109, 13, 42',
+    darkSurfaceBg: '#1A060E',
+    primaryScale: {
+      50: '#FFF1F2',
+      100: '#FFE4E6',
+      200: '#FECDD3',
+      300: '#FDA4AF',
+      400: '#FB7185',
+      500: '#E11D48',
+      600: '#9F1239',
+      700: '#881337',
+      800: '#6D0D2A',
+      900: '#570921',
+      950: '#3B0414',
+    },
+    companionScale: {
+      50: '#FFF1F2',
+      100: '#FFE4E6',
+      200: '#FECDD3',
+      300: '#FDA4AF',
+      400: '#FB7185',
+      500: '#BE123C',
+      600: '#881337',
+      700: '#6D0D2A',
+      800: '#570921',
+      900: '#450619',
+      950: '#2E0210',
     },
   }),
   pink: buildPalette({
     id: 'pink',
     name: 'Pink',
-    companionName: 'Ruby Rose',
+    companionName: 'Candy Magenta',
     baseHex: '#EC4899',
-    companionHex: '#E11D48',
+    companionHex: '#BE185D',
     primaryRgb: '236, 72, 153',
-    companionRgb: '225, 29, 72',
+    companionRgb: '190, 24, 93',
     darkSurfaceBg: '#1F0817',
     primaryScale: {
       50: '#FDF2F8',
@@ -384,127 +347,214 @@ export const ACCENT_THEME_PALETTES: Record<AccentThemeId, AccentThemePalette> = 
       950: '#500724',
     },
     companionScale: {
-      50: '#FFF1F2',
-      100: '#FFE4E6',
-      200: '#FECDD3',
-      300: '#FDA4AF',
-      400: '#FB7185',
-      500: '#F43F5E',
-      600: '#E11D48',
-      700: '#BE123C',
-      800: '#9F1239',
-      900: '#881337',
-      950: '#4C0519',
-    },
-  }),
-  fuchsia: buildPalette({
-    id: 'fuchsia',
-    name: 'Fuchsia',
-    companionName: 'Royal Purple',
-    baseHex: '#D946EF',
-    companionHex: '#9333EA',
-    primaryRgb: '217, 70, 239',
-    companionRgb: '147, 51, 234',
-    darkSurfaceBg: '#1B0722',
-    primaryScale: {
-      50: '#FDF4FF',
-      100: '#FAE8FF',
-      200: '#F5D0FE',
-      300: '#F0ABFC',
-      400: '#E879F9',
-      500: '#D946EF',
-      600: '#C026D3',
-      700: '#A21CAF',
-      800: '#86198F',
-      900: '#701A75',
-      950: '#4A044E',
-    },
-    companionScale: {
-      50: '#FAF5FF',
-      100: '#F3E8FF',
-      200: '#E9D5FF',
-      300: '#D8B4FE',
-      400: '#C084FC',
-      500: '#A855F7',
-      600: '#9333EA',
-      700: '#7E22CE',
-      800: '#6B21A8',
-      900: '#581C87',
-      950: '#3B0764',
-    },
-  }),
-  stone: buildPalette({
-    id: 'stone',
-    name: 'Stone',
-    companionName: 'Slate Steel',
-    baseHex: '#78716C',
-    companionHex: '#475569',
-    primaryRgb: '120, 113, 108',
-    companionRgb: '71, 85, 105',
-    darkSurfaceBg: '#141211',
-    primaryScale: {
-      50: '#FAFAF9',
-      100: '#F5F5F4',
-      200: '#E7E5E4',
-      300: '#D6D3D1',
-      400: '#A8A29E',
-      500: '#78716C',
-      600: '#57534E',
-      700: '#44403C',
-      800: '#292524',
-      900: '#1C1917',
-      950: '#0C0A09',
-    },
-    companionScale: {
-      50: '#F8FAFC',
-      100: '#F1F5F9',
-      200: '#E2E8F0',
-      300: '#CBD5E1',
-      400: '#94A3B8',
-      500: '#64748B',
-      600: '#475569',
-      700: '#334155',
-      800: '#1E293B',
-      900: '#0F172A',
-      950: '#020617',
+      50: '#FDF2F8',
+      100: '#FCE7F3',
+      200: '#FBCFE8',
+      300: '#F9A8D4',
+      400: '#F472B6',
+      500: '#DB2777',
+      600: '#BE185D',
+      700: '#9D174D',
+      800: '#831843',
+      900: '#6B1236',
+      950: '#42051E',
     },
   }),
 };
 
 export const ACCENT_THEME_LIST: AccentThemePalette[] = [
   ACCENT_THEME_PALETTES.purple,
-  ACCENT_THEME_PALETTES.red,
-  ACCENT_THEME_PALETTES.orange,
-  ACCENT_THEME_PALETTES.emerald,
+  ACCENT_THEME_PALETTES.indigo,
   ACCENT_THEME_PALETTES.cyan,
   ACCENT_THEME_PALETTES.teal,
-  ACCENT_THEME_PALETTES.indigo,
-  ACCENT_THEME_PALETTES.violet,
+  ACCENT_THEME_PALETTES.orange,
+  ACCENT_THEME_PALETTES.red,
+  ACCENT_THEME_PALETTES.burgundy,
   ACCENT_THEME_PALETTES.pink,
-  ACCENT_THEME_PALETTES.fuchsia,
-  ACCENT_THEME_PALETTES.stone,
 ];
 
 export const THEME_MODE_STORAGE_KEY = 'pos_theme';
 export const ACCENT_THEME_STORAGE_KEY = 'pos_accent_theme';
+export const CUSTOM_ACCENT_HEX_STORAGE_KEY = 'pos_custom_accent_hex';
 export const DEFAULT_ACCENT_THEME: AccentThemeId = 'purple';
+export const DEFAULT_CUSTOM_ACCENT_HEX = '#2563EB';
 
-export function isValidAccentTheme(value: unknown): value is AccentThemeId {
-  return typeof value === 'string' && value in ACCENT_THEME_PALETTES;
+const LEGACY_ACCENT_ALIASES: Record<string, PresetAccentThemeId> = {
+  violet: 'purple',
+  fuchsia: 'pink',
+  rose: 'pink',
+  amber: 'orange',
+  gold: 'orange',
+  bronze: 'orange',
+  sky: 'cyan',
+  blue: 'indigo',
+  emerald: 'teal',
+  green: 'teal',
+  lime: 'teal',
+  slate: 'indigo',
+  stone: 'indigo',
+};
+
+const HEX_COLOR_RE = /^#[0-9A-F]{6}$/i;
+
+export function normalizeHexColor(hex?: string | null, fallback = DEFAULT_CUSTOM_ACCENT_HEX): string {
+  if (typeof hex !== 'string') return fallback;
+  const trimmed = hex.trim();
+  const normalized = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  return HEX_COLOR_RE.test(normalized) ? normalized.toUpperCase() : fallback;
 }
 
-export function resolveAccentPalette(accentId?: string | null): AccentThemePalette {
-  if (isValidAccentTheme(accentId)) {
-    return ACCENT_THEME_PALETTES[accentId];
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = normalizeHexColor(hex).slice(1);
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l * 100];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === rn) h = (gn - bn) / d + (gn < bn ? 6 : 0);
+  else if (max === gn) h = (bn - rn) / d + 2;
+  else h = (rn - gn) / d + 4;
+  return [h * 60, s * 100, l * 100];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const hue = ((h % 360) + 360) % 360;
+  const sat = Math.max(0, Math.min(100, s)) / 100;
+  const light = Math.max(0, Math.min(100, l)) / 100;
+
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = light - c / 2;
+  let rn = 0;
+  let gn = 0;
+  let bn = 0;
+
+  if (hue < 60) [rn, gn, bn] = [c, x, 0];
+  else if (hue < 120) [rn, gn, bn] = [x, c, 0];
+  else if (hue < 180) [rn, gn, bn] = [0, c, x];
+  else if (hue < 240) [rn, gn, bn] = [0, x, c];
+  else if (hue < 300) [rn, gn, bn] = [x, 0, c];
+  else [rn, gn, bn] = [c, 0, x];
+
+  const toHex = (val: number) =>
+    Math.round((val + m) * 255)
+      .toString(16)
+      .padStart(2, '0')
+      .toUpperCase();
+
+  return `#${toHex(rn)}${toHex(gn)}${toHex(bn)}`;
+}
+
+function generateScaleFromHsl(hue: number, sat: number, baseLightness: number, exactHex?: string): ShadeScale {
+  const clamped600 = Math.min(48, Math.max(24, baseLightness));
+  const clamped500 = Math.min(60, Math.max(36, clamped600 + 8));
+  return {
+    50: hslToHex(hue, Math.min(sat, 95), 97),
+    100: hslToHex(hue, Math.min(sat, 92), 93),
+    200: hslToHex(hue, Math.min(sat, 88), 86),
+    300: hslToHex(hue, Math.min(sat, 86), 76),
+    400: hslToHex(hue, sat, 64),
+    500: exactHex || hslToHex(hue, sat, clamped500),
+    600: hslToHex(hue, sat, clamped600),
+    700: hslToHex(hue, Math.min(100, sat + 4), Math.max(18, clamped600 - 8)),
+    800: hslToHex(hue, Math.min(100, sat + 5), Math.max(14, clamped600 - 15)),
+    900: hslToHex(hue, Math.min(100, sat + 6), Math.max(10, clamped600 - 21)),
+    950: hslToHex(hue, Math.min(100, sat + 8), 8),
+  };
+}
+
+export function buildCustomAccentPalette(rawHex?: string | null): AccentThemePalette {
+  const baseHex = normalizeHexColor(rawHex, DEFAULT_CUSTOM_ACCENT_HEX);
+  const [r, g, b] = hexToRgbTuple(baseHex);
+  const [h, s, l] = rgbToHsl(r, g, b);
+  const companionHue = (h + 24) % 360;
+  const companionSat = Math.max(12, Math.min(92, s));
+  const primaryScale = generateScaleFromHsl(h, s, l, baseHex);
+  const companionScale = generateScaleFromHsl(companionHue, companionSat, Math.max(24, l - 6));
+  const companionHex = companionScale[600];
+  const [cr, cg, cb] = hexToRgbTuple(companionHex);
+
+  return buildPalette({
+    id: 'custom',
+    name: 'Custom',
+    companionName: baseHex,
+    baseHex,
+    companionHex,
+    primaryRgb: `${r}, ${g}, ${b}`,
+    companionRgb: `${cr}, ${cg}, ${cb}`,
+    darkSurfaceBg: hslToHex(h, Math.min(s, 55), 8),
+    primaryScale,
+    companionScale,
+  });
+}
+
+export function isValidAccentTheme(value: unknown): value is AccentThemeId {
+  return typeof value === 'string' && (value === 'custom' || value in ACCENT_THEME_PALETTES);
+}
+
+export function normalizeAccentThemeId(value: unknown): AccentThemeId | null {
+  if (typeof value !== 'string') return null;
+  if (isValidAccentTheme(value)) return value;
+  if (value in LEGACY_ACCENT_ALIASES) return LEGACY_ACCENT_ALIASES[value];
+  return null;
+}
+
+export function getStoredCustomAccentHex(): string {
+  if (typeof window === 'undefined') return DEFAULT_CUSTOM_ACCENT_HEX;
+  try {
+    return normalizeHexColor(
+      window.localStorage?.getItem(CUSTOM_ACCENT_HEX_STORAGE_KEY),
+      DEFAULT_CUSTOM_ACCENT_HEX
+    );
+  } catch {
+    return DEFAULT_CUSTOM_ACCENT_HEX;
   }
-  return ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME];
+}
+
+export function persistCustomAccentHex(hex: string): string {
+  const valid = normalizeHexColor(hex, DEFAULT_CUSTOM_ACCENT_HEX);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.setItem(CUSTOM_ACCENT_HEX_STORAGE_KEY, valid);
+    } catch {
+      // ignore storage quota errors
+    }
+  }
+  return valid;
+}
+
+export function resolveAccentPalette(
+  accentId?: string | null,
+  customHex?: string | null
+): AccentThemePalette {
+  const normalized = normalizeAccentThemeId(accentId);
+  if (normalized === 'custom') {
+    return buildCustomAccentPalette(customHex ?? getStoredCustomAccentHex());
+  }
+  if (normalized && normalized in ACCENT_THEME_PALETTES) {
+    return ACCENT_THEME_PALETTES[normalized];
+  }
+  return ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME as PresetAccentThemeId];
 }
 
 export function getStoredAccentThemeOrNull(): AccentThemeId | null {
   if (typeof window === 'undefined') return null;
   try {
     const stored = window.localStorage?.getItem(ACCENT_THEME_STORAGE_KEY);
-    return isValidAccentTheme(stored) ? stored : null;
+    return normalizeAccentThemeId(stored);
   } catch {
     return null;
   }
@@ -515,7 +565,7 @@ export function getStoredAccentTheme(): AccentThemeId {
 }
 
 export function persistAccentTheme(accentId: AccentThemeId): AccentThemeId {
-  const valid = isValidAccentTheme(accentId) ? accentId : DEFAULT_ACCENT_THEME;
+  const valid = normalizeAccentThemeId(accentId) ?? DEFAULT_ACCENT_THEME;
   if (typeof window !== 'undefined') {
     try {
       window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, valid);
@@ -551,20 +601,26 @@ export function updatePwaThemeColorMeta(colorHex: string): void {
 }
 
 export function getActivePwaThemeColor(
-  fallback: string = ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME].baseHex
+  fallback: string = ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME as PresetAccentThemeId].baseHex
 ): string {
   if (
     typeof document !== 'undefined' &&
     document.documentElement &&
     typeof document.documentElement.getAttribute === 'function'
   ) {
-    const attrAccent = document.documentElement.getAttribute('data-accent-theme');
-    if (isValidAccentTheme(attrAccent)) {
+    const attrAccent = normalizeAccentThemeId(document.documentElement.getAttribute('data-accent-theme'));
+    if (attrAccent === 'custom') {
+      return getStoredCustomAccentHex();
+    }
+    if (attrAccent && attrAccent in ACCENT_THEME_PALETTES) {
       return ACCENT_THEME_PALETTES[attrAccent].baseHex;
     }
   }
   const storedAccent = getStoredAccentThemeOrNull();
-  if (storedAccent) {
+  if (storedAccent === 'custom') {
+    return getStoredCustomAccentHex();
+  }
+  if (storedAccent && storedAccent in ACCENT_THEME_PALETTES) {
     return ACCENT_THEME_PALETTES[storedAccent].baseHex;
   }
   return fallback;
@@ -577,8 +633,11 @@ const SHADE_KEYS: Array<keyof ShadeScale> = [50, 100, 200, 300, 400, 500, 600, 7
  * and Tailwind v4 utility classes (primary-*, from-purple-*, via-indigo-*, bg-purple-*, text-purple-*, etc.)
  * adapt seamlessly in real time across buttons, card headers, footers, inputs, and PWA theme-color.
  */
-export function applyAccentThemeToDOM(accentId: AccentThemeId): AccentThemePalette {
-  const palette = resolveAccentPalette(accentId);
+export function applyAccentThemeToDOM(
+  accentId: AccentThemeId,
+  customHex?: string | null
+): AccentThemePalette {
+  const palette = resolveAccentPalette(accentId, customHex);
   if (typeof document === 'undefined') return palette;
 
   const root = document.documentElement;

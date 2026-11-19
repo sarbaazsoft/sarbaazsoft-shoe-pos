@@ -66,10 +66,10 @@ All engineers, contributors, and automated agents working in this repository mus
 
 | Layer | Technologies | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | React 19, TypeScript, Tailwind CSS v4, Lucide Icons, Motion | High-density counter POS UI, modals, analytics, responsive design |
-| **Backend** | Node.js, Express, tsx | Multi-tenant REST API, SSE streaming, authentication, PDF generation |
+| **Frontend** | React 19, TypeScript, Tailwind CSS v4, Lucide Icons, Motion, jsPDF | High-density counter POS UI, modals, analytics, client PDF export, responsive design |
+| **Backend** | Node.js (v22+ ESM / `node server.ts` in prod, `tsx` in dev), Express | Multi-tenant REST API, SSE streaming, authentication, HTML email receipt templates |
 | **Database** | PostgreSQL (`pg` connection pool) | Relational tenant isolation, footwear catalog, inventory, ledger, SaaS control plane |
-| **Build & Dev** | Vite 8, TypeScript 7 | Hot-module dev server, optimized production bundling |
+| **Build & Dev** | Vite 8, TypeScript 7 | Development middleware (`vite.middlewares`) and production bundling (`vite build`) |
 | **Hardware** | WebUSB API, TSPL, ESC/POS | Direct thermal receipt and barcode label printing without external drivers |
 | **Offline** | IndexedDB, Service Worker, LocalStorage | Full POS checkout and stock deduction when internet connectivity drops |
 
@@ -79,7 +79,7 @@ All engineers, contributors, and automated agents working in this repository mus
 
 ### 1. Multi-Tenant SaaS Control Plane
 - **Tenant Isolation:** Stores are isolated via PostgreSQL `tenant_id` foreign keys and URL resolution (`?tenantId=<id>`).
-- **Dynamic Store PWA Manifests:** `/api/tenants/manifest?tenantId=<id>` generates per-store names, icons, and standalone launcher shortcuts.
+- **Dynamic Store PWA Manifests:** `/api/pwa/manifest.webmanifest` generates per-store and SuperAdmin names, icons, and standalone launcher shortcuts.
 - **30-Day Free Trial Activations:** Instant store onboarding with automatic 30-day trial creation, staff account provisioning, and welcome email dispatch.
 - **Subscription Tracking:** SuperAdmin overview for active, expiring, expired, and suspended stores with one-click trial extensions.
 
@@ -115,39 +115,43 @@ All engineers, contributors, and automated agents working in this repository mus
 
 ```
 .
-├── server.ts                       # Full-stack entry point (Express + Vite middlewares)
+├── server.ts                       # Unified Node.js + Express entry point (vite.middlewares in dev, /dist in prod)
 ├── index.html                      # HTML5 entry with synced metadata
 ├── metadata.json                   # AI Studio applet capabilities and permissions
 ├── package.json                    # Project dependencies and npm scripts
-├── .env.example                    # Environment variable documentation (no secrets)
+├── .env.example                    # Environment variable template (DATABASE_URL, JWT_SECRET)
 │
 ├── src/
 │   ├── main.tsx                    # React client entry point
 │   ├── App.tsx                     # Top-level routing & role-based view orchestration
 │   ├── types.ts                    # Strict TypeScript interfaces across full stack
+│   ├── hooks/                      # Live data fetch, PWA install, idle logout, and UI hooks
+│   ├── services/                   # API client (`api.ts`), Firebase push config, offline queue sync
 │   │
 │   ├── components/
-│   │   ├── auth/                   # Login, signup, password reset modals
-│   │   ├── common/                 # Header, Sidebar, StatCard, ThemeDropdown, BarcodeSvg
-│   │   ├── inventory/              # ProductFormModal, BarcodeGeneratorTool, Categories, Brands
-│   │   ├── pos/                    # Cart, CheckoutModal, InvoicePrintModal, QuickKeys
-│   │   ├── saas/                   # SuperAdminControlPanel, ReportsView, FreeTrialModal
-│   │   └── settings/               # CompanySettings, EmailSettings, PrinterSettings
+│   │   ├── auth/                   # AuthModal, UserProfileModal, VerifyEmailNoticeView
+│   │   ├── common/                 # Header, Sidebar, StatCard, ThemeDropdown, BarcodeSvg, RouteSkeletons
+│   │   ├── inventory/              # ProductFormModal, BarcodeGeneratorTool, StockLedgerView, CsvImportModal
+│   │   ├── pos/                    # PosTerminal, QuickReceiveChips, ShoeExchangeModal, InvoicePrintModal, OfflineSyncModal
+│   │   ├── saas/                   # SuperAdminControlPanel, SuperAdminReportsView, SaasLandingPage, FreeTrialOnboardingModal
+│   │   └── settings/               # SettingsView, PrinterHardwareSettings, DataBackupRestore, CreateStaffModal
 │   │
 │   ├── context/
-│   │   └── ThemeContext.tsx        # 3-way theme state (light, dark, system)
+│   │   └── ThemeContext.tsx        # 3-way theme state (light, dark, system) + 11 accent palettes
 │   │
 │   ├── db/
 │   │   ├── index.ts                # PostgreSQL connection pool and query executor
-│   │   └── schemaInit.ts           # Automatic database schema initialization & migrations
+│   │   ├── schemaInit.ts           # Automatic database schema initialization & migrations
+│   │   └── tenantDb.ts             # Tenant-scoped SQL query helpers
 │   │
 │   ├── server/
 │   │   ├── auth.ts                 # JWT signing, cookie verification, RBAC guards
-│   │   ├── gemini.ts               # Gemini AI footwear vision & catalog auto-fill
+│   │   ├── gemini.ts               # Gemini AI assistant client
+│   │   ├── pushNotificationService.ts # SSE broadcasting, FCM push dispatch, and trial lifecycle alerts
 │   │   ├── middleware/             # Shared-domain multi-tenant routing middleware
-│   │   ├── routes/                 # Express API routes (pos, products, auth, saas, settings...)
-│   │   ├── services/               # appSettingsService, welcomeService, pushNotificationService
-│   │   └── utils/email.ts          # Resend & Gmail SMTP email dispatch engine
+│   │   ├── routes/                 # Express API routes (pos, products, auth, tenantSaas, settings...)
+│   │   ├── services/               # appSettingsService, emailAlertService, ledgerService, welcomeService
+│   │   └── utils/                  # email.ts, staticCacheHeaders.ts, windowsExePatcher.ts
 │   │
 │   └── utils/
 │       ├── audio.ts                # Web Audio scanner laser chimes & alerts
@@ -164,7 +168,7 @@ All engineers, contributors, and automated agents working in this repository mus
 
 ## 🔐 Environment Configuration
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root (see `.env.example`):
 
 ```env
 # Required: PostgreSQL connection URL
@@ -172,9 +176,6 @@ DATABASE_URL=postgresql://user:password@localhost:5432/shoe_pos
 
 # Required: JWT session token secret
 JWT_SECRET=your-super-secure-jwt-secret-key-2026
-
-# Optional: Google Gemini AI API key (for footwear AI catalog vision)
-GEMINI_API_KEY=your-gemini-api-key
 ```
 
 > **Important Reminder:**  

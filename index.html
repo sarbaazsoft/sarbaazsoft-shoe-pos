@@ -66,23 +66,47 @@
           }
           const accentMetaColors = {
             purple: '#9333EA',
-            red: '#F44336',
-            orange: '#F97316',
-            emerald: '#10B981',
+            indigo: '#4F46E5',
             cyan: '#06B6D4',
-            teal: '#14B8A6',
-            indigo: '#6366F1',
-            violet: '#8B5CF6',
-            pink: '#EC4899',
-            fuchsia: '#D946EF',
-            stone: '#78716C'
+            teal: '#0D9488',
+            orange: '#F97316',
+            red: '#EF4444',
+            burgundy: '#9F1239',
+            pink: '#EC4899'
           };
-          const storedAccent = localStorage.getItem('pos_accent_theme');
-          const activeAccent = storedAccent && accentMetaColors[storedAccent] ? storedAccent : 'purple';
+          const accentAliases = {
+            violet: 'purple',
+            fuchsia: 'pink',
+            rose: 'pink',
+            amber: 'orange',
+            gold: 'orange',
+            bronze: 'orange',
+            sky: 'cyan',
+            blue: 'indigo',
+            emerald: 'teal',
+            green: 'teal',
+            lime: 'teal',
+            slate: 'indigo',
+            stone: 'indigo'
+          };
+          const rawStoredAccent = localStorage.getItem('pos_accent_theme');
+          const mappedAccent = rawStoredAccent && accentAliases[rawStoredAccent] ? accentAliases[rawStoredAccent] : rawStoredAccent;
+          let activeAccent = 'purple';
+          let activeHex = accentMetaColors.purple;
+          if (mappedAccent === 'custom') {
+            const storedCustomHex = localStorage.getItem('pos_custom_accent_hex');
+            if (storedCustomHex && /^#[0-9A-F]{6}$/i.test(storedCustomHex)) {
+              activeAccent = 'custom';
+              activeHex = storedCustomHex.toUpperCase();
+            }
+          } else if (mappedAccent && accentMetaColors[mappedAccent]) {
+            activeAccent = mappedAccent;
+            activeHex = accentMetaColors[mappedAccent];
+          }
           document.documentElement.setAttribute('data-accent-theme', activeAccent);
           const metaTheme = document.querySelector('meta[name="theme-color"]');
           if (metaTheme) {
-            metaTheme.setAttribute('content', accentMetaColors[activeAccent]);
+            metaTheme.setAttribute('content', activeHex);
           }
         } catch (e) {}
       })();

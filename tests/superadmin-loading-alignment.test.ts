@@ -10,6 +10,7 @@ import {
   FeedLedgerSkeleton,
   RouteSkeleton,
 } from '../src/components/common/RouteSkeletons.tsx';
+import { SuperAdminReportsView } from '../src/components/saas/SuperAdminReportsView.tsx';
 
 const ROOT = process.cwd();
 
@@ -126,5 +127,132 @@ describe('SuperAdmin & Store Loading UI Alignment', () => {
     assert.ok(directorySkeletonHtml.includes('aria-label="Loading directory workspace"'));
     assert.ok(manifestsSkeletonHtml.includes('aria-label="Loading directory workspace"'));
     assert.ok(notificationsSkeletonHtml.includes('aria-label="Loading activity feed"'));
+  });
+
+  it('renders SuperAdminReportsView recent transactions and products without duplicate or undefined React keys', () => {
+    const reportsSrc = readSrc('src/components/saas/SuperAdminReportsView.tsx');
+    assert.equal(
+      /key=\{`[^`]*-\$\{(?:tx|item)\.id\}`\}/.test(reportsSrc),
+      false,
+      'SuperAdminReportsView must not use bare nullable .id template keys without fallbacks/index'
+    );
+
+    const originalConsoleError = console.error;
+    const errorMessages: string[] = [];
+    console.error = (...args: unknown[]) => {
+      errorMessages.push(args.map((a) => String(a)).join(' '));
+    };
+
+    try {
+      const html = renderToStaticMarkup(
+        React.createElement(SuperAdminReportsView, {
+          stores: [
+            {
+              id: 5,
+              name: 'Apex Shoes',
+              status: 'ACTIVE',
+              subscriptionStatus: 'ACTIVE',
+              subscriptionPlan: 'YEARLY',
+              subscriptionStartDate: '2026-01-01',
+              subscriptionEndDate: '2027-01-01',
+              logoUrl: '/pwa-192x192.png',
+              ownerEmail: 'apex@example.com',
+              ownerPhone: '03001234567',
+              address: 'Market Road',
+              taxId: 'NTN-5',
+              currency: 'Rs.',
+              onboardingCompleted: true,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              productCount: 10,
+              totalStockUnits: 100,
+              salesCount: 2,
+              totalSales: 5000,
+              staffCount: 3,
+            },
+            {
+              id: 1,
+              name: 'Prime Footwear',
+              status: 'ACTIVE',
+              subscriptionStatus: 'ACTIVE',
+              subscriptionPlan: 'YEARLY',
+              subscriptionStartDate: '2026-01-01',
+              subscriptionEndDate: '2027-01-01',
+              logoUrl: '/pwa-192x192.png',
+              ownerEmail: 'prime@example.com',
+              ownerPhone: '03007654321',
+              address: 'Main Boulevard',
+              taxId: 'NTN-1',
+              currency: 'Rs.',
+              onboardingCompleted: true,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              productCount: 8,
+              totalStockUnits: 80,
+              salesCount: 2,
+              totalSales: 4000,
+              staffCount: 2,
+            },
+          ],
+          reportProducts: [],
+          reportCategories: [],
+          recentTransactions: [
+            {
+              tenantId: 5,
+              storeName: 'Apex Shoes',
+              reference: 'INV-5001',
+              amount: 2500,
+              currency: 'Rs.',
+              type: 'Sale',
+              date: '2026-11-19T10:00:00.000Z',
+              timeString: '10:00 AM',
+            },
+            {
+              tenantId: 5,
+              storeName: 'Apex Shoes',
+              reference: 'INV-5002',
+              amount: 1500,
+              currency: 'Rs.',
+              type: 'Sale',
+              date: '2026-11-19T10:05:00.000Z',
+              timeString: '10:05 AM',
+            },
+            {
+              tenantId: 1,
+              storeName: 'Prime Footwear',
+              reference: 'INV-1001',
+              amount: 3000,
+              currency: 'Rs.',
+              type: 'Sale',
+              date: '2026-11-19T10:10:00.000Z',
+              timeString: '10:10 AM',
+            },
+            {
+              tenantId: 1,
+              storeName: 'Prime Footwear',
+              reference: 'RET-1002',
+              amount: 900,
+              currency: 'Rs.',
+              type: 'Return',
+              date: '2026-11-19T10:15:00.000Z',
+              timeString: '10:15 AM',
+            },
+          ],
+          loading: false,
+          onRefresh: () => {},
+          onOpenStore: () => {},
+        })
+      );
+
+      assert.ok(html.includes('INV-5001'));
+      assert.ok(html.includes('INV-5002'));
+      assert.ok(html.includes('INV-1001'));
+      assert.ok(html.includes('RET-1002'));
+      assert.equal(
+        errorMessages.some((msg) => msg.includes('same key')),
+        false,
+        `Expected no React duplicate key warnings, got: ${errorMessages.join(' | ')}`
+      );
+    } finally {
+      console.error = originalConsoleError;
+    }
   });
 });

@@ -81,3 +81,26 @@ test('generateWholesaleQuickReceiveChips: caps at invoice + ledger balance for w
   });
   assert.equal(displayWholesale[displayWholesale.length - 1].label, 'Pay All');
 });
+
+test('PosTerminal Wholesale Cash payment displays single theme-colored Amount Received block without duplicate green tender controls', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const posSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/pos/PosTerminal.tsx'), 'utf8');
+
+  // Only one Amount Received header & input
+  assert.equal((posSrc.match(/Amount Received \(Payment Collected Now\)/g) || []).length, 1);
+  assert.equal((posSrc.match(/id="pos-amount-received"/g) || []).length, 1);
+
+  // Duplicate green quick-add block (+500 / +1,000 / +5,000 with bg-emerald-600 Exact) is removed
+  assert.equal(posSrc.includes('addQuickCash('), false);
+  assert.equal(posSrc.includes('setExactCash'), false);
+  assert.equal(posSrc.includes('Cash Received Tender & Quick Cash Buttons'), false);
+
+  // Change Given lives inside the primary Amount Received card with dynamic theme colors (purple-* mapped to --primary-*)
+  const changeIdx = posSrc.indexOf('<span>Change Given:</span>');
+  const khataIdx = posSrc.indexOf('<span>Dealer Khata Balance</span>');
+  assert.ok(changeIdx > 0 && khataIdx > changeIdx, 'Change Given should sit inside the primary Amount Received section before Dealer Khata Balance');
+  const changeSnippet = posSrc.slice(Math.max(0, changeIdx - 220), changeIdx + 120);
+  assert.ok(changeSnippet.includes('bg-purple-50/75') && !changeSnippet.includes('bg-emerald-50'));
+});
+

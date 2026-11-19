@@ -656,6 +656,7 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
 
     const recentTxRes = await pgClient
       .query<{
+        id: number;
         tenant_id: number;
         type: string;
         reference: string;
@@ -668,6 +669,7 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
       }>(`
         SELECT * FROM (
           SELECT
+            s.id,
             s.tenant_id,
             'Sale' AS type,
             s.invoice_number AS reference,
@@ -683,6 +685,7 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
           LEFT JOIN customers c ON c.id = s.customer_id AND c.tenant_id = s.tenant_id
           UNION ALL
           SELECT
+            pu.id,
             pu.tenant_id,
             'Purchase' AS type,
             pu.purchase_number AS reference,
@@ -697,6 +700,7 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
           LEFT JOIN company_settings cs ON cs.tenant_id = t.id
           UNION ALL
           SELECT
+            r.id,
             r.tenant_id,
             'Return' AS type,
             r.return_number AS reference,
@@ -920,22 +924,29 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
       txCount: parseInt(r.tx_count || '0', 10),
     }));
 
-    const recentTransactions = recentTxRes.rows.map((r) => {
+    const recentTransactions = recentTxRes.rows.map((r, idx) => {
       const dt = r.created_at ? new Date(r.created_at) : new Date();
+      const parsedAmount = parseFloat(r.amount || '0');
+      const txType = r.type || 'Sale';
+      const formattedTime = dt.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
       return {
+        id: `${txType.toLowerCase()}-${r.id ?? idx}`,
         tenantId: r.tenant_id,
-        type: r.type || 'Sale',
+        type: txType,
         reference: r.reference || '',
+        invoiceNumber: r.reference || '',
         storeName: r.store_name || '',
         customerName: r.customer_name || 'Walk-in Customer',
-        amount: parseFloat(r.amount || '0'),
+        amount: parsedAmount,
+        totalAmount: parsedAmount,
         currency: r.currency || 'Rs.',
         status: r.status || 'Completed',
         date: dt.toISOString(),
-        timeString: dt.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        saleDate: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + `, ${formattedTime}`,
+        timeString: formattedTime,
       };
     });
 

@@ -8,15 +8,20 @@ import {
   ACCENT_THEME_LIST,
   ACCENT_THEME_PALETTES,
   ACCENT_THEME_STORAGE_KEY,
+  CUSTOM_ACCENT_HEX_STORAGE_KEY,
   DEFAULT_ACCENT_THEME,
   THEME_MODE_STORAGE_KEY,
   applyAccentThemeToDOM,
+  buildCustomAccentPalette,
   getActivePwaThemeColor,
   getStoredAccentTheme,
   isValidAccentTheme,
+  normalizeAccentThemeId,
   persistAccentTheme,
+  persistCustomAccentHex,
   resolveAccentPalette,
   type AccentThemeId,
+  type PresetAccentThemeId,
   type ShadeScale,
 } from '../src/utils/themePalettes.ts';
 import { resolvePwaBranding } from '../src/utils/pwaBranding.ts';
@@ -42,29 +47,37 @@ function collectTsFiles(dir: string): string[] {
 }
 
 describe('Multi-Color Brand Gradient Palettes', () => {
-  const expectedBaseHexes: Record<AccentThemeId, string> = {
+  const expectedBaseHexes: Record<PresetAccentThemeId, string> = {
     purple: '#9333EA',
-    red: '#F44336',
-    orange: '#F97316',
-    emerald: '#10B981',
+    indigo: '#4F46E5',
     cyan: '#06B6D4',
-    teal: '#14B8A6',
-    indigo: '#6366F1',
-    violet: '#8B5CF6',
+    teal: '#0D9488',
+    orange: '#F97316',
+    red: '#EF4444',
+    burgundy: '#9F1239',
     pink: '#EC4899',
-    fuchsia: '#D946EF',
-    stone: '#78716C',
   };
 
-  it('exposes the default purple-indigo theme plus all 10 user-requested accent colors', () => {
+  it('exposes 8 non-duplicate distinct primary color presets without look-alike or removed clones', () => {
     assert.equal(DEFAULT_ACCENT_THEME, 'purple');
-    assert.equal(ACCENT_THEME_LIST.length, 11);
+    assert.equal(ACCENT_THEME_LIST.length, 8);
 
     const ids = ACCENT_THEME_LIST.map((p) => p.id);
-    for (const [id, hex] of Object.entries(expectedBaseHexes) as Array<[AccentThemeId, string]>) {
+    for (const [id, hex] of Object.entries(expectedBaseHexes) as Array<[PresetAccentThemeId, string]>) {
       assert.ok(ids.includes(id), `Expected theme "${id}" in ACCENT_THEME_LIST`);
       assert.equal(ACCENT_THEME_PALETTES[id].baseHex.toUpperCase(), hex);
     }
+
+    // Ensure removed/duplicate clone IDs (bronze, slate, gold, lime, blue, emerald, violet, rose, fuchsia, amber, sky, green, stone) are excluded from the preset picker
+    for (const removed of ['bronze', 'slate', 'gold', 'lime', 'blue', 'emerald', 'violet', 'rose', 'fuchsia', 'amber', 'sky', 'green', 'stone']) {
+      assert.equal(ids.includes(removed as AccentThemeId), false, `Removed/duplicate preset "${removed}" should not appear in picker`);
+    }
+
+    // Ensure every preset has unique baseHex and unique buttonGradient
+    const uniqueHexes = new Set(ACCENT_THEME_LIST.map((p) => p.baseHex.toUpperCase()));
+    const uniqueGradients = new Set(ACCENT_THEME_LIST.map((p) => p.buttonGradient));
+    assert.equal(uniqueHexes.size, ACCENT_THEME_LIST.length);
+    assert.equal(uniqueGradients.size, ACCENT_THEME_LIST.length);
   });
 
   it('defines complete 50..950 shade scales and valid gradient strings for every palette', () => {
@@ -106,15 +119,46 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     }
   });
 
-  it('validates accent IDs and safely falls back to purple for unknown values', () => {
-    assert.equal(isValidAccentTheme('emerald'), true);
-    assert.equal(isValidAccentTheme('stone'), true);
+  it('validates accent IDs, maps removed legacy aliases smoothly, and builds valid Custom Hex palettes', () => {
+    assert.equal(isValidAccentTheme('teal'), true);
+    assert.equal(isValidAccentTheme('burgundy'), true);
+    assert.equal(isValidAccentTheme('bronze'), false);
+    assert.equal(isValidAccentTheme('slate'), false);
+    assert.equal(isValidAccentTheme('gold'), false);
+    assert.equal(isValidAccentTheme('lime'), false);
+    assert.equal(isValidAccentTheme('blue'), false);
+    assert.equal(isValidAccentTheme('emerald'), false);
+    assert.equal(isValidAccentTheme('custom'), true);
     assert.equal(isValidAccentTheme('unknown-color'), false);
     assert.equal(isValidAccentTheme(null), false);
 
+    assert.equal(normalizeAccentThemeId('violet'), 'purple');
+    assert.equal(normalizeAccentThemeId('rose'), 'pink');
+    assert.equal(normalizeAccentThemeId('amber'), 'orange');
+    assert.equal(normalizeAccentThemeId('gold'), 'orange');
+    assert.equal(normalizeAccentThemeId('bronze'), 'orange');
+    assert.equal(normalizeAccentThemeId('sky'), 'cyan');
+    assert.equal(normalizeAccentThemeId('blue'), 'indigo');
+    assert.equal(normalizeAccentThemeId('slate'), 'indigo');
+    assert.equal(normalizeAccentThemeId('emerald'), 'teal');
+    assert.equal(normalizeAccentThemeId('lime'), 'teal');
+
     assert.equal(resolveAccentPalette('cyan').id, 'cyan');
+    assert.equal(resolveAccentPalette('violet').id, 'purple');
+    assert.equal(resolveAccentPalette('gold').id, 'orange');
+    assert.equal(resolveAccentPalette('bronze').id, 'orange');
+    assert.equal(resolveAccentPalette('slate').id, 'indigo');
     assert.equal(resolveAccentPalette('invalid').id, 'purple');
     assert.equal(resolveAccentPalette(undefined).id, 'purple');
+
+    const custom = buildCustomAccentPalette('#1A73E8');
+    assert.equal(custom.id, 'custom');
+    assert.equal(custom.baseHex, '#1A73E8');
+    assert.equal(custom.primaryRgb, '26, 115, 232');
+    for (const shade of SHADES) {
+      assert.match(custom.primaryScale[shade], HEX_RE);
+      assert.match(custom.companionScale[shade], HEX_RE);
+    }
   });
 
   it('applyAccentThemeToDOM updates root CSS variables, Tailwind scale overrides, and theme-color meta tag', () => {
@@ -137,19 +181,24 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     };
 
     try {
-      const applied = applyAccentThemeToDOM('emerald');
-      assert.equal(applied.id, 'emerald');
-      assert.equal(attrs.get('data-accent-theme'), 'emerald');
-      assert.equal(props.get('--primary'), '#059669');
-      assert.equal(props.get('--primary-light'), '#10B981');
-      assert.equal(props.get('--brand-companion'), '#0D9488');
-      assert.equal(props.get('--color-purple-600'), '#059669');
-      assert.equal(props.get('--color-indigo-600'), '#0D9488');
-      assert.equal(props.get('--color-primary-600'), '#059669');
+      const applied = applyAccentThemeToDOM('teal');
+      assert.equal(applied.id, 'teal');
+      assert.equal(attrs.get('data-accent-theme'), 'teal');
+      assert.equal(props.get('--primary'), applied.primaryScale[600]);
+      assert.equal(props.get('--primary-light'), applied.primaryScale[500]);
+      assert.equal(props.get('--brand-companion'), applied.companionScale[600]);
+      assert.equal(props.get('--color-purple-600'), applied.primaryScale[600]);
+      assert.equal(props.get('--color-indigo-600'), applied.companionScale[600]);
+      assert.equal(props.get('--color-primary-600'), applied.primaryScale[600]);
       assert.equal(props.get('--brand-btn-gradient'), applied.buttonGradient);
       assert.equal(props.get('--brand-header-gradient-dark'), applied.cardHeaderGradientDark);
       assert.equal(props.get('--brand-footer-gradient-light'), applied.cardFooterGradientLight);
-      assert.equal(metaAttrs.get('content'), '#10B981');
+      assert.equal(metaAttrs.get('content'), '#0D9488');
+
+      const appliedCustom = applyAccentThemeToDOM('custom', '#FF5722');
+      assert.equal(appliedCustom.id, 'custom');
+      assert.equal(attrs.get('data-accent-theme'), 'custom');
+      assert.equal(metaAttrs.get('content'), '#FF5722');
     } finally {
       if (originalDoc === undefined) {
         delete (globalThis as { document?: unknown }).document;
@@ -159,7 +208,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     }
   });
 
-  it('persists selected accent theme in localStorage and restores or falls back safely', () => {
+  it('persists selected accent theme and custom hex in localStorage and restores or falls back safely', () => {
     const storage = new Map<string, string>();
     const originalWin = (globalThis as { window?: unknown }).window;
     (globalThis as { window?: unknown }).window = {
@@ -177,6 +226,9 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       persistAccentTheme('teal');
       assert.equal(storage.get(ACCENT_THEME_STORAGE_KEY), 'teal');
       assert.equal(getStoredAccentTheme(), 'teal');
+
+      persistCustomAccentHex('#0ea5e9');
+      assert.equal(storage.get(CUSTOM_ACCENT_HEX_STORAGE_KEY), '#0EA5E9');
 
       storage.set(ACCENT_THEME_STORAGE_KEY, 'not-a-theme');
       assert.equal(getStoredAccentTheme(), 'purple');
@@ -201,7 +253,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       };
     };
 
-    metaTags.set('meta[name="theme-color"]', createdMeta({ name: 'theme-color', content: '#14B8A6' }));
+    metaTags.set('meta[name="theme-color"]', createdMeta({ name: 'theme-color', content: '#0D9488' }));
     const manifestLink = createdMeta({ rel: 'manifest', href: '/manifest.webmanifest' });
 
     const originalDoc = (globalThis as { document?: unknown }).document;
@@ -226,12 +278,12 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     };
 
     try {
-      assert.equal(getActivePwaThemeColor('#9333EA'), '#14B8A6');
+      assert.equal(getActivePwaThemeColor('#9333EA'), '#0D9488');
       const branding = resolvePwaBranding({ role: 'admin', saasMode: 'tenant' });
       assert.equal(branding.themeColor, '#9333EA');
 
       syncPwaMetadataToDocument(branding);
-      assert.equal(metaTags.get('meta[name="theme-color"]')?.getAttribute('content'), '#14B8A6');
+      assert.equal(metaTags.get('meta[name="theme-color"]')?.getAttribute('content'), '#0D9488');
 
       syncPwaMetadataToDocument(branding, { themeColor: '#F97316' });
       assert.equal(metaTags.get('meta[name="theme-color"]')?.getAttribute('content'), '#F97316');
@@ -244,7 +296,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     }
   });
 
-  it('defines all 11 [data-accent-theme] CSS variable blocks and primary scale tokens in src/index.css', () => {
+  it('defines all 8 [data-accent-theme] CSS variable blocks and primary scale tokens in src/index.css', () => {
     const cssSource = readFileSync('src/index.css', 'utf8');
 
     for (const shade of SHADES) {
@@ -290,13 +342,15 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     }
   });
 
-  it('wires ThemeDropdown and index.html pre-hydration script to all 11 accent themes', () => {
+  it('wires ThemeDropdown and index.html pre-hydration script to all 8 distinct accent themes + Custom Color picker', () => {
     const dropdownSource = readFileSync('src/components/common/ThemeDropdown.tsx', 'utf8');
     assert.ok(dropdownSource.includes('ACCENT_THEME_LIST'), 'ThemeDropdown should render ACCENT_THEME_LIST');
     assert.ok(dropdownSource.includes('theme-color-option-'), 'ThemeDropdown should expose per-color option IDs');
+    assert.ok(dropdownSource.includes('theme-custom-color-input'), 'ThemeDropdown should expose custom color input');
 
     const htmlSource = readFileSync('index.html', 'utf8');
     assert.ok(htmlSource.includes('pos_accent_theme'), 'index.html should restore pos_accent_theme early');
+    assert.ok(htmlSource.includes('pos_custom_accent_hex'), 'index.html should restore pos_custom_accent_hex early');
     for (const hex of Object.values(expectedBaseHexes)) {
       assert.ok(htmlSource.includes(hex), `index.html accent map should include ${hex}`);
     }
@@ -357,11 +411,11 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       }
     };
 
-    // 1. Closed trigger in Light mode with Emerald accent: Sun icon uses emerald[600] + primary-color dot
-    const lightClosed = renderDropdown({ mode: 'light', accent: 'emerald', isOpen: false });
+    // 1. Closed trigger in Light mode with Teal accent: Sun icon uses teal[600] + primary-color dot
+    const lightClosed = renderDropdown({ mode: 'light', accent: 'teal', isOpen: false });
     assert.ok(lightClosed.includes('lucide-sun'), 'Light mode trigger renders Sun icon');
     assert.ok(
-      lightClosed.includes(`color:${ACCENT_THEME_PALETTES.emerald.primaryScale[600]}`),
+      lightClosed.includes(`color:${ACCENT_THEME_PALETTES.teal.primaryScale[600]}`),
       'Light mode trigger Sun icon should be colored with selected primaryScale[600]'
     );
     assert.ok(
@@ -369,8 +423,8 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       'Closed trigger should render primary-color dot next to selected Sun icon'
     );
     assert.ok(
-      lightClosed.includes(`background-color:${ACCENT_THEME_PALETTES.emerald.baseHex}`),
-      'Primary-color dot should be filled with selected Emerald baseHex'
+      lightClosed.includes(`background-color:${ACCENT_THEME_PALETTES.teal.baseHex}`),
+      'Primary-color dot should be filled with selected Teal baseHex'
     );
 
     // 2. Closed trigger in Dark mode with Red accent: Moon icon uses red[400] + primary-color dot
@@ -504,6 +558,65 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       'SuspendedStoreView secondary Home button should use border-2 and shadow'
     );
   });
-});
 
+  it('keeps invoice preview solid white with dark text in Light Mode, semi-transparent dark in Dark Mode, and always white paper in print', () => {
+    const modalSrc = readFileSync('src/components/pos/InvoicePrintModal.tsx', 'utf8');
+    const previewMatches = modalSrc.match(/className="invoice-preview-receipt [^"]+"/g) || [];
+    assert.equal(previewMatches.length, 2, 'Both 50mm thermal and A4 preview containers should exist');
+
+    for (const cls of previewMatches) {
+      assert.ok(cls.includes('bg-white'), 'Preview container must use solid bg-white in Light Mode');
+      assert.ok(
+        cls.includes('dark:bg-[#111C30]/80') && cls.includes('dark:backdrop-blur-md'),
+        'Preview container must keep semi-transparent glass background in Dark Mode'
+      );
+      assert.ok(
+        cls.includes('dark:border-purple-400/25'),
+        'Preview container border should follow dynamic primary theme palette in Dark Mode'
+      );
+    }
+
+    // Inspect lines inside interactive preview container (between INTERACTIVE PREVIEW and PRINT-ONLY CONTAINER)
+    const previewStart = modalSrc.indexOf('INTERACTIVE PREVIEW CONTAINER');
+    const printStart = modalSrc.indexOf('PRINT-ONLY CONTAINER');
+    assert.ok(previewStart > -1 && printStart > previewStart);
+    const previewSection = modalSrc.slice(previewStart, printStart);
+
+    assert.equal(
+      /\btext-black\b/.test(previewSection),
+      false,
+      'Preview section must not contain un-themed text-black classes'
+    );
+    assert.equal(
+      /(?<!dark:)text-white\b/.test(previewSection),
+      false,
+      'Preview section must not contain bare text-white without dark: prefix'
+    );
+    assert.ok(
+      previewSection.includes('invoice-store-name') &&
+        previewSection.includes('invoice-item-article') &&
+        previewSection.includes('invoice-item-price') &&
+        previewSection.includes('invoice-total-payable'),
+      'Preview section should wire invoice dark-mode typography hooks'
+    );
+
+    const cssSource = readFileSync('src/index.css', 'utf8');
+    assert.ok(
+      cssSource.includes('html:not(.dark) .saas-panel .invoice-preview-receipt') &&
+        cssSource.includes('background-color: #FFFFFF !important;'),
+      'Light Mode CSS must preserve solid white invoice preview background'
+    );
+    assert.ok(
+      cssSource.includes('.dark .invoice-preview-receipt .bg-slate-50') &&
+        cssSource.includes('background-color: rgba(30, 41, 59, 0.45) !important;'),
+      'Dark Mode CSS must keep semi-transparent inner surfaces inside invoice preview'
+    );
+    assert.ok(
+      cssSource.includes('html.dark .print-only,') &&
+        cssSource.includes('html.dark .print-only *,') &&
+        cssSource.includes('color: #000000 !important;'),
+      '@media print CSS must force solid white paper background and black text even when Dark Mode is active'
+    );
+  });
+});
 
