@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { subscribeDataSync, type DataSyncEvent, type DataSyncTopic } from '../utils/dataSyncBus.ts';
 
-export const DEFAULT_MAX_KEEP_ALIVE_TABS = 8;
+export const DEFAULT_MAX_KEEP_ALIVE_TABS = 3;
 export const CORE_PINNED_TABS = new Set<string>(['pos', 'dashboard']);
 
 export function normalizeKeepAliveTab(

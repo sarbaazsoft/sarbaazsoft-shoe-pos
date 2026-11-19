@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WifiOff, Cloud, RefreshCw, ChevronRight, ChevronUp, Minus, X } from 'lucide-react';
 import { useOfflineSync } from '../../utils/useOfflineSync.ts';
-import { OfflineSyncModal } from '../pos/OfflineSyncModal.tsx';
+
+const OfflineSyncModal = lazy(() =>
+  import('../pos/OfflineSyncModal.tsx').then((m) => ({ default: m.OfflineSyncModal }))
+);
 
 interface OfflineToastNotificationProps {
   currencySymbol?: string;
@@ -203,11 +206,15 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
       </AnimatePresence>
 
       {/* Offline Queue & Sync Modal */}
-      <OfflineSyncModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        currencySymbol={currencySymbol}
-      />
+      {isModalOpen && (
+        <Suspense fallback={null}>
+          <OfflineSyncModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            currencySymbol={currencySymbol}
+          />
+        </Suspense>
+      )}
     </>
   );
 };

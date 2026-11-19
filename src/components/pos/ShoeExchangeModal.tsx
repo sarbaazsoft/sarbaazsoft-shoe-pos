@@ -76,8 +76,27 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
           retailInputRef.current?.focus();
         }, 120);
       }
+    } else {
+      if (productSearchTimerRef.current) {
+        clearTimeout(productSearchTimerRef.current);
+        productSearchTimerRef.current = null;
+      }
+      productSearchAbortRef.current?.abort();
+      productSearchAbortRef.current = null;
     }
   }, [isOpen, isWholesaleStore]);
+
+  const productSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const productSearchAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (productSearchTimerRef.current) {
+        clearTimeout(productSearchTimerRef.current);
+      }
+      productSearchAbortRef.current?.abort();
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -182,23 +201,39 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
   // =========================================================================
   // WHOLESALE FLOW: Direct Product Return without Invoice Requirement
   // =========================================================================
-  const handleSearchProducts = async (q: string) => {
+  const handleSearchProducts = (q: string) => {
     setProductSearchQuery(q);
+    if (productSearchTimerRef.current) {
+      clearTimeout(productSearchTimerRef.current);
+      productSearchTimerRef.current = null;
+    }
+    productSearchAbortRef.current?.abort();
+    productSearchAbortRef.current = null;
+
     const clean = q.trim();
     if (!clean) {
       setProductSearchResults([]);
       setIsSearchingProducts(false);
       return;
     }
+
     setIsSearchingProducts(true);
-    try {
-      const res = await api.products.list({ search: clean, limit: 10 });
-      setProductSearchResults(res.products || []);
-    } catch {
-      setProductSearchResults([]);
-    } finally {
-      setIsSearchingProducts(false);
-    }
+    productSearchTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      productSearchAbortRef.current = controller;
+      try {
+        const res = await api.products.list({ search: clean, limit: 10 }, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setProductSearchResults(res.products || []);
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || controller.signal.aborted) return;
+        setProductSearchResults([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearchingProducts(false);
+        }
+      }
+    }, 240);
   };
 
   const handleSelectProductForWholesaleReturn = (prod: any) => {

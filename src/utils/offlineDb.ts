@@ -236,6 +236,13 @@ function getLocalStorageCatalogKey(tenantId: number): string {
   return `pos_offline_catalog_tenant:${tenantId}`;
 }
 
+function stripHeavyDataUrl(value: unknown): unknown {
+  if (typeof value === 'string' && value.startsWith('data:')) {
+    return '';
+  }
+  return value;
+}
+
 function saveCatalogMirrorToLocalStorage(tenantId: number, products: any[]): void {
   if (typeof localStorage === 'undefined') return;
   const validTenantId = parseValidTenantId(tenantId);
@@ -253,7 +260,11 @@ function saveCatalogMirrorToLocalStorage(tenantId: number, products: any[]): voi
             item.id !== undefined &&
             parseValidTenantId(item.tenantId) === validTenantId
           ) {
-            existingMap.set(Number(item.id), item);
+            existingMap.set(Number(item.id), {
+              ...item,
+              primaryImageUrl: stripHeavyDataUrl(item.primaryImageUrl),
+              brandLogo: stripHeavyDataUrl(item.brandLogo),
+            });
           }
         }
       }
@@ -264,7 +275,11 @@ function saveCatalogMirrorToLocalStorage(tenantId: number, products: any[]): voi
         prod.id !== undefined &&
         parseValidTenantId(prod.tenantId) === validTenantId
       ) {
-        existingMap.set(Number(prod.id), prod);
+        existingMap.set(Number(prod.id), {
+          ...prod,
+          primaryImageUrl: stripHeavyDataUrl(prod.primaryImageUrl),
+          brandLogo: stripHeavyDataUrl(prod.brandLogo),
+        });
       }
     }
     const merged = Array.from(existingMap.values()).slice(0, 600);

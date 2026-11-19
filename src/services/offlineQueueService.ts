@@ -1,11 +1,31 @@
 // Offline Sales Queue Manager: PWA Background Sync Service, Service Worker bridge, queue status listener, and local fallback
 
-import { api, getAuthToken } from './api.ts';
+import { api, getAuthToken, subscribeSessionClear } from './api.ts';
 import { QueuedSale, queueOfflineSale, getOfflineSales, getPendingOfflineSalesCount, updateOfflineSaleStatus, deleteOfflineSale, cacheCatalogOffline, resolveActiveTenantId } from '../utils/offlineDb.ts';
 import { buildCheckoutRequestPayload, processOfflineSalesQueue } from './offline/syncEngine.ts';
 import { emitDataSync } from '../utils/dataSyncBus.ts';
 
 export const SW_SYNC_TAG = 'pos-offline-transactions-sync';
+
+export interface BackendHealthPollContext {
+  isOnline: boolean;
+  isBackendConnected: boolean;
+  pendingCount: number;
+  hasAuthToken: boolean;
+  isDocumentHidden: boolean;
+}
+
+/**
+ * Determines whether periodic /api/health polling should run.
+ * When online, connected, and queue is empty, periodic health pings are skipped to allow
+ * serverless/Cloud Run instances and DB pools to scale to zero cleanly.
+ */
+export function shouldPollBackendHealth(ctx: BackendHealthPollContext): boolean {
+  if (!ctx.isOnline || ctx.isDocumentHidden || !ctx.hasAuthToken) {
+    return false;
+  }
+  return !ctx.isBackendConnected || ctx.pendingCount > 0;
+}
 
 type QueueListener = (
   pendingCount: number,
@@ -14,17 +34,19 @@ type QueueListener = (
   lastSyncedAt: Date | null
 ) => void;
 
+const FOCUS_HEALTH_CHECK_THROTTLE_MS = 60_000;
+
 class OfflineQueueService {
   private isOnlineState: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
-  private isBackendConnectedState: boolean = true;
+  private isBackendConnectedState: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private isSyncingState: boolean = false;
   private lastSyncedAtState: Date | null = null;
   private listeners: Set<QueueListener> = new Set();
   private syncIntervalId: any = null;
   private healthCheckIntervalId: any = null;
   private primePromise: Promise<any[]> | null = null;
-  private lastPrimedAt: number = 0;
-  private lastPrimedProducts: any[] = [];
+  private cachedPendingCount: number = 0;
+  private lastHealthCheckAt: number = 0;
 
   constructor() {
     // Restore cached lastSyncedAt if available
@@ -44,13 +66,24 @@ class OfflineQueueService {
       window.addEventListener('online', this.handleOnline);
       window.addEventListener('offline', this.handleOffline);
       window.addEventListener('focus', this.handleWindowFocus);
+      window.addEventListener('pos:backend-disconnected', this.handleBackendDisconnected);
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
       this.setupServiceWorkerBridge();
     }
 
-    // Initial check and start periodic background checks
-    this.notify();
-    this.checkBackendHealth();
+    subscribeSessionClear(() => {
+      this.cachedPendingCount = 0;
+      this.lastHealthCheckAt = 0;
+      this.isBackendConnectedState = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      this.primePromise = null;
+    });
+
+    // Query pending queue count first; only run initial health probe if offline or pending sales exist
+    void this.notify().then((count) => {
+      if (typeof count === 'number' && (count > 0 || !this.isOnlineState)) {
+        void this.checkBackendHealth();
+      }
+    });
     this.startPeriodicSync();
   }
 
@@ -79,14 +112,17 @@ class OfflineQueueService {
     };
   }
 
-  private async notify() {
+  private async notify(): Promise<number> {
     try {
       const count = await getPendingOfflineSalesCount();
+      this.cachedPendingCount = count;
       for (const fn of this.listeners) {
         fn(count, this.isSyncingState, this.isBackendConnectedState, this.lastSyncedAtState);
       }
+      return count;
     } catch (e) {
       console.warn('[OfflineSync] Failed to query count:', e);
+      return this.cachedPendingCount;
     }
   }
 
@@ -220,6 +256,7 @@ class OfflineQueueService {
       return false;
     }
 
+    this.lastHealthCheckAt = Date.now();
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 4500);
@@ -252,6 +289,7 @@ class OfflineQueueService {
           this.syncPendingSales();
         } else {
           const pendingCount = await getPendingOfflineSalesCount();
+          this.cachedPendingCount = pendingCount;
           if (pendingCount > 0 && !this.isSyncingState) {
             this.syncPendingSales();
           }
@@ -278,6 +316,11 @@ class OfflineQueueService {
     this.notify();
   }
 
+  private handleBackendDisconnected = () => {
+    this.isBackendConnectedState = false;
+    this.notify();
+  };
+
   private handleOnline = async () => {
     console.log('[OfflineSync] Network back ONLINE. Checking backend and auto-syncing...');
     this.isOnlineState = true;
@@ -294,14 +337,29 @@ class OfflineQueueService {
     this.notify();
   };
 
+  private maybeCheckHealthOnResume() {
+    if (!getAuthToken()) return;
+    const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+    if (!isOnline) {
+      this.handleOffline();
+      return;
+    }
+    const elapsed = Date.now() - this.lastHealthCheckAt;
+    if (!this.isBackendConnectedState || this.cachedPendingCount > 0 || elapsed >= FOCUS_HEALTH_CHECK_THROTTLE_MS) {
+      if (!this.isBackendConnectedState || this.cachedPendingCount > 0) {
+        void this.checkBackendHealth();
+      }
+    }
+  }
+
   private handleWindowFocus = () => {
-    // When user returns to tab, perform a lightweight backend health check & flush pending queue
-    this.checkBackendHealth();
+    // Only probe /api/health when disconnected or queued offline sales need flushing
+    this.maybeCheckHealthOnResume();
   };
 
   private handleVisibilityChange = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-      this.checkBackendHealth();
+      this.maybeCheckHealthOnResume();
     }
   };
 
@@ -309,17 +367,39 @@ class OfflineQueueService {
     if (this.syncIntervalId) clearInterval(this.syncIntervalId);
     if (this.healthCheckIntervalId) clearInterval(this.healthCheckIntervalId);
 
-    // Every 12 seconds: perform lightweight ping to check backend connectivity
+    // Recovery-only connectivity check: skips /api/health completely when online, healthy, and queue is empty
     this.healthCheckIntervalId = setInterval(() => {
-      this.checkBackendHealth();
+      const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+      const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      const shouldPoll = shouldPollBackendHealth({
+        isOnline,
+        isBackendConnected: this.isBackendConnectedState,
+        pendingCount: this.cachedPendingCount,
+        hasAuthToken: Boolean(getAuthToken()),
+        isDocumentHidden: isHidden,
+      });
+      if (shouldPoll) {
+        void this.checkBackendHealth();
+      }
     }, 12000);
+    if (typeof this.healthCheckIntervalId?.unref === 'function') {
+      this.healthCheckIntervalId.unref();
+    }
 
-    // Every 15 seconds, if backend is connected, flush any unsynced offline sales
+    // Flush queued offline sales only when pending transactions actually exist
     this.syncIntervalId = setInterval(() => {
-      if (this.isBackendConnectedState && !this.isSyncingState) {
-        this.syncPendingSales();
+      if (
+        this.cachedPendingCount > 0 &&
+        this.isBackendConnectedState &&
+        !this.isSyncingState &&
+        Boolean(getAuthToken())
+      ) {
+        void this.syncPendingSales();
       }
     }, 15000);
+    if (typeof this.syncIntervalId?.unref === 'function') {
+      this.syncIntervalId.unref();
+    }
   }
 
   private buildCheckoutPayload(sale: QueuedSale): any {
@@ -440,8 +520,6 @@ class OfflineQueueService {
         const res = await api.products.list({ limit: 500 });
         if (res && Array.isArray(res.products)) {
           await cacheCatalogOffline(res.products, tenantId);
-          this.lastPrimedAt = Date.now();
-          this.lastPrimedProducts = res.products;
           console.log(`[OfflineSync] Synced ${res.products.length} products for offline POS billing.`);
           return res.products;
         }
@@ -450,7 +528,7 @@ class OfflineQueueService {
       } finally {
         this.primePromise = null;
       }
-      return this.lastPrimedProducts;
+      return [];
     })();
 
     return this.primePromise;

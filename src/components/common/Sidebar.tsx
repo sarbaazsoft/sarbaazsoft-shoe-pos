@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, ShoppingCart, Boxes, Truck, RotateCcw, Users, TrendingUp, Settings, Printer, BookOpen, X, Building2, Check, Cloud, Keyboard, Sun, Moon, Download, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
 import { ShoeIcon } from './ShoeIcon.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
-import { InstallAppModal } from './InstallAppModal.tsx';
 import { APP_VERSION } from '../../version.ts';
+
+const InstallAppModal = lazy(() =>
+  import('./InstallAppModal.tsx').then((m) => ({ default: m.InstallAppModal }))
+);
 
 interface SidebarProps {
   currentTab: string;
@@ -608,12 +611,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </AnimatePresence>
 
       {/* PWA & EXE INSTALLATION MODAL */}
-      <InstallAppModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
-        isAdmin={isPlatformOwner}
-        role={currentUser?.role}
-      />
+      {isInstallModalOpen && (
+        <Suspense fallback={null}>
+          <InstallAppModal
+            isOpen={isInstallModalOpen}
+            onClose={() => setIsInstallModalOpen(false)}
+            isAdmin={isPlatformOwner}
+            role={currentUser?.role}
+          />
+        </Suspense>
+      )}
     </>
   );
 };

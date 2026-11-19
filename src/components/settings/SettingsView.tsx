@@ -17,6 +17,7 @@ import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 import { NotificationAlertProvidersSettings } from './NotificationAlertProvidersSettings.tsx';
 import { StoreNotificationPreferencesCard } from './StoreNotificationPreferencesCard.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import {
   isWebPushSupported,
   getDetailedPushPermissionStatus,
@@ -48,6 +49,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   initialTab,
 }) => {
   const userRole = (currentUser?.role || '').toUpperCase();
+  const { isActive: isRouteActive } = useRouteActivity();
   const isSuperAdmin = userRole === 'SUPERADMIN';
   const isPlatformOwner = isSuperAdmin;
   const isStoreAdmin = userRole === 'ADMIN';
@@ -517,6 +519,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   const processLogoImageFile = (file: File) => {
@@ -569,12 +572,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const stopCameraStream = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
+    const activeStream = cameraStreamRef.current || cameraStream;
+    if (activeStream) {
+      activeStream.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
       setCameraStream(null);
     }
     setIsCameraOpen(false);
   };
+
+  useEffect(() => {
+    if (!isRouteActive || activeTab !== 'store') {
+      stopCameraStream();
+    }
+  }, [isRouteActive, activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+        cameraStreamRef.current = null;
+      }
+    };
+  }, []);
 
   const handleOpenCameraForLogo = async () => {
     setCameraError(null);
@@ -587,6 +607,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
+      cameraStreamRef.current = stream;
       setCameraStream(stream);
       setIsCameraOpen(true);
       setTimeout(() => {
@@ -859,7 +880,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       loadUsers();
     } else if (isSuperAdmin) {
       loadInstallStatus();
-      loadAppSettings();
     }
   }, [isStoreAdmin, isSuperAdmin]);
 

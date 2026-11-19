@@ -716,9 +716,13 @@ const activeStreamSubscribers = new Set<(payload: any) => void>();
 let sharedEventSource: EventSource | null = null;
 let sharedStreamSignature = '';
 let sharedReconnectTimeout: any = null;
+let hiddenStreamCloseTimer: any = null;
+let generalStreamVisibilityAttached = false;
+const osFallbackTimers = new Set<ReturnType<typeof setTimeout>>();
 
 const OWNER_PRESENCE_SESSION_KEY = 'pos_owner_presence_session_id';
 const OWNER_HEARTBEAT_INTERVAL_MS = 30_000;
+const HIDDEN_CASHIER_SSE_GRACE_MS = 15_000;
 let cachedPresenceSessionId = '';
 let ownerHeartbeatTimer: any = null;
 let ownerPresenceListenersAttached = false;
@@ -857,11 +861,52 @@ function stopOwnerHeartbeatLifecycle() {
   }
 }
 
+function handleGeneralStreamVisibilityChange() {
+  if (typeof document === 'undefined') return;
+  if (document.visibilityState === 'hidden') {
+    // For Cashier sessions (not Owner/SuperAdmin presence-tracked), close idle SSE after 15s hidden;
+    // FCM Web Push delivers background alerts and SSE reconnects automatically on return.
+    if (!isAuthenticatedOwnerSession() && sharedEventSource && !hiddenStreamCloseTimer) {
+      hiddenStreamCloseTimer = setTimeout(() => {
+        hiddenStreamCloseTimer = null;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isAuthenticatedOwnerSession()) {
+          closeSharedStream();
+        }
+      }, HIDDEN_CASHIER_SSE_GRACE_MS);
+    }
+  } else if (document.visibilityState === 'visible') {
+    if (hiddenStreamCloseTimer) {
+      clearTimeout(hiddenStreamCloseTimer);
+      hiddenStreamCloseTimer = null;
+    }
+    if (activeStreamSubscribers.size > 0 && !sharedEventSource) {
+      ensureSharedStreamConnected();
+    }
+  }
+}
+
+function attachGeneralStreamVisibilityListener() {
+  if (generalStreamVisibilityAttached || typeof document === 'undefined') return;
+  document.addEventListener('visibilitychange', handleGeneralStreamVisibilityChange);
+  generalStreamVisibilityAttached = true;
+}
+
+function detachGeneralStreamVisibilityListener() {
+  if (!generalStreamVisibilityAttached || typeof document === 'undefined') return;
+  document.removeEventListener('visibilitychange', handleGeneralStreamVisibilityChange);
+  generalStreamVisibilityAttached = false;
+}
+
 function syncOwnerHeartbeatLifecycle() {
   if (typeof window === 'undefined') return;
   if (!sessionClearUnsubscribe) {
     sessionClearUnsubscribe = subscribeSessionClear(() => {
+      for (const timer of osFallbackTimers) {
+        clearTimeout(timer);
+      }
+      osFallbackTimers.clear();
       stopOwnerHeartbeatLifecycle();
+      detachGeneralStreamVisibilityListener();
       closeSharedStream();
     });
   }
@@ -1032,7 +1077,11 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
       Boolean(localStorage.getItem(FCM_TOKEN_KEY));
 
     if (hasActiveWebPush) {
-      setTimeout(dispatchOsFallback, 3500);
+      const timerId = setTimeout(() => {
+        osFallbackTimers.delete(timerId);
+        dispatchOsFallback();
+      }, 3500);
+      osFallbackTimers.add(timerId);
     } else {
       dispatchOsFallback();
     }
@@ -1048,6 +1097,10 @@ function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: 
 }
 
 function closeSharedStream() {
+  if (hiddenStreamCloseTimer) {
+    clearTimeout(hiddenStreamCloseTimer);
+    hiddenStreamCloseTimer = null;
+  }
   if (sharedReconnectTimeout) {
     clearTimeout(sharedReconnectTimeout);
     sharedReconnectTimeout = null;
@@ -1225,6 +1278,7 @@ export function connectRealtimeNotificationStream(
   }
 
   activeStreamSubscribers.add(onNotification);
+  attachGeneralStreamVisibilityListener();
   syncOwnerHeartbeatLifecycle();
   ensureSharedStreamConnected();
 
@@ -1232,6 +1286,7 @@ export function connectRealtimeNotificationStream(
     activeStreamSubscribers.delete(onNotification);
     if (activeStreamSubscribers.size === 0) {
       stopOwnerHeartbeatLifecycle();
+      detachGeneralStreamVisibilityListener();
       closeSharedStream();
     }
   };

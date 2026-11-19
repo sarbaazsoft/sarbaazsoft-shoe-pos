@@ -355,6 +355,9 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   const lastKeyTimeRef = useRef<number>(0);
   const scanBurstCountRef = useRef<number>(0);
   const autoLookupTimerRef = useRef<any>(null);
+  const manualSearchTimerRef = useRef<any>(null);
+  const manualSearchAbortRef = useRef<AbortController | null>(null);
+  const loadedCustomersTenantRef = useRef<string | null>(null);
 
   const currencySymbol = companySettings?.currencySymbol || 'Rs.';
   const rawPricingMode = String(companySettings?.pricingMode || 'FIXED').toUpperCase();
@@ -396,15 +399,27 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     }
   };
 
-  // Load Customers & Prime Store Offline Product Cache
+  // Load Customers only when POS route is active for the current tenant
   useEffect(() => {
-    loadCustomers();
-    syncStoreCatalogForOffline();
-  }, [activeTenantId]);
+    if (!isActive) return;
+    const tenantKey = String(activeTenantId ?? 'default');
+    if (loadedCustomersTenantRef.current !== tenantKey) {
+      loadedCustomersTenantRef.current = tenantKey;
+      void loadCustomers();
+    }
+  }, [activeTenantId, isActive]);
 
   // Refocus scanner when POS becomes active or window regains focus while POS is active
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      if (manualSearchTimerRef.current) {
+        clearTimeout(manualSearchTimerRef.current);
+        manualSearchTimerRef.current = null;
+      }
+      manualSearchAbortRef.current?.abort();
+      manualSearchAbortRef.current = null;
+      return;
+    }
     focusScannerInput();
 
     const handleWindowFocus = () => {
@@ -415,6 +430,18 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     window.addEventListener('focus', handleWindowFocus);
     return () => window.removeEventListener('focus', handleWindowFocus);
   }, [isActive]);
+
+  useEffect(() => {
+    return () => {
+      if (autoLookupTimerRef.current) {
+        clearTimeout(autoLookupTimerRef.current);
+      }
+      if (manualSearchTimerRef.current) {
+        clearTimeout(manualSearchTimerRef.current);
+      }
+      manualSearchAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (isOnline && isActive) {
@@ -822,6 +849,13 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
   const handleSearchChange = async (val: string) => {
     setBarcodeInput(val);
 
+    if (manualSearchTimerRef.current) {
+      clearTimeout(manualSearchTimerRef.current);
+      manualSearchTimerRef.current = null;
+    }
+    manualSearchAbortRef.current?.abort();
+    manualSearchAbortRef.current = null;
+
     const now = performance.now();
     const interval = now - lastKeyTimeRef.current;
     lastKeyTimeRef.current = now;
@@ -833,13 +867,15 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       scanBurstCountRef.current = 1;
     }
 
+    const trimmed = val.trim();
+
     if (inputMode === 'SCANNER') {
       if (autoLookupTimerRef.current) {
         clearTimeout(autoLookupTimerRef.current);
       }
 
       // Fallback for hardware scanners that do not send an Enter suffix (5+ keys in rapid burst)
-      if (scanBurstCountRef.current >= 4 && val.trim().length >= 6) {
+      if (scanBurstCountRef.current >= 4 && trimmed.length >= 6) {
         setSearchResults([]);
         autoLookupTimerRef.current = setTimeout(() => {
           const query = val.trim();
@@ -851,22 +887,27 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
         return;
       }
 
-      // If cashier is typing manually (or in offline mode) in the top input, show matching catalog articles
-      if (val.trim().length >= 1 && scanBurstCountRef.current < 4) {
+      // If cashier is typing manually (or in offline mode) in the top input, debounce network search
+      if (trimmed.length >= 1 && scanBurstCountRef.current < 4) {
         const isCurrentlyOffline = !isOnline || (typeof navigator !== 'undefined' && !navigator.onLine);
         if (isCurrentlyOffline) {
-          const offlineResults = await searchCachedProductsOffline(val.trim(), activeTenantId).catch(() => []);
+          const offlineResults = await searchCachedProductsOffline(trimmed, activeTenantId).catch(() => []);
           setSearchResults(offlineResults);
           return;
         }
-        try {
-          const res = await api.products.list({ search: val.trim() });
-          const list = res.products || [];
-          setSearchResults(list);
-        } catch {
-          const offlineResults = await searchCachedProductsOffline(val.trim(), activeTenantId).catch(() => []);
-          setSearchResults(offlineResults);
-        }
+        manualSearchTimerRef.current = setTimeout(async () => {
+          const controller = new AbortController();
+          manualSearchAbortRef.current = controller;
+          try {
+            const res = await api.products.list({ search: trimmed }, { signal: controller.signal });
+            if (controller.signal.aborted) return;
+            setSearchResults(res.products || []);
+          } catch (err: any) {
+            if (err?.name === 'AbortError' || controller.signal.aborted) return;
+            const offlineResults = await searchCachedProductsOffline(trimmed, activeTenantId).catch(() => []);
+            setSearchResults(offlineResults);
+          }
+        }, 240);
       } else {
         setSearchResults([]);
       }
@@ -874,31 +915,37 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     }
 
     // Manual / Catalog Search mode: show matching articles from online or tenant-scoped offline catalog
-    if (val.trim().length >= 1) {
+    if (trimmed.length >= 1) {
       const isCurrentlyOffline = !isOnline || (typeof navigator !== 'undefined' && !navigator.onLine);
       if (isCurrentlyOffline) {
-        const offlineResults = await searchCachedProductsOffline(val.trim(), activeTenantId).catch(() => []);
+        const offlineResults = await searchCachedProductsOffline(trimmed, activeTenantId).catch(() => []);
         setSearchResults(offlineResults);
         return;
       }
-      try {
-        const res = await api.products.list({ search: val.trim() });
-        const list = res.products || [];
-        setSearchResults(list);
+      manualSearchTimerRef.current = setTimeout(async () => {
+        const controller = new AbortController();
+        manualSearchAbortRef.current = controller;
+        try {
+          const res = await api.products.list({ search: trimmed }, { signal: controller.signal });
+          if (controller.signal.aborted) return;
+          const list = res.products || [];
+          setSearchResults(list);
 
-        // If exact barcode match is encountered, auto-trigger immediately
-        const exactBarcodeMatch = list.find(
-          (p: any) =>
-            p.barcode && p.barcode.toLowerCase() === val.trim().toLowerCase()
-        );
-        if (exactBarcodeMatch && val.trim().length >= 6) {
-          triggerFindAndAddProduct(val);
+          // If exact barcode match is encountered, auto-trigger immediately
+          const exactBarcodeMatch = list.find(
+            (p: any) =>
+              p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()
+          );
+          if (exactBarcodeMatch && trimmed.length >= 6) {
+            triggerFindAndAddProduct(val);
+          }
+        } catch (err: any) {
+          if (err?.name === 'AbortError' || controller.signal.aborted) return;
+          // Fallback to tenant-scoped local IndexedDB/LocalStorage product search
+          const offlineResults = await searchCachedProductsOffline(trimmed, activeTenantId).catch(() => []);
+          setSearchResults(offlineResults);
         }
-      } catch {
-        // Fallback to tenant-scoped local IndexedDB/LocalStorage product search
-        const offlineResults = await searchCachedProductsOffline(val.trim(), activeTenantId).catch(() => []);
-        setSearchResults(offlineResults);
-      }
+      }, 240);
     } else {
       const offlineResults = await searchCachedProductsOffline('', activeTenantId, 30).catch(() => []);
       setSearchResults(offlineResults);

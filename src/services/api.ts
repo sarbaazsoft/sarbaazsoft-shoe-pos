@@ -491,6 +491,11 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
   if (!response) {
     const rawMsg = String(lastNetworkError?.message || '');
     const isConnectivityFailure = isBrowserOffline || !rawMsg || isTransientNetworkError(lastNetworkError);
+    if (isConnectivityFailure && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('pos:backend-disconnected'));
+      } catch {}
+    }
     throw new Error(
       isConnectivityFailure
         ? 'Server is temporarily reconnecting. Please try again in a moment.'

@@ -156,6 +156,14 @@ export interface LiveFetchResult<T> {
   refetch: () => Promise<T | undefined>;
 }
 
+interface InflightFetchEntry {
+  promise: Promise<any>;
+  controller: AbortController;
+  waiters: number;
+}
+
+const inflightLiveFetches = new Map<string, InflightFetchEntry>();
+
 /**
  * Direct uncached live API data hook.
  * Never stores data in a shared cache, staleTime, or gcTime bucket;
@@ -172,6 +180,7 @@ export function useLiveFetch<T>(
   const syncTopicsKey = (options?.syncTopics || []).join('|');
   const refreshOnSaasMutation = options?.refreshOnSaasMutation ?? false;
   const scopeKey = options?.scopeKey ?? '';
+  const inflightKey = `${scopeKey}::${depsKey}`;
 
   const [data, setData] = useState<T | undefined>(undefined);
   const [isPending, setIsPending] = useState<boolean>(enabled);
@@ -183,6 +192,9 @@ export function useLiveFetch<T>(
 
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+
+  const inflightKeyRef = useRef(inflightKey);
+  inflightKeyRef.current = inflightKey;
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestSeqRef = useRef(0);
@@ -201,16 +213,49 @@ export function useLiveFetch<T>(
     if (!mountedRef.current) return undefined;
 
     abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    const localController = new AbortController();
+    abortControllerRef.current = localController;
     const seq = ++requestSeqRef.current;
+    const activeKey = inflightKeyRef.current;
 
     setIsFetching(true);
     setError(null);
 
+    let sharedEntry = inflightLiveFetches.get(activeKey);
+    if (!sharedEntry || sharedEntry.controller.signal.aborted) {
+      const sharedController = new AbortController();
+      const created: InflightFetchEntry = {
+        promise: Promise.resolve(),
+        controller: sharedController,
+        waiters: 0,
+      };
+      created.promise = Promise.resolve()
+        .then(() => fetcherRef.current(sharedController.signal))
+        .finally(() => {
+          if (inflightLiveFetches.get(activeKey) === created) {
+            inflightLiveFetches.delete(activeKey);
+          }
+        });
+      inflightLiveFetches.set(activeKey, created);
+      sharedEntry = created;
+    }
+
+    sharedEntry.waiters += 1;
+    const currentEntry = sharedEntry;
+    const handleLocalAbort = () => {
+      currentEntry.waiters = Math.max(0, currentEntry.waiters - 1);
+      if (currentEntry.waiters === 0) {
+        currentEntry.controller.abort();
+        if (inflightLiveFetches.get(activeKey) === currentEntry) {
+          inflightLiveFetches.delete(activeKey);
+        }
+      }
+    };
+    localController.signal.addEventListener('abort', handleLocalAbort, { once: true });
+
     try {
-      const result = await fetcherRef.current(controller.signal);
-      if (!mountedRef.current || controller.signal.aborted || seq !== requestSeqRef.current) {
+      const result = await currentEntry.promise;
+      if (!mountedRef.current || localController.signal.aborted || seq !== requestSeqRef.current) {
         return undefined;
       }
       setData(result);
@@ -218,7 +263,7 @@ export function useLiveFetch<T>(
       setIsFetching(false);
       return result;
     } catch (err) {
-      if (isAbortError(err) || controller.signal.aborted) {
+      if (isAbortError(err) || localController.signal.aborted) {
         if (mountedRef.current && seq === requestSeqRef.current) {
           setIsFetching(false);
         }
@@ -230,6 +275,11 @@ export function useLiveFetch<T>(
         setIsFetching(false);
       }
       return undefined;
+    } finally {
+      localController.signal.removeEventListener('abort', handleLocalAbort);
+      if (!localController.signal.aborted) {
+        currentEntry.waiters = Math.max(0, currentEntry.waiters - 1);
+      }
     }
   }, []);
 

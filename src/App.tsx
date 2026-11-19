@@ -2421,7 +2421,7 @@ export default function App() {
         </>
       )}
 
-      {currentUser && (
+      {currentUser && isProfileModalOpen && (
         <Suspense fallback={null}>
           <UserProfileModal
             isOpen={isProfileModalOpen}

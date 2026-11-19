@@ -282,7 +282,7 @@ app.get(['/api/download/desktop-setup', '/assets/SarbaazSoft-POS-Desktop-Setup.e
     envUrl: publicAppUrl,
     hostHeader: (req.get('x-forwarded-host') || req.get('host') || '').trim(),
   });
-  const originalBuf = fs.readFileSync(exePath);
+  const originalBuf = await fs.promises.readFile(exePath);
   const buf = patchDesktopSetupExe(originalBuf, {
     targetUrl,
     shortcutBaseName: cleanFileBase,
