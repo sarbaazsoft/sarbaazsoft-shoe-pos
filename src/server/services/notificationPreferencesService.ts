@@ -1,5 +1,5 @@
 import { pgClient } from '../../db/index.ts';
-import { ensureFcmTokensSchema } from '../../db/schemaInit.ts';
+import { ensureDatabaseSchema, ensureFcmTokensSchema } from '../../db/schemaInit.ts';
 import {
   applyNotificationPreset,
   createDefaultNotificationPreferences,
@@ -20,9 +20,7 @@ let schemaEnsured = false;
 export async function ensureNotificationPreferencesSchema(): Promise<void> {
   if (schemaEnsured) return;
   try {
-    await pgClient.query(
-      'ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT NULL'
-    );
+    await ensureDatabaseSchema();
     schemaEnsured = true;
   } catch {
     // Non-blocking in mock or restricted environments

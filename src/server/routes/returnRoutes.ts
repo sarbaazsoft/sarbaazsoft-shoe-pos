@@ -301,12 +301,12 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           id: number;
           article: string;
           name: string;
-          selling_price: string;
+          max_price: string;
           total_stock: number;
           low_stock_threshold: number;
           is_low_stock_alert_sent: boolean;
         }>(
-          'SELECT id, article, name, COALESCE(selling_price, 0) AS selling_price, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+          'SELECT id, article, name, COALESCE(max_price, min_price, 0) AS max_price, total_stock, COALESCE(low_stock_threshold, 5) AS low_stock_threshold, COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
           [productId, tenantId]
         );
         if (prodRes.rows.length === 0) {
@@ -318,7 +318,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         const refundPrice =
           !isNaN(parsedRefundPrice) && parsedRefundPrice >= 0
             ? parsedRefundPrice
-            : parseFloat(prod.selling_price || '0') || 0;
+            : parseFloat(prod.max_price || '0') || 0;
 
         const prevStock = prod.total_stock;
         const newStock = prevStock + returnQty;

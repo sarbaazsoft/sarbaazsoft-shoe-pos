@@ -15,8 +15,6 @@ import { pgClient, dbInfo, txStorage } from './src/db/index.ts';
 import {
   ensureSaasControlPlane,
   isSaasControlPlaneInitialized,
-  migrateLegacyWholesaleProductPrices,
-  dropLegacyDocumentPrefixColumns,
 } from './src/db/schemaInit.ts';
 
 // Shared-Domain Multi-Tenant Routing Middleware
@@ -40,7 +38,7 @@ import inventoryRoutes from './src/server/routes/inventoryRoutes.ts';
 import notificationRoutes from './src/server/routes/notificationRoutes.ts';
 import chatRoutes from './src/server/routes/chatRoutes.ts';
 import tenantSaasRoutes from './src/server/routes/tenantSaasRoutes.ts';
-import { transformKeysToCamelCase } from './src/utils/caseTransformer.ts';
+import { transformKeysToCamelCase, normalizeRequestKeys } from './src/utils/caseTransformer.ts';
 import { recordApplicationBaseUrl } from './src/server/services/welcomeService.ts';
 import { getAppSetting } from './src/server/services/appSettingsService.ts';
 import { syncAndNotifyTenantSubscriptionLifecycle } from './src/server/pushNotificationService.ts';
@@ -229,6 +227,24 @@ app.use((req, _res, next) => {
       req.body = JSON.parse(req.query.__body);
     } catch {}
     delete req.query.__body;
+  }
+  next();
+});
+
+// Normalize incoming /api JSON body & query keys so routes accept snake_case and camelCase uniformly
+app.use('/api', (req, _res, next) => {
+  if (
+    req.path.startsWith('/backup') ||
+    req.path.startsWith('/superadmin/import-sql') ||
+    req.path.startsWith('/install')
+  ) {
+    return next();
+  }
+  if (req.body && typeof req.body === 'object') {
+    req.body = normalizeRequestKeys(req.body);
+  }
+  if (req.query && typeof req.query === 'object') {
+    req.query = normalizeRequestKeys(req.query);
   }
   next();
 });
@@ -628,8 +644,6 @@ async function startServer() {
 
   try {
     await pgClient.waitReady;
-    await dropLegacyDocumentPrefixColumns();
-    await migrateLegacyWholesaleProductPrices();
     const installStatus = await checkInstallationStatus();
     if (installStatus.hasSuperAdmin || (installStatus.hasUsers && installStatus.hasAdmin)) {
       await ensureSaasControlPlane();

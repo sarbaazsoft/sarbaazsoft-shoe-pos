@@ -158,17 +158,17 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
 
   const suffix = Date.now().toString().slice(-6);
   const tenantRes = await pgClient.query<{ id: number }>(
-    `INSERT INTO tenants (name, slug, subdomain, status, plan)
-     VALUES ($1, $2, $3, 'ACTIVE', 'PRO')
+    `INSERT INTO tenants (name, status, subscription_plan)
+     VALUES ($1, 'ACTIVE', 'YEARLY')
      RETURNING id`,
-    [`Star Shoes ${suffix}`, `star-shoes-${suffix}`, `star-${suffix}`]
+    [`Star Shoes ${suffix}`]
   );
   const tenantId = tenantRes.rows[0].id;
 
   await pgClient.query(
     `INSERT INTO company_settings (
       tenant_id, address, phone, email, currency, currency_symbol, pricing_mode, business_type, allow_half_carton, low_stock_threshold
-    ) VALUES ($1, 'Lahore', '03000000000', $2, 'PKR', 'Rs.', 'FLEXIBLE', 'WHOLESALE', true, 5)`,
+    ) VALUES ($1, 'Lahore', '03000000000', $2, 'PKR', 'Rs.', 'NEGOTIABLE', 'WHOLESALE', true, 5)`,
     [tenantId, `star.${suffix}@shoepos.test`]
   );
 
@@ -191,9 +191,9 @@ test('Wholesale store emits standardized notifications: Sale w/o Return, Same-In
   const prodRes = await pgClient.query<{ id: number }>(
     `INSERT INTO products (
       tenant_id, tenant_product_no, name, brand, category, article, barcode,
-      primary_image_url, description, cost_price, min_price, max_price, selling_price,
+      primary_image_url, description, cost_price, min_price, max_price,
       pairs_per_carton, allow_half_carton, total_stock, low_stock_threshold, is_low_stock_alert_sent, active
-    ) VALUES ($1, $2, $3, 'Bata', 'Formal', $4, $5, '', '', 1000, 1500, 2000, 2000, 12, true, 500, 5, false, true)
+    ) VALUES ($1, $2, $3, 'Bata', 'Formal', $4, $5, '', '', 1000, 1500, 2000, 12, true, 500, 5, false, true)
     RETURNING id`,
     [tenantId, 1001, 'Bata Executive', `BEX-${suffix}`, `BCW-${suffix}`]
   );

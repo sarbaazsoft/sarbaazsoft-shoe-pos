@@ -21,31 +21,7 @@ async function ensureGlobalCategoriesTable(): Promise<void> {
         name TEXT NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
-
-      DO $$
-      BEGIN
-        BEGIN
-          DROP INDEX IF EXISTS categories_tenant_idx;
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
-        BEGIN
-          DROP INDEX IF EXISTS categories_tenant_name_lower_idx;
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
-        BEGIN
-          ALTER TABLE categories DROP COLUMN IF EXISTS tenant_id CASCADE;
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
-        BEGIN
-          CREATE UNIQUE INDEX IF NOT EXISTS categories_name_lower_unique_idx ON categories (LOWER(TRIM(name)));
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
-      END $$;
-
-      -- Clean any duplicate categories if present
-      DELETE FROM categories a USING categories b
-      WHERE a.id > b.id
-        AND LOWER(TRIM(a.name)) = LOWER(TRIM(b.name));
+      CREATE UNIQUE INDEX IF NOT EXISTS categories_name_lower_unique_idx ON categories (LOWER(BTRIM(name)));
     `)
     .catch(() => {});
 

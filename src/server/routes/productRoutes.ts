@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { pgClient } from '../../db/index.ts';
+import { ensureDatabaseSchema } from '../../db/schemaInit.ts';
 import { requireAuth, requireAdmin } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
@@ -387,175 +388,11 @@ router.post('/validate-article', requireAuth, handleValidateArticle);
 
 
 let productColumnsVerified = false;
-let productColumnsPromise: Promise<void> | null = null;
 
-async function ensureProductAndSettingsColumns() {
+async function ensureProductAndSettingsColumns(): Promise<void> {
   if (productColumnsVerified) return;
-  if (productColumnsPromise) return productColumnsPromise;
-
-  productColumnsPromise = (async () => {
-    try {
-      const reg = await pgClient.query<{ has_products: boolean; has_settings: boolean; has_tenants: boolean }>(
-        "SELECT (to_regclass('public.products') IS NOT NULL) as has_products, (to_regclass('public.company_settings') IS NOT NULL) as has_settings, (to_regclass('public.tenants') IS NOT NULL) as has_tenants"
-      );
-      if (reg.rows[0]?.has_tenants) {
-        await pgClient.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS deleted_product_ids INTEGER[] NOT NULL DEFAULT '{}'");
-      }
-      if (reg.rows[0]?.has_settings) {
-        await pgClient.query("ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS pricing_mode VARCHAR(30) NOT NULL DEFAULT 'FIXED'");
-        await pgClient.query(`DO $$ BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='company_settings' AND column_name='low_stock_limit')
-             AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='company_settings' AND column_name='low_stock_threshold') THEN
-            ALTER TABLE company_settings RENAME COLUMN low_stock_limit TO low_stock_threshold;
-          ELSE
-            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;
-          END IF;
-        END $$`).catch(() => {});
-        await pgClient.query("ALTER TABLE company_settings DROP COLUMN IF EXISTS pricing_policy_locked");
-        await pgClient.query("ALTER TABLE company_settings DROP COLUMN IF EXISTS min_selling_quantity");
-        await pgClient.exec(`
-          DO $$
-          BEGIN
-            IF EXISTS (
-              SELECT 1 FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'deleted_product_ids'
-            ) THEN
-              EXECUTE 'UPDATE tenants t
-                       SET deleted_product_ids = (
-                         SELECT COALESCE(array_agg(DISTINCT x ORDER BY x ASC), ''{}'')
-                         FROM unnest(array_cat(COALESCE(t.deleted_product_ids, ''{}''), COALESCE(cs.deleted_product_ids, ''{}''))) AS x
-                         WHERE x >= 1
-                       )
-                       FROM company_settings cs
-                       WHERE cs.tenant_id = t.id
-                         AND cs.deleted_product_ids IS NOT NULL
-                         AND cardinality(cs.deleted_product_ids) > 0';
-              EXECUTE 'ALTER TABLE company_settings DROP COLUMN IF EXISTS deleted_product_ids';
-            END IF;
-          END $$;
-        `).catch(() => {});
-      }
-      if (reg.rows[0]?.has_products) {
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS size");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS color");
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_product_no INTEGER");
-        await pgClient.query("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_barcode_key");
-        await pgClient.query("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_article_key");
-        await pgClient.query("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_barcode_unique");
-        await pgClient.query("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_article_unique");
-        await pgClient.exec(`
-          DO $$
-          DECLARE
-            c RECORD;
-            idx RECORD;
-          BEGIN
-            FOR c IN
-              SELECT con.conname
-              FROM pg_constraint con
-              JOIN pg_class rel ON rel.oid = con.conrelid
-              JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
-              WHERE nsp.nspname = 'public'
-                AND rel.relname = 'products'
-                AND con.contype = 'u'
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM unnest(con.conkey) AS k(col_attnum)
-                  JOIN pg_attribute attr ON attr.attrelid = rel.oid AND attr.attnum = k.col_attnum
-                  WHERE attr.attname = 'tenant_id'
-                )
-            LOOP
-              EXECUTE format('ALTER TABLE public.products DROP CONSTRAINT IF EXISTS %I CASCADE', c.conname);
-            END LOOP;
-
-            FOR idx IN
-              SELECT i.relname AS index_name
-              FROM pg_index ix
-              JOIN pg_class t ON t.oid = ix.indrelid
-              JOIN pg_class i ON i.oid = ix.indexrelid
-              JOIN pg_namespace nsp ON nsp.oid = t.relnamespace
-              WHERE nsp.nspname = 'public'
-                AND t.relname = 'products'
-                AND ix.indisunique = true
-                AND ix.indisprimary = false
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM unnest(ix.indkey) AS k(col_attnum)
-                  JOIN pg_attribute attr ON attr.attrelid = t.oid AND attr.attnum = k.col_attnum
-                  WHERE attr.attname = 'tenant_id'
-                )
-            LOOP
-              EXECUTE format('DROP INDEX IF EXISTS public.%I CASCADE', idx.index_name);
-            END LOOP;
-          END $$;
-        `).catch(() => {});
-        await pgClient.query("CREATE INDEX IF NOT EXISTS products_tenant_product_no_idx ON products(tenant_id, tenant_product_no)");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS sku");
-        await pgClient.query("CREATE INDEX IF NOT EXISTS products_tenant_article_idx ON products(tenant_id, article)");
-        await pgClient.query("CREATE INDEX IF NOT EXISTS products_tenant_barcode_idx ON products(tenant_id, barcode)");
-        await pgClient.exec(`
-          CREATE UNIQUE INDEX IF NOT EXISTS products_tenant_barcode_unique_idx
-            ON products (COALESCE(tenant_id, 1), LOWER(BTRIM(barcode)))
-            WHERE barcode IS NOT NULL AND BTRIM(barcode) <> '';
-          CREATE UNIQUE INDEX IF NOT EXISTS products_tenant_article_unique_idx
-            ON products (COALESCE(tenant_id, 1), LOWER(BTRIM(article)))
-            WHERE article IS NOT NULL AND BTRIM(article) <> '';
-        `).catch(() => {});
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS min_price INTEGER NOT NULL DEFAULT 0");
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS max_price INTEGER NOT NULL DEFAULT 0");
-        await pgClient.query("ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'RETAIL'");
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pairs_per_carton INTEGER");
-        await pgClient.query(`DO $$ BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='products' AND column_name='minimum_pairs') THEN
-            UPDATE products SET pairs_per_carton = minimum_pairs WHERE (pairs_per_carton IS NULL OR pairs_per_carton <= 0 OR (pairs_per_carton = 12 AND minimum_pairs = 16)) AND minimum_pairs IN (6, 8, 12, 16);
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='products' AND column_name='store_lot_size') THEN
-            UPDATE products SET pairs_per_carton = store_lot_size WHERE store_lot_size IN (6, 8, 12, 16);
-          END IF;
-        END $$`);
-        await pgClient.query("UPDATE products SET pairs_per_carton = CASE pairs_per_carton WHEN 6 THEN 12 WHEN 8 THEN 16 ELSE pairs_per_carton END");
-        await pgClient.query("UPDATE products SET pairs_per_carton = 12 WHERE pairs_per_carton IS NULL OR pairs_per_carton <= 0");
-        await pgClient.query("ALTER TABLE products ALTER COLUMN pairs_per_carton SET DEFAULT 12");
-        await pgClient.query("ALTER TABLE products ALTER COLUMN pairs_per_carton SET NOT NULL");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS min_order_cartons");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS carton_price");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS carton_barcode");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS store_lot_size");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS minimum_pairs");
-        await pgClient.query("ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'RETAIL'");
-        await pgClient.query("ALTER TABLE company_settings DROP COLUMN IF EXISTS default_pairs_per_carton");
-        await pgClient.query("ALTER TABLE company_settings DROP COLUMN IF EXISTS wholesale_invoice_format");
-        await pgClient.query("ALTER TABLE tenants DROP COLUMN IF EXISTS business_type CASCADE");
-        await pgClient.query("ALTER TABLE tenants DROP COLUMN IF EXISTS pricing_mode CASCADE");
-        await pgClient.query(`DO $$ BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'selling_price') THEN
-            EXECUTE 'UPDATE products SET max_price = CASE WHEN COALESCE(max_price, 0) = 0 THEN COALESCE(selling_price, 0) ELSE max_price END, min_price = CASE WHEN COALESCE(min_price, 0) = 0 THEN COALESCE(selling_price, 0) ELSE min_price END';
-            EXECUTE 'ALTER TABLE products DROP COLUMN selling_price';
-          END IF;
-        END $$`);
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_half_carton BOOLEAN NOT NULL DEFAULT true");
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5");
-        await pgClient.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS min_selling_quantity");
-        await pgClient.query("ALTER TABLE products DROP COLUMN IF EXISTS low_stock_limit");
-        await pgClient.query(`
-          UPDATE products p
-          SET allow_half_carton = false
-          FROM company_settings cs
-          WHERE p.tenant_id = cs.tenant_id
-            AND UPPER(cs.business_type::text) = 'WHOLESALE'
-            AND (cs.allow_half_carton = false)
-        `).catch(() => {});
-      }
-      if (reg.rows[0]?.has_settings && reg.rows[0]?.has_products) {
-        productColumnsVerified = true;
-      }
-    } catch (_) {
-    } finally {
-      productColumnsPromise = null;
-    }
-  })();
-
-  return productColumnsPromise;
+  await ensureDatabaseSchema();
+  productColumnsVerified = true;
 }
 
 // Company pricing settings helper

@@ -388,7 +388,7 @@ export async function ensureAppSettingsSchema(): Promise<void> {
         )
       `);
       await pgClient.query(`
-        CREATE INDEX IF NOT EXISTS idx_app_settings_category ON public.app_settings (category)
+        CREATE INDEX IF NOT EXISTS app_settings_category_idx ON public.app_settings (category)
       `);
 
       // Sanitize any malformed non-HTTP URLs that may have been saved into webhook fields

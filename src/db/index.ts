@@ -55,6 +55,7 @@ const mockStore: Record<string, any[]> = {
       tax_id: 'STRN-100200300',
       currency: 'PKR',
       onboarding_completed: true,
+      welcome_dismissed: false,
       deleted_product_ids: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -73,6 +74,7 @@ const mockStore: Record<string, any[]> = {
       tax_id: 'STRN-200300400',
       currency: 'PKR',
       onboarding_completed: true,
+      welcome_dismissed: false,
       deleted_product_ids: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -91,6 +93,7 @@ const mockStore: Record<string, any[]> = {
       tax_id: 'STRN-300400500',
       currency: 'PKR',
       onboarding_completed: true,
+      welcome_dismissed: false,
       deleted_product_ids: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -109,6 +112,7 @@ const mockStore: Record<string, any[]> = {
       tax_id: 'STRN-400500600',
       currency: 'PKR',
       onboarding_completed: true,
+      welcome_dismissed: false,
       deleted_product_ids: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -219,6 +223,7 @@ const mockStore: Record<string, any[]> = {
       pricing_mode: 'FIXED',
       business_type: 'RETAIL',
       allow_half_carton: true,
+      notification_preferences: null,
       updated_at: new Date().toISOString(),
     },
     {
@@ -243,6 +248,7 @@ const mockStore: Record<string, any[]> = {
       pricing_mode: 'NEGOTIABLE',
       business_type: 'RETAIL',
       allow_half_carton: true,
+      notification_preferences: null,
       updated_at: new Date().toISOString(),
     },
     {
@@ -267,6 +273,7 @@ const mockStore: Record<string, any[]> = {
       pricing_mode: 'FIXED',
       business_type: 'RETAIL',
       allow_half_carton: true,
+      notification_preferences: null,
       updated_at: new Date().toISOString(),
     },
     {
@@ -291,6 +298,7 @@ const mockStore: Record<string, any[]> = {
       pricing_mode: 'FIXED',
       business_type: 'RETAIL',
       allow_half_carton: true,
+      notification_preferences: null,
       updated_at: new Date().toISOString(),
     },
   ],
@@ -331,6 +339,7 @@ const mockStore: Record<string, any[]> = {
       id: 1,
       tenant_id: 1,
       name: 'Tariq Wholesale Traders',
+      customer_type: 'WHOLESALER',
       shop_name: 'Tariq Shoes & Sons',
       market_name: 'Moti Bazar',
       city: 'Rawalpindi',
@@ -484,11 +493,11 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: [{ exists: true, ok: true } as unknown as T], rowCount: 1 };
   }
 
-  // APP_SETTINGS and APP_SETTING table handling in in-memory mock store
-  if (upper.includes('APP_SETTINGS') || upper.includes('APP_SETTING')) {
+  // APP_SETTINGS table handling in in-memory mock store
+  if (upper.includes('APP_SETTINGS')) {
     if (!mockStore.app_settings) mockStore.app_settings = [];
 
-    if (upper.startsWith('INSERT INTO') || upper.includes('INSERT INTO PUBLIC.APP_SETTINGS') || upper.includes('INSERT INTO PUBLIC.APP_SETTING') || upper.includes('INSERT INTO APP_SETTING')) {
+    if (upper.startsWith('INSERT INTO') || upper.includes('INSERT INTO PUBLIC.APP_SETTINGS')) {
       const key = String(params[0] || '').trim();
       if (!key) {
         return { rows: [], rowCount: 0 };

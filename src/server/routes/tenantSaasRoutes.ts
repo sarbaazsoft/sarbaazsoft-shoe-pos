@@ -1765,15 +1765,6 @@ router.post('/superadmin/import-sql', requireAuth, requireSuperAdmin, async (req
     }
 
     await pgClient.waitReady;
-    await pgClient.exec(`
-      DO $$
-      BEGIN
-        BEGIN
-          ALTER TABLE categories ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1;
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
-      END $$;
-    `).catch(() => {});
     await pgClient.exec(sql);
     await ensureDatabaseSchema();
 

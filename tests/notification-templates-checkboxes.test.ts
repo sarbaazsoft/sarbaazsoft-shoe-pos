@@ -259,9 +259,9 @@ test('Retail store end-to-end: Checkout, Same-Invoice Return consolidation, Inde
   const prodRes = await pgClient.query<{ id: number }>(
     `INSERT INTO products (
       tenant_id, tenant_product_no, name, brand, category, article, barcode,
-      primary_image_url, description, cost_price, min_price, max_price, selling_price,
+      primary_image_url, description, cost_price, min_price, max_price,
       pairs_per_carton, allow_half_carton, total_stock, low_stock_threshold, is_low_stock_alert_sent, active
-    ) VALUES ($1, $2, $3, 'Nike', 'Sneakers', $4, $5, '', '', 1500, 2000, 2500, 2500, 12, true, 100, 5, false, true)
+    ) VALUES ($1, $2, $3, 'Nike', 'Sneakers', $4, $5, '', '', 1500, 2000, 2500, 12, true, 100, 5, false, true)
     RETURNING id`,
     [tenantId, 9000 + Number(suffix), 'Nike Air Max 90', `NAM-${suffix}`, `BC-${suffix}`]
   );

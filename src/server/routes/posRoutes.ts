@@ -5,7 +5,7 @@ import { pgClient } from '../../db/index.ts';
 import { requireAuth } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
-import { ensureCustomerLedgerSchema, ensureSalesTransactionIdSchema } from '../../db/schemaInit.ts';
+import { ensureCustomerLedgerSchema, ensureDatabaseSchema } from '../../db/schemaInit.ts';
 import { notifyPosAction } from '../pushNotificationService.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
@@ -245,7 +245,7 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 
   try {
-    await ensureSalesTransactionIdSchema();
+    await ensureDatabaseSchema();
     await ensureCustomerLedgerSchema();
   } catch (err: any) {
     return res.status(500).json({ error: 'Could not prepare the database for checkout: ' + err.message });

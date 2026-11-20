@@ -8,19 +8,9 @@ import { customerOpeningBalanceSchema } from '../../schemas/openingBalanceSchema
 
 const router = Router();
 
-let customerTypeColumnEnsured = false;
-async function ensureCustomerColumns() {
-  if (customerTypeColumnEnsured) return;
-  try {
-    await pgClient.query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_type VARCHAR(30) DEFAULT 'RETAILER'");
-    customerTypeColumnEnsured = true;
-  } catch (_) {}
-}
-
 // List / Search Customers (Strictly scoped to req.user.tenantId)
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    await ensureCustomerColumns();
     const tenantDb = getTenantDb(req);
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     const customers = await tenantDb.customers.findMany(search);
@@ -163,8 +153,6 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       }
     }
 
-    await ensureCustomerColumns();
-
     // Customer row and its opening ledger entry are saved together or not at all.
     await pgClient.query('BEGIN');
     try {
@@ -197,7 +185,6 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 // Update Customer (Strictly scoped to req.user.tenantId)
 router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    await ensureCustomerColumns();
     const tenantDb = getTenantDb(req);
     const id = parseInt(req.params.id, 10);
     const {

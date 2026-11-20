@@ -318,11 +318,11 @@ router.post('/install-platform', async (req: Request, res: Response) => {
       );
     }
 
-    // 4. Record schema initialization markers so control-plane startup knows the schema is ready
+    // 4. Record schema initialization marker so control-plane startup knows the fresh schema is ready
     await pgClient
       .query(
         `INSERT INTO app_settings (key, value, category, description, is_secret)
-         VALUES ('__schema_v16_low_stock_threshold__', 'true', 'system', 'Schema initialized with global low_stock_threshold and cleaned columns', false)
+         VALUES ('__schema_fresh_v1__', 'true', 'system', 'Fresh standalone PostgreSQL schema initialized cleanly', false)
          ON CONFLICT (key) DO NOTHING`
       )
       .catch(() => {});

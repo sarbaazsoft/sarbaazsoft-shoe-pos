@@ -5,135 +5,17 @@ import { ensureAppSettingsSchema } from '../server/services/appSettingsService.t
 let saasControlPlaneInitialized = false;
 let saasControlPlanePromise: Promise<void> | null = null;
 let databaseSchemaPromise: Promise<void> | null = null;
-let productPriceMigrationPromise: Promise<void> | null = null;
-let documentPrefixMigrationPromise: Promise<void> | null = null;
-
-/** Migrate legacy wholesale product prices before schema fast paths can skip DDL. */
-async function migrateLegacyWholesaleProductPricesOnce(): Promise<void> {
-  const state = await pgClient.query<{ has_products: boolean; has_wholesale_price: boolean }>(`
-    SELECT to_regclass('public.products') IS NOT NULL AS has_products,
-           EXISTS (
-             SELECT 1 FROM information_schema.columns
-             WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'wholesale_price'
-           ) AS has_wholesale_price
-  `);
-  if (!state.rows[0]?.has_products || !state.rows[0]?.has_wholesale_price) return;
-
-  await pgClient.query('ALTER TABLE public.products ADD COLUMN IF NOT EXISTS min_price INTEGER NOT NULL DEFAULT 0');
-  await pgClient.query('ALTER TABLE public.products ADD COLUMN IF NOT EXISTS max_price INTEGER NOT NULL DEFAULT 0');
-
-  const settings = await pgClient.query<{ has_business_type: boolean }>(`
-    SELECT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'business_type'
-    ) AS has_business_type
-  `);
-  if (settings.rows[0]?.has_business_type) {
-    await pgClient.query(`
-      UPDATE products p
-      SET min_price = COALESCE(NULLIF(p.wholesale_price, 0), NULLIF(p.max_price, 0), p.min_price, 0),
-          max_price = COALESCE(NULLIF(p.wholesale_price, 0), NULLIF(p.max_price, 0), p.min_price, 0)
-      FROM company_settings cs
-      WHERE COALESCE(cs.tenant_id, 1) = COALESCE(p.tenant_id, 1)
-        AND UPPER(COALESCE(cs.business_type::text, 'RETAIL')) = 'WHOLESALE'
-    `);
-  }
-
-  await pgClient.query('ALTER TABLE public.products DROP COLUMN IF EXISTS wholesale_price');
-}
-
-export function migrateLegacyWholesaleProductPrices(): Promise<void> {
-  if (!productPriceMigrationPromise) {
-    productPriceMigrationPromise = migrateLegacyWholesaleProductPricesOnce().catch((error) => {
-      productPriceMigrationPromise = null;
-      throw error;
-    });
-  }
-  return productPriceMigrationPromise;
-}
-
-/** Remove legacy per-tenant document prefixes before schema fast paths can skip DDL. */
-export function dropLegacyDocumentPrefixColumns(): Promise<void> {
-  if (!documentPrefixMigrationPromise) {
-    documentPrefixMigrationPromise = pgClient.query(`
-      DO $$ BEGIN
-        IF to_regclass('public.company_settings') IS NOT NULL THEN
-          ALTER TABLE public.company_settings DROP COLUMN IF EXISTS invoice_prefix;
-          ALTER TABLE public.company_settings DROP COLUMN IF EXISTS purchase_prefix;
-        END IF;
-        IF to_regclass('public.tenants') IS NOT NULL AND to_regclass('public.company_settings') IS NOT NULL THEN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'pricing_mode') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET pricing_mode = (CASE WHEN UPPER(TRIM(COALESCE(NULLIF(cs.pricing_mode::text, ''), NULLIF(t.pricing_mode::text, ''), 'FIXED'))) = 'NEGOTIABLE' THEN 'NEGOTIABLE'::pricing_mode_enum ELSE 'FIXED'::pricing_mode_enum END)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'business_type') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET business_type = (CASE WHEN UPPER(TRIM(COALESCE(NULLIF(cs.business_type::text, ''), NULLIF(t.business_type::text, ''), 'RETAIL'))) = 'WHOLESALE' THEN 'WHOLESALE'::business_type_enum ELSE 'RETAIL'::business_type_enum END)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'allow_half_carton') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, t.allow_half_carton, true)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'allow_half_cartoon') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, t.allow_half_cartoon, true)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'min_selling_quantity') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, (t.min_selling_quantity <= 0.5), true)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-        END IF;
-        IF to_regclass('public.tenants') IS NOT NULL THEN
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS invoice_prefix CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS purchase_prefix CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS allow_half_carton CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS allow_half_cartoon CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS pricing_mode CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS pricing_policy CASCADE;
-          ALTER TABLE public.tenants DROP COLUMN IF EXISTS business_type CASCADE;
-        END IF;
-      END $$;
-    `).then(() => undefined).catch((error) => {
-      documentPrefixMigrationPromise = null;
-      throw error;
-    });
-  }
-  return documentPrefixMigrationPromise;
-}
+let databaseEnumsSchemaPromise: Promise<void> | null = null;
+let customerLedgerSchemaPromise: Promise<void> | null = null;
+let platformNotificationsSchemaPromise: Promise<void> | null = null;
+let notificationsSchemaPromise: Promise<void> | null = null;
+let emailVerificationSchemaVerified = false;
+let authRateLimitSchemaVerified = false;
+let fcmTokensSchemaPromise: Promise<void> | null = null;
 
 export function isSaasControlPlaneInitialized(): boolean {
   return saasControlPlaneInitialized;
 }
-
-let databaseEnumsSchemaPromise: Promise<void> | null = null;
-let platformNotificationsSchemaPromise: Promise<void> | null = null;
-let notificationsSchemaPromise: Promise<void> | null = null;
 
 export function resetSaasControlPlaneState(): void {
   saasControlPlaneInitialized = false;
@@ -141,12 +23,11 @@ export function resetSaasControlPlaneState(): void {
   databaseSchemaPromise = null;
   databaseEnumsSchemaPromise = null;
   customerLedgerSchemaPromise = null;
-  salesTransactionIdSchemaPromise = null;
-  fcmTokensSchemaPromise = null;
   platformNotificationsSchemaPromise = null;
   notificationsSchemaPromise = null;
-  productPriceMigrationPromise = null;
-  documentPrefixMigrationPromise = null;
+  emailVerificationSchemaVerified = false;
+  authRateLimitSchemaVerified = false;
+  fcmTokensSchemaPromise = null;
 }
 
 /**
@@ -224,16 +105,17 @@ export async function syncExpiredTenantSubscriptions(): Promise<void> {
 export const REQUIRED_DATABASE_TABLES = [
   'tenants',
   'users',
-  'trial_activations',
   'password_reset_tokens',
+  'email_verification_tokens',
+  'auth_resend_rate_limits',
   'company_settings',
   'categories',
   'products',
   'customers',
   'suppliers',
   'purchases',
-  'supplier_payments',
   'purchase_items',
+  'supplier_payments',
   'purchase_returns',
   'purchase_return_items',
   'sales',
@@ -243,11 +125,13 @@ export const REQUIRED_DATABASE_TABLES = [
   'stock_movements',
   'customer_ledger',
   'supplier_ledger',
+  'trial_activations',
   'app_settings',
   'platform_notifications',
   'platform_notification_reads',
   'pos_notification_dismissals',
   'notifications',
+  'fcm_tokens',
 ] as const;
 
 export const DATABASE_ENUM_DDL: string[] = [
@@ -280,24 +164,10 @@ export const DATABASE_ENUM_DDL: string[] = [
       CREATE TYPE subscription_status_enum AS ENUM ('ACTIVE', 'EXPIRED', 'SUSPENDED');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_plan_enum') THEN
-      CREATE TYPE subscription_plan_enum AS ENUM ('free_tier', 'TRIAL', '6_MONTHS', 'YEARLY');
-    ELSE
-      BEGIN
-        ALTER TYPE subscription_plan_enum ADD VALUE IF NOT EXISTS 'free_tier';
-        ALTER TYPE subscription_plan_enum ADD VALUE IF NOT EXISTS 'FREE_TIER';
-        ALTER TYPE subscription_plan_enum ADD VALUE IF NOT EXISTS 'TRIAL';
-      EXCEPTION WHEN OTHERS THEN NULL;
-      END;
+      CREATE TYPE subscription_plan_enum AS ENUM ('free_tier', 'FREE_TIER', 'TRIAL', '6_MONTHS', 'YEARLY');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_type_enum') THEN
       CREATE TYPE subscription_type_enum AS ENUM ('free_tier', '6_months', '1_year', 'TRIAL', '6_MONTHS', 'YEARLY');
-    ELSE
-      BEGIN
-        ALTER TYPE subscription_type_enum ADD VALUE IF NOT EXISTS 'free_tier';
-        ALTER TYPE subscription_type_enum ADD VALUE IF NOT EXISTS '6_months';
-        ALTER TYPE subscription_type_enum ADD VALUE IF NOT EXISTS '1_year';
-      EXCEPTION WHEN OTHERS THEN NULL;
-      END;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'purchase_payment_status_enum') THEN
       CREATE TYPE purchase_payment_status_enum AS ENUM ('UNPAID', 'PARTIAL', 'PAID');
@@ -313,6 +183,7 @@ export const DATABASE_ENUM_DDL: string[] = [
   `CREATE OR REPLACE FUNCTION btrim(val business_type_enum) RETURNS text AS $$ SELECT btrim(val::text); $$ LANGUAGE sql IMMUTABLE;`,
   `CREATE OR REPLACE FUNCTION lower(val business_type_enum) RETURNS text AS $$ SELECT lower(val::text); $$ LANGUAGE sql IMMUTABLE;`,
   `CREATE OR REPLACE FUNCTION upper(val pricing_mode_enum) RETURNS text AS $$ SELECT upper(val::text); $$ LANGUAGE sql IMMUTABLE;`,
+  `CREATE OR REPLACE FUNCTION btrim(val pricing_mode_enum) RETURNS text AS $$ SELECT btrim(val::text); $$ LANGUAGE sql IMMUTABLE;`,
   `CREATE OR REPLACE FUNCTION lower(val pricing_mode_enum) RETURNS text AS $$ SELECT lower(val::text); $$ LANGUAGE sql IMMUTABLE;`,
   `CREATE OR REPLACE FUNCTION upper(val tenant_status_enum) RETURNS text AS $$ SELECT upper(val::text); $$ LANGUAGE sql IMMUTABLE;`,
   `CREATE OR REPLACE FUNCTION lower(val tenant_status_enum) RETURNS text AS $$ SELECT lower(val::text); $$ LANGUAGE sql IMMUTABLE;`,
@@ -330,7 +201,7 @@ export const DATABASE_ENUM_DDL: string[] = [
   `CREATE OR REPLACE FUNCTION lower(val purchase_payment_status_enum) RETURNS text AS $$ SELECT lower(val::text); $$ LANGUAGE sql IMMUTABLE;`,
 ];
 
-const DATABASE_TABLE_DDL: string[] = [
+export const DATABASE_TABLE_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS tenants (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL DEFAULT '',
@@ -348,23 +219,31 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 0,
+    tenant_id INTEGER NOT NULL DEFAULT 0 CHECK (tenant_id >= 0),
     name TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL UNIQUE,
-    phone TEXT DEFAULT '',
-    avatar_url TEXT DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    avatar_url TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
-    quick_password TEXT DEFAULT '',
+    quick_password TEXT NOT NULL DEFAULT '',
     role user_role_enum NOT NULL DEFAULT 'CASHIER',
     status user_status_enum NOT NULL DEFAULT 'PENDING',
     active BOOLEAN NOT NULL DEFAULT true,
-    theme_color TEXT DEFAULT '',
+    theme_color TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token TEXT NOT NULL UNIQUE,
     expires_at TIMESTAMP NOT NULL,
@@ -381,31 +260,32 @@ const DATABASE_TABLE_DDL: string[] = [
     window_start_at TIMESTAMP NULL,
     window_request_count INTEGER NOT NULL DEFAULT 0,
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (flow, scope_type, scope_key)
+    CONSTRAINT auth_resend_rate_limits_scope_unique UNIQUE (flow, scope_type, scope_key)
   )`,
   `CREATE TABLE IF NOT EXISTS company_settings (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
-    logo TEXT DEFAULT '',
-    address TEXT DEFAULT '',
-    phone TEXT DEFAULT '',
-    email TEXT DEFAULT '',
-    website TEXT DEFAULT '',
-    strn TEXT DEFAULT '',
-    tax_id TEXT DEFAULT '',
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
+    logo TEXT NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    website TEXT NOT NULL DEFAULT '',
+    strn TEXT NOT NULL DEFAULT '',
+    tax_id TEXT NOT NULL DEFAULT '',
     tax_rate NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
     currency TEXT NOT NULL DEFAULT 'PKR',
     currency_name TEXT NOT NULL DEFAULT 'Pakistani Rupee',
     currency_symbol TEXT NOT NULL DEFAULT 'Rs.',
     invoice_footer TEXT NOT NULL DEFAULT 'Thank you for shopping with us!',
     show_receipt_logo BOOLEAN NOT NULL DEFAULT false,
-    receipt_logo TEXT DEFAULT '',
-    low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+    receipt_logo TEXT NOT NULL DEFAULT '',
+    low_stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK (low_stock_threshold >= 0),
     pricing_mode pricing_mode_enum NOT NULL DEFAULT 'FIXED',
     business_type business_type_enum NOT NULL DEFAULT 'RETAIL',
     allow_half_carton BOOLEAN NOT NULL DEFAULT true,
     notification_preferences JSONB DEFAULT NULL,
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT company_settings_tenant_unique UNIQUE (tenant_id)
   )`,
   `CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
@@ -414,22 +294,22 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     tenant_product_no INTEGER,
     name TEXT NOT NULL,
     brand VARCHAR(100) NOT NULL DEFAULT 'Unbranded',
     category VARCHAR(100) NOT NULL DEFAULT 'Men',
     barcode TEXT NOT NULL,
-    article TEXT DEFAULT '',
-    primary_image_url TEXT DEFAULT '',
-    description TEXT DEFAULT '',
+    article TEXT NOT NULL DEFAULT '',
+    primary_image_url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
     cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     min_price INTEGER NOT NULL DEFAULT 0,
     max_price INTEGER NOT NULL DEFAULT 0,
-    pairs_per_carton INTEGER NOT NULL DEFAULT 12,
+    pairs_per_carton INTEGER NOT NULL DEFAULT 12 CHECK (pairs_per_carton > 0),
     allow_half_carton BOOLEAN NOT NULL DEFAULT true,
     total_stock INTEGER NOT NULL DEFAULT 0,
-    low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+    low_stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK (low_stock_threshold >= 0),
     is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false,
     active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -437,11 +317,12 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    shop_name TEXT DEFAULT '',
-    market_name TEXT DEFAULT '',
-    city TEXT DEFAULT '',
+    customer_type VARCHAR(30) NOT NULL DEFAULT 'RETAILER',
+    shop_name TEXT NOT NULL DEFAULT '',
+    market_name TEXT NOT NULL DEFAULT '',
+    city TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL,
     email TEXT,
     address TEXT,
@@ -449,22 +330,22 @@ const DATABASE_TABLE_DDL: string[] = [
     credit_limit NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     current_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    ntn_number TEXT DEFAULT '',
+    ntn_number TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS suppliers (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    phone TEXT DEFAULT '',
-    email TEXT DEFAULT '',
-    balance NUMERIC(12, 2) DEFAULT 0.00,
+    phone TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS purchases (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     purchase_number TEXT NOT NULL,
     supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
     supplier_name TEXT NOT NULL,
@@ -472,14 +353,23 @@ const DATABASE_TABLE_DDL: string[] = [
     total_amount NUMERIC(12, 2) NOT NULL,
     paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     payment_status purchase_payment_status_enum NOT NULL DEFAULT 'UNPAID',
-    payment_method TEXT DEFAULT 'CASH',
+    payment_method TEXT NOT NULL DEFAULT 'CASH',
     notes TEXT,
     created_by INTEGER NOT NULL REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
+  `CREATE TABLE IF NOT EXISTS purchase_items (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
+    purchase_id INTEGER NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id),
+    quantity INTEGER NOT NULL,
+    unit_purchase_price NUMERIC(12, 2) NOT NULL,
+    subtotal NUMERIC(12, 2) NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS supplier_payments (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     payment_number TEXT NOT NULL,
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
     supplier_name TEXT NOT NULL,
@@ -487,23 +377,14 @@ const DATABASE_TABLE_DDL: string[] = [
     amount NUMERIC(12, 2) NOT NULL,
     payment_date TEXT NOT NULL,
     payment_method TEXT NOT NULL DEFAULT 'CASH',
-    reference_number TEXT DEFAULT '',
-    notes TEXT DEFAULT '',
+    reference_number TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
     created_by INTEGER NOT NULL REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS purchase_items (
-    id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
-    purchase_id INTEGER NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
-    product_id INTEGER NOT NULL REFERENCES products(id),
-    quantity INTEGER NOT NULL,
-    unit_purchase_price NUMERIC(12, 2) NOT NULL,
-    subtotal NUMERIC(12, 2) NOT NULL
-  )`,
   `CREATE TABLE IF NOT EXISTS purchase_returns (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     return_number TEXT NOT NULL,
     purchase_id INTEGER REFERENCES purchases(id) ON DELETE SET NULL,
     supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
@@ -517,17 +398,17 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS purchase_return_items (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     purchase_return_id INTEGER NOT NULL REFERENCES purchase_returns(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id),
     quantity INTEGER NOT NULL,
     unit_purchase_price NUMERIC(12, 2) NOT NULL,
     subtotal NUMERIC(12, 2) NOT NULL,
-    defect_type TEXT DEFAULT 'MANUFACTURING_DEFECT'
+    defect_type TEXT NOT NULL DEFAULT 'MANUFACTURING_DEFECT'
   )`,
   `CREATE TABLE IF NOT EXISTS sales (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     invoice_number TEXT NOT NULL,
     sale_type sale_type_enum NOT NULL DEFAULT 'RETAIL',
     customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
@@ -536,14 +417,14 @@ const DATABASE_TABLE_DDL: string[] = [
     discount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     total_amount NUMERIC(12, 2) NOT NULL,
     total_cartons NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    transport_name TEXT DEFAULT '',
-    bilty_number TEXT DEFAULT '',
-    booking_destination TEXT DEFAULT '',
+    transport_name TEXT NOT NULL DEFAULT '',
+    bilty_number TEXT NOT NULL DEFAULT '',
+    booking_destination TEXT NOT NULL DEFAULT '',
     previous_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     remaining_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     payment_method TEXT NOT NULL DEFAULT 'CASH',
-    transaction_id TEXT DEFAULT '',
+    transaction_id TEXT NOT NULL DEFAULT '',
     cash_received NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     change_given NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     created_by INTEGER NOT NULL REFERENCES users(id),
@@ -555,7 +436,7 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS sale_items (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id),
     product_name TEXT NOT NULL,
@@ -570,9 +451,9 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS returns (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     return_number TEXT NOT NULL,
-    original_sale_id INTEGER REFERENCES sales(id),
+    original_sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
     customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
     return_date TEXT NOT NULL,
     total_refund_amount NUMERIC(12, 2) NOT NULL,
@@ -584,9 +465,9 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS return_items (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     return_id INTEGER NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
-    sale_item_id INTEGER REFERENCES sale_items(id),
+    sale_item_id INTEGER REFERENCES sale_items(id) ON DELETE SET NULL,
     product_id INTEGER NOT NULL REFERENCES products(id),
     quantity INTEGER NOT NULL,
     unit_refund_price NUMERIC(12, 2) NOT NULL,
@@ -594,7 +475,7 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS stock_movements (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id),
     qty_change INTEGER NOT NULL,
     prev_stock INTEGER NOT NULL,
@@ -607,40 +488,38 @@ const DATABASE_TABLE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS customer_ledger (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     transaction_date TEXT NOT NULL,
     invoice_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
-    invoice_number TEXT DEFAULT '',
+    invoice_number TEXT NOT NULL DEFAULT '',
     total_bill NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     amount_paid NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     balance_change NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     running_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    payment_method TEXT DEFAULT 'KHATA',
-    notes TEXT DEFAULT '',
+    payment_method TEXT NOT NULL DEFAULT 'KHATA',
+    notes TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
-  // Supplier ledger entries that are not purchases, returns or payments (opening balances).
-  // credit increases what the store owes the supplier; debit reduces it (prepaid advance).
   `CREATE TABLE IF NOT EXISTS supplier_ledger (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
     entry_type TEXT NOT NULL DEFAULT 'OPENING_BALANCE',
     entry_date TEXT NOT NULL,
-    reference_number TEXT DEFAULT '',
+    reference_number TEXT NOT NULL DEFAULT '',
     debit NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    notes TEXT DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS trial_activations (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER,
-    tenant_id INTEGER,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
     email TEXT NOT NULL,
-    user_name TEXT DEFAULT '',
-    phone TEXT DEFAULT '',
+    user_name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
     store_name TEXT NOT NULL,
     business_type TEXT NOT NULL DEFAULT 'RETAIL',
     pricing_mode TEXT NOT NULL DEFAULT 'FIXED',
@@ -649,18 +528,18 @@ const DATABASE_TABLE_DDL: string[] = [
     trial_start_date TIMESTAMP NOT NULL DEFAULT NOW(),
     trial_end_date TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
     status TEXT NOT NULL DEFAULT 'ACTIVE',
-    ip_address TEXT DEFAULT '',
-    user_agent TEXT DEFAULT '',
+    ip_address TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
     activated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    details JSONB DEFAULT '{}'::jsonb
+    details JSONB NOT NULL DEFAULT '{}'::jsonb
   )`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key VARCHAR(100) PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
     category VARCHAR(50) NOT NULL DEFAULT 'system',
-    description TEXT DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
     is_secret BOOLEAN NOT NULL DEFAULT FALSE,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS platform_notifications (
     id SERIAL PRIMARY KEY,
@@ -669,8 +548,8 @@ const DATABASE_TABLE_DDL: string[] = [
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'INFO',
-    action_url TEXT DEFAULT '',
-    action_label TEXT DEFAULT '',
+    action_url TEXT NOT NULL DEFAULT '',
+    action_label TEXT NOT NULL DEFAULT '',
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     expires_at TIMESTAMP NULL,
     event_id TEXT,
@@ -679,78 +558,77 @@ const DATABASE_TABLE_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS platform_notification_reads (
     id SERIAL PRIMARY KEY,
     notification_id INTEGER NOT NULL REFERENCES platform_notifications(id) ON DELETE CASCADE,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
-    user_id INTEGER NOT NULL DEFAULT 0,
+    tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
+    user_id INTEGER NOT NULL DEFAULT 0 CHECK (user_id >= 0),
     read_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    CONSTRAINT platform_notification_reads_unique UNIQUE(notification_id, tenant_id, user_id)
+    CONSTRAINT platform_notification_reads_unique UNIQUE (notification_id, tenant_id, user_id)
   )`,
   `CREATE TABLE IF NOT EXISTS pos_notification_dismissals (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
-    user_id INTEGER NOT NULL DEFAULT 0,
+    tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
+    user_id INTEGER NOT NULL DEFAULT 0 CHECK (user_id >= 0),
     item_type TEXT NOT NULL DEFAULT 'SALE',
     item_id INTEGER NOT NULL,
     dismissed_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    CONSTRAINT pos_notification_dismissals_unique UNIQUE(tenant_id, user_id, item_type, item_id)
+    CONSTRAINT pos_notification_dismissals_unique UNIQUE (tenant_id, user_id, item_type, item_id)
   )`,
   `CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1,
+    tenant_id INTEGER NOT NULL DEFAULT 1 REFERENCES tenants(id) ON DELETE CASCADE,
     target_role TEXT NOT NULL DEFAULT 'ADMIN',
     type TEXT NOT NULL DEFAULT 'LOW_STOCK',
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     sale_id INTEGER NULL REFERENCES sales(id) ON DELETE SET NULL,
-    invoice_number TEXT DEFAULT '',
-    action_url TEXT DEFAULT '/?tab=inventory&lowStockOnly=true',
+    invoice_number TEXT NOT NULL DEFAULT '',
+    action_url TEXT NOT NULL DEFAULT '/?tab=inventory&lowStockOnly=true',
     items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     event_id TEXT,
     is_read BOOLEAN NOT NULL DEFAULT false,
     read_at TIMESTAMP NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
+  `CREATE TABLE IF NOT EXISTS fcm_tokens (
+    token TEXT PRIMARY KEY,
+    tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
+    user_id INTEGER NOT NULL DEFAULT 0 CHECK (user_id >= 0),
+    user_role TEXT NOT NULL DEFAULT 'ADMIN',
+    user_agent TEXT NOT NULL DEFAULT '',
+    device_name TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`,
 ];
 
-const DATABASE_INDEX_DDL: string[] = [
-  `ALTER TABLE IF EXISTS products DROP COLUMN IF EXISTS sku`,
-  `CREATE INDEX IF NOT EXISTS pos_notification_dismissals_idx ON pos_notification_dismissals(tenant_id, user_id, item_type)`,
-  `CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON notifications(tenant_id, created_at DESC)`,
-  `CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications(tenant_id, is_read)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id) WHERE event_id IS NOT NULL`,
-  `CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id)`,
-  `CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON platform_notifications(created_at)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id) WHERE event_id IS NOT NULL`,
-  `CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON platform_notification_reads(notification_id)`,
-  `CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON platform_notification_reads(tenant_id)`,
-  `CREATE INDEX IF NOT EXISTS app_settings_category_idx ON app_settings(category)`,
-  `DROP VIEW IF EXISTS app_setting CASCADE`,
-  `CREATE INDEX IF NOT EXISTS trial_activations_email_idx ON trial_activations(LOWER(BTRIM(email)))`,
-  `CREATE INDEX IF NOT EXISTS trial_activations_tenant_idx ON trial_activations(tenant_id)`,
-  `CREATE INDEX IF NOT EXISTS trial_activations_status_idx ON trial_activations(status)`,
+export const DATABASE_INDEX_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS tenants_status_idx ON tenants(status)`,
   `CREATE INDEX IF NOT EXISTS tenants_subscription_status_idx ON tenants(subscription_status)`,
   `CREATE INDEX IF NOT EXISTS users_tenant_idx ON users(tenant_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique_idx ON users (LOWER(BTRIM(email)))`,
+  `CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens(user_id)`,
+  `CREATE INDEX IF NOT EXISTS email_verification_tokens_token_idx ON email_verification_tokens(token)`,
+  `CREATE INDEX IF NOT EXISTS email_verification_tokens_user_idx ON email_verification_tokens(user_id)`,
+  `CREATE INDEX IF NOT EXISTS auth_resend_rate_limits_lookup_idx ON auth_resend_rate_limits(flow, scope_type, scope_key)`,
   `CREATE INDEX IF NOT EXISTS company_settings_tenant_idx ON company_settings(tenant_id)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS categories_name_lower_unique_idx ON categories (LOWER(TRIM(name)))`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS categories_name_lower_unique_idx ON categories (LOWER(BTRIM(name)))`,
   `CREATE INDEX IF NOT EXISTS products_tenant_idx ON products(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS products_tenant_product_no_idx ON products(tenant_id, tenant_product_no)`,
   `CREATE INDEX IF NOT EXISTS products_brand_idx ON products(brand)`,
   `CREATE INDEX IF NOT EXISTS products_category_idx ON products(category)`,
   `CREATE INDEX IF NOT EXISTS products_barcode_idx ON products(barcode)`,
   `CREATE INDEX IF NOT EXISTS products_article_idx ON products(article)`,
+  `CREATE INDEX IF NOT EXISTS products_tenant_article_idx ON products(tenant_id, article)`,
+  `CREATE INDEX IF NOT EXISTS products_tenant_barcode_idx ON products(tenant_id, barcode)`,
   `CREATE INDEX IF NOT EXISTS products_active_idx ON products(active)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS products_tenant_barcode_unique_idx ON products (COALESCE(tenant_id, 1), LOWER(BTRIM(barcode))) WHERE barcode IS NOT NULL AND BTRIM(barcode) <> ''`,
   `CREATE UNIQUE INDEX IF NOT EXISTS products_tenant_article_unique_idx ON products (COALESCE(tenant_id, 1), LOWER(BTRIM(article))) WHERE article IS NOT NULL AND BTRIM(article) <> ''`,
   `CREATE INDEX IF NOT EXISTS customers_tenant_idx ON customers(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS customers_phone_idx ON customers(phone)`,
-  `CREATE INDEX IF NOT EXISTS customer_ledger_tenant_cust_idx ON customer_ledger(tenant_id, customer_id)`,
-  `CREATE INDEX IF NOT EXISTS customer_ledger_date_idx ON customer_ledger(transaction_date)`,
-  `CREATE INDEX IF NOT EXISTS customer_ledger_invoice_idx ON customer_ledger(invoice_id)`,
   `CREATE INDEX IF NOT EXISTS suppliers_tenant_idx ON suppliers(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS purchases_tenant_idx ON purchases(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS purchases_tenant_supplier_idx ON purchases(tenant_id, supplier_id)`,
+  `CREATE INDEX IF NOT EXISTS purchase_items_purchase_idx ON purchase_items(purchase_id)`,
   `CREATE INDEX IF NOT EXISTS supplier_payments_tenant_idx ON supplier_payments(tenant_id)`,
-  `CREATE INDEX IF NOT EXISTS supplier_ledger_supplier_idx ON supplier_ledger(tenant_id, supplier_id)`,
   `CREATE INDEX IF NOT EXISTS supplier_payments_supplier_idx ON supplier_payments(supplier_id)`,
   `CREATE INDEX IF NOT EXISTS supplier_payments_date_idx ON supplier_payments(payment_date)`,
   `CREATE INDEX IF NOT EXISTS supplier_payments_number_idx ON supplier_payments(payment_number)`,
@@ -766,103 +644,120 @@ const DATABASE_INDEX_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS sale_items_tenant_sale_idx ON sale_items(tenant_id, sale_id)`,
   `CREATE INDEX IF NOT EXISTS returns_tenant_idx ON returns(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS returns_tenant_sale_idx ON returns(tenant_id, original_sale_id)`,
-  `CREATE INDEX IF NOT EXISTS purchases_tenant_supplier_idx ON purchases(tenant_id, supplier_id)`,
+  `CREATE INDEX IF NOT EXISTS return_items_return_idx ON return_items(return_id)`,
   `CREATE INDEX IF NOT EXISTS stock_movements_tenant_idx ON stock_movements(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS stock_movements_product_idx ON stock_movements(product_id)`,
   `CREATE INDEX IF NOT EXISTS stock_movements_created_at_idx ON stock_movements(created_at)`,
+  `CREATE INDEX IF NOT EXISTS customer_ledger_tenant_cust_idx ON customer_ledger(tenant_id, customer_id)`,
+  `CREATE INDEX IF NOT EXISTS customer_ledger_date_idx ON customer_ledger(transaction_date)`,
+  `CREATE INDEX IF NOT EXISTS customer_ledger_invoice_idx ON customer_ledger(invoice_id)`,
+  `CREATE INDEX IF NOT EXISTS supplier_ledger_supplier_idx ON supplier_ledger(tenant_id, supplier_id)`,
+  `CREATE INDEX IF NOT EXISTS trial_activations_email_idx ON trial_activations(LOWER(BTRIM(email)))`,
+  `CREATE INDEX IF NOT EXISTS trial_activations_tenant_idx ON trial_activations(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS trial_activations_status_idx ON trial_activations(status)`,
+  `CREATE INDEX IF NOT EXISTS app_settings_category_idx ON app_settings(category)`,
+  `CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS platform_notifications_target_role_idx ON platform_notifications(target_role)`,
+  `CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON platform_notifications(created_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id) WHERE event_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON platform_notification_reads(notification_id)`,
+  `CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON platform_notification_reads(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS pos_notification_dismissals_idx ON pos_notification_dismissals(tenant_id, user_id, item_type)`,
+  `CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON notifications(tenant_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications(tenant_id, is_read)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id) WHERE event_id IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS fcm_tokens_tenant_idx ON fcm_tokens(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS fcm_tokens_user_role_idx ON fcm_tokens(user_role)`,
+  `CREATE INDEX IF NOT EXISTS fcm_tokens_user_id_idx ON fcm_tokens(user_id)`,
 ];
 
-let customerLedgerSchemaPromise: Promise<void> | null = null;
-let salesTransactionIdSchemaPromise: Promise<void> | null = null;
+function findTableDdl(tableName: string): string {
+  const ddl = DATABASE_TABLE_DDL.find((statement) =>
+    new RegExp(`CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+${tableName}\\b`, 'i').test(statement)
+  );
+  if (!ddl) {
+    throw new Error(`Missing DDL definition for table: ${tableName}`);
+  }
+  return ddl;
+}
 
-/** Adds payment reference & idempotency fields to existing databases before POS checkout inserts sales. */
-export function ensureSalesTransactionIdSchema(): Promise<void> {
-  if (!salesTransactionIdSchemaPromise) {
-    salesTransactionIdSchemaPromise = (async () => {
+/**
+ * Ensures all custom PostgreSQL ENUM types and helper functions exist.
+ */
+export function ensureDatabaseEnumsSchema(): Promise<void> {
+  if (!databaseEnumsSchemaPromise) {
+    databaseEnumsSchemaPromise = (async () => {
       await pgClient.waitReady;
-      await pgClient.exec(`
-        ALTER TABLE IF EXISTS public.sales ADD COLUMN IF NOT EXISTS transaction_id TEXT DEFAULT '';
-        ALTER TABLE IF EXISTS public.sales ADD COLUMN IF NOT EXISTS client_tx_id TEXT;
-        CREATE UNIQUE INDEX IF NOT EXISTS sales_tenant_client_tx_id_unique_idx ON public.sales (COALESCE(tenant_id, 1), client_tx_id) WHERE client_tx_id IS NOT NULL AND BTRIM(client_tx_id) <> '';
-      `);
+      for (const enumDdl of DATABASE_ENUM_DDL) {
+        await pgClient.exec(enumDdl);
+      }
     })().catch((error) => {
-      salesTransactionIdSchemaPromise = null;
+      databaseEnumsSchemaPromise = null;
       throw error;
     });
   }
-  return salesTransactionIdSchemaPromise;
+  return databaseEnumsSchemaPromise;
 }
 
-/** Ensures the platform custom notifications and reads tracking tables exist. */
+/**
+ * Ensures all standalone database tables and indexes exist in topological order.
+ */
+export async function ensureDatabaseSchema(): Promise<void> {
+  if (databaseSchemaPromise) return databaseSchemaPromise;
+
+  databaseSchemaPromise = (async () => {
+    try {
+      await pgClient.waitReady;
+      await ensureDatabaseEnumsSchema();
+
+      for (const ddl of DATABASE_TABLE_DDL) {
+        await pgClient.exec(ddl);
+      }
+
+      for (const idxDdl of DATABASE_INDEX_DDL) {
+        await pgClient.exec(idxDdl).catch(() => {});
+      }
+    } finally {
+      databaseSchemaPromise = null;
+    }
+  })();
+
+  return databaseSchemaPromise;
+}
+
+/** Ensures customer_ledger table and indexes exist cleanly. */
+export function ensureCustomerLedgerSchema(): Promise<void> {
+  if (!customerLedgerSchemaPromise) {
+    customerLedgerSchemaPromise = (async () => {
+      await pgClient.waitReady;
+      await pgClient.exec(findTableDdl('customer_ledger'));
+      for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('customer_ledger'))) {
+        await pgClient.exec(idxDdl).catch(() => {});
+      }
+    })().catch((error) => {
+      customerLedgerSchemaPromise = null;
+      throw error;
+    });
+  }
+  return customerLedgerSchemaPromise;
+}
+
+/** Ensures platform_notifications, platform_notification_reads, and pos_notification_dismissals tables exist cleanly. */
 export function ensurePlatformNotificationsSchema(): Promise<void> {
   if (!platformNotificationsSchemaPromise) {
     platformNotificationsSchemaPromise = (async () => {
       await pgClient.waitReady;
-      await pgClient.exec(`
-        CREATE TABLE IF NOT EXISTS public.platform_notifications (
-          id SERIAL PRIMARY KEY,
-          tenant_id INTEGER NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-          target_role TEXT NOT NULL DEFAULT 'ALL',
-          title TEXT NOT NULL,
-          message TEXT NOT NULL,
-          type TEXT NOT NULL DEFAULT 'INFO',
-          action_url TEXT DEFAULT '',
-          action_label TEXT DEFAULT '',
-          created_by INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
-          expires_at TIMESTAMP NULL,
-          event_id TEXT,
-          created_at TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-        ALTER TABLE public.platform_notifications ADD COLUMN IF NOT EXISTS target_role TEXT NOT NULL DEFAULT 'ALL';
-        ALTER TABLE public.platform_notifications ADD COLUMN IF NOT EXISTS event_id TEXT;
-        CREATE TABLE IF NOT EXISTS public.platform_notification_reads (
-          id SERIAL PRIMARY KEY,
-          notification_id INTEGER NOT NULL REFERENCES public.platform_notifications(id) ON DELETE CASCADE,
-          tenant_id INTEGER NOT NULL DEFAULT 1,
-          user_id INTEGER NOT NULL DEFAULT 0,
-          read_at TIMESTAMP NOT NULL DEFAULT NOW(),
-          CONSTRAINT platform_notification_reads_unique UNIQUE(notification_id, tenant_id, user_id)
-        );
-        CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON public.platform_notifications(tenant_id);
-        CREATE INDEX IF NOT EXISTS platform_notifications_target_role_idx ON public.platform_notifications(target_role);
-        CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON public.platform_notifications(created_at);
-        CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON public.platform_notifications(event_id) WHERE event_id IS NOT NULL;
-        CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON public.platform_notification_reads(notification_id);
-        CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON public.platform_notification_reads(tenant_id);
-
-        CREATE TABLE IF NOT EXISTS public.pos_notification_dismissals (
-          id SERIAL PRIMARY KEY,
-          tenant_id INTEGER NOT NULL DEFAULT 1,
-          user_id INTEGER NOT NULL DEFAULT 0,
-          item_type TEXT NOT NULL DEFAULT 'SALE',
-          item_id INTEGER NOT NULL,
-          dismissed_at TIMESTAMP NOT NULL DEFAULT NOW(),
-          CONSTRAINT pos_notification_dismissals_unique UNIQUE(tenant_id, user_id, item_type, item_id)
-        );
-        CREATE INDEX IF NOT EXISTS pos_notification_dismissals_idx ON public.pos_notification_dismissals(tenant_id, user_id, item_type);
-
-        UPDATE public.platform_notifications
-        SET target_role = 'SUPERADMIN', tenant_id = NULL
-        WHERE target_role != 'SUPERADMIN'
-          AND (
-            title ILIKE 'New Free Trial%'
-            OR title ILIKE 'New Renewal Request%'
-            OR title ILIKE 'Renewal Request:%'
-            OR action_url ILIKE '%/superadmin%'
-            OR message ILIKE '%Free Tier store registered%'
-            OR message ILIKE '%requested subscription renewal%'
-          );
-
-        -- Purge duplicate welcome notices to ensure only one welcome notification exists per tenant
-        DELETE FROM public.platform_notifications p1
-        USING public.platform_notifications p2
-        WHERE p1.id > p2.id
-          AND COALESCE(p1.tenant_id, 0) = COALESCE(p2.tenant_id, 0)
-          AND (
-            (p1.title ILIKE 'Welcome to SarbaazSoft%' AND p2.title ILIKE 'Welcome to SarbaazSoft%')
-            OR (p1.message ILIKE '%Thank you for choosing SarbaazSoft%' AND p2.message ILIKE '%Thank you for choosing SarbaazSoft%')
-          );
-      `);
+      await pgClient.exec(findTableDdl('platform_notifications'));
+      await pgClient.exec(findTableDdl('platform_notification_reads'));
+      await pgClient.exec(findTableDdl('pos_notification_dismissals'));
+      for (const idxDdl of DATABASE_INDEX_DDL.filter(
+        (ddl) =>
+          ddl.includes('platform_notifications') ||
+          ddl.includes('platform_notification_reads') ||
+          ddl.includes('pos_notification_dismissals')
+      )) {
+        await pgClient.exec(idxDdl).catch(() => {});
+      }
     })().catch((error) => {
       platformNotificationsSchemaPromise = null;
       throw error;
@@ -871,37 +766,15 @@ export function ensurePlatformNotificationsSchema(): Promise<void> {
   return platformNotificationsSchemaPromise;
 }
 
-/** Ensures the tenant-scoped notifications table & product low-stock tracking columns exist. */
+/** Ensures the tenant-scoped notifications table and indexes exist cleanly. */
 export function ensureNotificationsSchema(): Promise<void> {
   if (!notificationsSchemaPromise) {
     notificationsSchemaPromise = (async () => {
       await pgClient.waitReady;
-      await pgClient.exec(`
-        ALTER TABLE IF EXISTS public.products ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;
-        ALTER TABLE IF EXISTS public.products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false;
-        ALTER TABLE IF EXISTS public.returns ADD COLUMN IF NOT EXISTS payment_method TEXT;
-        ALTER TABLE IF EXISTS public.returns ADD COLUMN IF NOT EXISTS customer_name TEXT;
-
-        CREATE TABLE IF NOT EXISTS public.notifications (
-          id SERIAL PRIMARY KEY,
-          tenant_id INTEGER NOT NULL DEFAULT 1,
-          target_role TEXT NOT NULL DEFAULT 'ADMIN',
-          type TEXT NOT NULL DEFAULT 'LOW_STOCK',
-          title TEXT NOT NULL,
-          message TEXT NOT NULL,
-          sale_id INTEGER NULL,
-          invoice_number TEXT DEFAULT '',
-          action_url TEXT DEFAULT '/?tab=inventory&lowStockOnly=true',
-          items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
-          event_id TEXT,
-          is_read BOOLEAN NOT NULL DEFAULT false,
-          read_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON public.notifications(tenant_id, created_at DESC);
-        CREATE INDEX IF NOT EXISTS notifications_unread_idx ON public.notifications(tenant_id, is_read);
-        CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON public.notifications(event_id) WHERE event_id IS NOT NULL;
-      `);
+      await pgClient.exec(findTableDdl('notifications'));
+      for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('notifications_'))) {
+        await pgClient.exec(idxDdl).catch(() => {});
+      }
     })().catch((error) => {
       notificationsSchemaPromise = null;
       throw error;
@@ -947,634 +820,53 @@ export async function clearSubscriptionAlertsOnRenewal(tenantId: number): Promis
   }
 }
 
-let emailVerificationSchemaVerified = false;
 export async function ensureEmailVerificationSchema(): Promise<void> {
   if (emailVerificationSchemaVerified) return;
   try {
     await pgClient.waitReady;
-    await pgClient.exec(`
-      CREATE TABLE IF NOT EXISTS public.email_verification_tokens (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER NOT NULL DEFAULT 1,
-        user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-        token TEXT NOT NULL UNIQUE,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS email_verification_tokens_token_idx ON public.email_verification_tokens(token);
-      CREATE INDEX IF NOT EXISTS email_verification_tokens_user_idx ON public.email_verification_tokens(user_id);
-    `);
+    await pgClient.exec(findTableDdl('email_verification_tokens'));
+    for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('email_verification_tokens'))) {
+      await pgClient.exec(idxDdl).catch(() => {});
+    }
     emailVerificationSchemaVerified = true;
   } catch (err) {
     console.warn('Could not ensure email_verification_tokens table:', err);
   }
 }
 
-let authRateLimitSchemaVerified = false;
 export async function ensureAuthRateLimitSchema(): Promise<void> {
   if (authRateLimitSchemaVerified) return;
   try {
     await pgClient.waitReady;
-    await pgClient.exec(`
-      CREATE TABLE IF NOT EXISTS public.auth_resend_rate_limits (
-        id SERIAL PRIMARY KEY,
-        flow TEXT NOT NULL,
-        scope_type TEXT NOT NULL,
-        scope_key TEXT NOT NULL,
-        attempt_count INTEGER NOT NULL DEFAULT 0,
-        last_sent_at TIMESTAMP NULL,
-        cooldown_until TIMESTAMP NULL,
-        window_start_at TIMESTAMP NULL,
-        window_request_count INTEGER NOT NULL DEFAULT 0,
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        UNIQUE (flow, scope_type, scope_key)
-      );
-      CREATE INDEX IF NOT EXISTS auth_resend_rate_limits_lookup_idx
-        ON public.auth_resend_rate_limits(flow, scope_type, scope_key);
-    `);
+    await pgClient.exec(findTableDdl('auth_resend_rate_limits'));
+    for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('auth_resend_rate_limits'))) {
+      await pgClient.exec(idxDdl).catch(() => {});
+    }
     authRateLimitSchemaVerified = true;
   } catch (err) {
     console.warn('Could not ensure auth_resend_rate_limits table:', err);
   }
 }
 
-/** Migrates legacy Khata history and ensures the unified customer ledger exists. */
-export function ensureCustomerLedgerSchema(): Promise<void> {
-  if (!customerLedgerSchemaPromise) {
-    customerLedgerSchemaPromise = (async () => {
-      await pgClient.waitReady;
-      const tableDdl = DATABASE_TABLE_DDL.find((ddl) => ddl.includes('CREATE TABLE IF NOT EXISTS customer_ledger'));
-      if (!tableDdl) throw new Error('Customer ledger table definition is missing.');
-      await pgClient.exec(tableDdl);
-      await pgClient.exec(`
-        DO $$
-        BEGIN
-          IF to_regclass('public.customer_khata_ledger') IS NOT NULL THEN
-            INSERT INTO public.customer_ledger (
-              tenant_id, customer_id, transaction_date, invoice_id, invoice_number,
-              total_bill, amount_paid, balance_change, running_balance, payment_method, notes, created_at
-            )
-            SELECT tenant_id, customer_id, transaction_date, invoice_id, invoice_number,
-                   total_bill, amount_paid, balance_change, running_balance, payment_method, notes, created_at
-            FROM public.customer_khata_ledger;
-            DROP TABLE public.customer_khata_ledger CASCADE;
-          END IF;
-        END $$;
-      `);
-      for (const indexDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('customer_ledger'))) {
-        await pgClient.exec(indexDdl);
-      }
-    })().catch((error) => {
-      customerLedgerSchemaPromise = null;
-      throw error;
-    });
-  }
-  return customerLedgerSchemaPromise;
-}
-
-/**
- * Ensures all custom PostgreSQL ENUM types exist and converts any legacy text columns.
- */
-export function ensureDatabaseEnumsSchema(): Promise<void> {
-  if (!databaseEnumsSchemaPromise) {
-    databaseEnumsSchemaPromise = (async () => {
-      await pgClient.waitReady;
-      for (const enumDdl of DATABASE_ENUM_DDL) {
-        await pgClient.exec(enumDdl);
-      }
-      await pgClient.exec(`
-        DO $$ BEGIN
-          -- tenants: centralize business_type and pricing_mode exclusively in company_settings
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'business_type') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET business_type = (CASE WHEN UPPER(TRIM(COALESCE(NULLIF(cs.business_type::text, ''), NULLIF(t.business_type::text, ''), 'RETAIL'))) = 'WHOLESALE' THEN 'WHOLESALE'::business_type_enum ELSE 'RETAIL'::business_type_enum END)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-              ALTER TABLE public.tenants DROP COLUMN IF EXISTS business_type CASCADE;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'pricing_mode') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET pricing_mode = (CASE WHEN UPPER(TRIM(COALESCE(NULLIF(cs.pricing_mode::text, ''), NULLIF(t.pricing_mode::text, ''), 'FIXED'))) = 'NEGOTIABLE' THEN 'NEGOTIABLE'::pricing_mode_enum ELSE 'FIXED'::pricing_mode_enum END)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-              ALTER TABLE public.tenants DROP COLUMN IF EXISTS pricing_mode CASCADE;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'min_selling_quantity') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, (t.min_selling_quantity <= 0.5), true)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-              ALTER TABLE public.tenants DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'allow_half_carton') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, t.allow_half_carton, true)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-              ALTER TABLE public.tenants DROP COLUMN IF EXISTS allow_half_carton CASCADE;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'allow_half_cartoon') THEN
-            BEGIN
-              UPDATE public.company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, t.allow_half_cartoon, true)
-              FROM public.tenants t
-              WHERE cs.tenant_id = t.id;
-              ALTER TABLE public.tenants DROP COLUMN IF EXISTS allow_half_cartoon CASCADE;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'status' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.tenants ALTER COLUMN status DROP DEFAULT;
-            ALTER TABLE public.tenants ALTER COLUMN status TYPE tenant_status_enum USING (
-              CASE 
-                WHEN UPPER(TRIM(status::text)) = 'SUSPENDED' THEN 'SUSPENDED'::tenant_status_enum
-                WHEN UPPER(TRIM(status::text)) = 'EXPIRED' THEN 'EXPIRED'::tenant_status_enum
-                ELSE 'ACTIVE'::tenant_status_enum
-              END
-            );
-            ALTER TABLE public.tenants ALTER COLUMN status SET DEFAULT 'ACTIVE'::tenant_status_enum;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'subscription_status' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.tenants ALTER COLUMN subscription_status DROP DEFAULT;
-            ALTER TABLE public.tenants ALTER COLUMN subscription_status TYPE subscription_status_enum USING (
-              CASE 
-                WHEN UPPER(TRIM(subscription_status::text)) = 'SUSPENDED' THEN 'SUSPENDED'::subscription_status_enum
-                WHEN UPPER(TRIM(subscription_status::text)) = 'EXPIRED' THEN 'EXPIRED'::subscription_status_enum
-                ELSE 'ACTIVE'::subscription_status_enum
-              END
-            );
-            ALTER TABLE public.tenants ALTER COLUMN subscription_status SET DEFAULT 'ACTIVE'::subscription_status_enum;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'subscription_plan' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.tenants ALTER COLUMN subscription_plan DROP DEFAULT;
-            ALTER TABLE public.tenants ALTER COLUMN subscription_plan TYPE subscription_plan_enum USING (
-              CASE 
-                WHEN UPPER(TRIM(subscription_plan::text)) IN ('TRIAL', 'FREE_TRIAL', '30_DAY_TRIAL', '30_DAYS', 'PRO_TRIAL') THEN 'TRIAL'::subscription_plan_enum
-                WHEN UPPER(TRIM(subscription_plan::text)) IN ('6_MONTHS', '6_MONTH', 'SIX_MONTHS') THEN '6_MONTHS'::subscription_plan_enum 
-                ELSE 'YEARLY'::subscription_plan_enum 
-              END
-            );
-            ALTER TABLE public.tenants ALTER COLUMN subscription_plan SET DEFAULT 'YEARLY'::subscription_plan_enum;
-          END IF;
-
-          -- company_settings
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'business_type' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.company_settings ALTER COLUMN business_type DROP DEFAULT;
-            ALTER TABLE public.company_settings ALTER COLUMN business_type TYPE business_type_enum USING (
-              CASE WHEN UPPER(TRIM(business_type::text)) = 'WHOLESALE' THEN 'WHOLESALE'::business_type_enum ELSE 'RETAIL'::business_type_enum END
-            );
-            ALTER TABLE public.company_settings ALTER COLUMN business_type SET DEFAULT 'RETAIL'::business_type_enum;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'pricing_mode' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.company_settings ALTER COLUMN pricing_mode DROP DEFAULT;
-            ALTER TABLE public.company_settings ALTER COLUMN pricing_mode TYPE pricing_mode_enum USING (
-              CASE WHEN UPPER(TRIM(pricing_mode::text)) = 'NEGOTIABLE' THEN 'NEGOTIABLE'::pricing_mode_enum ELSE 'FIXED'::pricing_mode_enum END
-            );
-            ALTER TABLE public.company_settings ALTER COLUMN pricing_mode SET DEFAULT 'FIXED'::pricing_mode_enum;
-          END IF;
-
-          -- users
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.users ALTER COLUMN role DROP DEFAULT;
-            ALTER TABLE public.users ALTER COLUMN role TYPE user_role_enum USING (
-              CASE 
-                WHEN UPPER(TRIM(role::text)) = 'SUPERADMIN' THEN 'SUPERADMIN'::user_role_enum
-                WHEN UPPER(TRIM(role::text)) = 'ADMIN' THEN 'ADMIN'::user_role_enum
-                WHEN UPPER(TRIM(role::text)) = 'MANAGER' THEN 'MANAGER'::user_role_enum
-                ELSE 'CASHIER'::user_role_enum
-              END
-            );
-            ALTER TABLE public.users ALTER COLUMN role SET DEFAULT 'CASHIER'::user_role_enum;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'status' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.users ALTER COLUMN status DROP DEFAULT;
-            ALTER TABLE public.users ALTER COLUMN status TYPE user_status_enum USING (
-              CASE WHEN UPPER(TRIM(status::text)) = 'APPROVED' THEN 'APPROVED'::user_status_enum ELSE 'PENDING'::user_status_enum END
-            );
-            ALTER TABLE public.users ALTER COLUMN status SET DEFAULT 'PENDING'::user_status_enum;
-          END IF;
-
-          -- sales & sale_items
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sales' AND column_name = 'sale_type' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.sales ALTER COLUMN sale_type DROP DEFAULT;
-            ALTER TABLE public.sales ALTER COLUMN sale_type TYPE sale_type_enum USING (
-              CASE WHEN UPPER(TRIM(sale_type::text)) = 'WHOLESALE' THEN 'WHOLESALE'::sale_type_enum ELSE 'RETAIL'::sale_type_enum END
-            );
-            ALTER TABLE public.sales ALTER COLUMN sale_type SET DEFAULT 'RETAIL'::sale_type_enum;
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'packing_type' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.sale_items ALTER COLUMN packing_type DROP DEFAULT;
-            ALTER TABLE public.sale_items ALTER COLUMN packing_type TYPE packing_type_enum USING (
-              CASE WHEN UPPER(TRIM(packing_type::text)) = 'CARTON' THEN 'CARTON'::packing_type_enum ELSE 'PAIR'::packing_type_enum END
-            );
-            ALTER TABLE public.sale_items ALTER COLUMN packing_type SET DEFAULT 'PAIR'::packing_type_enum;
-          END IF;
-
-          -- stock_movements
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'stock_movements' AND column_name = 'movement_type' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.stock_movements ALTER COLUMN movement_type TYPE movement_type_enum USING (
-              CASE 
-                WHEN UPPER(TRIM(movement_type::text)) = 'SALE' THEN 'SALE'::movement_type_enum
-                WHEN UPPER(TRIM(movement_type::text)) = 'PURCHASE' THEN 'PURCHASE'::movement_type_enum
-                WHEN UPPER(TRIM(movement_type::text)) = 'SALE_RETURN' THEN 'SALE_RETURN'::movement_type_enum
-                WHEN UPPER(TRIM(movement_type::text)) = 'PURCHASE_RETURN' THEN 'PURCHASE_RETURN'::movement_type_enum
-                ELSE 'ADJUSTMENT'::movement_type_enum
-              END
-            );
-          END IF;
-
-          -- purchases
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'purchases' AND column_name = 'payment_status' AND data_type <> 'USER-DEFINED') THEN
-            ALTER TABLE public.purchases ALTER COLUMN payment_status DROP DEFAULT;
-            ALTER TABLE public.purchases ALTER COLUMN payment_status TYPE purchase_payment_status_enum USING (
-              CASE 
-                WHEN UPPER(TRIM(payment_status::text)) = 'PAID' THEN 'PAID'::purchase_payment_status_enum
-                WHEN UPPER(TRIM(payment_status::text)) = 'PARTIAL' THEN 'PARTIAL'::purchase_payment_status_enum
-                ELSE 'UNPAID'::purchase_payment_status_enum
-              END
-            );
-            ALTER TABLE public.purchases ALTER COLUMN payment_status SET DEFAULT 'UNPAID'::purchase_payment_status_enum;
-          END IF;
-        END $$;
-      `);
-    })().catch((error) => {
-      databaseEnumsSchemaPromise = null;
-      throw error;
-    });
-  }
-  return databaseEnumsSchemaPromise;
-}
-
-/**
- * Ensures that all database tables, columns, constraints, and multi-tenant discriminators exist.
- * Idempotent and safe for PostgreSQL.
- */
-export async function ensureDatabaseSchema(): Promise<void> {
-  if (databaseSchemaPromise) return databaseSchemaPromise;
-
-  databaseSchemaPromise = (async () => {
+export async function ensureFcmTokensSchema(): Promise<void> {
+  if (fcmTokensSchemaPromise) return fcmTokensSchemaPromise;
+  fcmTokensSchemaPromise = (async () => {
     try {
       await pgClient.waitReady;
-
-      await dropLegacyDocumentPrefixColumns();
-      // 0. Ensure custom ENUM types exist and legacy columns are upgraded
-      await ensureDatabaseEnumsSchema();
-      // 1. Create all tables in strict dependency order (tenants and users first)
-      for (const ddl of DATABASE_TABLE_DDL) {
-        await pgClient.exec(ddl);
-      }
-      await ensureCustomerLedgerSchema();
-      await ensurePlatformNotificationsSchema();
-      await ensureNotificationsSchema();
-
-      await migrateLegacyWholesaleProductPrices();
-      await dropLegacyDocumentPrefixColumns();
-
-      // 1b. Ensure deprecated tables, columns, and slug/subdomain columns are permanently removed
-      await pgClient.exec(`
-        DROP TABLE IF EXISTS brands CASCADE;
-        ALTER TABLE tenants DROP COLUMN IF EXISTS theme_color;
-        ALTER TABLE tenants DROP COLUMN IF EXISTS background_color;
-        ALTER TABLE company_settings DROP COLUMN IF EXISTS barcode_prefix;
-        ALTER TABLE company_settings DROP COLUMN IF EXISTS default_pairs_per_carton;
-        ALTER TABLE company_settings DROP COLUMN IF EXISTS wholesale_invoice_format;
-        DO $$
-        BEGIN
-          BEGIN
-            DROP TABLE IF EXISTS store_requests CASCADE;
-            DROP TABLE IF EXISTS deleted_store_requests CASCADE;
-            DROP TYPE IF EXISTS store_request_status_enum CASCADE;
-            DROP TYPE IF EXISTS store_request_type_enum CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE tenants ALTER COLUMN slug DROP NOT NULL;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE tenants DROP COLUMN IF EXISTS slug CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE tenants ALTER COLUMN subdomain DROP NOT NULL;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE tenants DROP COLUMN IF EXISTS subdomain CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE tenants DROP COLUMN IF EXISTS sub_domain CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE products DROP COLUMN IF EXISTS pricing_policy;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            DROP INDEX IF EXISTS categories_tenant_idx;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            DROP INDEX IF EXISTS categories_tenant_name_lower_idx;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE categories DROP COLUMN IF EXISTS tenant_id CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE users ALTER COLUMN tenant_id SET DEFAULT 0;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_color TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            UPDATE users SET tenant_id = 0 WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN' AND tenant_id != 0;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            UPDATE password_reset_tokens SET tenant_id = 0 WHERE user_id IN (SELECT id FROM users WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN');
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-
-          -- Subscription Fields for 30-Day Free Tier & Tracking
-          BEGIN
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_type TEXT NOT NULL DEFAULT 'free_tier';
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_plan TEXT NOT NULL DEFAULT 'free_tier';
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP NOT NULL DEFAULT NOW();
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_end_date TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days');
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'ACTIVE';
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT true;
-            ALTER TABLE tenants ADD COLUMN IF NOT EXISTS welcome_dismissed BOOLEAN NOT NULL DEFAULT false;
-            ALTER TABLE tenants ALTER COLUMN onboarding_completed SET DEFAULT true;
-            UPDATE tenants SET onboarding_completed = true WHERE onboarding_completed = false;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-
-          -- Wholesale (B2B) and Pricing Policy Settings centralized in company_settings
-          BEGIN
-            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS business_type business_type_enum NOT NULL DEFAULT 'RETAIL';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS pricing_mode pricing_mode_enum NOT NULL DEFAULT 'FIXED';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          -- Global low_stock_threshold and half-carton settings centralized in company_settings
-          BEGIN
-            IF EXISTS (
-              SELECT 1 FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'low_stock_limit'
-            ) THEN
-              IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'low_stock_threshold'
-              ) THEN
-                ALTER TABLE company_settings RENAME COLUMN low_stock_limit TO low_stock_threshold;
-              ELSE
-                UPDATE company_settings SET low_stock_threshold = COALESCE(low_stock_threshold, low_stock_limit, 5);
-                ALTER TABLE company_settings DROP COLUMN IF EXISTS low_stock_limit CASCADE;
-              END IF;
-            END IF;
-            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;
-            IF EXISTS (
-              SELECT 1 FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'min_selling_quantity'
-            ) THEN
-              UPDATE company_settings
-              SET allow_half_carton = COALESCE(allow_half_carton, (min_selling_quantity <= 0.5), true);
-            END IF;
-            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS allow_half_carton BOOLEAN NOT NULL DEFAULT true;
-            ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT NULL;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS pricing_policy_locked CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS telegram_bot_token CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS telegram_chat_id CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS telegram_alerts_enabled CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS gmail_user CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS gmail_app_password CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS gmail_from_name CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS active_alert_provider CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'low_stock_threshold'
-            ) THEN
-              ALTER TABLE products ADD COLUMN low_stock_threshold INTEGER NOT NULL DEFAULT 5;
-              UPDATE products p
-              SET low_stock_threshold = GREATEST(1, COALESCE(cs.low_stock_threshold, 5))
-              FROM company_settings cs
-              WHERE COALESCE(p.tenant_id, 1) = COALESCE(cs.tenant_id, 1);
-            END IF;
-            ALTER TABLE products ADD COLUMN IF NOT EXISTS is_low_stock_alert_sent BOOLEAN NOT NULL DEFAULT false;
-            ALTER TABLE products ADD COLUMN IF NOT EXISTS allow_half_carton BOOLEAN NOT NULL DEFAULT true;
-            ALTER TABLE products DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
-            ALTER TABLE products DROP COLUMN IF EXISTS low_stock_limit CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          -- Sync any existing business_type, pricing_mode, and allow_half_carton from tenants into company_settings before dropping
-          BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'business_type') THEN
-              UPDATE company_settings cs
-              SET business_type = (CASE WHEN UPPER(TRIM(COALESCE(NULLIF(cs.business_type::text, ''), NULLIF(t.business_type::text, ''), 'RETAIL'))) = 'WHOLESALE' THEN 'WHOLESALE'::business_type_enum ELSE 'RETAIL'::business_type_enum END)
-              FROM tenants t
-              WHERE cs.tenant_id = t.id;
-            END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'pricing_mode') THEN
-              UPDATE company_settings cs
-              SET pricing_mode = (CASE WHEN UPPER(TRIM(COALESCE(NULLIF(cs.pricing_mode::text, ''), NULLIF(t.pricing_mode::text, ''), 'FIXED'))) = 'NEGOTIABLE' THEN 'NEGOTIABLE'::pricing_mode_enum ELSE 'FIXED'::pricing_mode_enum END)
-              FROM tenants t
-              WHERE cs.tenant_id = t.id;
-            END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'allow_half_carton') THEN
-              UPDATE company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, t.allow_half_carton, true)
-              FROM tenants t
-              WHERE cs.tenant_id = t.id;
-            END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tenants' AND column_name = 'allow_half_cartoon') THEN
-              UPDATE company_settings cs
-              SET allow_half_carton = COALESCE(cs.allow_half_carton, t.allow_half_cartoon, true)
-              FROM tenants t
-              WHERE cs.tenant_id = t.id;
-            END IF;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          -- For wholesale stores that globally disallow half cartons, set allow_half_carton = false across the entire product catalog
-          BEGIN
-            UPDATE products p
-            SET allow_half_carton = false
-            FROM company_settings cs
-            WHERE p.tenant_id = cs.tenant_id
-              AND UPPER(cs.business_type::text) = 'WHOLESALE'
-              AND (cs.allow_half_carton = false);
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          -- Centralize exclusively in company_settings: permanently drop business_type, pricing_mode, pricing_policy, min_selling_quantity, and allow_half_carton from tenants
-          BEGIN
-            ALTER TABLE tenants DROP COLUMN IF EXISTS business_type CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS pricing_mode CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS pricing_policy CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS min_selling_quantity CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS allow_half_carton CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS allow_half_cartoon CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE products ADD COLUMN IF NOT EXISTS pairs_per_carton INTEGER;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='products' AND column_name='minimum_pairs') THEN
-              UPDATE products SET pairs_per_carton = minimum_pairs WHERE (pairs_per_carton IS NULL OR pairs_per_carton <= 0 OR (pairs_per_carton = 12 AND minimum_pairs = 16)) AND minimum_pairs IN (6, 8, 12, 16);
-            END IF;
-            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='store_lot_size') THEN
-              UPDATE products SET pairs_per_carton = store_lot_size WHERE store_lot_size IN (6, 8, 12, 16);
-              ALTER TABLE products DROP COLUMN IF EXISTS store_lot_size;
-            END IF;
-            UPDATE products SET pairs_per_carton = CASE pairs_per_carton WHEN 6 THEN 12 WHEN 8 THEN 16 ELSE pairs_per_carton END;
-            UPDATE products SET pairs_per_carton = 12 WHERE pairs_per_carton IS NULL OR pairs_per_carton <= 0;
-            ALTER TABLE products ALTER COLUMN pairs_per_carton SET DEFAULT 12;
-            ALTER TABLE products ALTER COLUMN pairs_per_carton SET NOT NULL;
-            ALTER TABLE products DROP COLUMN IF EXISTS minimum_pairs;
-            ALTER TABLE products DROP COLUMN IF EXISTS carton_barcode;
-            ALTER TABLE products DROP COLUMN IF EXISTS carton_price;
-            ALTER TABLE products DROP COLUMN IF EXISTS min_order_cartons;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS shop_name TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS market_name TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS current_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          -- Ensure city, tagline, and is_installed are completely removed from store and settings tables
-          BEGIN
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS city CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS tagline CASCADE;
-            ALTER TABLE company_settings DROP COLUMN IF EXISTS is_installed CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS city CASCADE;
-            ALTER TABLE tenants DROP COLUMN IF EXISTS tagline CASCADE;
-            ALTER TABLE trial_activations DROP COLUMN IF EXISTS city CASCADE;
-            ALTER TABLE trial_activations DROP COLUMN IF EXISTS tagline CASCADE;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
-            UPDATE customers SET outstanding_balance = COALESCE(current_balance, 0.00) WHERE (outstanding_balance IS NULL OR outstanding_balance = 0) AND current_balance > 0;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE customers ADD COLUMN IF NOT EXISTS ntn_number TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS sale_type TEXT NOT NULL DEFAULT 'RETAIL';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS total_cartons NUMERIC(10, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ALTER COLUMN total_cartons TYPE NUMERIC(10, 2) USING total_cartons::numeric;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS transport_name TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS bilty_number TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS booking_destination TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS previous_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS remaining_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sales ADD COLUMN IF NOT EXISTS transaction_id TEXT DEFAULT '';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS packing_type TEXT NOT NULL DEFAULT 'PAIR';
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS carton_quantity NUMERIC(10, 2) NOT NULL DEFAULT 0.00;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sale_items ALTER COLUMN carton_quantity TYPE NUMERIC(10, 2) USING carton_quantity::numeric;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS pairs_per_carton INTEGER NOT NULL DEFAULT 1;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-          BEGIN
-            ALTER TABLE returns ALTER COLUMN original_sale_id DROP NOT NULL;
-            ALTER TABLE return_items ALTER COLUMN sale_item_id DROP NOT NULL;
-          EXCEPTION WHEN OTHERS THEN NULL;
-          END;
-        END $$;
-      `).catch(() => {});
-
-      // 2. Create all indexes independently so an index notice never aborts table creation
-      for (const idxDdl of DATABASE_INDEX_DDL) {
+      await pgClient.exec(findTableDdl('fcm_tokens'));
+      for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('fcm_tokens'))) {
         await pgClient.exec(idxDdl).catch(() => {});
       }
-    } finally {
-      databaseSchemaPromise = null;
+    } catch (err) {
+      console.warn('Notice ensuring FCM tokens schema:', err);
     }
   })();
-
-  return databaseSchemaPromise;
+  return fcmTokensSchemaPromise;
 }
 
 /**
- * Ensures that a given tenant store has both an active Store Owner (ADMIN) and Store Cashier (CASHIER)
- * account with verified credentials, returning their exact email and password for store auth quick login.
+ * Ensures that a given tenant store has an active Store Owner (ADMIN) and resolves optional Store Cashier (CASHIER)
+ * credentials for quick login.
  */
 export interface StoreQuickCredential {
   id: number;
@@ -1605,13 +897,11 @@ export async function ensureTenantStoreUsers(params: {
   const storeLabel = (params.storeName || 'Store').trim();
   const ownerStatus = params.ownerStatus || 'APPROVED';
 
-  // Determine canonical store-specific emails & default passwords
   const defaultOwnerEmail = (params.ownerEmail || `admin+${tenantId}@store.com`).trim().toLowerCase();
   const defaultOwnerName = (params.ownerName || params.ownerEmail?.split('@')[0] || `${storeLabel} Owner`).trim();
   const explicitPassword = params.ownerPassword && params.ownerPassword.trim() ? params.ownerPassword.trim() : '';
   const defaultOwnerPassword = explicitPassword || 'admin123';
 
-  // 1. Resolve or create Store Owner (ADMIN)
   const adminRes = await pgClient.query<{
     id: number;
     name: string;
@@ -1699,7 +989,6 @@ export async function ensureTenantStoreUsers(params: {
     };
   }
 
-  // 2. Resolve Store Cashier (CASHIER) - ONLY create if explicitly requested by user (never automatically!)
   const cashierRes = await pgClient.query<{
     id: number;
     name: string;
@@ -1739,7 +1028,6 @@ export async function ensureTenantStoreUsers(params: {
       role: 'CASHIER',
     };
   } else if (params.createCashier && params.cashierEmail && params.cashierPassword) {
-    // Only create cashier when user explicitly requests it in onboarding or settings
     const cPass = params.cashierPassword.trim();
     const cEmail = params.cashierEmail.trim().toLowerCase();
     const cName = (params.cashierName || `${storeLabel} Cashier`).trim();
@@ -1782,7 +1070,7 @@ export async function ensureTenantStoreUsers(params: {
 
 /**
  * Initializes the SaaS schema and synchronizes existing tenant subscriptions.
- * The installer, not this routine, creates the initial superadmin account.
+ * Uses only fresh CREATE TABLE / CREATE INDEX definitions without incremental ALTER TABLE patches.
  */
 export async function ensureSaasControlPlane(): Promise<void> {
   if (saasControlPlaneInitialized) return;
@@ -1792,93 +1080,24 @@ export async function ensureSaasControlPlane(): Promise<void> {
     try {
       await pgClient.waitReady;
 
-      await pgClient.exec(`
-        DO $$
-        BEGIN
-          IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'brand'
-          ) THEN
-            ALTER TABLE public.products ALTER COLUMN brand SET DEFAULT 'Unbranded';
-            UPDATE public.products SET brand = 'Unbranded' WHERE brand IS NULL OR BTRIM(brand) = '';
-          END IF;
-        END $$;
-      `);
-
-      // This field migration must run before the schema-version fast path below.
-      await migrateLegacyWholesaleProductPrices();
-      await dropLegacyDocumentPrefixColumns();
-
-      // Ensure trial_activations tracking table and indexes are created
-      await pgClient.exec(`
-        CREATE TABLE IF NOT EXISTS trial_activations (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER,
-          tenant_id INTEGER,
-          email TEXT NOT NULL,
-          user_name TEXT DEFAULT '',
-          phone TEXT DEFAULT '',
-          store_name TEXT NOT NULL,
-          business_type TEXT NOT NULL DEFAULT 'RETAIL',
-          pricing_mode TEXT NOT NULL DEFAULT 'FIXED',
-          plan TEXT NOT NULL DEFAULT 'TRIAL',
-          trial_duration_days INTEGER NOT NULL DEFAULT 30,
-          trial_start_date TIMESTAMP NOT NULL DEFAULT NOW(),
-          trial_end_date TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
-          status TEXT NOT NULL DEFAULT 'ACTIVE',
-          ip_address TEXT DEFAULT '',
-          user_agent TEXT DEFAULT '',
-          activated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-          details JSONB DEFAULT '{}'::jsonb
-        );
-        CREATE INDEX IF NOT EXISTS trial_activations_email_idx ON trial_activations(LOWER(BTRIM(email)));
-        CREATE INDEX IF NOT EXISTS trial_activations_tenant_idx ON trial_activations(tenant_id);
-        CREATE INDEX IF NOT EXISTS trial_activations_status_idx ON trial_activations(status);
-        DO $$ BEGIN
-          ALTER TYPE subscription_plan_enum ADD VALUE IF NOT EXISTS 'TRIAL';
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END $$;
-      `).catch(() => {});
-
-      // Always ensure platform notification & tenant notifications tables exist
-      await ensurePlatformNotificationsSchema();
-      await ensureNotificationsSchema();
-
-      // Fast-path check: if schema & control plane have already been verified in this persistent DB, skip heavy DDL & bcrypt loops
       const fastCheck = await pgClient
         .query<{ count: string; has_core_tables: boolean }>(
           `SELECT COUNT(*) as count,
                   (to_regclass('public.users') IS NOT NULL
                    AND to_regclass('public.tenants') IS NOT NULL
+                   AND to_regclass('public.company_settings') IS NOT NULL
+                   AND to_regclass('public.products') IS NOT NULL
+                   AND to_regclass('public.customers') IS NOT NULL
                    AND to_regclass('public.customer_ledger') IS NOT NULL
                    AND to_regclass('public.trial_activations') IS NOT NULL
                    AND to_regclass('public.platform_notifications') IS NOT NULL
                    AND to_regclass('public.platform_notification_reads') IS NOT NULL
                    AND to_regclass('public.notifications') IS NOT NULL
-                   AND to_regclass('public.store_requests') IS NULL
-                   AND to_regclass('public.customer_khata_ledger') IS NULL
-                   AND NOT EXISTS (
-                     SELECT 1 FROM information_schema.columns
-                     WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'low_stock_limit'
-                   )
-                   AND EXISTS (
-                     SELECT 1 FROM information_schema.columns
-                     WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'low_stock_threshold'
-                   )
-                   AND EXISTS (
-                     SELECT 1 FROM information_schema.columns
-                     WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'is_low_stock_alert_sent'
-                   )
-                   AND EXISTS (
-                     SELECT 1 FROM information_schema.columns
-                     WHERE table_schema = 'public' AND table_name = 'company_settings' AND column_name = 'low_stock_threshold'
-                   )
-                   AND EXISTS (
-                     SELECT 1 FROM information_schema.columns
-                     WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'theme_color'
-                   )) as has_core_tables
+                   AND to_regclass('public.fcm_tokens') IS NOT NULL
+                   AND to_regclass('public.email_verification_tokens') IS NOT NULL
+                   AND to_regclass('public.auth_resend_rate_limits') IS NOT NULL) as has_core_tables
            FROM app_settings
-           WHERE key = '__schema_v17_product_low_stock_alerts__'`
+           WHERE key IN ('__schema_fresh_v1__', '__schema_v17_product_low_stock_alerts__')`
         )
         .catch(() => null);
 
@@ -1887,9 +1106,6 @@ export async function ensureSaasControlPlane(): Promise<void> {
         fastCheck.rows[0]?.has_core_tables &&
         parseInt(fastCheck.rows[0]?.count || '0', 10) > 0
       ) {
-        await pgClient.query(`UPDATE tenants SET onboarding_completed = true WHERE onboarding_completed = false`).catch(() => {});
-        await pgClient.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS welcome_dismissed BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
-        await pgClient.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_color TEXT DEFAULT ''`).catch(() => {});
         await syncExpiredTenantSubscriptions();
         saasControlPlaneInitialized = true;
         return;
@@ -1897,184 +1113,183 @@ export async function ensureSaasControlPlane(): Promise<void> {
 
       await ensureDatabaseSchema();
 
-    // 2. Ensure every existing user-created tenant in the database has subscription_plan, subscription dates, and verified Store Owner/Cashier users
-    const allTenants = await pgClient.query<{
-      id: number;
-      name: string;
-      status: string;
-      subscription_plan: string | null;
-      subscription_start_date: Date | string | null;
-      subscription_end_date: Date | string | null;
-      subscription_status: string | null;
-      owner_email: string | null;
-      owner_phone: string | null;
-    }>(
-      `SELECT t.id, t.name, t.status, t.subscription_plan,
-              t.subscription_start_date, t.subscription_end_date, t.subscription_status,
-              u.email AS owner_email, u.phone AS owner_phone
-       FROM tenants t
-       LEFT JOIN LATERAL (
-         SELECT email, phone
-         FROM users
-         WHERE tenant_id = t.id AND role = 'ADMIN'
-         ORDER BY id ASC
-         LIMIT 1
-       ) u ON true
-       ORDER BY t.id ASC`
-    );
-
-    for (const t of allTenants.rows) {
-      let needsSubUpdate = false;
-
-      const nextPlan = normalizeSubscriptionPlan(t.subscription_plan || 'YEARLY');
-      if (t.subscription_plan !== nextPlan) {
-        needsSubUpdate = true;
-      }
-
-      const startDt = t.subscription_start_date ? new Date(t.subscription_start_date) : new Date();
-      const endDt = t.subscription_end_date
-        ? new Date(t.subscription_end_date)
-        : calculateSubscriptionEndDate(nextPlan, startDt);
-      if (!t.subscription_start_date || !t.subscription_end_date) {
-        needsSubUpdate = true;
-      }
-
-      const isExpiredNow = endDt.getTime() < Date.now();
-      let nextSubStatus = (t.subscription_status || '').toUpperCase();
-      if (String(t.status).toUpperCase() === 'SUSPENDED') {
-        nextSubStatus = 'SUSPENDED';
-      } else if (isExpiredNow) {
-        nextSubStatus = 'EXPIRED';
-      } else if (!['ACTIVE', 'EXPIRED', 'SUSPENDED'].includes(nextSubStatus)) {
-        nextSubStatus = 'ACTIVE';
-      }
-      if (t.subscription_status !== nextSubStatus) {
-        needsSubUpdate = true;
-      }
-
-      if (needsSubUpdate) {
-        await pgClient.query(
-          `UPDATE tenants
-           SET subscription_plan = $1,
-               subscription_start_date = $2,
-               subscription_end_date = $3,
-               subscription_status = $4,
-               updated_at = NOW()
-           WHERE id = $5`,
-          [nextPlan, startDt.toISOString(), endDt.toISOString(), nextSubStatus, t.id]
-        );
-      }
-
-      await ensureTenantStoreUsers({
-        tenantId: t.id,
-        storeName: t.name,
-        ownerEmail: t.owner_email || undefined,
-        ownerPhone: t.owner_phone || undefined,
-        createCashier: false,
-      });
-    }
-
-    // Enforce SuperAdmin password = 'superadmin123' and all store user passwords = 'admin123'
-    const superAdminHash = await bcrypt.hash('superadmin123', 10);
-    const storeAdminHash = await bcrypt.hash('admin123', 10);
-
-    const existingSuperAdmin = await pgClient.query<{ id: number; password_hash: string; quick_password: string }>(
-      `SELECT id, password_hash, COALESCE(quick_password, '') AS quick_password FROM users WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN' ORDER BY id ASC LIMIT 1`
-    );
-    if (existingSuperAdmin.rows.length > 0) {
-      const saRow = existingSuperAdmin.rows[0];
-      if (!saRow.password_hash) {
-        await pgClient.query(
-          `UPDATE users
-           SET tenant_id = 0,
-               password_hash = $1,
-               quick_password = 'superadmin123',
-               status = 'APPROVED',
-               active = true,
-               updated_at = NOW()
-           WHERE id = $2`,
-          [superAdminHash, saRow.id]
-        );
-      } else {
-        await pgClient.query(
-          `UPDATE users
-           SET tenant_id = 0,
-               status = 'APPROVED',
-               active = true,
-               updated_at = NOW()
-           WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN'`
-        );
-      }
-    } else {
-      const defaultSaEmail = 'talhah.jan@gmail.com';
-      const emailTaken = await pgClient.query<{ id: number }>(
-        `SELECT id FROM users WHERE LOWER(BTRIM(email)) = $1 LIMIT 1`,
-        [defaultSaEmail]
+      const allTenants = await pgClient.query<{
+        id: number;
+        name: string;
+        status: string;
+        subscription_plan: string | null;
+        subscription_start_date: Date | string | null;
+        subscription_end_date: Date | string | null;
+        subscription_status: string | null;
+        owner_email: string | null;
+        owner_phone: string | null;
+      }>(
+        `SELECT t.id, t.name, t.status, t.subscription_plan,
+                t.subscription_start_date, t.subscription_end_date, t.subscription_status,
+                u.email AS owner_email, u.phone AS owner_phone
+         FROM tenants t
+         LEFT JOIN LATERAL (
+           SELECT email, phone
+           FROM users
+           WHERE tenant_id = t.id AND role = 'ADMIN'
+           ORDER BY id ASC
+           LIMIT 1
+         ) u ON true
+         ORDER BY t.id ASC`
       );
-      const saEmail = emailTaken.rows.length > 0 ? 'superadmin@shoepos.local' : defaultSaEmail;
+
+      for (const t of allTenants.rows) {
+        let needsSubUpdate = false;
+
+        const nextPlan = normalizeSubscriptionPlan(t.subscription_plan || 'YEARLY');
+        if (t.subscription_plan !== nextPlan) {
+          needsSubUpdate = true;
+        }
+
+        const startDt = t.subscription_start_date ? new Date(t.subscription_start_date) : new Date();
+        const endDt = t.subscription_end_date
+          ? new Date(t.subscription_end_date)
+          : calculateSubscriptionEndDate(nextPlan, startDt);
+        if (!t.subscription_start_date || !t.subscription_end_date) {
+          needsSubUpdate = true;
+        }
+
+        const isExpiredNow = endDt.getTime() < Date.now();
+        let nextSubStatus = (t.subscription_status || '').toUpperCase();
+        if (String(t.status).toUpperCase() === 'SUSPENDED') {
+          nextSubStatus = 'SUSPENDED';
+        } else if (isExpiredNow) {
+          nextSubStatus = 'EXPIRED';
+        } else if (!['ACTIVE', 'EXPIRED', 'SUSPENDED'].includes(nextSubStatus)) {
+          nextSubStatus = 'ACTIVE';
+        }
+        if (t.subscription_status !== nextSubStatus) {
+          needsSubUpdate = true;
+        }
+
+        if (needsSubUpdate) {
+          await pgClient.query(
+            `UPDATE tenants
+             SET subscription_plan = $1,
+                 subscription_start_date = $2,
+                 subscription_end_date = $3,
+                 subscription_status = $4,
+                 updated_at = NOW()
+             WHERE id = $5`,
+            [nextPlan, startDt.toISOString(), endDt.toISOString(), nextSubStatus, t.id]
+          );
+        }
+
+        await ensureTenantStoreUsers({
+          tenantId: t.id,
+          storeName: t.name,
+          ownerEmail: t.owner_email || undefined,
+          ownerPhone: t.owner_phone || undefined,
+          createCashier: false,
+        });
+      }
+
+      const superAdminHash = await bcrypt.hash('superadmin123', 10);
+      const storeAdminHash = await bcrypt.hash('admin123', 10);
+
+      const existingSuperAdmin = await pgClient.query<{ id: number; password_hash: string; quick_password: string }>(
+        `SELECT id, password_hash, COALESCE(quick_password, '') AS quick_password FROM users WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN' ORDER BY id ASC LIMIT 1`
+      );
+      if (existingSuperAdmin.rows.length > 0) {
+        const saRow = existingSuperAdmin.rows[0];
+        if (!saRow.password_hash) {
+          await pgClient.query(
+            `UPDATE users
+             SET tenant_id = 0,
+                 password_hash = $1,
+                 quick_password = 'superadmin123',
+                 status = 'APPROVED',
+                 active = true,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [superAdminHash, saRow.id]
+          );
+        } else {
+          await pgClient.query(
+            `UPDATE users
+             SET tenant_id = 0,
+                 status = 'APPROVED',
+                 active = true,
+                 updated_at = NOW()
+             WHERE UPPER(COALESCE(role::text, '')) = 'SUPERADMIN'`
+          );
+        }
+      } else {
+        const defaultSaEmail = 'talhah.jan@gmail.com';
+        const emailTaken = await pgClient.query<{ id: number }>(
+          `SELECT id FROM users WHERE LOWER(BTRIM(email)) = $1 LIMIT 1`,
+          [defaultSaEmail]
+        );
+        const saEmail = emailTaken.rows.length > 0 ? 'superadmin@shoepos.local' : defaultSaEmail;
+        await pgClient
+          .query(
+            `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status, active)
+             VALUES (0, 'Platform SuperAdmin', $1, '+92-300-0000001', $2, 'superadmin123', 'SUPERADMIN', 'APPROVED', true)
+             ON CONFLICT (email) DO NOTHING`,
+            [saEmail, superAdminHash]
+          )
+          .catch(() => {});
+      }
+
+      await pgClient.query(
+        `UPDATE users
+         SET password_hash = $1,
+             quick_password = 'admin123',
+             status = 'APPROVED',
+             active = true,
+             updated_at = NOW()
+         WHERE UPPER(COALESCE(role::text, '')) != 'SUPERADMIN'`,
+        [storeAdminHash]
+      );
+
+      await syncExpiredTenantSubscriptions();
+      await ensureAppSettingsSchema();
+
       await pgClient
         .query(
-          `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status, active)
-           VALUES (0, 'Platform SuperAdmin', $1, '+92-300-0000001', $2, 'superadmin123', 'SUPERADMIN', 'APPROVED', true)
-           ON CONFLICT (email) DO NOTHING`,
-          [saEmail, superAdminHash]
+          `INSERT INTO app_settings (key, value, category, description, is_secret)
+           VALUES ('__schema_fresh_v1__', 'true', 'system', 'Fresh standalone PostgreSQL schema initialized cleanly', false)
+           ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`
         )
         .catch(() => {});
+
+      saasControlPlaneInitialized = true;
+    } catch (err: any) {
+      console.warn('Notice during SaaS control plane initialization:', err?.message || err);
+    } finally {
+      saasControlPlanePromise = null;
     }
-
-    await pgClient.query(
-      `UPDATE users
-       SET password_hash = $1,
-           quick_password = 'admin123',
-           status = 'APPROVED',
-           active = true,
-           updated_at = NOW()
-       WHERE UPPER(COALESCE(role::text, '')) != 'SUPERADMIN'`,
-      [storeAdminHash]
-    );
-
-    await syncExpiredTenantSubscriptions();
-
-    await ensureAppSettingsSchema();
-
-    await pgClient
-      .query(
-        `INSERT INTO app_settings (key, value, category, description, is_secret)
-         VALUES ('__schema_v17_product_low_stock_alerts__', 'true', 'system', 'Schema migration adding products.low_stock_threshold, products.is_low_stock_alert_sent, and notifications table', false)
-         ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()`
-      )
-      .catch(() => {});
-
-    saasControlPlaneInitialized = true;
-  } catch (err: any) {
-    console.warn('Notice during SaaS control plane initialization:', err?.message || err);
-  } finally {
-    saasControlPlanePromise = null;
-  }
   })();
 
   return saasControlPlanePromise;
 }
 
 /**
- * Drops all tables and relations in the public database schema with CASCADE.
+ * Drops all tables in the public database schema with CASCADE.
  */
 export async function dropAllTables(): Promise<void> {
   await pgClient.waitReady;
   resetSaasControlPlaneState();
 
   await pgClient.exec(`
-    DROP TABLE IF EXISTS 
+    DROP TABLE IF EXISTS
+      fcm_tokens,
       notifications,
       pos_notification_dismissals,
       platform_notification_reads,
       platform_notifications,
-      push_subscriptions,
       app_settings,
       trial_activations,
       customer_ledger,
       supplier_ledger,
+      email_verification_tokens,
       password_reset_tokens,
+      auth_resend_rate_limits,
       stock_movements,
       return_items,
       returns,
@@ -2097,8 +1312,8 @@ export async function dropAllTables(): Promise<void> {
 
   try {
     const remainingTables = await pgClient.query<{ tablename: string }>(`
-      SELECT tablename 
-      FROM pg_tables 
+      SELECT tablename
+      FROM pg_tables
       WHERE schemaname = 'public'
     `);
 
@@ -2112,31 +1327,3 @@ export async function dropAllTables(): Promise<void> {
   resetSaasControlPlaneState();
   console.log('🗑️ All database tables successfully dropped with CASCADE.');
 }
-
-let fcmTokensSchemaPromise: Promise<void> | null = null;
-export async function ensureFcmTokensSchema(): Promise<void> {
-  if (fcmTokensSchemaPromise) return fcmTokensSchemaPromise;
-  fcmTokensSchemaPromise = (async () => {
-    try {
-      await pgClient.exec(`
-        CREATE TABLE IF NOT EXISTS public.fcm_tokens (
-          token TEXT PRIMARY KEY,
-          tenant_id INTEGER NOT NULL DEFAULT 1,
-          user_id INTEGER NOT NULL DEFAULT 0,
-          user_role TEXT NOT NULL DEFAULT 'ADMIN',
-          user_agent TEXT DEFAULT '',
-          device_name TEXT DEFAULT '',
-          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS fcm_tokens_tenant_idx ON public.fcm_tokens(tenant_id);
-        CREATE INDEX IF NOT EXISTS fcm_tokens_user_role_idx ON public.fcm_tokens(user_role);
-        CREATE INDEX IF NOT EXISTS fcm_tokens_user_id_idx ON public.fcm_tokens(user_id);
-      `);
-    } catch (err) {
-      console.warn('Notice ensuring FCM tokens schema:', err);
-    }
-  })();
-  return fcmTokensSchemaPromise;
-}
-

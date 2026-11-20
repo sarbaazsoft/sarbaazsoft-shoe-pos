@@ -1,18 +1,27 @@
 export interface User {
   id: number;
   tenantId?: number;
+  tenant_id?: number;
   tenantName?: string;
+  tenant_name?: string;
   name: string;
   email: string;
   phone?: string;
   role: 'SUPERADMIN' | 'ADMIN' | 'CASHIER' | 'MANAGER' | string;
   originalRole?: string;
+  original_role?: string;
   status: 'PENDING' | 'APPROVED' | string;
   active?: boolean;
   avatarUrl?: string;
+  avatar_url?: string;
+  themeColor?: string;
+  theme_color?: string;
   onboardingCompleted?: boolean;
+  onboarding_completed?: boolean;
   createdAt: string;
+  created_at?: string;
   updatedAt: string;
+  updated_at?: string;
 }
 
 export type SubscriptionType = 'free_tier' | '6_months' | '1_year' | 'TRIAL' | '6_MONTHS' | 'YEARLY';
@@ -232,6 +241,9 @@ export interface Category {
 export interface Product {
   id: number;
   tenantId?: number;
+  tenant_id?: number;
+  tenantProductNo?: number;
+  tenant_product_no?: number;
   article: string;
   name?: string;
   brand: string;
@@ -241,11 +253,15 @@ export interface Product {
   categoryName?: string;
   barcode: string;
   primaryImageUrl: string;
+  primary_image_url?: string;
   description?: string;
   costPrice: number;
+  cost_price?: number;
   sellingPrice: number;
   minPrice: number;
+  min_price?: number;
   maxPrice: number;
+  max_price?: number;
   pairsPerCarton?: number;
   pairs_per_carton?: number;
   allowHalfCarton?: boolean;
@@ -256,13 +272,16 @@ export interface Product {
   minSalePrice?: number | null;
   maxSalePrice?: number | null;
   totalStock: number;
+  total_stock?: number;
   lowStockThreshold?: number;
   low_stock_threshold?: number;
   isLowStockAlertSent?: boolean;
   is_low_stock_alert_sent?: boolean;
   active: boolean;
   createdAt: string;
+  created_at?: string;
   updatedAt: string;
+  updated_at?: string;
 }
 
 /** Product create/update payload. Pricing behavior comes from store settings. */
@@ -280,22 +299,29 @@ export interface ProductFormValues extends Pick<
 
 export interface Customer {
   id: number;
+  tenantId?: number;
+  tenant_id?: number;
   code?: string;
   name: string;
   customerType?: 'RETAILER' | 'WHOLESALER' | string;
   customer_type?: 'RETAILER' | 'WHOLESALER' | string;
   shopName?: string;
+  shop_name?: string;
   marketName?: string;
+  market_name?: string;
   city?: string;
   phone: string;
   email?: string;
   address?: string;
   notes?: string;
   creditLimit?: number;
+  credit_limit?: number;
   currentBalance?: number;
+  current_balance?: number;
   outstandingBalance?: number;
   outstanding_balance?: number;
   ntnNumber?: string;
+  ntn_number?: string;
   totalPurchases?: number;
   totalOrders?: number;
   totalSpent?: number;
@@ -303,6 +329,7 @@ export interface Customer {
   balance?: number | string;
   lastVisit?: string | null;
   createdAt: string;
+  created_at?: string;
 }
 
 export interface Supplier {
@@ -347,49 +374,84 @@ export interface CartItem {
 
 export interface Sale {
   id: number;
+  tenantId?: number;
+  tenant_id?: number;
   invoiceNumber: string;
+  invoice_number?: string;
   saleType?: 'RETAIL' | 'WHOLESALE' | string;
+  sale_type?: 'RETAIL' | 'WHOLESALE' | string;
   customerId?: number | null;
+  customer_id?: number | null;
   customerName?: string;
+  customer_name?: string;
   customerPhone?: string;
   customerShopName?: string;
   customerCity?: string;
   saleDate: string;
+  sale_date?: string;
   subtotal: number;
   discount: number;
   totalAmount: number;
+  total_amount?: number;
   totalCartons?: number;
+  total_cartons?: number;
   transportName?: string;
+  transport_name?: string;
   biltyNumber?: string;
+  bilty_number?: string;
   bookingDestination?: string;
+  booking_destination?: string;
   previousBalance?: number;
+  previous_balance?: number;
   paidAmount?: number;
+  paid_amount?: number;
   remainingBalance?: number;
+  remaining_balance?: number;
   paymentMethod: 'CASH' | 'CARD' | 'SPLIT' | 'KHATA' | 'ONLINE' | 'BANK_TRANSFER' | string;
+  payment_method?: string;
+  transactionId?: string;
+  transaction_id?: string;
   cashReceived: number;
+  cash_received?: number;
   changeGiven: number;
+  change_given?: number;
   createdBy: number;
+  created_by?: number;
   createdByName?: string;
   isMinPriceOverridden: boolean;
+  is_min_price_overridden?: boolean;
   overriddenBy?: number | null;
+  overridden_by?: number | null;
   notes?: string;
   createdAt: string;
+  created_at?: string;
   items?: any[];
 }
 
 export interface Purchase {
   id: number;
+  tenantId?: number;
+  tenant_id?: number;
   purchaseNumber: string;
+  purchase_number?: string;
   supplierName: string;
+  supplier_name?: string;
   purchaseDate: string;
+  purchase_date?: string;
   totalAmount: number;
+  total_amount?: number;
   paidAmount?: number;
+  paid_amount?: number;
   paymentStatus?: 'UNPAID' | 'PARTIAL' | 'PAID' | string;
+  payment_status?: string;
   paymentMethod?: string;
+  payment_method?: string;
   notes?: string;
   createdBy: number;
+  created_by?: number;
   createdByName?: string;
   createdAt: string;
+  created_at?: string;
   items?: any[];
 }
 
