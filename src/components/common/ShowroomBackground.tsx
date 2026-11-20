@@ -10,16 +10,16 @@ interface ShowroomBackgroundProps {
 
 /**
  * ShowroomBackground
- * Responsive customizable showroom backdrop layer supporting per-screen images
- * (login, registration, auth, loading) with automatic fallback to the built-in showroom asset
- * and adaptive light/dark legibility scrim.
+ * Single unified showroom backdrop layer shared across all routes and screens
+ * (login, registration, authentication, loading, onboarding, status pages)
+ * with automatic fallback to the built-in showroom asset and adaptive light/dark scrim.
  */
 export const ShowroomBackground: React.FC<ShowroomBackgroundProps> = ({
   className = '',
-  screen = 'auth',
+  screen = 'backdrop',
 }) => {
-  const { getEffectiveScreenImage, theme } = useTheme();
-  const customImageUrl = getEffectiveScreenImage(screen);
+  const { effectiveBackdropImage, theme } = useTheme();
+  const customImageUrl = effectiveBackdropImage;
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,6 +32,7 @@ export const ShowroomBackground: React.FC<ShowroomBackgroundProps> = ({
     <div
       id="showroom-bg-image-layer"
       data-screen={screen}
+      data-unified-backdrop="true"
       className={`fixed inset-0 z-0 pointer-events-none overflow-hidden transition-opacity duration-300 ${className}`}
       aria-hidden="true"
     >

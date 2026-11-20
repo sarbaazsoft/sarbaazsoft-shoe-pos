@@ -731,6 +731,84 @@ const handleSaveUserTheme = async (req: AuthenticatedRequest, res: Response) => 
 router.put('/theme', requireAuth, handleSaveUserTheme);
 router.patch('/theme', requireAuth, handleSaveUserTheme);
 
+// Overwrite all store staff's theme & color preferences (Admin & SuperAdmin only, tenant-isolated)
+const handleApplyThemeToAllStaff = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const role = String(req.user?.role || '').toUpperCase();
+    if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
+      return res.status(403).json({
+        error: 'Forbidden: Only Store Administrators or SuperAdmin can apply theme settings to staff.',
+        code: 'FORBIDDEN_ROLE',
+      });
+    }
+
+    const rawThemeColor = req.body?.themeColor ?? req.body?.theme_color;
+    if (rawThemeColor === undefined || rawThemeColor === null) {
+      return res.status(400).json({ error: 'themeColor value is required.' });
+    }
+    const serialized = String(rawThemeColor).trim();
+    if (serialized.length > 256) {
+      return res.status(400).json({ error: 'Theme preference payload exceeds allowed length.' });
+    }
+    if (serialized && /[<>\x00-\x1F]/.test(serialized)) {
+      return res.status(400).json({ error: 'Theme preference contains invalid characters.' });
+    }
+
+    const userId = req.user!.id;
+    const isSuperAdmin = role === 'SUPERADMIN';
+    const requestedTenantId = Number(req.body?.tenantId ?? req.headers['x-tenant-id'] ?? 0);
+    const adminTenantId = Number(req.user!.tenantId) > 0 ? Number(req.user!.tenantId) : 1;
+
+    let result;
+    if (!isSuperAdmin) {
+      result = await pgClient.query(
+        `UPDATE users SET theme_color = $1, updated_at = NOW() WHERE tenant_id = $2 AND UPPER(role) != 'SUPERADMIN' RETURNING id, tenant_id, name, email, phone, avatar_url, role, status, theme_color`,
+        [serialized, adminTenantId]
+      );
+    } else if (Number.isInteger(requestedTenantId) && requestedTenantId > 0) {
+      result = await pgClient.query(
+        `UPDATE users SET theme_color = $1, updated_at = NOW() WHERE (tenant_id = $2 AND UPPER(role) != 'SUPERADMIN') OR id = $3 RETURNING id, tenant_id, name, email, phone, avatar_url, role, status, theme_color`,
+        [serialized, requestedTenantId, userId]
+      );
+    } else {
+      result = await pgClient.query(
+        `UPDATE users SET theme_color = $1, updated_at = NOW() WHERE UPPER(role) != 'SUPERADMIN' OR id = $2 RETURNING id, tenant_id, name, email, phone, avatar_url, role, status, theme_color`,
+        [serialized, userId]
+      );
+    }
+
+    const updatedRows = result.rows || [];
+    const currentRow: any = updatedRows.find((r: any) => Number(r.id) === Number(userId)) || updatedRows[0];
+
+    return res.json({
+      success: true,
+      themeColor: serialized,
+      updatedCount: updatedRows.length,
+      message: `Applied theme & color settings to ${updatedRows.length} ${updatedRows.length === 1 ? 'account' : 'accounts'}.`,
+      user: currentRow
+        ? {
+            id: currentRow.id,
+            tenantId: isSuperAdmin ? 0 : adminTenantId,
+            name: currentRow.name,
+            email: currentRow.email,
+            phone: currentRow.phone || '',
+            avatarUrl: currentRow.avatar_url || '',
+            role: currentRow.role,
+            originalRole: currentRow.role,
+            status: currentRow.status,
+            themeColor: currentRow.theme_color || serialized,
+          }
+        : undefined,
+    });
+  } catch (err: any) {
+    console.error('Bulk staff theme update error:', err);
+    return res.status(500).json({ error: 'Failed to apply theme settings to staff: ' + err.message });
+  }
+};
+
+router.put('/theme/staff', requireAuth, handleApplyThemeToAllStaff);
+router.patch('/theme/staff', requireAuth, handleApplyThemeToAllStaff);
+
 // Change Password
 router.put('/change-password', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {

@@ -28,10 +28,11 @@ import {
   serializeUserThemePreference,
 } from '../utils/themePalettes.ts';
 import {
-  EMPTY_SCREEN_IMAGES,
   type ScreenImageSlot,
   type ScreenImagesMap,
-  readCachedScreenImages,
+  buildUnifiedScreenImagesMap,
+  readCachedBackdropImage,
+  resolveUnifiedBackdropImage,
   writeCachedScreenImages,
 } from '../utils/screenImages.ts';
 
@@ -65,15 +66,19 @@ interface ThemeContextType {
   updatePreview: (partial: Partial<ThemePreferencesSnapshot>) => void;
   cancelPreview: () => void;
   applyAndSaveAppearance: (options?: { canSaveScreenImages?: boolean }) => Promise<void>;
+  applyAndSaveToAllStaff: (options?: { canSaveScreenImages?: boolean }) => Promise<{ updatedCount: number; message: string }>;
   resetAppearanceToDefault: (options?: { persistImmediately?: boolean }) => Promise<void>;
   syncUserThemeFromAuth: (user: any | null) => void;
   restoreGuestThemeOnLogout: () => void;
 
-  // Authentication & Loading Screen Images
+  // Unified Route & Screen Backdrop Image
+  backdropImage: string;
+  effectiveBackdropImage: string;
+  updateBackdropImagePreview: (nextImageUrl: string) => void;
   screenImages: ScreenImagesMap;
   effectiveScreenImages: ScreenImagesMap;
-  getEffectiveScreenImage: (slot: ScreenImageSlot) => string;
-  updateScreenImagesPreview: (partial: Partial<ScreenImagesMap>) => void;
+  getEffectiveScreenImage: (slot?: ScreenImageSlot) => string;
+  updateScreenImagesPreview: (partial: Partial<ScreenImagesMap> | string) => void;
   refreshScreenImages: () => Promise<void>;
 }
 
@@ -108,11 +113,15 @@ const ThemeContext = createContext<ThemeContextType>({
   updatePreview: () => {},
   cancelPreview: () => {},
   applyAndSaveAppearance: async () => {},
+  applyAndSaveToAllStaff: async () => ({ updatedCount: 0, message: '' }),
   resetAppearanceToDefault: async () => {},
   syncUserThemeFromAuth: () => {},
   restoreGuestThemeOnLogout: () => {},
-  screenImages: EMPTY_SCREEN_IMAGES,
-  effectiveScreenImages: EMPTY_SCREEN_IMAGES,
+  backdropImage: '',
+  effectiveBackdropImage: '',
+  updateBackdropImagePreview: () => {},
+  screenImages: buildUnifiedScreenImagesMap(''),
+  effectiveScreenImages: buildUnifiedScreenImagesMap(''),
   getEffectiveScreenImage: () => '',
   updateScreenImagesPreview: () => {},
   refreshScreenImages: async () => {},
@@ -188,14 +197,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isSavingAppearance, setIsSavingAppearance] = useState(false);
   const [appearanceSaveError, setAppearanceSaveError] = useState<string | null>(null);
 
-  const [committedScreenImages, setCommittedScreenImages] = useState<ScreenImagesMap>(() =>
-    readCachedScreenImages()
+  const [committedBackdropImage, setCommittedBackdropImage] = useState<string>(() =>
+    readCachedBackdropImage()
   );
-  const [previewScreenImages, setPreviewScreenImages] = useState<ScreenImagesMap | null>(null);
+  const [previewBackdropImage, setPreviewBackdropImage] = useState<string | null>(null);
 
   // Effective preferences drive the live DOM across the whole app
   const effectivePrefs = previewPreferences ?? committedPreferences;
-  const effectiveScreenImages = previewScreenImages ?? committedScreenImages;
+  const effectiveBackdropImage = previewBackdropImage ?? committedBackdropImage;
+  const committedScreenImages = useMemo(
+    () => buildUnifiedScreenImagesMap(committedBackdropImage),
+    [committedBackdropImage]
+  );
+  const effectiveScreenImages = useMemo(
+    () => buildUnifiedScreenImagesMap(effectiveBackdropImage),
+    [effectiveBackdropImage]
+  );
   const themeMode = effectivePrefs.themeMode;
   const accentTheme = effectivePrefs.accentTheme;
   const customAccentHex = effectivePrefs.customAccentHex;
@@ -423,22 +440,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  const updateScreenImagesPreview = useCallback((partial: Partial<ScreenImagesMap>) => {
+  const updateBackdropImagePreview = useCallback((nextImageUrl: string) => {
     setAppearanceSaveError(null);
-    setPreviewScreenImages((prev) => {
-      const base = prev ?? committedScreenImages;
-      return {
-        login: partial.login !== undefined ? partial.login : base.login,
-        registration: partial.registration !== undefined ? partial.registration : base.registration,
-        auth: partial.auth !== undefined ? partial.auth : base.auth,
-        loading: partial.loading !== undefined ? partial.loading : base.loading,
-      };
-    });
-  }, [committedScreenImages]);
+    setPreviewBackdropImage(String(nextImageUrl ?? '').trim());
+  }, []);
+
+  const updateScreenImagesPreview = useCallback((partial: Partial<ScreenImagesMap> | string) => {
+    setAppearanceSaveError(null);
+    const resolved = typeof partial === 'string' ? partial.trim() : resolveUnifiedBackdropImage(partial);
+    setPreviewBackdropImage(resolved);
+  }, []);
 
   const cancelPreview = useCallback(() => {
     setPreviewPreferences(null);
-    setPreviewScreenImages(null);
+    setPreviewBackdropImage(null);
     setAppearanceSaveError(null);
   }, []);
 
@@ -453,14 +468,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [previewPreferences, committedPreferences]);
 
   const hasUnsavedImagePreview = useMemo(() => {
-    if (!previewScreenImages) return false;
-    return (
-      previewScreenImages.login !== committedScreenImages.login ||
-      previewScreenImages.registration !== committedScreenImages.registration ||
-      previewScreenImages.auth !== committedScreenImages.auth ||
-      previewScreenImages.loading !== committedScreenImages.loading
-    );
-  }, [previewScreenImages, committedScreenImages]);
+    if (previewBackdropImage === null) return false;
+    return previewBackdropImage !== committedBackdropImage;
+  }, [previewBackdropImage, committedBackdropImage]);
 
   const isPreviewActive = hasUnsavedColorPreview || hasUnsavedImagePreview;
 
@@ -506,20 +516,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         if (hasUnsavedImagePreview && options?.canSaveScreenImages) {
-          const targetImages = previewScreenImages ?? committedScreenImages;
-          const imgRes = await api.settings.saveScreenImages(targetImages);
+          const targetBackdrop = previewBackdropImage ?? committedBackdropImage;
+          const imgRes = await api.settings.saveScreenImages(targetBackdrop);
           if (requestEpochRef.current !== epoch) return;
-          const savedImages: ScreenImagesMap = {
-            login: imgRes?.screenImages?.login ?? targetImages.login,
-            registration: imgRes?.screenImages?.registration ?? targetImages.registration,
-            auth: imgRes?.screenImages?.auth ?? targetImages.auth,
-            loading: imgRes?.screenImages?.loading ?? targetImages.loading,
-          };
-          setCommittedScreenImages(savedImages);
-          writeCachedScreenImages(savedImages);
-          setPreviewScreenImages(null);
-        } else if (!options?.canSaveScreenImages && previewScreenImages) {
-          setPreviewScreenImages(null);
+          const savedBackdrop =
+            imgRes?.backdropImage !== undefined
+              ? String(imgRes.backdropImage || '').trim()
+              : resolveUnifiedBackdropImage(imgRes?.screenImages) || targetBackdrop;
+          setCommittedBackdropImage(savedBackdrop);
+          writeCachedScreenImages(savedBackdrop);
+          setPreviewBackdropImage(null);
+        } else if (!options?.canSaveScreenImages && previewBackdropImage !== null) {
+          setPreviewBackdropImage(null);
         }
       } catch (err: any) {
         const msg = err?.message || 'Failed to save appearance settings. Your previous saved settings remain intact.';
@@ -529,7 +537,74 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsSavingAppearance(false);
       }
     },
-    [previewPreferences, hasUnsavedColorPreview, hasUnsavedImagePreview, previewScreenImages, committedScreenImages]
+    [previewPreferences, hasUnsavedColorPreview, hasUnsavedImagePreview, previewBackdropImage, committedBackdropImage]
+  );
+
+  const applyAndSaveToAllStaff = useCallback(
+    async (options?: { canSaveScreenImages?: boolean }): Promise<{ updatedCount: number; message: string }> => {
+      setIsSavingAppearance(true);
+      setAppearanceSaveError(null);
+      try {
+        const targetPrefs = previewPreferences ?? committedPrefsRef.current;
+        const uid = activeUserIdRef.current;
+        const epoch = ++requestEpochRef.current;
+        const serialized = serializeUserThemePreference(targetPrefs);
+
+        const res = await api.auth.applyThemeToStaff(serialized);
+        if (requestEpochRef.current === epoch && activeUserIdRef.current === uid) {
+          const savedPrefs = res?.themeColor
+            ? parseUserThemePreference(res.themeColor, targetPrefs)
+            : targetPrefs;
+          setCommittedPreferences(savedPrefs);
+          if (uid) {
+            try {
+              window.localStorage?.setItem(getUserThemeCacheKey(uid), serializeUserThemePreference(savedPrefs));
+              const rawStoredUser = window.localStorage?.getItem('pos_current_user');
+              if (rawStoredUser) {
+                const parsedUser = JSON.parse(rawStoredUser);
+                if (Number(parsedUser?.id) === uid) {
+                  parsedUser.themeColor = serializeUserThemePreference(savedPrefs);
+                  window.localStorage?.setItem('pos_current_user', JSON.stringify(parsedUser));
+                }
+              }
+            } catch {}
+          }
+          persistActiveHydrationMirror(savedPrefs);
+          setPreviewPreferences(null);
+        }
+
+        if (hasUnsavedImagePreview && options?.canSaveScreenImages) {
+          const targetBackdrop = previewBackdropImage ?? committedBackdropImage;
+          const imgRes = await api.settings.saveScreenImages(targetBackdrop);
+          if (requestEpochRef.current === epoch) {
+            const savedBackdrop =
+              imgRes?.backdropImage !== undefined
+                ? String(imgRes.backdropImage || '').trim()
+                : resolveUnifiedBackdropImage(imgRes?.screenImages) || targetBackdrop;
+            setCommittedBackdropImage(savedBackdrop);
+            writeCachedScreenImages(savedBackdrop);
+            setPreviewBackdropImage(null);
+          }
+        } else if (!options?.canSaveScreenImages && previewBackdropImage !== null) {
+          setPreviewBackdropImage(null);
+        }
+
+        const count = Number(res?.updatedCount ?? 0);
+        return {
+          updatedCount: count,
+          message:
+            res?.message ||
+            `Theme and color preferences applied to ${count} store ${count === 1 ? 'account' : 'accounts'}.`,
+        };
+      } catch (err: any) {
+        const msg = err?.message || 'Failed to apply appearance settings to all store staff.';
+        setAppearanceSaveError(msg);
+        throw err;
+      } finally {
+        setIsSavingAppearance(false);
+      }
+    },
+    [previewPreferences, hasUnsavedImagePreview, previewBackdropImage, committedBackdropImage]
   );
 
   const resetAppearanceToDefault = useCallback(
@@ -609,7 +684,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     requestEpochRef.current += 1;
     setActiveUserId(null);
     setPreviewPreferences(null);
-    setPreviewScreenImages(null);
+    setPreviewBackdropImage(null);
     setAppearanceSaveError(null);
 
     const guestPrefs = getStoredGuestThemePreferences();
@@ -620,24 +695,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const refreshScreenImages = useCallback(async () => {
     try {
       const res = await api.settings.getScreenImages();
-      if (res?.screenImages) {
-        const next: ScreenImagesMap = {
-          login: String(res.screenImages.login || '').trim(),
-          registration: String(res.screenImages.registration || '').trim(),
-          auth: String(res.screenImages.auth || '').trim(),
-          loading: String(res.screenImages.loading || '').trim(),
-        };
-        setCommittedScreenImages(next);
-        writeCachedScreenImages(next);
-      }
+      const nextBackdrop =
+        res?.backdropImage !== undefined
+          ? String(res.backdropImage || '').trim()
+          : resolveUnifiedBackdropImage(res?.screenImages);
+      setCommittedBackdropImage(nextBackdrop);
+      writeCachedScreenImages(nextBackdrop);
     } catch {
-      // ignore transient offline fetch failures; cached images remain active
+      // ignore transient offline fetch failures; cached image remains active
     }
   }, []);
 
   const getEffectiveScreenImage = useCallback(
-    (slot: ScreenImageSlot) => effectiveScreenImages[slot] || '',
-    [effectiveScreenImages]
+    (_slot?: ScreenImageSlot) => effectiveBackdropImage || '',
+    [effectiveBackdropImage]
   );
 
   // Fetch public screen images on initial mount
@@ -756,9 +827,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updatePreview,
         cancelPreview,
         applyAndSaveAppearance,
+        applyAndSaveToAllStaff,
         resetAppearanceToDefault,
         syncUserThemeFromAuth,
         restoreGuestThemeOnLogout,
+        backdropImage: committedBackdropImage,
+        effectiveBackdropImage,
+        updateBackdropImagePreview,
         screenImages: committedScreenImages,
         effectiveScreenImages,
         getEffectiveScreenImage,

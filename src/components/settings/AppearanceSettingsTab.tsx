@@ -14,11 +14,12 @@ import {
   Pipette,
   RotateCcw,
   Save,
-  ShieldAlert,
+  Shield,
   Sparkles,
   Sun,
   Trash2,
   Upload,
+  Users,
   X,
 } from 'lucide-react';
 import { useTheme, type ThemeMode } from '../../context/ThemeContext.tsx';
@@ -30,12 +31,13 @@ import {
   isValidHexColor,
   normalizeHexColor,
   resolveAccentPalette,
+  type PresetAccentThemeId,
 } from '../../utils/themePalettes.ts';
 import {
   PREDEFINED_SCREEN_IMAGE_LIBRARY,
-  SCREEN_IMAGE_SLOTS,
-  type ScreenImageSlot,
+  UNIFIED_BACKDROP_META,
   compressUploadedImageFile,
+  doesLibraryImageMatchTheme,
   validateExternalImageUrl,
 } from '../../utils/screenImages.ts';
 import defaultShowroomBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
@@ -63,25 +65,28 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     updatePreview,
     cancelPreview,
     applyAndSaveAppearance,
+    applyAndSaveToAllStaff,
     resetAppearanceToDefault,
-    effectiveScreenImages,
-    updateScreenImagesPreview,
+    effectiveBackdropImage,
+    updateBackdropImagePreview,
   } = useTheme();
 
   const userRole = String(currentUser?.role || '').toUpperCase();
   const canManageScreenImages = userRole === 'SUPERADMIN' || userRole === 'ADMIN';
+  const canApplyToAllStaff = userRole === 'SUPERADMIN' || userRole === 'ADMIN';
 
   const [hexDraft, setHexDraft] = useState<string>(customAccentHex);
   const [hexError, setHexError] = useState<string | null>(null);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [localErrorMsg, setLocalErrorMsg] = useState<string | null>(null);
+  const [isApplyingToAllStaff, setIsApplyingToAllStaff] = useState<boolean>(false);
 
-  // Screen image customization local controls
-  const [selectedScreenSlot, setSelectedScreenSlot] = useState<ScreenImageSlot>('login');
+  // Unified backdrop image local controls (Admin / SuperAdmin only)
   const [externalUrlInput, setExternalUrlInput] = useState<string>('');
   const [externalUrlError, setExternalUrlError] = useState<string | null>(null);
   const [previewImgLoadFailed, setPreviewImgLoadFailed] = useState<boolean>(false);
   const [isCompressingUpload, setIsCompressingUpload] = useState<boolean>(false);
+  const [libraryColorFilter, setLibraryColorFilter] = useState<'all' | 'active' | PresetAccentThemeId>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync hex text field when effective customAccentHex changes externally
@@ -90,17 +95,16 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     setHexError(null);
   }, [customAccentHex]);
 
-  // Keep URL input synced to currently selected screen slot (only when URL is non-data URI)
-  const activeSlotValue = effectiveScreenImages[selectedScreenSlot] || '';
+  // Keep URL input synced to unified backdrop image (only when URL is non-data URI)
   useEffect(() => {
     setPreviewImgLoadFailed(false);
     setExternalUrlError(null);
-    if (activeSlotValue && !activeSlotValue.startsWith('data:')) {
-      setExternalUrlInput(activeSlotValue);
+    if (effectiveBackdropImage && !effectiveBackdropImage.startsWith('data:')) {
+      setExternalUrlInput(effectiveBackdropImage);
     } else {
       setExternalUrlInput('');
     }
-  }, [selectedScreenSlot, activeSlotValue]);
+  }, [effectiveBackdropImage]);
 
   const handleModePreview = (mode: ThemeMode) => {
     setSaveSuccessMsg(null);
@@ -165,6 +169,29 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     }
   };
 
+  const handleApplyToAllStaff = async () => {
+    if (!canApplyToAllStaff) return;
+    if (hexError) {
+      setLocalErrorMsg('Fix the invalid HEX color before applying to staff.');
+      return;
+    }
+    setIsApplyingToAllStaff(true);
+    setLocalErrorMsg(null);
+    setSaveSuccessMsg(null);
+    clearAppearanceSaveError();
+    try {
+      const result = await applyAndSaveToAllStaff({ canSaveScreenImages: canManageScreenImages });
+      setSaveSuccessMsg(
+        result?.message || 'Theme & color preferences applied to all store staff accounts.'
+      );
+      setTimeout(() => setSaveSuccessMsg(null), 5000);
+    } catch (err: any) {
+      setLocalErrorMsg(err?.message || 'Failed to apply settings to staff.');
+    } finally {
+      setIsApplyingToAllStaff(false);
+    }
+  };
+
   const handleCancel = () => {
     setHexError(null);
     setLocalErrorMsg(null);
@@ -192,7 +219,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     setSaveSuccessMsg(null);
     try {
       const dataUrl = await compressUploadedImageFile(file);
-      updateScreenImagesPreview({ [selectedScreenSlot]: dataUrl });
+      updateBackdropImagePreview(dataUrl);
     } catch (err: any) {
       setExternalUrlError(err?.message || 'Could not process the uploaded image file.');
     } finally {
@@ -211,7 +238,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     }
     setExternalUrlError(null);
     setPreviewImgLoadFailed(false);
-    updateScreenImagesPreview({ [selectedScreenSlot]: result.url });
+    updateBackdropImagePreview(result.url);
   };
 
   const handleSelectLibraryImage = (url: string) => {
@@ -220,26 +247,46 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     setPreviewImgLoadFailed(false);
     setSaveSuccessMsg(null);
     setLocalErrorMsg(null);
-    updateScreenImagesPreview({ [selectedScreenSlot]: url });
+    updateBackdropImagePreview(url);
   };
 
-  const handleClearSlotImage = () => {
+  const handleClearBackdropImage = () => {
     if (!canManageScreenImages) return;
     setExternalUrlError(null);
     setPreviewImgLoadFailed(false);
     setSaveSuccessMsg(null);
     setExternalUrlInput('');
-    updateScreenImagesPreview({ [selectedScreenSlot]: '' });
+    updateBackdropImagePreview('');
   };
 
   const contrastRatio = getWcagContrastRatio(accentPalette.primaryScale[600], accentPalette.contrastText);
   const contrastBadge = contrastRatio >= 7 ? 'AAA' : contrastRatio >= 4.5 ? 'AA' : 'Large AA';
-  const activeScreenMeta = SCREEN_IMAGE_SLOTS.find((s) => s.id === selectedScreenSlot) || SCREEN_IMAGE_SLOTS[0];
   const resolvedPreviewImg =
-    activeSlotValue && !previewImgLoadFailed ? activeSlotValue : defaultShowroomBg;
+    effectiveBackdropImage && !previewImgLoadFailed ? effectiveBackdropImage : defaultShowroomBg;
 
   const isCustomOrCuratedActive = accentTheme === 'custom';
   const activeHexUpper = normalizeHexColor(accentPalette.baseHex);
+
+  const activeThemeMatchingLibrary = PREDEFINED_SCREEN_IMAGE_LIBRARY.filter((item) =>
+    doesLibraryImageMatchTheme(item, accentTheme, customAccentHex)
+  );
+  const filteredLibraryImages = (() => {
+    if (libraryColorFilter === 'active') {
+      return activeThemeMatchingLibrary.length > 0 ? activeThemeMatchingLibrary : PREDEFINED_SCREEN_IMAGE_LIBRARY;
+    }
+    if (libraryColorFilter !== 'all') {
+      return PREDEFINED_SCREEN_IMAGE_LIBRARY.filter((item) =>
+        item.matchedPresets.includes(libraryColorFilter)
+      );
+    }
+    // In 'all' view, keep active color-matched backdrops right at the top for quick pairing
+    if (activeThemeMatchingLibrary.length === 0) return PREDEFINED_SCREEN_IMAGE_LIBRARY;
+    const matchedIds = new Set(activeThemeMatchingLibrary.map((i) => i.id));
+    return [
+      ...activeThemeMatchingLibrary,
+      ...PREDEFINED_SCREEN_IMAGE_LIBRARY.filter((item) => !matchedIds.has(item.id)),
+    ];
+  })();
 
   return (
     <div id="appearance-settings-panel" className="space-y-6 animate-in fade-in duration-200">
@@ -273,20 +320,22 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
               {isPreviewActive
                 ? 'Changes are previewing live across buttons, navigation, tables, modals, and cards. Click Apply & Save to commit or Cancel to revert.'
-                : 'Customize Light/Dark/System mode, curated or custom HEX palettes, and authentication/loading screen backdrops.'}
+                : canManageScreenImages
+                ? 'Customize Light/Dark/System mode, curated or custom HEX palettes, and the unified app backdrop image.'
+                : 'Customize Light/Dark/System mode and curated or custom HEX palettes.'}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
           <button
             id="appearance-reset-default-btn"
             type="button"
             onClick={handleResetDefault}
-            disabled={isSavingAppearance}
-            className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            disabled={isSavingAppearance || isApplyingToAllStaff}
+            className="w-full sm:w-auto justify-center min-h-[40px] px-3 sm:px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer disabled:opacity-50"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
             <span>Reset Default</span>
           </button>
 
@@ -295,11 +344,30 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
               id="appearance-cancel-preview-btn"
               type="button"
               onClick={handleCancel}
-              disabled={isSavingAppearance}
-              className="h-10 px-3.5 rounded-xl border border-rose-300 dark:border-rose-700/70 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              disabled={isSavingAppearance || isApplyingToAllStaff}
+              className="w-full sm:w-auto justify-center min-h-[40px] px-3 sm:px-3.5 rounded-xl border border-rose-300 dark:border-rose-700/70 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer disabled:opacity-50"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5 shrink-0" />
               <span>Cancel Preview</span>
+            </button>
+          )}
+
+          {canApplyToAllStaff && (
+            <button
+              id="appearance-apply-all-staff-btn"
+              type="button"
+              onClick={handleApplyToAllStaff}
+              disabled={isSavingAppearance || isApplyingToAllStaff || Boolean(hexError)}
+              title="Overwrite all store staff color and theme preferences with your active selection"
+              aria-label="Apply theme and color settings to all staff"
+              className="w-full sm:w-auto justify-center min-h-[40px] px-3 sm:px-3.5 rounded-xl border border-purple-300 dark:border-purple-700/70 bg-purple-50/90 dark:bg-purple-950/40 text-purple-700 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/55 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer disabled:opacity-45"
+            >
+              {isApplyingToAllStaff ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Users className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{isApplyingToAllStaff ? 'Applying...' : 'Apply to Staff'}</span>
             </button>
           )}
 
@@ -307,11 +375,19 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
             id="appearance-apply-save-btn"
             type="button"
             onClick={handleApplyAndSave}
-            disabled={!isPreviewActive || isSavingAppearance || Boolean(hexError)}
-            className="btn-primary h-10 px-4 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-45"
+            disabled={!isPreviewActive || isSavingAppearance || isApplyingToAllStaff || Boolean(hexError)}
+            className={`btn-primary w-full sm:w-auto justify-center min-h-[40px] px-4 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-45 ${
+              (canApplyToAllStaff && !isPreviewActive) || (!canApplyToAllStaff && isPreviewActive)
+                ? 'col-span-2 sm:col-span-1'
+                : ''
+            }`}
           >
-            {isSavingAppearance ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            <span>{isSavingAppearance ? 'Saving...' : 'Apply & Save'}</span>
+            {isSavingAppearance && !isApplyingToAllStaff ? (
+              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            ) : (
+              <Save className="w-4 h-4 shrink-0" />
+            )}
+            <span>{isSavingAppearance && !isApplyingToAllStaff ? 'Saving...' : 'Apply & Save'}</span>
           </button>
         </div>
       </div>
@@ -655,270 +731,323 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
         </div>
       </div>
 
-      {/* SECTION 2: AUTHENTICATION & LOADING SCREEN IMAGES */}
-      <div className="bg-white dark:bg-[#131B2E] p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800/80">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/20 border border-purple-100 dark:border-purple-400/30 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0">
-              <ImageIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                Authentication &amp; Loading Screen Images
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Customize separate backdrop images for Login, Registration, Authentication, and Loading screens.
-              </p>
-            </div>
-          </div>
-
-          {!canManageScreenImages && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs font-semibold">
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>Admin permission required to edit screen images</span>
-            </span>
-          )}
-        </div>
-
-        {/* Screen Selector Tabs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {SCREEN_IMAGE_SLOTS.map((slot) => {
-            const isSelected = selectedScreenSlot === slot.id;
-            const hasCustomImg = Boolean(effectiveScreenImages[slot.id]);
-            return (
-              <button
-                key={slot.id}
-                id={`screen-image-slot-${slot.id}`}
-                type="button"
-                onClick={() => setSelectedScreenSlot(slot.id)}
-                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                  isSelected
-                    ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 ring-2 ring-purple-500/25 shadow-xs'
-                    : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 w-full">
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">{slot.label}</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                      hasCustomImg
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                    }`}
-                  >
-                    {hasCustomImg ? 'Custom' : 'Default'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">{slot.description}</p>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Live Screen Backdrop Preview + 3 Input Methods */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Preview Frame */}
-          <div className="lg:col-span-5 space-y-2.5">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
-              <span>Preview: {activeScreenMeta.label}</span>
-              {activeSlotValue && canManageScreenImages && (
-                <button
-                  id="screen-image-restore-default-btn"
-                  type="button"
-                  onClick={handleClearSlotImage}
-                  className="text-rose-600 dark:text-rose-400 hover:underline inline-flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Restore Default</span>
-                </button>
-              )}
-            </div>
-
-            <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 shadow-md">
-              <img
-                src={resolvedPreviewImg}
-                alt={`${activeScreenMeta.label} background preview`}
-                referrerPolicy="no-referrer"
-                onLoad={() => setPreviewImgLoadFailed(false)}
-                onError={() => {
-                  if (activeSlotValue) setPreviewImgLoadFailed(true);
-                }}
-                className="w-full h-full object-cover object-center opacity-85"
-              />
-              <div
-                className={`absolute inset-0 ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-b from-[#0A0E1A]/50 via-[#0A0E1A]/30 to-[#0A0E1A]/70'
-                    : 'bg-gradient-to-b from-slate-200/35 via-transparent to-slate-200/45'
-                }`}
-              />
-              {/* Simulated Auth Card Overlay to inspect readability */}
-              <div className="absolute inset-0 flex items-center justify-center p-4">
-                <div className="w-44 rounded-xl bg-white/95 dark:bg-[#131B2E]/95 border border-white/60 dark:border-purple-700/60 shadow-lg p-3 text-center backdrop-blur-md">
-                  <div
-                    className="h-1.5 w-14 mx-auto rounded-full mb-2"
-                    style={{ background: accentPalette.buttonGradient }}
-                  />
-                  <div className="text-[11px] font-bold text-slate-900 dark:text-white truncate">
-                    {activeScreenMeta.label}
-                  </div>
-                  <div className="mt-2 h-6 rounded-md text-[10px] font-bold flex items-center justify-center" style={{ background: accentPalette.buttonGradient, color: accentPalette.contrastText }}>
-                    Continue
-                  </div>
-                </div>
+      {/* SECTION 2: UNIFIED ROUTE & SCREEN BACKDROP IMAGE (Admin / SuperAdmin only — hidden for Cashiers) */}
+      {canManageScreenImages && (
+        <div
+          id="unified-backdrop-settings-card"
+          className="bg-white dark:bg-[#131B2E] p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/20 border border-purple-100 dark:border-purple-400/30 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0">
+                <ImageIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                  {UNIFIED_BACKDROP_META.label}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {UNIFIED_BACKDROP_META.description}
+                </p>
               </div>
             </div>
 
-            {previewImgLoadFailed && activeSlotValue && (
-              <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                Could not load that image URL directly in the browser (the fallback image is shown above). Verify the direct image address or try another host.
-              </p>
-            )}
-            {hasUnsavedImagePreview && (
-              <p className="text-xs text-purple-600 dark:text-purple-300 font-semibold">
-                Unsaved screen image change queued — click &ldquo;Apply &amp; Save&rdquo; above to publish.
-              </p>
-            )}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-200 text-[11px] font-semibold shrink-0">
+              <Shield className="w-3.5 h-3.5 shrink-0" />
+              <span>{effectiveBackdropImage ? 'Custom Active Across All Routes' : 'Default Showroom Backdrop'}</span>
+            </span>
           </div>
 
-          {/* 3 Input Sources */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* Option 1: Local Upload */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Upload className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>1. Upload from Device</span>
-                  </h5>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    JPG, PNG, WEBP, or GIF — automatically optimized for fast screen loading.
-                  </p>
+          {/* Live Unified Backdrop Preview + 3 Input Methods */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Preview Frame */}
+            <div className="lg:col-span-5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
+                <span>Preview: All Screens &amp; Routes</span>
+                {effectiveBackdropImage && (
+                  <button
+                    id="screen-image-restore-default-btn"
+                    type="button"
+                    onClick={handleClearBackdropImage}
+                    className="text-rose-600 dark:text-rose-400 hover:underline inline-flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Restore Default</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 shadow-md">
+                <img
+                  src={resolvedPreviewImg}
+                  alt="Unified screen backdrop preview"
+                  referrerPolicy="no-referrer"
+                  onLoad={() => setPreviewImgLoadFailed(false)}
+                  onError={() => {
+                    if (effectiveBackdropImage) setPreviewImgLoadFailed(true);
+                  }}
+                  className="w-full h-full object-cover object-center opacity-85"
+                />
+                <div
+                  className={`absolute inset-0 ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-b from-[#0A0E1A]/50 via-[#0A0E1A]/30 to-[#0A0E1A]/70'
+                      : 'bg-gradient-to-b from-slate-200/35 via-transparent to-slate-200/45'
+                  }`}
+                />
+                {/* Simulated Portal Card Overlay to inspect readability */}
+                <div className="absolute inset-0 flex items-center justify-center p-4">
+                  <div className="w-48 rounded-xl bg-white/95 dark:bg-[#131B2E]/95 border border-white/60 dark:border-purple-700/60 shadow-lg p-3 text-center backdrop-blur-md">
+                    <div
+                      className="h-1.5 w-14 mx-auto rounded-full mb-2"
+                      style={{ background: accentPalette.buttonGradient }}
+                    />
+                    <div className="text-[11px] font-bold text-slate-900 dark:text-white truncate">
+                      Login, Auth &amp; Loading
+                    </div>
+                    <div
+                      className="mt-2 h-6 rounded-md text-[10px] font-bold flex items-center justify-center"
+                      style={{ background: accentPalette.buttonGradient, color: accentPalette.contrastText }}
+                    >
+                      Continue
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+              </div>
+
+              {previewImgLoadFailed && effectiveBackdropImage && (
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                  Could not load that image URL directly in the browser (the fallback image is shown above). Verify the direct image address or try another host.
+                </p>
+              )}
+              {hasUnsavedImagePreview && (
+                <p className="text-xs text-purple-600 dark:text-purple-300 font-semibold">
+                  Unsaved backdrop image change queued — click &ldquo;Apply &amp; Save&rdquo; above to publish to all screens.
+                </p>
+              )}
+            </div>
+
+            {/* 3 Input Sources */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Option 1: Local Upload */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                      <span>1. Upload from Device</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      JPG, PNG, WEBP, or GIF — automatically optimized for fast loading across all routes.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      id="screen-image-file-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUploadFile}
+                      disabled={isCompressingUpload}
+                      className="hidden"
+                    />
+                    <button
+                      id="screen-image-upload-btn"
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isCompressingUpload}
+                      className="h-9 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-purple-400 inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                    >
+                      {isCompressingUpload ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      <span>{effectiveBackdropImage ? 'Replace Image' : 'Upload Image'}</span>
+                    </button>
+                    {effectiveBackdropImage && (
+                      <button
+                        type="button"
+                        onClick={handleClearBackdropImage}
+                        className="h-9 px-2.5 rounded-lg border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: External Image URL */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2">
+                <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>2. External Image URL (Pinterest / Unsplash / CDN)</span>
+                </h5>
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
-                    ref={fileInputRef}
-                    id="screen-image-file-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleUploadFile}
-                    disabled={!canManageScreenImages || isCompressingUpload}
-                    className="hidden"
+                    id="screen-image-url-input"
+                    type="url"
+                    value={externalUrlInput}
+                    onChange={(e) => {
+                      setExternalUrlInput(e.target.value);
+                      setExternalUrlError(null);
+                    }}
+                    placeholder="https://i.pinimg.com/... or https://images.unsplash.com/..."
+                    className="flex-1 h-9 px-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
                   />
                   <button
-                    id="screen-image-upload-btn"
+                    id="screen-image-apply-url-btn"
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={!canManageScreenImages || isCompressingUpload}
-                    className="h-9 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-purple-400 inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                    onClick={handleApplyExternalUrl}
+                    className="h-9 px-3.5 rounded-lg btn-primary text-xs font-bold shrink-0 cursor-pointer disabled:opacity-50"
                   >
-                    {isCompressingUpload ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                    <span>{activeSlotValue ? 'Replace Image' : 'Upload Image'}</span>
+                    Use URL
                   </button>
-                  {activeSlotValue && canManageScreenImages && (
-                    <button
-                      type="button"
-                      onClick={handleClearSlotImage}
-                      className="h-9 px-2.5 rounded-lg border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  )}
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  For Pinterest, right-click the photo and select <strong>Copy image address</strong> (<code className="font-mono">i.pinimg.com</code>) so it loads directly.
+                </p>
+                {externalUrlError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">{externalUrlError}</p>
+                )}
               </div>
-            </div>
 
-            {/* Option 2: External Image URL */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2">
-              <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Link2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                <span>2. External Image URL (Pinterest / Unsplash / CDN)</span>
-              </h5>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  id="screen-image-url-input"
-                  type="url"
-                  value={externalUrlInput}
-                  onChange={(e) => {
-                    setExternalUrlInput(e.target.value);
-                    setExternalUrlError(null);
-                  }}
-                  disabled={!canManageScreenImages}
-                  placeholder="https://i.pinimg.com/... or https://images.unsplash.com/..."
-                  className="flex-1 h-9 px-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
-                />
-                <button
-                  id="screen-image-apply-url-btn"
-                  type="button"
-                  onClick={handleApplyExternalUrl}
-                  disabled={!canManageScreenImages}
-                  className="h-9 px-3.5 rounded-lg btn-primary text-xs font-bold shrink-0 cursor-pointer disabled:opacity-50"
+              {/* Option 3: Predefined URL-Only Shoe Store Library (Scrollable + Color-Matched) */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>3. Curated Predefined Backdrop Library</span>
+                  </h5>
+                  <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                    {filteredLibraryImages.length} / {PREDEFINED_SCREEN_IMAGE_LIBRARY.length} Backdrops • Scrollable
+                  </span>
+                </div>
+
+                {/* Preset Color Filter Bar */}
+                <div
+                  id="screen-library-color-filters"
+                  className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar"
                 >
-                  Use URL
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                For Pinterest, right-click the photo and select <strong>Copy image address</strong> (<code className="font-mono">i.pinimg.com</code>) so it loads directly.
-              </p>
-              {externalUrlError && (
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">{externalUrlError}</p>
-              )}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => setLibraryColorFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border whitespace-nowrap transition cursor-pointer shrink-0 ${
+                      libraryColorFilter === 'all'
+                        ? 'border-purple-500 bg-purple-100/80 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-purple-400'
+                    }`}
+                  >
+                    All ({PREDEFINED_SCREEN_IMAGE_LIBRARY.length})
+                  </button>
 
-            {/* Option 3: Predefined URL-Only Library */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  <span>3. Curated Predefined Library</span>
-                </h5>
-                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                  Direct External URLs
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {PREDEFINED_SCREEN_IMAGE_LIBRARY.map((item) => {
-                  const isChosen = activeSlotValue === item.url;
-                  return (
+                  {activeThemeMatchingLibrary.length > 0 && (
                     <button
-                      key={item.id}
-                      id={`screen-library-${item.id}`}
+                      id="screen-library-filter-active"
                       type="button"
-                      disabled={!canManageScreenImages}
-                      onClick={() => handleSelectLibraryImage(item.url)}
-                      className={`group relative rounded-xl overflow-hidden border text-left transition-all cursor-pointer disabled:opacity-50 ${
-                        isChosen
-                          ? 'border-purple-500 ring-2 ring-purple-500/35'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-purple-400'
+                      onClick={() => setLibraryColorFilter('active')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border whitespace-nowrap inline-flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
+                        libraryColorFilter === 'active'
+                          ? 'border-purple-500 bg-purple-100/80 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-purple-400'
                       }`}
                     >
-                      <div className="aspect-video w-full bg-slate-900 overflow-hidden">
-                        <img
-                          src={item.url}
-                          alt={item.title}
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
-                      <div className="p-2 bg-white dark:bg-slate-900">
-                        <div className="text-[11px] font-bold text-slate-900 dark:text-white truncate flex items-center justify-between gap-1">
-                          <span className="truncate">{item.title}</span>
-                          {isChosen && <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />}
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                          {item.subtitle}
-                        </div>
-                      </div>
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/15"
+                        style={{ backgroundColor: accentPalette.baseHex }}
+                      />
+                      <span>Matches Active ({activeThemeMatchingLibrary.length})</span>
                     </button>
-                  );
-                })}
+                  )}
+
+                  {ACCENT_THEME_LIST.map((preset) => {
+                    const isSelectedFilter = libraryColorFilter === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        id={`screen-library-filter-${preset.id}`}
+                        type="button"
+                        onClick={() => setLibraryColorFilter(preset.id as PresetAccentThemeId)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-semibold border whitespace-nowrap inline-flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
+                          isSelectedFilter
+                            ? 'border-purple-500 bg-purple-100/80 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-purple-400'
+                        }`}
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/15"
+                          style={{ backgroundColor: preset.baseHex }}
+                        />
+                        <span>{preset.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div
+                  id="screen-library-scroll-container"
+                  className="max-h-[320px] sm:max-h-[360px] overflow-y-auto pr-1 grid grid-cols-2 sm:grid-cols-3 gap-2.5"
+                >
+                  {filteredLibraryImages.map((item) => {
+                    const isChosen = effectiveBackdropImage === item.url;
+                    const matchesCurrentTheme = doesLibraryImageMatchTheme(
+                      item,
+                      accentTheme,
+                      customAccentHex
+                    );
+                    return (
+                      <button
+                        key={item.id}
+                        id={`screen-library-${item.id}`}
+                        type="button"
+                        onClick={() => handleSelectLibraryImage(item.url)}
+                        className={`group relative rounded-xl overflow-hidden border text-left transition-all cursor-pointer shrink-0 ${
+                          isChosen
+                            ? 'border-purple-500 ring-2 ring-purple-500/40'
+                            : matchesCurrentTheme
+                            ? 'border-purple-400/80 dark:border-purple-500/70'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-purple-400'
+                        }`}
+                      >
+                        <div className="relative aspect-video w-full bg-slate-900 overflow-hidden">
+                          <img
+                            src={item.url}
+                            alt={item.title}
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-[9px] font-semibold text-white inline-flex items-center gap-1">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0 border border-white/40"
+                              style={{ backgroundColor: item.colorHex }}
+                            />
+                            <span>{item.colorTag}</span>
+                          </span>
+                          <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/65 backdrop-blur-xs text-[9px] font-semibold text-white">
+                            {item.source}
+                          </span>
+                          {matchesCurrentTheme && (
+                            <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-purple-600/90 text-[8px] font-bold uppercase tracking-wider text-white">
+                              Theme Match
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-2 bg-white dark:bg-slate-900">
+                          <div className="text-[11px] font-bold text-slate-900 dark:text-white truncate flex items-center justify-between gap-1">
+                            <span className="truncate">{item.title}</span>
+                            {isChosen && <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {item.subtitle}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

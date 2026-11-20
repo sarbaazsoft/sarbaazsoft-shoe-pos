@@ -1356,7 +1356,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       <BodyLayoutWrapper
         layoutMeta={superAdminAuthLayoutMeta}
         className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
-        backdrop={<ShowroomBackground screen="login" />}
+        backdrop={<ShowroomBackground />}
         header={
           <PublicHeader
             storeName="POS SaaS C-Panel"

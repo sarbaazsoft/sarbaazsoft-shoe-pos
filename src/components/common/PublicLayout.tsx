@@ -16,7 +16,7 @@ export interface PublicLayoutProps extends PublicHeaderProps {
 /**
  * PublicLayout
  * Standard wrapper for public and onboarding routes (Loading, Auth, InstallWizard)
- * built on top of BodyLayoutWrapper with showroom background, global header, and global footer.
+ * built on top of BodyLayoutWrapper with unified showroom backdrop, global header, and global footer.
  */
 export const PublicLayout: React.FC<PublicLayoutProps> = ({
   children,
@@ -27,7 +27,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
   dbText,
   contentClassName = '',
   layoutMeta,
-  bgScreen = 'auth',
+  bgScreen: _bgScreen,
   ...rest
 }) => {
   return (
@@ -40,7 +40,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
         centerMain: true,
         ...layoutMeta,
       }}
-      backdrop={<ShowroomBackground screen={bgScreen} />}
+      backdrop={<ShowroomBackground />}
       header={
         <PublicHeader
           storeName={storeName}

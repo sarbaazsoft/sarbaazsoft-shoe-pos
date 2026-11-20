@@ -401,8 +401,13 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   const [statsAnimationStartTime, setStatsAnimationStartTime] = useState<number | null>(null);
   const statsSectionRef = useRef<HTMLElement>(null);
   const swiperRef = useRef<SwiperType | null>(null);
-  const { theme, setThemeMode } = useTheme();
+  const { theme, setThemeMode, effectiveBackdropImage } = useTheme();
+  const [ctaBackdropFailed, setCtaBackdropFailed] = useState(false);
   const landingTheme = theme;
+
+  useEffect(() => {
+    setCtaBackdropFailed(false);
+  }, [effectiveBackdropImage]);
 
   useEffect(() => {
     try {
@@ -1196,9 +1201,14 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         {/* Full-width darkened showroom background */}
         <div className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
           <img
-            src={shoeStoreBg}
+            src={effectiveBackdropImage && !ctaBackdropFailed ? effectiveBackdropImage : shoeStoreBg}
             alt=""
             referrerPolicy="no-referrer"
+            onError={() => {
+              if (effectiveBackdropImage && !ctaBackdropFailed) {
+                setCtaBackdropFailed(true);
+              }
+            }}
             className="w-full h-full object-cover object-center opacity-70 lt:opacity-75"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55" />

@@ -2062,6 +2062,35 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       if (u) u.phone = String(params[0]);
       return { rows: u ? ([u] as unknown as T[]) : [], rowCount: u ? 1 : 0 };
     }
+    if (upper.includes('SET THEME_COLOR = $1') && upper.includes("UPPER(ROLE) != 'SUPERADMIN'")) {
+      const themeVal = String(params[0] ?? '');
+      const nowIso = new Date().toISOString();
+      let updatedRows: any[] = [];
+      if (upper.includes('WHERE TENANT_ID = $2')) {
+        const tid = Number(params[1]);
+        updatedRows = mockStore.users.filter(
+          (x) => Number(x.tenant_id) === tid && String(x.role || '').toUpperCase() !== 'SUPERADMIN'
+        );
+      } else if (upper.includes('OR ID = $3')) {
+        const tid = Number(params[1]);
+        const uid = Number(params[2]);
+        updatedRows = mockStore.users.filter(
+          (x) =>
+            (Number(x.tenant_id) === tid && String(x.role || '').toUpperCase() !== 'SUPERADMIN') ||
+            Number(x.id) === uid
+        );
+      } else if (upper.includes('OR ID = $2')) {
+        const uid = Number(params[1]);
+        updatedRows = mockStore.users.filter(
+          (x) => String(x.role || '').toUpperCase() !== 'SUPERADMIN' || Number(x.id) === uid
+        );
+      }
+      for (const u of updatedRows) {
+        u.theme_color = themeVal;
+        u.updated_at = nowIso;
+      }
+      return { rows: updatedRows as unknown as T[], rowCount: updatedRows.length };
+    }
     if (upper.includes('SET THEME_COLOR = $1')) {
       const themeVal = String(params[0] ?? '');
       const uid = Number(params[1]);

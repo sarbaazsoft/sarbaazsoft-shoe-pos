@@ -1654,31 +1654,6 @@ setFormErrors(errors);
           </button>
         )}
 
-        {!isSuperAdmin && (
-          <button
-            id="settings-tab-printers"
-            type="button"
-            data-active={activeTab === 'printers'}
-            data-tab="printers"
-            onClick={() => handleSelectTab('printers')}
-            className={`tab-underline-link relative px-3.5 sm:px-4 py-3.5 text-xs sm:text-sm font-semibold transition-colors duration-300 flex items-center space-x-2 whitespace-nowrap cursor-pointer shrink-0 ${
-              activeTab === 'printers'
-                ? 'active text-purple-600 dark:text-purple-400 font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300'
-            }`}
-          >
-            <Printer className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'printers' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
-            <span>Hardware &amp; Printers</span>
-            {activeTab === 'printers' && (
-              <motion.div
-                layoutId="settingsActiveUnderline"
-                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
-                transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              />
-            )}
-          </button>
-        )}
-
         {isSuperAdmin && (
           <button
             id="settings-tab-backup"
@@ -1751,6 +1726,31 @@ setFormErrors(errors);
             />
           )}
         </button>
+
+        {!isSuperAdmin && (
+          <button
+            id="settings-tab-printers"
+            type="button"
+            data-active={activeTab === 'printers'}
+            data-tab="printers"
+            onClick={() => handleSelectTab('printers')}
+            className={`tab-underline-link relative px-3.5 sm:px-4 py-3.5 text-xs sm:text-sm font-semibold transition-colors duration-300 flex items-center space-x-2 whitespace-nowrap cursor-pointer shrink-0 ${
+              activeTab === 'printers'
+                ? 'active text-purple-600 dark:text-purple-400 font-bold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300'
+            }`}
+          >
+            <Printer className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'printers' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
+            <span>Hardware &amp; Printers</span>
+            {activeTab === 'printers' && (
+              <motion.div
+                layoutId="settingsActiveUnderline"
+                className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
+                transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              />
+            )}
+          </button>
+        )}
 
         {/* Scroll End Buffer Spacer: Ensures the last tab is 100% visible and never clipped or flush against right edge */}
         <div className="tab-end-spacer shrink-0 w-8 sm:w-10 h-1 pointer-events-none self-stretch" aria-hidden="true" role="presentation" />

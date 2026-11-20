@@ -1,6 +1,7 @@
 import React from 'react';
 import { Store, Globe, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
+import { ShowroomBackground } from '../common/ShowroomBackground';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 
 interface UnknownStore404ViewProps {
@@ -24,7 +25,10 @@ export const UnknownStore404View: React.FC<UnknownStore404ViewProps> = ({
       className="bg-slate-950 text-slate-100"
       mainClassName="p-3.5 sm:p-6 relative"
       backdrop={
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(124,58,237,0.16),transparent_60%)] pointer-events-none" />
+        <>
+          <ShowroomBackground />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(124,58,237,0.16),transparent_60%)] pointer-events-none" />
+        </>
       }
     >
       <div className="max-w-xl w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-8 md:p-10 shadow-2xl relative z-10">

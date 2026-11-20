@@ -31,7 +31,10 @@ import {
 } from '../src/utils/themePalettes.ts';
 import {
   PREDEFINED_SCREEN_IMAGE_LIBRARY,
-  SCREEN_IMAGE_SLOTS,
+  UNIFIED_BACKDROP_META,
+  buildUnifiedScreenImagesMap,
+  doesLibraryImageMatchTheme,
+  resolveUnifiedBackdropImage,
   validateExternalImageUrl,
 } from '../src/utils/screenImages.ts';
 import { pgClient } from '../src/db/index.ts';
@@ -201,17 +204,54 @@ test('Guest localStorage stays completely isolated from authenticated user hydra
   }
 });
 
-test('Predefined screen image library uses external URLs only and external URL validator catches bad inputs & Pinterest HTML links', () => {
-  assert.deepEqual(
-    SCREEN_IMAGE_SLOTS.map((s) => s.id),
-    ['login', 'registration', 'auth', 'loading']
+test('Unified backdrop library uses external URLs only, resolves legacy keys, and validates external URLs safely', () => {
+  assert.equal(UNIFIED_BACKDROP_META.id, 'backdrop');
+  assert.equal(
+    resolveUnifiedBackdropImage({ auth: 'https://images.unsplash.com/photo-1.jpg' }),
+    'https://images.unsplash.com/photo-1.jpg'
   );
+  assert.deepEqual(buildUnifiedScreenImagesMap('https://images.unsplash.com/photo-1.jpg'), {
+    backdrop: 'https://images.unsplash.com/photo-1.jpg',
+    login: 'https://images.unsplash.com/photo-1.jpg',
+    registration: 'https://images.unsplash.com/photo-1.jpg',
+    auth: 'https://images.unsplash.com/photo-1.jpg',
+    loading: 'https://images.unsplash.com/photo-1.jpg',
+  });
 
-  assert.ok(PREDEFINED_SCREEN_IMAGE_LIBRARY.length >= 4);
+  assert.ok(PREDEFINED_SCREEN_IMAGE_LIBRARY.length >= 12, 'Library should include an expanded catalog of shoe store backdrops');
+  const sources = new Set<string>();
   for (const item of PREDEFINED_SCREEN_IMAGE_LIBRARY) {
     assert.ok(item.url.startsWith('https://'), `Library image "${item.id}" must be an external https:// URL`);
     assert.equal(item.url.startsWith('data:'), false, 'Library images must never be inline data URIs');
     assert.equal(item.url.includes('localhost'), false, 'Library images must not reference local bundles');
+    assert.ok(item.source && item.source.trim().length > 0, `Library image "${item.id}" must specify its platform source`);
+    sources.add(item.source);
+  }
+  assert.ok(sources.size >= 4, `Library should span at least 4 image platforms (found: ${Array.from(sources).join(', ')})`);
+  assert.ok(sources.has('Unsplash'), 'Library should include Unsplash backdrops');
+  assert.ok(sources.has('Pinterest'), 'Library should include Pinterest backdrops');
+  assert.ok(sources.has('Pexels'), 'Library should include Pexels backdrops');
+
+  // Every core theme preset must have at least 1 color-matched backdrop
+  for (const preset of ACCENT_THEME_LIST) {
+    const matches = PREDEFINED_SCREEN_IMAGE_LIBRARY.filter((item) =>
+      doesLibraryImageMatchTheme(item, preset.id)
+    );
+    assert.ok(
+      matches.length >= 1,
+      `Preset theme "${preset.id}" must have at least one color-matched backdrop image`
+    );
+  }
+
+  // Every curated designer palette must also have at least 1 color-matched backdrop
+  for (const curated of CURATED_APPEARANCE_PALETTES) {
+    const matches = PREDEFINED_SCREEN_IMAGE_LIBRARY.filter((item) =>
+      doesLibraryImageMatchTheme(item, 'custom', curated.hex)
+    );
+    assert.ok(
+      matches.length >= 1,
+      `Curated palette "${curated.key}" (${curated.hex}) must have at least one color-matched backdrop image`
+    );
   }
 
   const pinWebLink = validateExternalImageUrl('https://www.pinterest.com/pin/123456789/');
@@ -348,6 +388,50 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
     const me3AfterBody = (await me3AfterRes.json()) as { user: { themeColor: string } };
     assert.equal(me3AfterBody.user.themeColor, 'light|orange');
 
+    // 3b. Apply to Staff: CASHIER receives 403 Forbidden
+    const cashierBulkRes = await fetch(`${baseUrl}/api/auth/theme/staff`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenCashier}`,
+      },
+      body: JSON.stringify({ themeColor: 'dark|emerald' }),
+    });
+    assert.equal(cashierBulkRes.status, 403);
+
+    // 3c. Apply to Staff: ADMIN overwrites all staff in their own store (Tenant 1) without affecting Tenant 2
+    const bulkStaffRes = await fetch(`${baseUrl}/api/auth/theme/staff`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenAdmin2}`,
+      },
+      body: JSON.stringify({ themeColor: 'dark|custom|#E11D48' }),
+    });
+    assert.equal(bulkStaffRes.status, 200);
+    const bulkStaffBody = (await bulkStaffRes.json()) as {
+      success: boolean;
+      themeColor: string;
+      updatedCount: number;
+    };
+    assert.equal(bulkStaffBody.success, true);
+    assert.equal(bulkStaffBody.themeColor, 'dark|custom|#E11D48');
+    assert.ok(bulkStaffBody.updatedCount >= 2, 'Should update both owner and cashier in Tenant 1');
+
+    // Verify Cashier in Tenant 1 was overwritten (from system|cyan -> dark|custom|#E11D48)
+    const meCashierAfterBulk = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${tokenCashier}` },
+    });
+    const meCashierBody = (await meCashierAfterBulk.json()) as { user: { themeColor: string } };
+    assert.equal(meCashierBody.user.themeColor, 'dark|custom|#E11D48');
+
+    // Verify Admin in Tenant 2 remained completely isolated (still light|orange)
+    const me3AfterBulk = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${tokenAdmin3}` },
+    });
+    const me3AfterBulkBody = (await me3AfterBulk.json()) as { user: { themeColor: string } };
+    assert.equal(me3AfterBulkBody.user.themeColor, 'light|orange');
+
     // 4. Screen images: public GET works without auth
     const publicImgRes = await fetch(`${baseUrl}/api/settings/screen-images`);
     assert.equal(publicImgRes.status, 200);
@@ -374,33 +458,70 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
     });
     assert.equal(badImgRes.status, 400);
 
-    // 7. Screen images: ADMIN saves distinct URL + data URI + reset across individual screens
-    const validSampleDataUri =
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
+    // 7. Backdrop image: ADMIN saves one unified URL/data URI applied identically across all routes
+    const unifiedUrl = PREDEFINED_SCREEN_IMAGE_LIBRARY[0].url;
     const saveImgRes = await fetch(`${baseUrl}/api/settings/screen-images`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${tokenAdmin2}`,
       },
-      body: JSON.stringify({
-        login: PREDEFINED_SCREEN_IMAGE_LIBRARY[0].url,
-        registration: validSampleDataUri,
-        auth: 'https://i.pinimg.com/originals/test/sample.jpg',
-        loading: '',
-      }),
+      body: JSON.stringify({ backdropImage: unifiedUrl }),
     });
     assert.equal(saveImgRes.status, 200);
-    const saveImgBody = (await saveImgRes.json()) as { screenImages: Record<string, string> };
-    assert.equal(saveImgBody.screenImages.login, PREDEFINED_SCREEN_IMAGE_LIBRARY[0].url);
-    assert.equal(saveImgBody.screenImages.registration, validSampleDataUri);
-    assert.equal(saveImgBody.screenImages.auth, 'https://i.pinimg.com/originals/test/sample.jpg');
-    assert.equal(saveImgBody.screenImages.loading, '');
+    const saveImgBody = (await saveImgRes.json()) as {
+      backdropImage: string;
+      screenImages: Record<string, string>;
+    };
+    assert.equal(saveImgBody.backdropImage, unifiedUrl);
+    assert.equal(saveImgBody.screenImages.backdrop, unifiedUrl);
+    assert.equal(saveImgBody.screenImages.login, unifiedUrl);
+    assert.equal(saveImgBody.screenImages.registration, unifiedUrl);
+    assert.equal(saveImgBody.screenImages.auth, unifiedUrl);
+    assert.equal(saveImgBody.screenImages.loading, unifiedUrl);
+
+    // Uploaded data URI also synchronizes cleanly across all routes
+    const validSampleDataUri =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
+    const saveDataRes = await fetch(`${baseUrl}/api/settings/screen-images`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenAdmin2}`,
+      },
+      body: JSON.stringify({ backdropImage: validSampleDataUri }),
+    });
+    assert.equal(saveDataRes.status, 200);
 
     const refetchImgRes = await fetch(`${baseUrl}/api/settings/screen-images`);
-    const refetchImgBody = (await refetchImgRes.json()) as { screenImages: Record<string, string> };
-    assert.equal(refetchImgBody.screenImages.login, PREDEFINED_SCREEN_IMAGE_LIBRARY[0].url);
+    const refetchImgBody = (await refetchImgRes.json()) as {
+      backdropImage: string;
+      screenImages: Record<string, string>;
+    };
+    assert.equal(refetchImgBody.backdropImage, validSampleDataUri);
+    assert.equal(refetchImgBody.screenImages.backdrop, validSampleDataUri);
+    assert.equal(refetchImgBody.screenImages.login, validSampleDataUri);
     assert.equal(refetchImgBody.screenImages.registration, validSampleDataUri);
+    assert.equal(refetchImgBody.screenImages.auth, validSampleDataUri);
+    assert.equal(refetchImgBody.screenImages.loading, validSampleDataUri);
+
+    // Clearing unified backdrop resets all routes back to empty
+    const clearImgRes = await fetch(`${baseUrl}/api/settings/screen-images`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenAdmin2}`,
+      },
+      body: JSON.stringify({ backdropImage: '' }),
+    });
+    assert.equal(clearImgRes.status, 200);
+    const clearImgBody = (await clearImgRes.json()) as {
+      backdropImage: string;
+      screenImages: Record<string, string>;
+    };
+    assert.equal(clearImgBody.backdropImage, '');
+    assert.equal(clearImgBody.screenImages.login, '');
+    assert.equal(clearImgBody.screenImages.loading, '');
   } finally {
     await pgClient.query('DELETE FROM users WHERE email LIKE $1', ['cashier-theme-%@balochshoes.com']);
     await pgClient.query('UPDATE users SET theme_color = $1 WHERE id = 2', [
@@ -409,20 +530,29 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
     await pgClient.query('UPDATE users SET theme_color = $1 WHERE id = 3', [
       user3Before.rows[0]?.theme_color || '',
     ]);
-    await updateScreenImageSettings(initialScreenImages, 'SUPERADMIN');
+    await updateScreenImageSettings(initialScreenImages.backdrop, 'SUPERADMIN');
     await close();
   }
 });
 
-test('Frontend architecture wires SettingsView, live preview/cancel/save, race-guard epoch, and all screen slots', () => {
+test('Frontend architecture wires SettingsView, unified backdrop across all routes, and removes backdrop section for Cashiers', () => {
   const settingsSrc = readProjectFile('src/components/settings/SettingsView.tsx');
   assert.ok(settingsSrc.includes("import { AppearanceSettingsTab } from './AppearanceSettingsTab.tsx'"));
   assert.ok(settingsSrc.includes('id="settings-tab-appearance"'));
+  assert.ok(settingsSrc.includes('id="settings-tab-printers"'));
+  assert.ok(
+    settingsSrc.indexOf('id="settings-tab-appearance"') < settingsSrc.indexOf('id="settings-tab-printers"'),
+    'Hardware & Printers tab should be placed last after Appearance & Colors'
+  );
   assert.ok(settingsSrc.includes("activeTab === 'appearance'"));
   assert.ok(settingsSrc.includes('<AppearanceSettingsTab currentUser={currentUser} />'));
 
   const appearanceTabSrc = readProjectFile('src/components/settings/AppearanceSettingsTab.tsx');
   assert.ok(appearanceTabSrc.includes('id="appearance-apply-save-btn"'));
+  assert.ok(appearanceTabSrc.includes('id="appearance-apply-all-staff-btn"'));
+  assert.ok(appearanceTabSrc.includes('Apply to Staff'));
+  assert.ok(appearanceTabSrc.includes('canApplyToAllStaff'));
+  assert.ok(appearanceTabSrc.includes('grid grid-cols-2 sm:flex sm:flex-wrap'));
   assert.ok(appearanceTabSrc.includes('id="appearance-cancel-preview-btn"'));
   assert.ok(appearanceTabSrc.includes('id="appearance-reset-default-btn"'));
   assert.ok(appearanceTabSrc.includes('id="appearance-custom-color-picker"'));
@@ -430,6 +560,20 @@ test('Frontend architecture wires SettingsView, live preview/cancel/save, race-g
   assert.ok(appearanceTabSrc.includes('id="screen-image-file-input"'));
   assert.ok(appearanceTabSrc.includes('id="screen-image-url-input"'));
   assert.ok(appearanceTabSrc.includes('PREDEFINED_SCREEN_IMAGE_LIBRARY'));
+  assert.ok(appearanceTabSrc.includes('id="screen-library-scroll-container"'));
+  assert.ok(appearanceTabSrc.includes('id="screen-library-color-filters"'));
+  assert.ok(appearanceTabSrc.includes('doesLibraryImageMatchTheme'));
+  assert.ok(appearanceTabSrc.includes('overflow-y-auto'));
+  assert.ok(appearanceTabSrc.includes('max-h-[320px]'));
+  assert.ok(appearanceTabSrc.includes('{item.source}'));
+  assert.ok(appearanceTabSrc.includes('{item.colorTag}'));
+  assert.ok(appearanceTabSrc.includes('Theme Match'));
+
+  // Unified single backdrop editor: no 4-slot tabs, and completely hidden when !canManageScreenImages (Cashier)
+  assert.equal(appearanceTabSrc.includes('screen-image-slot-'), false);
+  assert.equal(appearanceTabSrc.includes('Admin permission required to edit screen images'), false);
+  assert.ok(appearanceTabSrc.includes('{canManageScreenImages && ('));
+  assert.ok(appearanceTabSrc.includes('id="unified-backdrop-settings-card"'));
 
   const themeContextSrc = readProjectFile('src/context/ThemeContext.tsx');
   assert.ok(themeContextSrc.includes('requestEpochRef'));
@@ -438,18 +582,35 @@ test('Frontend architecture wires SettingsView, live preview/cancel/save, race-g
   assert.ok(themeContextSrc.includes('updatePreview'));
   assert.ok(themeContextSrc.includes('cancelPreview'));
   assert.ok(themeContextSrc.includes('applyAndSaveAppearance'));
+  assert.ok(themeContextSrc.includes('applyAndSaveToAllStaff'));
+  assert.ok(themeContextSrc.includes('effectiveBackdropImage'));
+  assert.ok(themeContextSrc.includes('updateBackdropImagePreview'));
 
   const appSrc = readProjectFile('src/App.tsx');
   assert.ok(appSrc.includes('syncUserThemeFromAuth('));
   assert.ok(appSrc.includes('restoreGuestThemeOnLogout()'));
 
-  // Screen slots mapped across Login, Registration, Auth, and Loading screens
-  assert.ok(readProjectFile('src/components/common/LoadingWindow.tsx').includes('screen="loading"'));
-  assert.ok(readProjectFile('src/components/auth/AuthModal.tsx').includes("tab === 'login' ? 'login' : 'auth'"));
-  assert.ok(readProjectFile('src/components/saas/TenantOnboardingWizard.tsx').includes('screen="registration"'));
-  assert.ok(readProjectFile('src/components/saas/FreeTrialOnboardingModal.tsx').includes('screen="registration"'));
-  assert.ok(readProjectFile('src/components/saas/SuperAdminControlPanel.tsx').includes('screen="login"'));
+  // All routes share unified <ShowroomBackground /> with no per-screen image slots
+  for (const routeFile of [
+    'src/components/common/LoadingWindow.tsx',
+    'src/components/common/PublicLayout.tsx',
+    'src/components/auth/AuthModal.tsx',
+    'src/components/saas/TenantOnboardingWizard.tsx',
+    'src/components/saas/FreeTrialOnboardingModal.tsx',
+    'src/components/saas/SuperAdminControlPanel.tsx',
+    'src/components/saas/SuspendedStoreView.tsx',
+    'src/components/saas/UnknownStore404View.tsx',
+  ]) {
+    const routeSrc = readProjectFile(routeFile);
+    assert.ok(routeSrc.includes('<ShowroomBackground'), `${routeFile} should render unified <ShowroomBackground`);
+    assert.equal(routeSrc.includes('screen="loading"'), false, `${routeFile} must not use separate loading slot`);
+    assert.equal(routeSrc.includes('screen="registration"'), false, `${routeFile} must not use separate registration slot`);
+    assert.equal(routeSrc.includes('screen="login"'), false, `${routeFile} must not use separate login slot`);
+  }
+
+  assert.ok(readProjectFile('src/components/saas/SaasLandingPage.tsx').includes('effectiveBackdropImage'));
   assert.ok(readProjectFile('src/components/common/ShowroomBackground.tsx').includes('referrerPolicy="no-referrer"'));
+  assert.ok(readProjectFile('src/components/common/ShowroomBackground.tsx').includes('effectiveBackdropImage'));
 
   // 8 core presets still preserved intact
   assert.equal(ACCENT_THEME_LIST.length, 8);

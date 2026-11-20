@@ -266,36 +266,44 @@ export const APP_SETTINGS_DEFAULTS: AppSettingDefinition[] = [
     isSecret: false,
   },
   {
+    key: 'SCREEN_BG_BACKDROP',
+    defaultValue: '',
+    category: 'system',
+    description: 'Unified custom backdrop image URL or uploaded image shared across all routes and screens',
+    isSecret: false,
+  },
+  {
     key: 'SCREEN_BG_LOGIN',
     defaultValue: '',
     category: 'system',
-    description: 'Custom background image URL or uploaded image for the Login screen',
+    description: 'Legacy alias synced to unified screen backdrop image',
     isSecret: false,
   },
   {
     key: 'SCREEN_BG_REGISTRATION',
     defaultValue: '',
     category: 'system',
-    description: 'Custom background image URL or uploaded image for the Store Registration / Onboarding screens',
+    description: 'Legacy alias synced to unified screen backdrop image',
     isSecret: false,
   },
   {
     key: 'SCREEN_BG_AUTH',
     defaultValue: '',
     category: 'system',
-    description: 'Custom background image URL or uploaded image for Authentication & Verification screens',
+    description: 'Legacy alias synced to unified screen backdrop image',
     isSecret: false,
   },
   {
     key: 'SCREEN_BG_LOADING',
     defaultValue: '',
     category: 'system',
-    description: 'Custom background image URL or uploaded image for the Loading splash screen',
+    description: 'Legacy alias synced to unified screen backdrop image',
     isSecret: false,
   },
 ];
 
 export const SCREEN_IMAGE_KEYS = {
+  backdrop: 'SCREEN_BG_BACKDROP',
   login: 'SCREEN_BG_LOGIN',
   registration: 'SCREEN_BG_REGISTRATION',
   auth: 'SCREEN_BG_AUTH',
@@ -670,60 +678,91 @@ export async function updateAppSettings(
   return cleanUpdates;
 }
 
+function buildUnifiedScreenImagesMap(url: string): ScreenImagesMap {
+  const clean = String(url || '').trim();
+  return {
+    backdrop: clean,
+    login: clean,
+    registration: clean,
+    auth: clean,
+    loading: clean,
+  };
+}
+
 export async function getScreenImageSettings(): Promise<ScreenImagesMap> {
   await ensureAppSettingsSchema();
-  const empty: ScreenImagesMap = {
-    login: '',
-    registration: '',
-    auth: '',
-    loading: '',
-  };
   try {
     const res = await pgClient.query<{ key: string; value: string }>(
-      `SELECT key, value FROM public.app_settings WHERE key IN ('SCREEN_BG_LOGIN', 'SCREEN_BG_REGISTRATION', 'SCREEN_BG_AUTH', 'SCREEN_BG_LOADING')`
+      `SELECT key, value FROM public.app_settings WHERE key IN ('SCREEN_BG_BACKDROP', 'SCREEN_BG_LOGIN', 'SCREEN_BG_REGISTRATION', 'SCREEN_BG_AUTH', 'SCREEN_BG_LOADING')`
     );
+    const byKey = new Map<string, string>();
     for (const row of res.rows) {
-      const k = String(row.key || '').toUpperCase();
-      const val = String(row.value || '').trim();
-      if (k === 'SCREEN_BG_LOGIN') empty.login = val;
-      else if (k === 'SCREEN_BG_REGISTRATION') empty.registration = val;
-      else if (k === 'SCREEN_BG_AUTH') empty.auth = val;
-      else if (k === 'SCREEN_BG_LOADING') empty.loading = val;
+      byKey.set(String(row.key || '').toUpperCase(), String(row.value || '').trim());
     }
+    const unified =
+      byKey.get('SCREEN_BG_BACKDROP') ||
+      byKey.get('SCREEN_BG_LOGIN') ||
+      byKey.get('SCREEN_BG_AUTH') ||
+      byKey.get('SCREEN_BG_REGISTRATION') ||
+      byKey.get('SCREEN_BG_LOADING') ||
+      '';
+    return buildUnifiedScreenImagesMap(unified);
   } catch (err) {
     console.warn('Notice reading screen image settings:', err);
   }
-  return empty;
+  return buildUnifiedScreenImagesMap('');
 }
 
 export async function updateScreenImageSettings(
-  updates: Partial<Record<ScreenImageSlot, unknown>>,
+  updates: string | Partial<Record<ScreenImageSlot | 'backdropImage' | 'image' | 'url', unknown>>,
   userRole?: string
 ): Promise<ScreenImagesMap> {
   const cleanRole = String(userRole || '').toUpperCase();
   if (cleanRole !== 'SUPERADMIN' && cleanRole !== 'ADMIN') {
-    const err: any = new Error('Forbidden: Store Admin or SuperAdmin permission required to customize screen images.');
+    const err: any = new Error('Forbidden: Store Admin or SuperAdmin permission required to customize screen backdrop image.');
     err.statusCode = 403;
     err.code = 'FORBIDDEN_ROLE';
     throw err;
   }
 
-  const mapped: Record<string, string> = {};
-  (Object.keys(SCREEN_IMAGE_KEYS) as ScreenImageSlot[]).forEach((slot) => {
-    if (Object.prototype.hasOwnProperty.call(updates, slot)) {
-      const checked = validateScreenImageInput(updates[slot]);
-      if (!checked.valid) {
-        const err: any = new Error(checked.error || `Invalid image for ${slot} screen.`);
-        err.statusCode = 400;
-        throw err;
-      }
-      mapped[SCREEN_IMAGE_KEYS[slot]] = checked.value;
-    }
-  });
+  let candidateValue: unknown;
+  let hasInput = false;
 
-  if (Object.keys(mapped).length > 0) {
+  if (typeof updates === 'string') {
+    candidateValue = updates;
+    hasInput = true;
+  } else if (updates && typeof updates === 'object') {
+    const priorityKeys = ['backdrop', 'backdropImage', 'image', 'url', 'login', 'auth', 'registration', 'loading'] as const;
+    for (const k of priorityKeys) {
+      if (Object.prototype.hasOwnProperty.call(updates, k)) {
+        const val = (updates as Record<string, unknown>)[k];
+        if (!hasInput) {
+          candidateValue = val;
+          hasInput = true;
+        }
+        if (typeof val === 'string' && val.trim()) {
+          candidateValue = val;
+          break;
+        }
+      }
+    }
+  }
+
+  if (hasInput) {
+    const checked = validateScreenImageInput(candidateValue);
+    if (!checked.valid) {
+      const err: any = new Error(checked.error || 'Invalid backdrop image.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const mapped: Record<string, string> = {};
+    (Object.values(SCREEN_IMAGE_KEYS) as string[]).forEach((settingKey) => {
+      mapped[settingKey] = checked.value;
+    });
     await updateAppSettings(mapped, cleanRole, { allowInternal: true });
   }
+
   return getScreenImageSettings();
 }
 

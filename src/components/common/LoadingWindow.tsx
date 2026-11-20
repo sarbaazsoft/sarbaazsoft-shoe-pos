@@ -70,7 +70,7 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
       showSidebar={false}
       showFooter={true}
       centerMain={true}
-      backdrop={<ShowroomBackground screen="loading" />}
+      backdrop={<ShowroomBackground />}
       header={
         <PublicHeader
           storeName={effectiveTitle}

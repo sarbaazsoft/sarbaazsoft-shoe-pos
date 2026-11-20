@@ -465,43 +465,51 @@ router.patch('/app', requireAuth, requireSuperAdmin, async (req: AuthenticatedRe
   }
 });
 
-// GET /api/settings/screen-images - Public screen background images (Login, Registration, Auth, Loading)
+// GET /api/settings/screen-images - Public unified screen backdrop image across all routes
 router.get('/screen-images', async (_req: Request, res: Response) => {
   try {
     const screenImages = await getScreenImageSettings();
-    return res.json({ screenImages });
+    return res.json({
+      backdropImage: screenImages.backdrop,
+      screenImages,
+    });
   } catch (err: any) {
     return res.status(200).json({
-      screenImages: { login: '', registration: '', auth: '', loading: '' },
+      backdropImage: '',
+      screenImages: { backdrop: '', login: '', registration: '', auth: '', loading: '' },
     });
   }
 });
 
-// PUT/PATCH /api/settings/screen-images - Admin & SuperAdmin manage customized auth & loading screen images
+// PUT/PATCH /api/settings/screen-images - Admin & SuperAdmin manage unified route backdrop image
 const handleUpdateScreenImages = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const role = String(req.user?.role || '').toUpperCase();
     if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
       return res.status(403).json({
-        error: 'Forbidden: Only Store Administrators or SuperAdmin can update authentication and loading screen images.',
+        error: 'Forbidden: Only Store Administrators or SuperAdmin can update the app backdrop image.',
         code: 'FORBIDDEN_ROLE',
       });
     }
-    const payload = req.body?.screenImages && typeof req.body.screenImages === 'object'
-      ? req.body.screenImages
-      : req.body;
-    if (!payload || typeof payload !== 'object') {
-      return res.status(400).json({ error: 'screenImages payload object is required.' });
+    const payload =
+      typeof req.body?.backdropImage === 'string'
+        ? { backdrop: req.body.backdropImage }
+        : req.body?.screenImages && typeof req.body.screenImages === 'object'
+        ? req.body.screenImages
+        : req.body;
+    if (!payload || (typeof payload !== 'object' && typeof payload !== 'string')) {
+      return res.status(400).json({ error: 'Backdrop image payload is required.' });
     }
     const screenImages = await updateScreenImageSettings(payload, role);
     return res.json({
       success: true,
-      message: 'Screen images updated successfully.',
+      message: 'Unified backdrop image updated successfully across all routes.',
+      backdropImage: screenImages.backdrop,
       screenImages,
     });
   } catch (err: any) {
     const status = err.statusCode || 500;
-    return res.status(status).json({ error: err.message || 'Failed to update screen images.' });
+    return res.status(status).json({ error: err.message || 'Failed to update backdrop image.' });
   }
 };
 

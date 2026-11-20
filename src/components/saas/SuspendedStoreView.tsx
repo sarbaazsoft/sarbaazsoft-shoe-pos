@@ -3,6 +3,7 @@ import { ShieldOff, Lock, ArrowLeft, Shield, KeyRound, Calendar, Clock } from 'l
 import type { TenantInfo } from '../../types';
 import { isFreeTrial } from '../../utils/subscription';
 import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
+import { ShowroomBackground } from '../common/ShowroomBackground';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 
 interface SuspendedStoreViewProps {
@@ -52,7 +53,8 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
     <BodyLayoutWrapper
       layoutMeta={statusLayoutMeta}
       className="bg-slate-950 text-slate-100"
-      mainClassName="p-3.5 sm:p-6"
+      mainClassName="relative z-10 p-3.5 sm:p-6"
+      backdrop={<ShowroomBackground />}
     >
       <div className="max-w-lg w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-5 sm:p-8 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-5 sm:mb-6">

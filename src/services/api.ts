@@ -829,6 +829,14 @@ export const api = {
         method: 'PUT',
         body: { themeColor },
       }),
+    applyThemeToStaff: (themeColor: string) =>
+      apiFetch<{ success: boolean; themeColor: string; updatedCount: number; message: string; user?: any }>(
+        '/auth/theme/staff',
+        {
+          method: 'PUT',
+          body: { themeColor },
+        }
+      ),
     verifyEmail: (token: string) =>
       apiFetch<{
         success: boolean;
@@ -1217,12 +1225,38 @@ export const api = {
         apiFetch('/settings', { method: 'POST', body: { appSettings } })
       ),
     getScreenImages: () =>
-      apiFetch<{ screenImages: { login: string; registration: string; auth: string; loading: string } }>('/settings/screen-images'),
-    saveScreenImages: (screenImages: Partial<{ login: string; registration: string; auth: string; loading: string }>) =>
-      apiFetch<{ success: boolean; message: string; screenImages: { login: string; registration: string; auth: string; loading: string } }>('/settings/screen-images', {
+      apiFetch<{
+        backdropImage?: string;
+        screenImages: { backdrop?: string; login: string; registration: string; auth: string; loading: string };
+      }>('/settings/screen-images'),
+    saveScreenImages: (
+      input:
+        | string
+        | Partial<{ backdrop: string; login: string; registration: string; auth: string; loading: string }>
+    ) => {
+      const cleanUrl =
+        typeof input === 'string'
+          ? input.trim()
+          : String(input.backdrop ?? input.login ?? input.auth ?? input.registration ?? input.loading ?? '').trim();
+      return apiFetch<{
+        success: boolean;
+        message: string;
+        backdropImage: string;
+        screenImages: { backdrop: string; login: string; registration: string; auth: string; loading: string };
+      }>('/settings/screen-images', {
         method: 'PUT',
-        body: { screenImages },
-      }),
+        body: {
+          backdropImage: cleanUrl,
+          screenImages: {
+            backdrop: cleanUrl,
+            login: cleanUrl,
+            registration: cleanUrl,
+            auth: cleanUrl,
+            loading: cleanUrl,
+          },
+        },
+      });
+    },
     testEmail: (recipientEmail?: string) =>
       apiFetch<{
         success: boolean;
