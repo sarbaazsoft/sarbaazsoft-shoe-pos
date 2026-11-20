@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Mail, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, ArrowLeft } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { PublicLayout } from '../common/PublicLayout.tsx';
 import type { RouteLayoutMetadata } from '../../config/routeLayoutMetadata.ts';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
+import { useResendCooldown } from '../../hooks/useResendCooldown.ts';
+import { ResendSecurityNotice } from './ResendSecurityNotice.tsx';
 
 interface VerifyEmailNoticeViewProps {
   initialEmail?: string;
@@ -70,7 +72,13 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
 
   const [isResending, setIsResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [resendError, setResendError] = useState<string | null>(null);
+
+  const verificationCooldown = useResendCooldown({
+    flow: 'email_verification',
+    email,
+    enabled: !verificationSuccess,
+  });
 
   // Auto-verify if token is present in URL
   useEffect(() => {
@@ -80,15 +88,6 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
       handleVerify(tokenFromUrl);
     }
   }, []);
-
-  // Cooldown timer
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const timer = setInterval(() => {
-      setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldownSeconds]);
 
   const handleVerify = async (tokenToUse?: string) => {
     const rawToken = (tokenToUse || tokenInput).trim();
@@ -101,6 +100,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
     setErrorMessage(null);
     try {
       const res = await api.auth.verifyEmail(rawToken);
+      verificationCooldown.clearCooldown();
       setVerificationSuccess(true);
       setSuccessData(res);
       try {
@@ -117,23 +117,35 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
   const handleResend = async () => {
     const targetEmail = email.trim();
     if (!targetEmail) {
-      setErrorMessage('Please enter your email address to receive a new verification link.');
+      setResendError('Please enter your email address to receive a new confirmation link.');
       return;
     }
+    if (verificationCooldown.isInCooldown) return;
 
     setIsResending(true);
     setErrorMessage(null);
+    setResendError(null);
     setResendStatus(null);
     try {
       const res = await api.auth.resendVerification(targetEmail, tenantId || undefined);
-      setResendStatus(res.message || `A fresh activation link has been sent to ${targetEmail}. Please check your inbox.`);
-      setCooldownSeconds(60);
+      setResendStatus(
+        res.message ||
+          `A fresh confirmation email has been sent to ${targetEmail}. Please check your Inbox or Spam/Junk folder.`
+      );
+      if (res.cooldown) {
+        verificationCooldown.applyServerCooldown(res.cooldown);
+      }
       if (res.verificationToken) {
         // Helpful in test environments where mail provider is not active
         setTokenInput(res.verificationToken);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to resend activation email. Please check the email address or contact support.');
+      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
+        verificationCooldown.applyServerCooldown(err);
+      }
+      setResendError(
+        err?.message || 'Failed to resend confirmation email. Please check the email address or try again later.'
+      );
     } finally {
       setIsResending(false);
     }
@@ -210,24 +222,10 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs leading-relaxed flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-              <span>
-                We sent an activation link to <strong className="font-semibold text-slate-900 dark:text-white">{email || 'your email'}</strong>. Please click the link in your email or enter the verification token below.
-              </span>
-            </div>
-
             {errorMessage && (
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {resendStatus && (
-              <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{resendStatus}</span>
               </div>
             )}
 
@@ -271,29 +269,30 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
               </button>
             </form>
 
-            {/* Resend section */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                <span>Didn't get the email?</span>
-                <button
-                  type="button"
-                  disabled={isResending || cooldownSeconds > 0}
-                  onClick={handleResend}
-                  className="font-semibold text-purple-600 dark:text-purple-400 hover:underline disabled:opacity-50 cursor-pointer"
-                >
-                  {isResending ? 'Sending...' : cooldownSeconds > 0 ? `Resend in ${cooldownSeconds}s` : 'Resend Email'}
-                </button>
-              </div>
+            {/* Inbox/Spam helper text, Resend Confirmation Email button, & Progressive Cooldown */}
+            <ResendSecurityNotice
+              idPrefix="email-verification"
+              email={email}
+              helperContext="confirmation"
+              buttonLabel="Resend Confirmation Email"
+              onResend={handleResend}
+              isResending={isResending}
+              isInCooldown={verificationCooldown.isInCooldown}
+              formattedCountdown={verificationCooldown.formattedCountdown}
+              nextAvailableTimeLabel={verificationCooldown.nextAvailableTimeLabel}
+              attemptCount={verificationCooldown.attemptCount}
+              successMessage={resendStatus}
+              errorMessage={resendError}
+            />
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => onNavigateLogin?.(email)}
-                  className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium inline-flex items-center gap-1"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
-                </button>
-              </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-center text-xs">
+              <button
+                type="button"
+                onClick={() => onNavigateLogin?.(email)}
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium inline-flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
+              </button>
             </div>
           </div>
         )}

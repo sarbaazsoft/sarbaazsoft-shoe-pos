@@ -13,7 +13,9 @@ import { ThemeDropdown } from '../common/ThemeDropdown';
 import { UserProfileModal } from '../auth/UserProfileModal';
 import { InstallAppModal } from '../common/InstallAppModal';
 import { RememberedEmailField } from '../auth/RememberedEmailField';
+import { ResendSecurityNotice } from '../auth/ResendSecurityNotice';
 import { useRememberedAccount } from '../../hooks/useRememberedAccount';
+import { useResendCooldown } from '../../hooks/useResendCooldown';
 import { getRememberedEmail, normalizeRememberedEmail } from '../../utils/rememberedAccount';
 import { StatCard, triggerStatRecount } from '../common/StatCard';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics';
@@ -158,6 +160,16 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
+  const [isResendingSuperAdminReset, setIsResendingSuperAdminReset] = useState(false);
+  const [resendSuperAdminSuccess, setResendSuperAdminSuccess] = useState<string | null>(null);
+  const [resendSuperAdminError, setResendSuperAdminError] = useState<string | null>(null);
+  const trimmedSuperAdminEmail = email.trim();
+  const isSuperAdminEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedSuperAdminEmail);
+  const superAdminResetCooldown = useResendCooldown({
+    flow: 'password_reset',
+    email: trimmedSuperAdminEmail,
+    enabled: !isSuperAdmin && (authTab === 'forgot' || authTab === 'reset'),
+  });
   const [isVisible, setIsVisible] = useState(false);
 
   // Dashboard Layout & Sidebar State (aligned with Store Sidebar & Header)
@@ -1038,21 +1050,77 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   const handleSuperAdminForgot = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSuperAdminEmailValid) {
+      setAuthError('Please enter a valid SuperAdmin email address.');
+      return;
+    }
+    if (superAdminResetCooldown.isInCooldown) {
+      setAuthError(
+        `Please wait ${superAdminResetCooldown.formattedCountdown} before requesting another password reset email.`
+      );
+      return;
+    }
     setAuthLoading(true);
     setAuthError(null);
     setAuthInfo(null);
+    setResendSuperAdminSuccess(null);
+    setResendSuperAdminError(null);
     try {
-      const res = await api.auth.forgotPassword({ email: email.trim() });
+      const res = await api.auth.forgotPassword({
+        email: trimmedSuperAdminEmail,
+        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+        isResend: false,
+      });
+      if (res.cooldown) {
+        superAdminResetCooldown.applyServerCooldown(res.cooldown);
+      }
       setResetToken('');
       setAuthInfo(
         res.message ||
-          'Password reset token and link have been sent to your email. Please check your inbox and enter the verification token below.'
+          'Password reset token and link have been sent to your email. Please check your Inbox (and Spam/Junk folder) and enter the verification token below.'
       );
       setAuthTab('reset');
     } catch (err: any) {
+      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
+        superAdminResetCooldown.applyServerCooldown(err);
+      }
       setAuthError(err.message || 'Failed to request reset token.');
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  const handleSuperAdminResendResetCode = async () => {
+    if (!isSuperAdminEmailValid) {
+      setResendSuperAdminError('Please enter a valid SuperAdmin email address before resending the reset code.');
+      return;
+    }
+    if (superAdminResetCooldown.isInCooldown || isResendingSuperAdminReset) return;
+
+    setIsResendingSuperAdminReset(true);
+    setResendSuperAdminError(null);
+    setResendSuperAdminSuccess(null);
+    setAuthError(null);
+    try {
+      const res = await api.auth.forgotPassword({
+        email: trimmedSuperAdminEmail,
+        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+        isResend: true,
+      });
+      if (res.cooldown) {
+        superAdminResetCooldown.applyServerCooldown(res.cooldown);
+      }
+      setResendSuperAdminSuccess(
+        res.message ||
+          `A new password reset code has been sent to ${trimmedSuperAdminEmail}. Please check your Inbox or Spam/Junk folder.`
+      );
+    } catch (err: any) {
+      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
+        superAdminResetCooldown.applyServerCooldown(err);
+      }
+      setResendSuperAdminError(err.message || 'Failed to resend reset code. Please try again later.');
+    } finally {
+      setIsResendingSuperAdminReset(false);
     }
   };
 
@@ -1062,7 +1130,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     setAuthError(null);
     setAuthInfo(null);
     try {
-      await api.auth.resetPassword({ email, token: resetToken.trim(), newPassword });
+      await api.auth.resetPassword({ email: email.trim(), token: resetToken.trim(), newPassword });
+      superAdminResetCooldown.clearCooldown();
+      setResendSuperAdminSuccess(null);
+      setResendSuperAdminError(null);
       setAuthInfo('SuperAdmin password has been reset successfully! You can now sign in.');
       setResetToken('');
       setNewPassword('');
@@ -1633,7 +1704,21 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex gap-3 pt-2">
+                    {superAdminResetCooldown.isInCooldown && (
+                      <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-[11px] font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span>
+                          Next reset email available in{' '}
+                          <strong className="font-mono tabular-nums">{superAdminResetCooldown.formattedCountdown}</strong>
+                          {superAdminResetCooldown.nextAvailableTimeLabel
+                            ? ` (at ${superAdminResetCooldown.nextAvailableTimeLabel})`
+                            : ''}
+                          .
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -1646,10 +1731,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       </button>
                       <button
                         type="submit"
-                        disabled={authLoading}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                        disabled={authLoading || superAdminResetCooldown.isInCooldown}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        {authLoading ? 'Requesting Token...' : 'Generate Reset Token'}
+                        {authLoading
+                          ? 'Requesting Token...'
+                          : superAdminResetCooldown.isInCooldown
+                          ? `Wait ${superAdminResetCooldown.formattedCountdown}`
+                          : 'Generate Reset Token'}
                       </button>
                     </div>
                   </form>
@@ -1657,7 +1746,29 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
                 {/* TAB 3: RESET PASSWORD FORM */}
                 {authTab === 'reset' && (
+                  <div className="space-y-4">
                   <form onSubmit={handleSuperAdminResetPassword} className="space-y-4">
+                    {!isSuperAdminEmailValid && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          SuperAdmin Email Address
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
+                            <Mail className="w-4 h-4" />
+                          </div>
+                          <input
+                            type="email"
+                            required
+                            placeholder="Enter SuperAdmin email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 dark:focus:ring-purple-500/20 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-medium py-2.5 pl-[2.125rem] pr-4 transition outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                         Verification Reset Token
@@ -1721,7 +1832,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       )}
                     </div>
 
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -1741,6 +1852,23 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       </button>
                     </div>
                   </form>
+
+                  <ResendSecurityNotice
+                    idPrefix="superadmin-password-reset"
+                    email={trimmedSuperAdminEmail}
+                    helperContext="reset"
+                    buttonLabel="Resend Reset Code"
+                    onResend={handleSuperAdminResendResetCode}
+                    isResending={isResendingSuperAdminReset}
+                    isInCooldown={superAdminResetCooldown.isInCooldown}
+                    formattedCountdown={superAdminResetCooldown.formattedCountdown}
+                    nextAvailableTimeLabel={superAdminResetCooldown.nextAvailableTimeLabel}
+                    attemptCount={superAdminResetCooldown.attemptCount}
+                    disabled={authLoading || !isSuperAdminEmailValid}
+                    successMessage={resendSuperAdminSuccess}
+                    errorMessage={resendSuperAdminError}
+                  />
+                  </div>
                 )}
               </div>
             </motion.div>

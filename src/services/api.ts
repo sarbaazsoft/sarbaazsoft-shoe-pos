@@ -542,10 +542,22 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
       code?: string;
       stores?: Array<{ tenantId: number; name: string }>;
       status?: number;
+      remainingSeconds?: number;
+      cooldownSeconds?: number;
+      attemptCount?: number;
+      nextAvailableAt?: string | null;
+      flow?: string;
+      blockedByIp?: boolean;
     };
     apiError.code = data.code;
     apiError.stores = Array.isArray(data.stores) ? data.stores : undefined;
     apiError.status = response.status;
+    if (typeof data.remainingSeconds === 'number') apiError.remainingSeconds = data.remainingSeconds;
+    if (typeof data.cooldownSeconds === 'number') apiError.cooldownSeconds = data.cooldownSeconds;
+    if (typeof data.attemptCount === 'number') apiError.attemptCount = data.attemptCount;
+    if (data.nextAvailableAt !== undefined) apiError.nextAvailableAt = data.nextAvailableAt;
+    if (typeof data.flow === 'string') apiError.flow = data.flow;
+    if (typeof data.blockedByIp === 'boolean') apiError.blockedByIp = data.blockedByIp;
     throw apiError;
   }
 
@@ -753,7 +765,7 @@ export const api = {
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },
-    forgotPassword: (data: { email: string; tenantId?: number | null; origin?: string }) => {
+    forgotPassword: (data: { email: string; tenantId?: number | null; origin?: string; isResend?: boolean }) => {
       const rawTid = Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
       return apiFetch<{
@@ -764,6 +776,14 @@ export const api = {
         resetToken?: string;
         expiresAt?: string;
         message: string;
+        cooldown?: {
+          flow: 'email_verification' | 'password_reset';
+          attemptCount: number;
+          cooldownSeconds: number;
+          remainingSeconds: number;
+          nextAvailableAt: string | null;
+          isInCooldown: boolean;
+        };
       }>('/auth/send-reset-link', {
         method: 'POST',
         body: {
@@ -774,7 +794,7 @@ export const api = {
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },
-    sendResetLink: (data: { email: string; tenantId?: number | null; origin?: string }) => {
+    sendResetLink: (data: { email: string; tenantId?: number | null; origin?: string; isResend?: boolean }) => {
       const rawTid = Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
       return apiFetch<{
@@ -787,6 +807,14 @@ export const api = {
         resetToken: string;
         expiresAt: string;
         message: string;
+        cooldown?: {
+          flow: 'email_verification' | 'password_reset';
+          attemptCount: number;
+          cooldownSeconds: number;
+          remainingSeconds: number;
+          nextAvailableAt: string | null;
+          isInCooldown: boolean;
+        };
       }>('/auth/send-reset-link', {
         method: 'POST',
         body: {
@@ -796,6 +824,21 @@ export const api = {
         },
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
+    },
+    getResendStatus: (flow: 'email_verification' | 'password_reset', email?: string) => {
+      const qs = new URLSearchParams({ flow });
+      if (email && email.trim()) {
+        qs.set('email', email.trim().toLowerCase());
+      }
+      return apiFetch<{
+        flow: 'email_verification' | 'password_reset';
+        attemptCount: number;
+        cooldownSeconds: number;
+        remainingSeconds: number;
+        nextAvailableAt: string | null;
+        isInCooldown: boolean;
+        blockedByIp?: boolean;
+      }>(`/auth/resend-status?${qs.toString()}`);
     },
     verifyResetToken: (token: string) =>
       apiFetch<{
@@ -853,6 +896,14 @@ export const api = {
         message: string;
         verificationToken?: string;
         verificationLink?: string;
+        cooldown?: {
+          flow: 'email_verification' | 'password_reset';
+          attemptCount: number;
+          cooldownSeconds: number;
+          remainingSeconds: number;
+          nextAvailableAt: string | null;
+          isInCooldown: boolean;
+        };
       }>('/auth/resend-verification', {
         method: 'POST',
         body: { email, tenantId },

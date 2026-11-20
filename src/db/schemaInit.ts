@@ -370,6 +370,19 @@ const DATABASE_TABLE_DDL: string[] = [
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
+  `CREATE TABLE IF NOT EXISTS auth_resend_rate_limits (
+    id SERIAL PRIMARY KEY,
+    flow TEXT NOT NULL,
+    scope_type TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    last_sent_at TIMESTAMP NULL,
+    cooldown_until TIMESTAMP NULL,
+    window_start_at TIMESTAMP NULL,
+    window_request_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (flow, scope_type, scope_key)
+  )`,
   `CREATE TABLE IF NOT EXISTS company_settings (
     id SERIAL PRIMARY KEY,
     tenant_id INTEGER NOT NULL DEFAULT 1,
@@ -954,6 +967,34 @@ export async function ensureEmailVerificationSchema(): Promise<void> {
     emailVerificationSchemaVerified = true;
   } catch (err) {
     console.warn('Could not ensure email_verification_tokens table:', err);
+  }
+}
+
+let authRateLimitSchemaVerified = false;
+export async function ensureAuthRateLimitSchema(): Promise<void> {
+  if (authRateLimitSchemaVerified) return;
+  try {
+    await pgClient.waitReady;
+    await pgClient.exec(`
+      CREATE TABLE IF NOT EXISTS public.auth_resend_rate_limits (
+        id SERIAL PRIMARY KEY,
+        flow TEXT NOT NULL,
+        scope_type TEXT NOT NULL,
+        scope_key TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_sent_at TIMESTAMP NULL,
+        cooldown_until TIMESTAMP NULL,
+        window_start_at TIMESTAMP NULL,
+        window_request_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (flow, scope_type, scope_key)
+      );
+      CREATE INDEX IF NOT EXISTS auth_resend_rate_limits_lookup_idx
+        ON public.auth_resend_rate_limits(flow, scope_type, scope_key);
+    `);
+    authRateLimitSchemaVerified = true;
+  } catch (err) {
+    console.warn('Could not ensure auth_resend_rate_limits table:', err);
   }
 }
 

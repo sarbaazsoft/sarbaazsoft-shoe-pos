@@ -12,6 +12,16 @@ import { recordTenantMiddlewarePresence, removeTenantMiddlewarePresence } from '
 import { sendPasswordResetEmail, sendTrialActivationEmail } from '../utils/email.ts';
 import { isOwnerRole, markOwnerSessionOffline, isSuperAdminRole, markSuperAdminSessionOffline } from '../services/ownerPresenceService.ts';
 import { disconnectOwnerSseClients, disconnectSuperAdminSseClients } from '../pushNotificationService.ts';
+import {
+  checkIpRateLimit,
+  enforceAndConsumeResendLimit,
+  extractClientIp,
+  getResendCooldownStatus,
+  normalizeAuthEmail,
+  normalizeAuthFlow,
+  recordIpLookupAttempt,
+  resetResendCooldown,
+} from '../services/authResendRateLimitService.ts';
 
 const router = Router();
 
@@ -448,6 +458,7 @@ router.all('/verify-email', async (req: Request, res: Response) => {
       "UPDATE trial_activations SET status = 'ACTIVE' WHERE user_id = $1 AND status = 'PENDING'",
       [row.user_id]
     ).catch(() => {});
+    await resetResendCooldown('email_verification', row.email);
 
     const authUser = {
       id: row.user_id,
@@ -481,6 +492,31 @@ router.all('/verify-email', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/auth/resend-status - Hydrates persisted resend cooldown timer without exposing tokens or account details
+router.get('/resend-status', async (req: Request, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    const flow = normalizeAuthFlow(req.query?.flow);
+    if (!flow) {
+      return res.status(400).json({ error: 'Valid flow parameter (email_verification or password_reset) is required.' });
+    }
+    const email = normalizeAuthEmail(String(req.query?.email || ''));
+    const clientIp = extractClientIp(req);
+    const snapshot = await getResendCooldownStatus(flow, email, clientIp);
+    return res.json({
+      flow: snapshot.flow,
+      attemptCount: snapshot.attemptCount,
+      cooldownSeconds: snapshot.cooldownSeconds,
+      remainingSeconds: snapshot.remainingSeconds,
+      nextAvailableAt: snapshot.nextAvailableAt,
+      isInCooldown: snapshot.isInCooldown,
+      ...(snapshot.blockedByIp ? { blockedByIp: true } : {}),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to inspect resend cooldown status: ' + err.message });
+  }
+});
+
 // POST & GET /api/auth/resend-verification - Resends activation email for pending user
 router.all('/resend-verification', async (req: Request, res: Response) => {
   try {
@@ -489,6 +525,22 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
     const rawEmail = String(req.body?.email || req.query?.email || '').trim().toLowerCase();
     if (!rawEmail) {
       return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const clientIp = extractClientIp(req);
+    const ipPrecheck = await checkIpRateLimit('email_verification', clientIp);
+    if (!ipPrecheck.allowed) {
+      res.setHeader('Retry-After', String(ipPrecheck.remainingSeconds));
+      return res.status(429).json({
+        error: ipPrecheck.error,
+        code: ipPrecheck.code,
+        flow: ipPrecheck.flow,
+        attemptCount: ipPrecheck.attemptCount,
+        cooldownSeconds: ipPrecheck.cooldownSeconds,
+        remainingSeconds: ipPrecheck.remainingSeconds,
+        nextAvailableAt: ipPrecheck.nextAvailableAt,
+        blockedByIp: true,
+      });
     }
 
     const userRes = await pgClient.query(
@@ -502,6 +554,20 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
     );
 
     if (userRes.rows.length === 0) {
+      const ipHit = await recordIpLookupAttempt('email_verification', clientIp);
+      if (!ipHit.allowed) {
+        res.setHeader('Retry-After', String(ipHit.remainingSeconds));
+        return res.status(429).json({
+          error: ipHit.error,
+          code: ipHit.code,
+          flow: ipHit.flow,
+          attemptCount: ipHit.attemptCount,
+          cooldownSeconds: ipHit.cooldownSeconds,
+          remainingSeconds: ipHit.remainingSeconds,
+          nextAvailableAt: ipHit.nextAvailableAt,
+          blockedByIp: true,
+        });
+      }
       return res.status(404).json({ error: 'No account found with this email address.' });
     }
 
@@ -510,6 +576,27 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'This account has already been verified. Please log in directly.',
         alreadyVerified: true,
+      });
+    }
+
+    const limitResult = await enforceAndConsumeResendLimit({
+      flow: 'email_verification',
+      email: user.email || rawEmail,
+      ip: clientIp,
+      mode: 'resend',
+    });
+
+    if (!limitResult.allowed) {
+      res.setHeader('Retry-After', String(limitResult.remainingSeconds));
+      return res.status(429).json({
+        error: limitResult.error,
+        code: limitResult.code,
+        flow: limitResult.flow,
+        attemptCount: limitResult.attemptCount,
+        cooldownSeconds: limitResult.cooldownSeconds,
+        remainingSeconds: limitResult.remainingSeconds,
+        nextAvailableAt: limitResult.nextAvailableAt,
+        ...(limitResult.blockedByIp ? { blockedByIp: true } : {}),
       });
     }
 
@@ -562,10 +649,18 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
       sandbox: Boolean(mailResult.sandbox),
       verificationToken: (!mailResult.delivered || mailResult.sandbox) ? verificationToken : undefined,
       verificationLink: (!mailResult.delivered || mailResult.sandbox) ? activationLink : undefined,
+      cooldown: {
+        flow: limitResult.flow,
+        attemptCount: limitResult.attemptCount,
+        cooldownSeconds: limitResult.cooldownSeconds,
+        remainingSeconds: limitResult.remainingSeconds,
+        nextAvailableAt: limitResult.nextAvailableAt,
+        isInCooldown: limitResult.isInCooldown,
+      },
       message: mailResult.sandbox
         ? `Resend Sandbox Mode: A verification email was forwarded to ${mailResult.sandboxRecipient || 'developer email'}. You can also use the token below to activate.`
         : (mailResult.delivered
-            ? `A new verification email has been sent to ${rawEmail}. Please check your inbox.`
+            ? `A new verification email has been sent to ${rawEmail}. Please check your inbox or spam folder.`
             : `Verification token generated. Please use the verification link to activate your account.`),
     });
   } catch (err: any) {
@@ -874,6 +969,22 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
     }
 
     const cleanEmail = String(email).trim();
+    const clientIp = extractClientIp(req);
+    const ipPrecheck = await checkIpRateLimit('password_reset', clientIp);
+    if (!ipPrecheck.allowed) {
+      res.setHeader('Retry-After', String(ipPrecheck.remainingSeconds));
+      return res.status(429).json({
+        error: ipPrecheck.error,
+        code: ipPrecheck.code,
+        flow: ipPrecheck.flow,
+        attemptCount: ipPrecheck.attemptCount,
+        cooldownSeconds: ipPrecheck.cooldownSeconds,
+        remainingSeconds: ipPrecheck.remainingSeconds,
+        nextAvailableAt: ipPrecheck.nextAvailableAt,
+        blockedByIp: true,
+      });
+    }
+
     const rawTid =
       req.body?.tenantId ??
       req.body?.tenant_id ??
@@ -915,10 +1026,55 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
     }
 
     if (!user) {
+      const ipHit = await recordIpLookupAttempt('password_reset', clientIp);
+      if (!ipHit.allowed) {
+        res.setHeader('Retry-After', String(ipHit.remainingSeconds));
+        return res.status(429).json({
+          error: ipHit.error,
+          code: ipHit.code,
+          flow: ipHit.flow,
+          attemptCount: ipHit.attemptCount,
+          cooldownSeconds: ipHit.cooldownSeconds,
+          remainingSeconds: ipHit.remainingSeconds,
+          nextAvailableAt: ipHit.nextAvailableAt,
+          blockedByIp: true,
+        });
+      }
       return res.status(404).json({
         error: 'No account found with that email address. Please check your email and try again.',
       });
     }
+
+    const isExplicitResend = req.body?.isResend === true || req.query?.isResend === 'true';
+    const limitResult = await enforceAndConsumeResendLimit({
+      flow: 'password_reset',
+      email: user.email || cleanEmail,
+      ip: clientIp,
+      mode: isExplicitResend ? 'resend' : 'initial',
+    });
+
+    if (!limitResult.allowed) {
+      res.setHeader('Retry-After', String(limitResult.remainingSeconds));
+      return res.status(429).json({
+        error: limitResult.error,
+        code: limitResult.code,
+        flow: limitResult.flow,
+        attemptCount: limitResult.attemptCount,
+        cooldownSeconds: limitResult.cooldownSeconds,
+        remainingSeconds: limitResult.remainingSeconds,
+        nextAvailableAt: limitResult.nextAvailableAt,
+        ...(limitResult.blockedByIp ? { blockedByIp: true } : {}),
+      });
+    }
+
+    const cooldownPayload = {
+      flow: limitResult.flow,
+      attemptCount: limitResult.attemptCount,
+      cooldownSeconds: limitResult.cooldownSeconds,
+      remainingSeconds: limitResult.remainingSeconds,
+      nextAvailableAt: limitResult.nextAvailableAt,
+      isInCooldown: limitResult.isInCooldown,
+    };
 
     const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPERADMIN';
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -990,6 +1146,7 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
         emailProvider: mailResult.provider,
         email: user.email,
         expiresAt: expiresAt.toISOString(),
+        cooldown: cooldownPayload,
         message: `Password reset token and link have been sent by email to ${user.email}.`,
       });
     }
@@ -1004,6 +1161,7 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
         emailProvider: mailResult.provider,
         email: user.email,
         expiresAt: expiresAt.toISOString(),
+        cooldown: cooldownPayload,
         message: `Password reset link dispatched via Resend Sandbox (forwarded to ${mailResult.sandboxRecipient || 'developer email'}). Token: ${resetToken}`,
       });
     }
@@ -1020,6 +1178,7 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
       resetToken,
       resetLink,
       expiresAt: expiresAt.toISOString(),
+      cooldown: cooldownPayload,
       warning: mailResult.error || 'Email could not be delivered to inbox.',
       message: `Password reset link created. Note: Email service returned: "${mailResult.error || 'delivery failed'}". You can use the instant verification token or link directly below to complete verification and reset your password.`,
     });
@@ -1029,6 +1188,7 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
 };
 
 router.post('/send-reset-link', handleSendPasswordResetLink);
+router.post('/forgot-password', handleSendPasswordResetLink);
 
 // Verify Reset Token from URL Link (GET /api/auth/verify-reset-token?token=...)
 router.get('/verify-reset-token', async (req: Request, res: Response) => {
@@ -1087,9 +1247,10 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 
     const cleanToken = String(token).trim();
     const tokenRes = await pgClient.query(
-      `SELECT user_id, tenant_id, expires_at
-       FROM password_reset_tokens
-       WHERE LOWER(BTRIM(token)) = LOWER(BTRIM($1))
+      `SELECT prt.user_id, prt.tenant_id, prt.expires_at, u.email
+       FROM password_reset_tokens prt
+       JOIN users u ON u.id = prt.user_id
+       WHERE LOWER(BTRIM(prt.token)) = LOWER(BTRIM($1))
        LIMIT 1`,
       [cleanToken]
     );
@@ -1098,7 +1259,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid or expired password reset token.' });
     }
 
-    const { user_id, expires_at } = tokenRes.rows[0] as any;
+    const { user_id, expires_at, email: resetEmail } = tokenRes.rows[0] as any;
 
     if (new Date() > new Date(expires_at)) {
       await pgClient.query(
@@ -1117,6 +1278,9 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       'DELETE FROM password_reset_tokens WHERE user_id = $1',
       [user_id]
     );
+    if (resetEmail) {
+      await resetResendCooldown('password_reset', resetEmail);
+    }
 
     res.json({
       success: true,

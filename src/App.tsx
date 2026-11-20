@@ -1241,7 +1241,7 @@ export default function App() {
       const selected = availableTenants.find((tenant) => Number(tenant.id) === Number(target.tenantId)) || activeTenant;
       const targetId = selected?.id || target.tenantId;
       if (!targetId) return;
-      if (!currentUser) {
+      if (!currentUser && !target.authenticated) {
         setTenantIdParam(String(targetId));
         setIsLoginModalOpen(true);
         setSaasMode('AUTH');
@@ -1642,6 +1642,34 @@ export default function App() {
       return;
     }
   }, [availableTenants, companySettings, handleNavigateDomain, syncUserThemeFromAuth]);
+
+  const handleFreeTrialStoreCreated = useCallback(
+    (tenantId: number, _loginUrl: string, user?: any, token?: string) => {
+      refreshTenantDirectory('LANDING');
+      if (token && user) {
+        clearStoredUnauthTenantId();
+        setAuthSessionNotice(null);
+        setStoreLoginTarget(null);
+        setTenantIdParam('');
+        setIsLoginModalOpen(false);
+        setAuthSession(token, user);
+        setCurrentUser(user);
+        syncUserThemeFromAuth(user);
+        if (user.onboardingCompleted === false) {
+          handleNavigateDomain({ mode: 'ONBOARDING', tenantId, authenticated: true });
+        } else {
+          handleNavigateDomain({ mode: 'TENANT', tenantId, authenticated: true });
+        }
+      } else {
+        setStoredUnauthTenantId(String(tenantId));
+        setTenantIdParam(String(tenantId));
+        setIsLoginModalOpen(true);
+        setSaasMode('AUTH');
+        window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(tenantId)}`);
+      }
+    },
+    [handleNavigateDomain, refreshTenantDirectory, syncUserThemeFromAuth]
+  );
 
   const handleLogout = (options?: { reason?: 'idle' | 'manual' } | unknown) => {
     // Immediate logout, no prompt. The remembered login email is stored under its own key
@@ -2092,6 +2120,7 @@ export default function App() {
                       : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
             onBack={handleBackToStoreDirectory}
             onClearTenantScope={handleClearAuthTenantScope}
+            onStoreCreated={handleFreeTrialStoreCreated}
             onSuccess={handleAuthSuccess}
             sessionNotice={authSessionNotice}
           />
@@ -2118,6 +2147,7 @@ export default function App() {
                         : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
               onBack={handleBackToStoreDirectory}
               onClearTenantScope={handleClearAuthTenantScope}
+              onStoreCreated={handleFreeTrialStoreCreated}
               onSuccess={handleAuthSuccess}
               sessionNotice={authSessionNotice}
             />
@@ -2155,25 +2185,7 @@ export default function App() {
               window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(selectedStore.id)}`);
             }}
             onOpenSuperAdmin={() => handleNavigateDomain({ mode: 'SUPERADMIN' })}
-            onStoreCreated={(tenantId, _loginUrl, user, token) => {
-              refreshTenantDirectory('LANDING');
-              if (token && user) {
-                setAuthSession(token, user);
-                setCurrentUser(user);
-                syncUserThemeFromAuth(user);
-                if (user.onboardingCompleted === false) {
-                  handleNavigateDomain({ mode: 'ONBOARDING', tenantId });
-                } else {
-                  handleNavigateDomain({ mode: 'TENANT', tenantId });
-                }
-              } else {
-                setStoredUnauthTenantId(String(tenantId));
-                setTenantIdParam(String(tenantId));
-                setIsLoginModalOpen(true);
-                setSaasMode('AUTH');
-                window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(tenantId)}`);
-              }
-            }}
+            onStoreCreated={handleFreeTrialStoreCreated}
           />
         )
       )}

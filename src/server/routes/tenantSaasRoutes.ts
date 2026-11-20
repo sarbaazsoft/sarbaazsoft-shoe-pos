@@ -12,6 +12,7 @@ import {
 } from '../pushNotificationService.ts';
 import { sendWelcomeMsg } from '../services/welcomeService.ts';
 import { sendTrialActivationEmail } from '../utils/email.ts';
+import { recordInitialAuthSend } from '../services/authResendRateLimitService.ts';
 import { resolveTenantContext, isTenantOnlineInMiddleware, getTenantMiddlewareLastSeen, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { buildPwaManifest } from '../../utils/pwaBranding.ts';
@@ -341,6 +342,8 @@ router.post('/saas/store-request', async (req: Request, res: Response) => {
         sandboxRecipient: undefined as string | undefined,
         error: err?.message || String(err),
       }));
+
+      await recordInitialAuthSend('email_verification', ownerEmail).catch(() => {});
 
       return res.status(201).json({
         success: true,

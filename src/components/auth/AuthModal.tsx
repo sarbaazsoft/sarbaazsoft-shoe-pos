@@ -13,12 +13,16 @@ import { useTheme } from '../../context/ThemeContext.tsx';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.tsx';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
+import { FreeTrialOnboardingModal } from '../saas/FreeTrialOnboardingModal.tsx';
+import { useResendCooldown } from '../../hooks/useResendCooldown.ts';
+import { ResendSecurityNotice } from './ResendSecurityNotice.tsx';
 
 interface AuthModalProps {
   onSuccess: (user: any) => void;
   companySettings: any;
   onBack?: () => void;
   onClearTenantScope?: () => void;
+  onStoreCreated?: (tenantId: number, loginUrl: string, user?: any, token?: string) => void;
   sessionNotice?: string | null;
   layoutMeta?: Partial<RouteLayoutMetadata>;
 }
@@ -28,12 +32,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   companySettings,
   onBack,
   onClearTenantScope,
+  onStoreCreated,
   sessionNotice,
   layoutMeta: layoutMetaOverride,
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [tab, setTab] = useState<'login' | 'forgot' | 'reset'>('login');
+  const [showFreeTrialModal, setShowFreeTrialModal] = useState(false);
 
   // Form states with email retrieval from localStorage
   const [email, setEmail] = useState(() => getRememberedEmail('store') ?? '');
@@ -52,11 +58,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [matchingStores, setMatchingStores] = useState<Array<{ tenantId: number; name: string }>>([]);
   const [forgotEmailTouched, setForgotEmailTouched] = useState(false);
+  const [isResendingReset, setIsResendingReset] = useState(false);
+  const [resendResetSuccess, setResendResetSuccess] = useState<string | null>(null);
+  const [resendResetError, setResendResetError] = useState<string | null>(null);
 
   const trimmedEmail = email.trim();
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedEmail);
   const showForgotEmailError =
     (forgotEmailTouched || trimmedEmail.length > 0) && trimmedEmail.length > 0 && !isEmailValid;
+
+  const resetCooldown = useResendCooldown({
+    flow: 'password_reset',
+    email: trimmedEmail,
+    enabled: tab === 'forgot' || tab === 'reset',
+  });
 
   // Check GET payload query parameters (?tenantId=... or ?storeId=...) or path segments / unauth storage
   const queryTenantId = (() => {
@@ -259,15 +274,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMessage('Please enter a valid email address before sending a password reset request.');
       return;
     }
+    if (resetCooldown.isInCooldown) {
+      setErrorMessage(
+        `Please wait ${resetCooldown.formattedCountdown} before requesting another password reset email.`
+      );
+      return;
+    }
     setIsLoading(true);
     setErrorMessage(null);
     setInfoMessage(null);
+    setResendResetSuccess(null);
+    setResendResetError(null);
     try {
       const res = await api.auth.sendResetLink({
         email: trimmedEmail,
         tenantId: activeTenantId,
         origin: window.location.origin,
+        isResend: false,
       });
+      if (res.cooldown) {
+        resetCooldown.applyServerCooldown(res.cooldown);
+      }
       if (res.resetToken) {
         setResetToken(res.resetToken);
       } else {
@@ -275,13 +302,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
       setInfoMessage(
         res.message ||
-          `Password reset token and link have been sent by email to ${trimmedEmail}. Please check your inbox and enter the verification token below.`
+          `Password reset token and link have been sent by email to ${trimmedEmail}. Please check your Inbox (and Spam/Junk folder) and enter the verification token below.`
       );
       setTab('reset');
     } catch (err: any) {
+      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
+        resetCooldown.applyServerCooldown(err);
+      }
       setErrorMessage(err.message || 'Failed to send password reset email.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendResetCode = async () => {
+    if (!isEmailValid) {
+      setResendResetError('Please enter a valid account email address before resending the reset code.');
+      return;
+    }
+    if (resetCooldown.isInCooldown || isResendingReset) return;
+
+    setIsResendingReset(true);
+    setResendResetError(null);
+    setResendResetSuccess(null);
+    setErrorMessage(null);
+    try {
+      const res = await api.auth.sendResetLink({
+        email: trimmedEmail,
+        tenantId: activeTenantId,
+        origin: window.location.origin,
+        isResend: true,
+      });
+      if (res.cooldown) {
+        resetCooldown.applyServerCooldown(res.cooldown);
+      }
+      if (res.resetToken) {
+        setResetToken(res.resetToken);
+      }
+      setResendResetSuccess(
+        res.message ||
+          `A new password reset code has been sent to ${trimmedEmail}. Please check your Inbox or Spam/Junk folder.`
+      );
+    } catch (err: any) {
+      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
+        resetCooldown.applyServerCooldown(err);
+      }
+      setResendResetError(err.message || 'Failed to resend reset code. Please try again later.');
+    } finally {
+      setIsResendingReset(false);
     }
   };
 
@@ -297,6 +365,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         newPassword,
         tenantId: activeTenantId,
       });
+      resetCooldown.clearCooldown();
+      setResendResetSuccess(null);
+      setResendResetError(null);
       setInfoMessage('Password has been reset successfully! You can now log in with your new password.');
       setResetToken('');
       setNewPassword('');
@@ -664,6 +735,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       </>
                     )}
                   </button>
+
+                  <div className="pt-3 mt-1 border-t border-slate-200/80 dark:border-purple-800/50 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-xs">
+                    <span className="text-slate-500 dark:text-purple-200/75 font-medium">
+                      Don&apos;t have a store account yet?
+                    </span>
+                    <button
+                      id="auth-register-free-trial-link"
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => setShowFreeTrialModal(true)}
+                      className="inline-flex items-center gap-1 font-bold text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200 underline decoration-purple-400/60 underline-offset-2 hover:decoration-purple-600 dark:hover:decoration-purple-300 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <span>Start 30-Day Free Trial</span>
+                    </button>
+                  </div>
                 </form>
               )}
 
@@ -735,6 +821,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </div>
                   </div>
 
+                  {resetCooldown.isInCooldown && (
+                    <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-[11px] font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <span>
+                        Next reset email available in{' '}
+                        <strong className="font-mono tabular-nums">{resetCooldown.formattedCountdown}</strong>
+                        {resetCooldown.nextAvailableTimeLabel ? ` (at ${resetCooldown.nextAvailableTimeLabel})` : ''}.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
                     <button
                       type="button"
@@ -749,10 +846,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       id="send-reset-link-btn"
                       type="submit"
-                      disabled={isLoading || !isEmailValid}
+                      disabled={isLoading || !isEmailValid || resetCooldown.isInCooldown}
                       className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      {isLoading ? 'Sending Request...' : 'Send Request'}
+                      {isLoading
+                        ? 'Sending Request...'
+                        : resetCooldown.isInCooldown
+                        ? `Wait ${resetCooldown.formattedCountdown}`
+                        : 'Send Request'}
                     </button>
                   </div>
                 </form>
@@ -760,7 +861,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               {/* TAB 4: RESET PASSWORD FORM */}
               {tab === 'reset' && (
+                <div className="space-y-4">
                 <form onSubmit={handleResetPassword} className="space-y-4">
+                  {!isEmailValid && (
+                    <div>
+                      <label
+                        htmlFor="reset-account-email-input"
+                        className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
+                      >
+                        Account Email Address
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <input
+                          id="reset-account-email-input"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="admin@shoepos.com"
+                          className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-medium py-2.5 pl-[2.125rem] pr-3 outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                       Verification Reset Token
@@ -850,10 +975,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </button>
                   </div>
                 </form>
+
+                <ResendSecurityNotice
+                  idPrefix="password-reset"
+                  email={trimmedEmail}
+                  helperContext="reset"
+                  buttonLabel="Resend Reset Code"
+                  onResend={handleResendResetCode}
+                  isResending={isResendingReset}
+                  isInCooldown={resetCooldown.isInCooldown}
+                  formattedCountdown={resetCooldown.formattedCountdown}
+                  nextAvailableTimeLabel={resetCooldown.nextAvailableTimeLabel}
+                  attemptCount={resetCooldown.attemptCount}
+                  disabled={isLoading || !isEmailValid}
+                  successMessage={resendResetSuccess}
+                  errorMessage={resendResetError}
+                />
+                </div>
               )}
             </div>
           </motion.div>
         </div>
+
+        {showFreeTrialModal && (
+          <FreeTrialOnboardingModal
+            isOpen={showFreeTrialModal}
+            onClose={() => setShowFreeTrialModal(false)}
+            initialPlan="TRIAL"
+            onStoreCreated={(tenantId, loginUrl, user, token) => {
+              setShowFreeTrialModal(false);
+              if (onStoreCreated) {
+                onStoreCreated(tenantId, loginUrl, user, token);
+              } else if (token && user) {
+                onSuccess(user);
+              }
+            }}
+          />
+        )}
     </BodyLayoutWrapper>
   );
 };
