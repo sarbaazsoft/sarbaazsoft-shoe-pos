@@ -772,8 +772,6 @@ export const api = {
         success?: boolean;
         emailSent?: boolean;
         email?: string;
-        resetLink?: string;
-        resetToken?: string;
         expiresAt?: string;
         message: string;
         cooldown?: {
@@ -803,8 +801,6 @@ export const api = {
         emailProvider?: string;
         emailPreviewUrl?: string | null;
         email: string;
-        resetLink: string;
-        resetToken: string;
         expiresAt: string;
         message: string;
         cooldown?: {
@@ -893,9 +889,8 @@ export const api = {
       apiFetch<{
         success: boolean;
         emailSent: boolean;
+        sandbox?: boolean;
         message: string;
-        verificationToken?: string;
-        verificationLink?: string;
         cooldown?: {
           flow: 'email_verification' | 'password_reset';
           attemptCount: number;

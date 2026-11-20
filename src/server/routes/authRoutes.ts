@@ -647,8 +647,6 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
       success: true,
       emailSent: mailResult.delivered,
       sandbox: Boolean(mailResult.sandbox),
-      verificationToken: (!mailResult.delivered || mailResult.sandbox) ? verificationToken : undefined,
-      verificationLink: (!mailResult.delivered || mailResult.sandbox) ? activationLink : undefined,
       cooldown: {
         flow: limitResult.flow,
         attemptCount: limitResult.attemptCount,
@@ -658,10 +656,10 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
         isInCooldown: limitResult.isInCooldown,
       },
       message: mailResult.sandbox
-        ? `Resend Sandbox Mode: A verification email was forwarded to ${mailResult.sandboxRecipient || 'developer email'}. You can also use the token below to activate.`
-        : (mailResult.delivered
-            ? `A new verification email has been sent to ${rawEmail}. Please check your inbox or spam folder.`
-            : `Verification token generated. Please use the verification link to activate your account.`),
+        ? `Resend Sandbox Mode: A confirmation email was sent via sandbox to ${mailResult.sandboxRecipient || 'the configured test inbox'}. Please enter the verification token from that email.`
+        : mailResult.delivered
+        ? `A new confirmation email has been sent to ${rawEmail}. Please check your Inbox or Spam/Junk folder and enter the verification token from the email.`
+        : `We could not confirm email delivery right now. Please check your mail server configuration or try again once the resend timer finishes.`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to resend verification email: ' + err.message });
@@ -1136,7 +1134,7 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
     }
 
     console.log(
-      `📧 [Password Reset Email] To: ${user.email} | Provider: ${mailResult.provider} | Delivered: ${mailResult.delivered} | Link: ${resetLink}`
+      `📧 [Password Reset Email] To: ${user.email} | Provider: ${mailResult.provider} | Delivered: ${mailResult.delivered}`
     );
 
     if (mailResult.delivered && !mailResult.sandbox) {
@@ -1156,31 +1154,25 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
         success: true,
         emailSent: true,
         sandbox: true,
-        resetToken,
-        resetLink,
         emailProvider: mailResult.provider,
         email: user.email,
         expiresAt: expiresAt.toISOString(),
         cooldown: cooldownPayload,
-        message: `Password reset link dispatched via Resend Sandbox (forwarded to ${mailResult.sandboxRecipient || 'developer email'}). Token: ${resetToken}`,
+        message: `Password reset link dispatched via Resend Sandbox (forwarded to ${mailResult.sandboxRecipient || 'developer email'}). Please check that inbox and enter the reset token manually.`,
       });
     }
 
     // Delivery failed or email service unconfigured (e.g. missing API key or unverified domain)
-    // Soft error returned with instant verification token/link in Super Admin diagnostic logs so users are never permanently locked out
     console.warn(`[Password Reset Delivery Issue] Email to ${user.email} could not be delivered:`, mailResult.error || 'Unknown error');
-    console.info(`🔑 [SuperAdmin Diagnostic Log] Instant Verification / Password Reset Token for ${user.email}: ${resetToken} | Direct Link: ${resetLink}`);
     return res.json({
       success: true,
       emailSent: false,
       emailProvider: mailResult.provider,
       email: user.email,
-      resetToken,
-      resetLink,
       expiresAt: expiresAt.toISOString(),
       cooldown: cooldownPayload,
       warning: mailResult.error || 'Email could not be delivered to inbox.',
-      message: `Password reset link created. Note: Email service returned: "${mailResult.error || 'delivery failed'}". You can use the instant verification token or link directly below to complete verification and reset your password.`,
+      message: `Unable to deliver the password reset email right now (${mailResult.error || 'delivery failed'}). Please check your mail server configuration and try again once the resend timer completes.`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to send password reset link: ' + err.message });

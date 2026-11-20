@@ -290,6 +290,8 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       });
       assert.equal(firstRes.status, 200);
       assert.equal(firstRes.data.success, true);
+      assert.equal(firstRes.data.verificationToken, undefined, '200 resend-verification response must never expose verificationToken');
+      assert.equal(firstRes.data.verificationLink, undefined, '200 resend-verification response must never expose verificationLink');
       assert.equal(firstRes.data.cooldown.attemptCount, 1);
       assert.equal(firstRes.data.cooldown.cooldownSeconds, 120);
       assert.equal(firstRes.data.cooldown.remainingSeconds, 120);
@@ -350,6 +352,8 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
         ip: resetRouteIp,
       });
       assert.equal(initialRes.status, 200);
+      assert.equal(initialRes.data.resetToken, undefined, '200 initial reset response must never expose resetToken');
+      assert.equal(initialRes.data.resetLink, undefined, '200 initial reset response must never expose resetLink');
       assert.equal(initialRes.data.cooldown.attemptCount, 0);
       assert.equal(initialRes.data.cooldown.isInCooldown, false);
 
@@ -360,6 +364,8 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
         ip: resetRouteIp,
       });
       assert.equal(resendRes.status, 200);
+      assert.equal(resendRes.data.resetToken, undefined, '200 resend reset response must never expose resetToken');
+      assert.equal(resendRes.data.resetLink, undefined, '200 resend reset response must never expose resetLink');
       assert.equal(resendRes.data.cooldown.attemptCount, 1);
       assert.equal(resendRes.data.cooldown.cooldownSeconds, 120);
 
@@ -465,6 +471,14 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.ok(html.includes('Inbox'), 'Must include Inbox guidance');
       assert.ok(html.includes('Spam / Junk'), 'Must include Spam/Junk guidance');
       assert.ok(html.includes('founder@shoepos.com'), 'Must display target confirmation email');
+
+      const verifySrc = readFileSync(join(ROOT, 'src/components/auth/VerifyEmailNoticeView.tsx'), 'utf8');
+      assert.equal(
+        verifySrc.includes('res.verificationToken') || verifySrc.includes('setTokenInput(res.'),
+        false,
+        'VerifyEmailNoticeView must never auto-fill verification tokens from resend responses'
+      );
+      assert.ok(verifySrc.includes("setTokenInput('')"), 'VerifyEmailNoticeView should clear stale input on resend so user enters emailed token manually');
     });
 
     it('wires independent cooldowns and Resend Reset Code panel into AuthModal and SuperAdminControlPanel', () => {
@@ -472,6 +486,11 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.ok(authModalSrc.includes("flow: 'password_reset'"), 'AuthModal must use password_reset cooldown flow');
       assert.ok(authModalSrc.includes('buttonLabel="Resend Reset Code"'), 'AuthModal must include Resend Reset Code button');
       assert.ok(authModalSrc.includes('resetCooldown.clearCooldown()'), 'AuthModal must clear cooldown after password reset succeeds');
+      assert.equal(
+        authModalSrc.includes('res.resetToken') || authModalSrc.includes('setResetToken(res.'),
+        false,
+        'AuthModal must never auto-fill reset tokens from API responses'
+      );
 
       const superAdminSrc = readFileSync(join(ROOT, 'src/components/saas/SuperAdminControlPanel.tsx'), 'utf8');
       assert.ok(superAdminSrc.includes("flow: 'password_reset'"), 'SuperAdminControlPanel must use password_reset cooldown flow');

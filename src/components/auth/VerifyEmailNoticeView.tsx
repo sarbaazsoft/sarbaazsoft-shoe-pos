@@ -126,18 +126,15 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
     setErrorMessage(null);
     setResendError(null);
     setResendStatus(null);
+    setTokenInput('');
     try {
       const res = await api.auth.resendVerification(targetEmail, tenantId || undefined);
       setResendStatus(
         res.message ||
-          `A fresh confirmation email has been sent to ${targetEmail}. Please check your Inbox or Spam/Junk folder.`
+          `A fresh confirmation email has been sent to ${targetEmail}. Please check your Inbox or Spam/Junk folder and enter the verification token from the email.`
       );
       if (res.cooldown) {
         verificationCooldown.applyServerCooldown(res.cooldown);
-      }
-      if (res.verificationToken) {
-        // Helpful in test environments where mail provider is not active
-        setTokenInput(res.verificationToken);
       }
     } catch (err: any) {
       if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {

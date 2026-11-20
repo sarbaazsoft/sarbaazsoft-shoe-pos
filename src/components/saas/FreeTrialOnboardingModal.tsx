@@ -265,8 +265,6 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
             email: cleanEmail,
             tenantId: createdTenantId,
             storeName: res.storeName,
-            verificationToken: res.verificationToken,
-            verificationLink: res.verificationLink,
             message: res.message,
           },
         }));

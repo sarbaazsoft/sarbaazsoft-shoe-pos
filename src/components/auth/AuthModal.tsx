@@ -295,11 +295,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (res.cooldown) {
         resetCooldown.applyServerCooldown(res.cooldown);
       }
-      if (res.resetToken) {
-        setResetToken(res.resetToken);
-      } else {
-        setResetToken('');
-      }
+      setResetToken('');
       setInfoMessage(
         res.message ||
           `Password reset token and link have been sent by email to ${trimmedEmail}. Please check your Inbox (and Spam/Junk folder) and enter the verification token below.`
@@ -336,9 +332,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (res.cooldown) {
         resetCooldown.applyServerCooldown(res.cooldown);
       }
-      if (res.resetToken) {
-        setResetToken(res.resetToken);
-      }
+      setResetToken('');
       setResendResetSuccess(
         res.message ||
           `A new password reset code has been sent to ${trimmedEmail}. Please check your Inbox or Spam/Junk folder.`

@@ -355,8 +355,6 @@ router.post('/saas/store-request', async (req: Request, res: Response) => {
         active: false,
         emailSent: mailResult.delivered,
         sandbox: Boolean(mailResult.sandbox),
-        verificationToken,
-        verificationLink: activationLink,
         loginUrl: `/verify-email?email=${encodeURIComponent(ownerEmail)}&tenantId=${provisioned.tenantId}`,
         redirectUrl: `/verify-email?email=${encodeURIComponent(ownerEmail)}&tenantId=${provisioned.tenantId}`,
         superAdminEmail: saOwner?.email || 'sarbaazsoft@gmail.com',
