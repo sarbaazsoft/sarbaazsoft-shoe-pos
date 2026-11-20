@@ -409,3 +409,43 @@ test('drop_tables.sql drops every required table and custom enum type cleanly wi
     );
   }
 });
+
+test('auto-seed helper only executes in non-production mode when tables do not exist and aligns SuperAdmin fallback with seed.sql', async () => {
+  const { autoSeedDevDatabaseIfTablesMissing } = await import('../src/db/schemaInit.ts');
+
+  const prevEnv = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = 'production';
+    let prodChecked = false;
+    const prodResult = await autoSeedDevDatabaseIfTablesMissing(async () => {
+      prodChecked = true;
+      return true;
+    });
+    assert.equal(prodResult, false);
+    assert.equal(prodChecked, false);
+
+    process.env.NODE_ENV = 'development';
+    const existingTablesResult = await autoSeedDevDatabaseIfTablesMissing(async () => false);
+    assert.equal(existingTablesResult, false);
+
+    const missingTablesResult = await autoSeedDevDatabaseIfTablesMissing(async () => true);
+    assert.equal(missingTablesResult, true);
+  } finally {
+    if (prevEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = prevEnv;
+    }
+  }
+
+  const schemaInitSrc = fs.readFileSync(path.join(ROOT_DIR, 'src/db/schemaInit.ts'), 'utf8');
+  assert.ok(schemaInitSrc.includes("'sarbaazsoft@gmail.com'"));
+  assert.ok(schemaInitSrc.includes("'Khalid Dashti'"));
+  assert.ok(schemaInitSrc.includes("'+92-321-2257340'"));
+  assert.ok(schemaInitSrc.includes("await bcrypt.hash('admin123', 10)"));
+
+  const serverSrc = fs.readFileSync(path.join(ROOT_DIR, 'server.ts'), 'utf8');
+  assert.ok(serverSrc.includes('autoSeedDevDatabaseIfTablesMissing'));
+  assert.ok(serverSrc.includes('status.dbReady && !status.tablesExist'));
+});
+

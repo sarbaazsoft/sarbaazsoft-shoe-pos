@@ -336,7 +336,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           if (e.target === e.currentTarget && !isLoading) onClose();
         }}
       >
-        <ShowroomBackground className="opacity-35" />
+        <ShowroomBackground intensity="portal" />
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}

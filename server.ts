@@ -13,9 +13,12 @@ if (!process.env.NODE_ENV) {
 // Database & Seed
 import { pgClient, dbInfo, txStorage } from './src/db/index.ts';
 import {
+  autoSeedDevDatabaseIfTablesMissing,
   ensureSaasControlPlane,
   isSaasControlPlaneInitialized,
 } from './src/db/schemaInit.ts';
+
+let startupBootstrapPromise: Promise<void> | null = null;
 
 // Shared-Domain Multi-Tenant Routing Middleware
 import { tenantRoutingMiddleware } from './src/server/middleware/tenantMiddleware.ts';
@@ -458,6 +461,9 @@ app.use(async (req, res, next) => {
     }
   } else if (req.path.startsWith('/api/') && !isSaasControlPlaneInitialized()) {
     try {
+      if (startupBootstrapPromise) {
+        await startupBootstrapPromise.catch(() => {});
+      }
       await pgClient.waitReady;
       let installStatus = await checkInstallationStatus();
       if (!installStatus.installed) {
@@ -642,21 +648,35 @@ async function startServer() {
     });
   }
 
-  try {
-    await pgClient.waitReady;
-    const installStatus = await checkInstallationStatus();
-    if (installStatus.hasSuperAdmin || (installStatus.hasUsers && installStatus.hasAdmin)) {
-      await ensureSaasControlPlane();
-      console.log('✅ PostgreSQL Schema & SaaS Multi-Tenant Control Plane verified.');
-      void syncAndNotifyTenantSubscriptionLifecycle().catch(() => {});
-      const lifecycleTimer = setInterval(() => {
+  startupBootstrapPromise = (async () => {
+    try {
+      await pgClient.waitReady;
+      const didAutoSeed = await autoSeedDevDatabaseIfTablesMissing(async () => {
+        const status = await checkInstallationStatus();
+        return status.dbReady && !status.tablesExist;
+      });
+      if (didAutoSeed) {
+        console.log('🌱 Database tables missing in dev mode — auto-created schema and applied seed.sql.');
+      }
+
+      const installStatus = await checkInstallationStatus();
+      if (installStatus.hasSuperAdmin || (installStatus.hasUsers && installStatus.hasAdmin)) {
+        await ensureSaasControlPlane();
+        console.log('✅ PostgreSQL Schema & SaaS Multi-Tenant Control Plane verified.');
         void syncAndNotifyTenantSubscriptionLifecycle().catch(() => {});
-      }, 15 * 60 * 1000);
-      lifecycleTimer.unref?.();
+        const lifecycleTimer = setInterval(() => {
+          void syncAndNotifyTenantSubscriptionLifecycle().catch(() => {});
+        }, 15 * 60 * 1000);
+        lifecycleTimer.unref?.();
+      }
+    } catch (error) {
+      console.error('PostgreSQL startup initialization error:', error);
+    } finally {
+      startupBootstrapPromise = null;
     }
-  } catch (error) {
-    console.error('PostgreSQL startup initialization error:', error);
-  }
+  })();
+
+  await startupBootstrapPromise;
 }
 
 if (!isServerless) {

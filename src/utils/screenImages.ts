@@ -18,7 +18,7 @@ export interface UnifiedBackdropMeta {
 export const UNIFIED_BACKDROP_META: UnifiedBackdropMeta = {
   id: 'backdrop',
   label: 'Unified Screen Backdrop',
-  description: 'Single shared backdrop image applied across Login, Registration, Authentication, Loading, and all portal routes.',
+  description: 'Single shared backdrop image applied across Login, Auth, Onboarding, Loading, and Navigation Sidebars with fixed readability scrims.',
 };
 
 export function resolveUnifiedBackdropImage(

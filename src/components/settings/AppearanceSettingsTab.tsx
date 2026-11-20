@@ -754,7 +754,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
 
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-200 text-[11px] font-semibold shrink-0">
               <Shield className="w-3.5 h-3.5 shrink-0" />
-              <span>{effectiveBackdropImage ? 'Custom Active Across All Routes' : 'Default Showroom Backdrop'}</span>
+              <span>{effectiveBackdropImage ? 'Custom Portal & Sidebar Backdrop' : 'Default Showroom Backdrop'}</span>
             </span>
           </div>
 
@@ -763,7 +763,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
             {/* Preview Frame */}
             <div className="lg:col-span-5 space-y-2.5">
               <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
-                <span>Preview: All Screens &amp; Routes</span>
+                <span>Preview: Auth, Portal &amp; Sidebars</span>
                 {effectiveBackdropImage && (
                   <button
                     id="screen-image-restore-default-btn"
@@ -777,7 +777,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
                 )}
               </div>
 
-              <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 shadow-md">
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-[#080A2A] shadow-md">
                 <img
                   src={resolvedPreviewImg}
                   alt="Unified screen backdrop preview"
@@ -786,15 +786,10 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
                   onError={() => {
                     if (effectiveBackdropImage) setPreviewImgLoadFailed(true);
                   }}
-                  className="w-full h-full object-cover object-center opacity-85"
+                  className="w-full h-full object-cover object-center opacity-75 dark:opacity-70"
                 />
-                <div
-                  className={`absolute inset-0 ${
-                    theme === 'dark'
-                      ? 'bg-gradient-to-b from-[#0A0E1A]/50 via-[#0A0E1A]/30 to-[#0A0E1A]/70'
-                      : 'bg-gradient-to-b from-slate-200/35 via-transparent to-slate-200/45'
-                  }`}
-                />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(var(--primary-rgb,147,51,234),0.14),transparent_60%)] opacity-60" />
                 {/* Simulated Portal Card Overlay to inspect readability */}
                 <div className="absolute inset-0 flex items-center justify-center p-4">
                   <div className="w-48 rounded-xl bg-white/95 dark:bg-[#131B2E]/95 border border-white/60 dark:border-purple-700/60 shadow-lg p-3 text-center backdrop-blur-md">

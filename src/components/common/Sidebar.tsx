@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, ShoppingCart, Boxes, Truck, RotateCcw, Users, TrendingUp, Settings, Printer, BookOpen, X, Building2, Check, Cloud, Keyboard, Sun, Moon, Download, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
 import { ShoeIcon } from './ShoeIcon.tsx';
+import { ShowroomBackground } from './ShowroomBackground.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { APP_VERSION } from '../../version.ts';
 
@@ -179,19 +180,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     return (
       <div
-        className={`w-full h-full ${embeddedInBodyLayout ? 'min-h-0' : 'max-h-screen'} flex flex-col bg-white/95 dark:bg-[#0D1322] backdrop-blur-lg text-slate-700 dark:text-slate-100 select-none border-r border-indigo-500/20 shadow-lg rounded-none overflow-y-auto overflow-x-hidden sidebar-scrollbar transition-colors ${
-          collapsed ? 'px-2' : ''
-        }`}
+        className={`relative w-full h-full ${embeddedInBodyLayout ? 'min-h-0' : 'max-h-screen'} flex flex-col bg-[#080A2A] text-slate-100 select-none border-r border-indigo-400/25 shadow-lg rounded-none overflow-hidden transition-colors`}
       >
+        <ShowroomBackground contained={true} intensity="portal" />
+        <div
+          className={`relative z-10 flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden sidebar-scrollbar ${
+            collapsed ? 'px-2' : ''
+          }`}
+        >
         {/* TOP: Store Brand Header aligned with top Header bar (exact h-[3.6rem] with matching border-b) */}
         <div
-          className={`h-[3.6rem] flex items-center justify-between border-b border-indigo-500/20 shrink-0 ${
+          className={`h-[3.6rem] flex items-center justify-between border-b border-indigo-400/20 bg-[#080A2A]/45 backdrop-blur-md shrink-0 ${
             collapsed ? 'px-2 justify-center' : 'px-3.5 sm:px-4'
           }`}
         >
           {/* Brand Banner */}
           <div className={`flex items-center gap-2.5 min-w-0 ${collapsed ? 'justify-center w-full' : ''}`}>
-            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden">
+            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-indigo-400/30 shrink-0 shadow-xs flex items-center justify-center overflow-hidden">
               <ShoeIcon
                 src={companySettings?.logo}
                 alt={`${storeName} Logo`}
@@ -200,10 +205,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <h1 className="text-xs font-bold text-slate-900 dark:text-white truncate tracking-tight leading-tight">
+                <h1 className="text-xs font-bold text-white truncate tracking-tight leading-tight">
                   {storeName}
                 </h1>
-                <p className="text-[10px] text-slate-500 dark:text-indigo-200/70 font-medium truncate mt-0.5">
+                <p className="text-[10px] text-indigo-200/80 font-medium truncate mt-0.5">
                   SarbaazSoft Shoe POS
                 </p>
               </div>
@@ -216,7 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id="sidebar-close-mobile-btn"
               type="button"
               onClick={onCloseMobile}
-              className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
+              className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer shrink-0"
               aria-label="Close Mobile Navigation"
             >
               <X className="w-4.5 h-4.5" />
@@ -229,7 +234,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id="sidebar-collapse-toggle-btn"
               type="button"
               onClick={toggleCollapse}
-              className="p-1.5 text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
               title="Collapse sidebar (Ctrl+B)"
               aria-label="Collapse sidebar"
             >
@@ -243,7 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id="sidebar-expand-toggle-btn"
               type="button"
               onClick={toggleCollapse}
-              className="p-1 text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-1 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
               title="Expand sidebar (Ctrl+B)"
               aria-label="Expand sidebar"
             >
@@ -269,7 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               } rounded-xl text-xs font-semibold cursor-pointer group transition-colors duration-150 ${
                 currentTab === 'dashboard'
                   ? 'text-white font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-300 hover:bg-purple-50/70 dark:hover:bg-purple-950/30'
+                  : 'text-slate-100 hover:text-white hover:bg-white/10 [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]'
               }`}
             >
               {/* Animated Floating Active Pill */}
@@ -286,7 +291,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
                     currentTab === 'dashboard'
                       ? 'text-white'
-                      : 'text-slate-500 dark:text-slate-400 group-hover:scale-110'
+                      : 'text-indigo-200/90 group-hover:text-white group-hover:scale-110'
                   }`}
                 />
                 {!collapsed && <span>Dashboard</span>}
@@ -308,11 +313,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {sections.map((section) => (
             <div key={section.header} className="space-y-1">
               {!collapsed ? (
-                <div className="text-[10px] font-bold text-slate-400 dark:text-indigo-300/70 uppercase tracking-wider px-2 py-0.5">
+                <div className="text-[10px] font-bold text-indigo-200/80 uppercase tracking-wider px-2 py-0.5 [text-shadow:0_1px_6px_rgba(5,7,27,0.9)]">
                   {section.header}
                 </div>
               ) : (
-                <div className="w-8 h-px bg-indigo-500/20 mx-auto my-2" />
+                <div className="w-8 h-px bg-indigo-400/25 mx-auto my-2" />
               )}
 
               <div className="space-y-0.5">
@@ -336,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         } rounded-xl text-xs font-medium cursor-pointer group transition-colors duration-150 ${
                           isActive
                             ? 'text-white font-bold'
-                            : 'text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-300 hover:bg-purple-50/70 dark:hover:bg-purple-950/30'
+                            : 'text-slate-100 hover:text-white hover:bg-white/10 [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]'
                         }`}
                       >
                         {/* Animated Floating Active Pill */}
@@ -353,7 +358,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
                               isActive
                                 ? 'text-white'
-                                : 'text-slate-500 dark:text-slate-400 group-hover:translate-x-0.5'
+                                : 'text-indigo-200/90 group-hover:text-white group-hover:translate-x-0.5'
                             }`}
                           />
                           {!collapsed && <span className="truncate">{item.label}</span>}
@@ -364,7 +369,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             className={`hidden lg:inline-flex relative z-10 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md transition ${
                               isActive
                                 ? 'bg-white/20 text-white border border-white/30'
-                                : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-indigo-500/20'
+                                : 'bg-white/10 text-slate-200 border border-indigo-400/25'
                             }`}
                           >
                             {item.shortcut}
@@ -394,7 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* BOTTOM: User Profile, Database Status, Shortcuts & App Version */}
         <div
-          className={`border-t border-indigo-500/20 space-y-2 bg-slate-50/40 dark:bg-[#090E18] backdrop-blur-md mt-auto transition-colors ${
+          className={`border-t border-indigo-400/20 space-y-2 bg-[#080A2A]/55 backdrop-blur-md mt-auto transition-colors ${
             collapsed ? 'p-2 pt-3' : 'p-3.5 pt-3'
           }`}
         >
@@ -405,7 +410,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onOpenProfile?.();
               if (isMobile) onCloseMobile();
             }}
-            className={`flex items-center rounded-xl bg-white/80 hover:bg-white dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border border-indigo-500/20 cursor-pointer transition group shadow-xs ${
+            className={`flex items-center rounded-xl bg-white/10 hover:bg-white/16 border border-indigo-400/25 cursor-pointer transition group shadow-xs ${
               collapsed ? 'justify-center p-2 relative' : 'justify-between p-2'
             }`}
             title={collapsed ? `${currentUser?.name || 'Admin'} • Profile` : 'Click to view & edit your profile'}
@@ -418,14 +423,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   role={currentUser?.role}
                   size="sm"
                 />
-                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#0D1322]" />
+                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-[#080A2A]" />
               </div>
               {!collapsed && (
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
+                  <div className="text-xs font-bold text-white truncate group-hover:text-purple-200 transition">
                     {currentUser?.name || 'Admin'}
                   </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                  <div className="text-[10px] text-indigo-200/80 truncate">
                     {(() => {
                       const roleUpper = (currentUser?.role || '').toUpperCase();
                       if (roleUpper === 'SUPERADMIN') return 'Platform Owner';
@@ -438,8 +443,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {!collapsed && (
-              <div className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white transition">
-                <Check className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+              <div className="text-slate-300 group-hover:text-white transition">
+                <Check className="w-4 h-4 text-emerald-400" />
               </div>
             )}
 
@@ -456,7 +461,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             id="sidebar-install-app-btn"
             type="button"
             onClick={() => setIsInstallModalOpen(true)}
-            className={`w-full flex items-center rounded-xl bg-indigo-50/60 hover:bg-indigo-100/80 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 transition cursor-pointer group shadow-xs ${
+            className={`w-full flex items-center rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 text-indigo-100 transition cursor-pointer group shadow-xs ${
               collapsed
                 ? 'justify-center p-2 relative'
                 : isMobile
@@ -466,11 +471,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="Install Android APK, iOS Safari PWA, or Windows .EXE"
           >
             <div className="flex items-center gap-2">
-              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition shrink-0" />
+              <Download className="w-3.5 h-3.5 text-indigo-200 group-hover:scale-110 transition shrink-0" />
               {!collapsed && <span className="text-[11px] font-bold">Install App (APK / PWA)</span>}
             </div>
             {!collapsed && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-white dark:bg-[#070B14] text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-white/15 text-indigo-100 border border-indigo-300/30">
                 APK • iOS • PC
               </span>
             )}
@@ -489,7 +494,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               id="sidebar-theme-toggle-btn"
               type="button"
               onClick={toggleTheme}
-              className={`w-full flex items-center rounded-lg bg-slate-100/80 hover:bg-slate-200/80 dark:bg-[#0E1628] dark:hover:bg-[#131D33] border border-indigo-500/20 text-[11px] text-slate-700 dark:text-slate-200 transition cursor-pointer ${
+              className={`w-full flex items-center rounded-lg bg-white/10 hover:bg-white/16 border border-indigo-400/25 text-[11px] text-slate-100 transition cursor-pointer ${
                 collapsed
                   ? 'justify-center p-2 relative group'
                   : isMobile
@@ -500,14 +505,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-1.5 font-medium">
                 {theme === 'dark' ? (
-                  <Moon className="w-3 h-3 text-purple-400 dark:text-purple-300 shrink-0 stroke-[2]" />
+                  <Moon className="w-3 h-3 text-purple-300 shrink-0 stroke-[2]" />
                 ) : (
-                  <Sun className="w-3 h-3 text-purple-600 dark:text-purple-300 shrink-0 stroke-[2]" />
+                  <Sun className="w-3 h-3 text-purple-300 shrink-0 stroke-[2]" />
                 )}
                 {!collapsed && <span>Theme</span>}
               </div>
               {!collapsed && (
-                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-white dark:bg-[#070B14] text-slate-600 dark:text-cyan-300 border border-indigo-500/20">
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-white/15 text-cyan-200 border border-indigo-400/25">
                   {theme === 'dark' ? 'Dark' : 'Light'}
                 </span>
               )}
@@ -521,12 +526,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* System Online Status */}
             <div
-              className={`flex items-center rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-500/20 text-[10.5px] ${
+              className={`flex items-center rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-[10.5px] ${
                 collapsed ? 'justify-center p-2 relative group' : 'justify-between px-2 py-1'
               }`}
             >
-              <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <div className="flex items-center gap-1.5 text-emerald-300 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 {!collapsed && (
                   <span className="flex items-center gap-1 truncate">
                     <Cloud className="w-3 h-3 shrink-0" />
@@ -535,7 +540,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
               {!collapsed && (
-                <span className="text-[9.5px] font-medium text-emerald-600 dark:text-emerald-400">Connected</span>
+                <span className="text-[9.5px] font-medium text-emerald-300">Connected</span>
               )}
               {collapsed && (
                 <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-slate-900/95 dark:bg-slate-800/95 text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none border border-slate-700/50 opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-150 flex items-center gap-1.5">
@@ -547,23 +552,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Shortcuts Info (Desktop only) */}
             {!isMobile && !collapsed && (
-              <div className="hidden lg:flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <div className="hidden lg:flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-300/90">
                 <div className="flex items-center gap-1.5">
-                  <Keyboard className="w-3 h-3 text-slate-400" />
+                  <Keyboard className="w-3 h-3 text-indigo-300" />
                   <span>Shortcuts:</span>
                 </div>
-                <span className="font-mono text-slate-600 dark:text-slate-300 font-semibold">F1 - F7 • Ctrl+B</span>
+                <span className="font-mono text-slate-100 font-semibold">F1 - F7 • Ctrl+B</span>
               </div>
             )}
 
             {/* Version */}
             {!collapsed && (
-              <div className="px-2 pt-1 border-t border-indigo-500/15 flex items-center justify-between text-[9.5px] text-slate-400 dark:text-slate-500">
+              <div className="px-2 pt-1 border-t border-indigo-400/20 flex items-center justify-between text-[9.5px] text-slate-300/80">
                 <span>SarbaazSoft Shoe POS</span>
                 <span className="font-mono">{APP_VERSION}</span>
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     );

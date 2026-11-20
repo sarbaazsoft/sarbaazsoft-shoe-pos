@@ -619,8 +619,32 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
   }
 
   assert.ok(readProjectFile('src/components/saas/SaasLandingPage.tsx').includes('effectiveBackdropImage'));
-  assert.ok(readProjectFile('src/components/common/ShowroomBackground.tsx').includes('referrerPolicy="no-referrer"'));
-  assert.ok(readProjectFile('src/components/common/ShowroomBackground.tsx').includes('effectiveBackdropImage'));
+  const showroomBgSrc = readProjectFile('src/components/common/ShowroomBackground.tsx');
+  assert.ok(showroomBgSrc.includes('BACKDROP_INTENSITY_PRESETS'));
+  assert.ok(showroomBgSrc.includes('Object.freeze'));
+  assert.ok(showroomBgSrc.includes('data-backdrop-intensity={resolvedIntensity}'));
+  assert.ok(showroomBgSrc.includes('no-print print:hidden'));
+  assert.ok(showroomBgSrc.includes('referrerPolicy="no-referrer"'));
+  assert.ok(showroomBgSrc.includes('effectiveBackdropImage'));
+  assert.ok(showroomBgSrc.includes("containerBg: 'bg-[#080A2A]'"));
+  assert.ok(showroomBgSrc.includes("imageClass: 'opacity-75 dark:opacity-70'"));
+  assert.ok(showroomBgSrc.includes('from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55'));
+  assert.ok(appearanceTabSrc.includes('bg-[#080A2A]'));
+  assert.ok(appearanceTabSrc.includes('opacity-75 dark:opacity-70'));
+  assert.ok(appearanceTabSrc.includes('from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55'));
+  assert.equal(appSrc.includes('intensity="workspace"'), false, 'Tenant workspace routes must use solid background instead of showroom backdrop');
+  assert.ok(appSrc.includes('className="saas-panel bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 transition-colors"'));
+  assert.ok(appSrc.includes('mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"'));
+  const sidebarSrc = readProjectFile('src/components/common/Sidebar.tsx');
+  assert.ok(sidebarSrc.includes('<ShowroomBackground contained={true} intensity="portal" />'));
+  assert.ok(sidebarSrc.includes('bg-[#080A2A]'));
+  const superAdminSrc = readProjectFile('src/components/saas/SuperAdminControlPanel.tsx');
+  assert.equal(superAdminSrc.includes('intensity="workspace"'), false, 'SuperAdmin workspace routes must use solid background instead of showroom backdrop');
+  assert.ok(superAdminSrc.includes('mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"'));
+  assert.ok(superAdminSrc.includes('<ShowroomBackground contained={true} intensity="portal" />'));
+  assert.ok(superAdminSrc.includes('bg-[#080A2A]'));
+  const skeletonsSrc = readProjectFile('src/components/common/RouteSkeletons.tsx');
+  assert.ok(skeletonsSrc.includes('bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh'));
 
   // 8 core presets still preserved intact
   assert.equal(ACCENT_THEME_LIST.length, 8);

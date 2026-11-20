@@ -9,6 +9,7 @@ import { LoadingWindow } from './components/common/LoadingWindow.tsx';
 import { SaasLandingPage } from './components/saas/SaasLandingPage.tsx';
 import { KeepAliveRouteHost } from './components/common/KeepAliveRouteHost.tsx';
 import { BodyLayoutWrapper } from './components/common/BodyLayoutWrapper.tsx';
+import { ShowroomBackground } from './components/common/ShowroomBackground.tsx';
 import { resolveRouteLayoutMetadata, type SaasRouteMode } from './config/routeLayoutMetadata.ts';
 import { emitDataSync } from './utils/dataSyncBus.ts';
 import { useTheme } from './context/ThemeContext.tsx';
@@ -228,11 +229,12 @@ export function buildUnauthScopedUrl(targetUrl: string, currentTenantId?: string
 function PortalRouteFallback({ label = 'Loading...' }: { label?: string }) {
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-200 p-6"
+      className="relative min-h-screen w-full flex items-center justify-center bg-slate-200 dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-200 p-6"
       role="status"
       aria-live="polite"
     >
-      <div className="inline-flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 shadow-sm">
+      <ShowroomBackground intensity="portal" />
+      <div className="relative z-10 inline-flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md border border-slate-200/80 dark:border-indigo-500/20 shadow-sm">
         <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
         <span className="text-xs sm:text-sm font-semibold">{label}</span>
       </div>

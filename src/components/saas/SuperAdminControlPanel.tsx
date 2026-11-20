@@ -1995,26 +1995,30 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
     return (
       <div
-        className={`w-full h-full max-h-screen flex flex-col bg-white/95 dark:bg-[#0D1322] backdrop-blur-lg text-slate-700 dark:text-slate-100 select-none border-r border-indigo-500/20 shadow-lg rounded-none overflow-y-auto overflow-x-hidden sidebar-scrollbar transition-colors ${
-          collapsed ? 'px-2' : ''
-        }`}
+        className="relative w-full h-full max-h-screen flex flex-col bg-[#080A2A] text-slate-100 select-none border-r border-indigo-400/25 shadow-lg rounded-none overflow-hidden transition-colors"
       >
+        <ShowroomBackground contained={true} intensity="portal" />
+        <div
+          className={`relative z-10 flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden sidebar-scrollbar ${
+            collapsed ? 'px-2' : ''
+          }`}
+        >
         {/* TOP: Brand Header aligned with top Header bar (exact h-[3.6rem] with matching border-b) */}
         <div
-          className={`h-[3.6rem] flex items-center justify-between border-b border-indigo-500/20 shrink-0 ${
+          className={`h-[3.6rem] flex items-center justify-between border-b border-indigo-400/20 bg-[#080A2A]/45 backdrop-blur-md shrink-0 ${
             collapsed ? 'px-2 justify-center' : 'px-3.5 sm:px-4'
           }`}
         >
           <div className={`flex items-center gap-2.5 min-w-0 ${collapsed ? 'justify-center w-full' : ''}`}>
-            <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-purple-500/30 shrink-0 shadow-sm p-1 flex items-center justify-center overflow-hidden">
+            <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-purple-400/40 shrink-0 shadow-sm p-1 flex items-center justify-center overflow-hidden">
               <img src="/admin/pwa-192x192.png" alt="SuperAdmin PWA Icon" className="w-full h-full object-contain rounded-md" />
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <h1 className="text-xs font-bold text-slate-900 dark:text-white truncate tracking-tight leading-tight">
+                <h1 className="text-xs font-bold text-white truncate tracking-tight leading-tight">
                   POS SaaS C-Panel
                 </h1>
-                <p className="text-[10px] text-slate-500 dark:text-indigo-200/70 font-medium truncate mt-0.5">
+                <p className="text-[10px] text-indigo-200/80 font-medium truncate mt-0.5">
                   SuperAdmin Control Plane
                 </p>
               </div>
@@ -2025,7 +2029,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <button
               type="button"
               onClick={() => setMobileMenuOpen(false)}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
               aria-label="Close Mobile Navigation"
             >
               <X className="w-4 h-4" />
@@ -2036,7 +2040,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <button
               type="button"
               onClick={toggleCollapse}
-              className="p-1.5 text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
               title="Collapse sidebar (Ctrl+B)"
             >
               <PanelLeftClose className="w-4 h-4" />
@@ -2047,7 +2051,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <button
               type="button"
               onClick={toggleCollapse}
-              className="p-1 text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 rounded-lg hover:bg-purple-50 dark:hover:bg-white/10 transition cursor-pointer"
+              className="p-1 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
               title="Expand sidebar (Ctrl+B)"
             >
               <PanelLeftOpen className="w-4 h-4" />
@@ -2070,7 +2074,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               } rounded-xl text-xs font-semibold cursor-pointer group transition-colors duration-150 ${
                 activeTab === 'dashboard'
                   ? 'text-white font-bold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-300 hover:bg-purple-50/70 dark:hover:bg-purple-950/30'
+                  : 'text-slate-100 hover:text-white hover:bg-white/10 [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]'
               }`}
             >
               {activeTab === 'dashboard' && (
@@ -2086,7 +2090,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
                     activeTab === 'dashboard'
                       ? 'text-white'
-                      : 'text-slate-500 dark:text-slate-400 group-hover:scale-110'
+                      : 'text-indigo-200/90 group-hover:text-white group-hover:scale-110'
                   }`}
                 />
                 {!collapsed && <span>Dashboard</span>}
@@ -2100,11 +2104,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           {sidebarSections.map((section) => (
             <div key={section.header} className="space-y-1">
               {!collapsed ? (
-                <div className="text-[10px] font-bold text-slate-400 dark:text-indigo-300/70 uppercase tracking-wider px-2 py-0.5">
+                <div className="text-[10px] font-bold text-indigo-200/80 uppercase tracking-wider px-2 py-0.5 [text-shadow:0_1px_6px_rgba(5,7,27,0.9)]">
                   {section.header}
                 </div>
               ) : (
-                <div className="w-8 h-px bg-indigo-500/20 mx-auto my-2" />
+                <div className="w-8 h-px bg-indigo-400/25 mx-auto my-2" />
               )}
 
               <div className="space-y-0.5">
@@ -2125,7 +2129,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         } rounded-xl text-xs font-medium cursor-pointer group transition-colors duration-150 ${
                           isActive
                             ? 'text-white font-bold'
-                            : 'text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-300 hover:bg-purple-50/70 dark:hover:bg-purple-950/30'
+                            : 'text-slate-100 hover:text-white hover:bg-white/10 [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]'
                         }`}
                       >
                         {isActive && (
@@ -2141,7 +2145,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                             className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
                               isActive
                                 ? 'text-white'
-                                : 'text-slate-500 dark:text-slate-400 group-hover:translate-x-0.5'
+                                : 'text-indigo-200/90 group-hover:text-white group-hover:translate-x-0.5'
                             }`}
                           />
                           {!collapsed && <span className="truncate">{item.label}</span>}
@@ -2155,8 +2159,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                   isActive
                                     ? 'bg-white/25 text-white'
                                     : (item as any).badgeTone === 'amber'
-                                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
-                                    : 'bg-purple-500/15 text-purple-600 dark:text-purple-300'
+                                    ? 'bg-amber-500/20 text-amber-200 border border-amber-400/35'
+                                    : 'bg-purple-500/25 text-purple-200 border border-purple-400/30'
                                 }`}
                               >
                                 {(item as any).badge}
@@ -2167,7 +2171,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                                 className={`hidden lg:inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md transition ${
                                   isActive
                                     ? 'bg-white/20 text-white border border-white/30'
-                                    : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-indigo-500/20'
+                                    : 'bg-white/10 text-slate-200 border border-indigo-400/25'
                                 }`}
                               >
                                 {item.shortcut}
@@ -2186,7 +2190,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           {/* Quick Action: Provision Store */}
           <div className="space-y-1 pt-1">
             {!collapsed && (
-              <div className="text-[10px] font-bold text-slate-400 dark:text-indigo-300/70 uppercase tracking-wider px-2 py-0.5">
+              <div className="text-[10px] font-bold text-indigo-200/80 uppercase tracking-wider px-2 py-0.5 [text-shadow:0_1px_6px_rgba(5,7,27,0.9)]">
                 PROVISIONING &amp; STORES
               </div>
             )}
@@ -2198,14 +2202,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               }}
               className={`w-full flex items-center ${
                 collapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2'
-              } rounded-xl text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-50/80 hover:bg-purple-100 dark:bg-purple-950/30 dark:hover:bg-purple-900/40 border border-purple-200/80 dark:border-purple-800/50 transition cursor-pointer`}
+              } rounded-xl text-xs font-semibold text-purple-100 bg-purple-500/25 hover:bg-purple-500/35 border border-purple-400/35 transition cursor-pointer`}
             >
               <div className="flex items-center gap-2.5 truncate">
-                <Plus className="w-4 h-4 shrink-0 text-purple-600 dark:text-purple-400" />
+                <Plus className="w-4 h-4 shrink-0 text-purple-200" />
                 {!collapsed && <span className="truncate">Provision New Store</span>}
               </div>
               {!collapsed && !isMobile && (
-                <kbd className="hidden lg:inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white dark:bg-white/10 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-700/50">
+                <kbd className="hidden lg:inline-block text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white/15 text-white border border-purple-300/35">
                   F3
                 </kbd>
               )}
@@ -2222,7 +2226,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       onOpenStore(st.id);
                       if (isMobile) setMobileMenuOpen(false);
                     }}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-300 hover:bg-slate-100/80 dark:hover:bg-white/5 transition cursor-pointer group"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-slate-200 hover:text-white hover:bg-white/10 transition cursor-pointer group [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span
@@ -2233,7 +2237,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       />
                       <span className="truncate font-semibold">{st.name}</span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400 group-hover:text-purple-500">
+                    <span className="text-[10px] font-mono text-indigo-200/70 group-hover:text-white">
                     </span>
                   </button>
                 ))}
@@ -2244,7 +2248,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
         {/* BOTTOM: SuperAdmin Profile, PWA Manifest, Theme & Database Status (identical to Store Sidebar) */}
         <div
-          className={`border-t border-indigo-500/20 space-y-2 bg-slate-50/40 dark:bg-[#090E18] backdrop-blur-md mt-auto transition-colors ${
+          className={`border-t border-indigo-400/20 space-y-2 bg-[#080A2A]/55 backdrop-blur-md mt-auto transition-colors ${
             collapsed ? 'p-2 pt-3' : 'p-3.5 pt-3'
           }`}
         >
@@ -2253,7 +2257,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             type="button"
             onClick={handleOpenProfile}
             title="Edit SuperAdmin Profile & Security"
-            className={`w-full flex items-center rounded-xl bg-white/80 hover:bg-white dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border border-indigo-500/20 hover:border-purple-500/40 transition shadow-xs cursor-pointer text-left ${
+            className={`w-full flex items-center rounded-xl bg-white/10 hover:bg-white/16 border border-indigo-400/25 hover:border-purple-400/50 transition shadow-xs cursor-pointer text-left ${
               collapsed ? 'justify-center p-2 relative' : 'justify-between p-2'
             }`}
           >
@@ -2265,14 +2269,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   role="ADMIN"
                   size="sm"
                 />
-                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#0D1322]" />
+                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-[#080A2A]" />
               </div>
               {!collapsed && (
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  <div className="text-xs font-bold text-white truncate">
                     {currentUser?.name || 'Platform SuperAdmin'}
                   </div>
-                  <div className="text-[10px] text-purple-600 dark:text-purple-300 font-mono font-semibold truncate">
+                  <div className="text-[10px] text-purple-200 font-mono font-semibold truncate">
                     SUPERADMIN
                   </div>
                 </div>
@@ -2280,7 +2284,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             </div>
 
             {!collapsed && (
-              <div className="text-slate-400 hover:text-purple-600 dark:text-slate-500 dark:hover:text-purple-300 transition-colors">
+              <div className="text-slate-300 hover:text-white transition-colors">
                 <UserCog className="w-3.5 h-3.5" />
               </div>
             )}
@@ -2290,17 +2294,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           <button
             type="button"
             onClick={() => setIsInstallModalOpen(true)}
-            className={`w-full flex items-center rounded-xl bg-indigo-50/60 hover:bg-indigo-100/80 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 transition shadow-xs cursor-pointer ${
+            className={`w-full flex items-center rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 text-indigo-100 transition shadow-xs cursor-pointer ${
               collapsed ? 'justify-center p-2 relative' : 'justify-between px-2.5 py-1.5'
             }`}
             title="Install Dedicated SuperAdmin PWA / App"
           >
             <div className="flex items-center gap-2">
-              <Download className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <Download className="w-3.5 h-3.5 text-indigo-200 shrink-0" />
               {!collapsed && <span className="text-[11px] font-bold">Install {SUPERADMIN_PWA_SHORT_NAME}</span>}
             </div>
             {!collapsed && (
-              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white dark:bg-[#070B14] text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white/15 text-indigo-100 border border-indigo-300/30">
                 PWA
               </span>
             )}
@@ -2311,33 +2315,33 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className={`w-full flex items-center rounded-lg bg-slate-100/80 hover:bg-slate-200/80 dark:bg-[#0E1628] dark:hover:bg-[#131D33] border border-indigo-500/20 text-[11px] text-slate-700 dark:text-slate-200 transition cursor-pointer ${
+              className={`w-full flex items-center rounded-lg bg-white/10 hover:bg-white/16 border border-indigo-400/25 text-[11px] text-slate-100 transition cursor-pointer ${
                 collapsed ? 'justify-center p-2' : 'justify-between px-2 py-1.5'
               }`}
               title={`Current theme: ${theme}. Click to toggle`}
             >
               <div className="flex items-center gap-1.5 font-medium">
                 {theme === 'dark' ? (
-                  <Moon className="w-3 h-3 text-purple-400 shrink-0" />
+                  <Moon className="w-3 h-3 text-purple-300 shrink-0" />
                 ) : (
-                  <Sun className="w-3 h-3 text-purple-600 shrink-0" />
+                  <Sun className="w-3 h-3 text-purple-300 shrink-0" />
                 )}
                 {!collapsed && <span>Theme</span>}
               </div>
               {!collapsed && (
-                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-white dark:bg-[#070B14] text-slate-600 dark:text-cyan-300 border border-indigo-500/20">
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-white/15 text-cyan-200 border border-indigo-400/25">
                   {theme === 'dark' ? 'Dark' : 'Light'}
                 </span>
               )}
             </button>
 
             <div
-              className={`flex items-center rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-500/20 text-[10.5px] ${
+              className={`flex items-center rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-[10.5px] ${
                 collapsed ? 'justify-center p-2' : 'justify-between px-2 py-1'
               }`}
             >
-              <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <div className="flex items-center gap-1.5 text-emerald-300 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 {!collapsed && (
                   <span className="flex items-center gap-1 truncate">
                     <ShieldCheck className="w-3 h-3 shrink-0" />
@@ -2346,27 +2350,28 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 )}
               </div>
               {!collapsed && (
-                <span className="text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400">Connected</span>
+                <span className="text-[9.5px] font-mono text-emerald-300">Connected</span>
               )}
             </div>
 
             {!collapsed && !isMobile && (
-              <div className="hidden lg:flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <div className="hidden lg:flex items-center justify-between px-2 py-0.5 text-[10px] text-slate-300/90">
                 <div className="flex items-center gap-1.5">
-                  <Keyboard className="w-3 h-3 text-slate-400" />
+                  <Keyboard className="w-3 h-3 text-indigo-300" />
                   <span>Shortcuts:</span>
                 </div>
-                <span className="font-mono text-slate-600 dark:text-slate-300 font-semibold">F1 - F5 • Ctrl+B</span>
+                <span className="font-mono text-slate-100 font-semibold">F1 - F5 • Ctrl+B</span>
               </div>
             )}
 
             {!collapsed && (
-              <div className="px-2 pt-1 border-t border-indigo-500/15 flex items-center justify-between text-[9.5px] text-slate-400 dark:text-slate-500">
+              <div className="px-2 pt-1 border-t border-indigo-400/20 flex items-center justify-between text-[9.5px] text-slate-300/80">
                 <span>POS SaaS C-Panel</span>
                 <span className="font-mono">{APP_VERSION}</span>
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     );

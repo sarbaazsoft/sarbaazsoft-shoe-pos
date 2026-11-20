@@ -1,9 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { pgClient } from './index.ts';
 import { ensureAppSettingsSchema } from '../server/services/appSettingsService.ts';
 
 let saasControlPlaneInitialized = false;
 let saasControlPlanePromise: Promise<void> | null = null;
+let devSeedBootstrapPromise: Promise<boolean> | null = null;
 let databaseSchemaPromise: Promise<void> | null = null;
 let databaseEnumsSchemaPromise: Promise<void> | null = null;
 let customerLedgerSchemaPromise: Promise<void> | null = null;
@@ -1189,7 +1192,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
         });
       }
 
-      const superAdminHash = await bcrypt.hash('superadmin123', 10);
+      const superAdminHash = await bcrypt.hash('admin123', 10);
       const storeAdminHash = await bcrypt.hash('admin123', 10);
 
       const existingSuperAdmin = await pgClient.query<{ id: number; password_hash: string; quick_password: string }>(
@@ -1202,7 +1205,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
             `UPDATE users
              SET tenant_id = 0,
                  password_hash = $1,
-                 quick_password = 'superadmin123',
+                 quick_password = 'admin123',
                  status = 'APPROVED',
                  active = true,
                  updated_at = NOW()
@@ -1220,7 +1223,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
           );
         }
       } else {
-        const defaultSaEmail = 'talhah.jan@gmail.com';
+        const defaultSaEmail = 'sarbaazsoft@gmail.com';
         const emailTaken = await pgClient.query<{ id: number }>(
           `SELECT id FROM users WHERE LOWER(BTRIM(email)) = $1 LIMIT 1`,
           [defaultSaEmail]
@@ -1229,7 +1232,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
         await pgClient
           .query(
             `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status, active)
-             VALUES (0, 'Platform SuperAdmin', $1, '+92-300-0000001', $2, 'superadmin123', 'SUPERADMIN', 'APPROVED', true)
+             VALUES (0, 'Khalid Dashti', $1, '+92-321-2257340', $2, 'admin123', 'SUPERADMIN', 'APPROVED', true)
              ON CONFLICT (email) DO NOTHING`,
             [saEmail, superAdminHash]
           )
@@ -1267,6 +1270,55 @@ export async function ensureSaasControlPlane(): Promise<void> {
   })();
 
   return saasControlPlanePromise;
+}
+
+/**
+ * Executes the standalone idempotent seed.sql script against PostgreSQL.
+ * Safe to invoke on an empty or freshly created schema.
+ */
+export async function applySeedSql(): Promise<boolean> {
+  await pgClient.waitReady;
+  const seedPath = path.resolve(process.cwd(), 'seed.sql');
+  if (!fs.existsSync(seedPath)) {
+    return false;
+  }
+  const seedSql = fs.readFileSync(seedPath, 'utf8').trim();
+  if (!seedSql) {
+    return false;
+  }
+  await pgClient.exec(seedSql);
+  return true;
+}
+
+/**
+ * Automatically creates missing schema tables and applies seed.sql when running
+ * in development mode if tables do not exist yet.
+ */
+export async function autoSeedDevDatabaseIfTablesMissing(
+  checkMissingTables: () => Promise<boolean>
+): Promise<boolean> {
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
+  if (devSeedBootstrapPromise) {
+    return devSeedBootstrapPromise;
+  }
+
+  devSeedBootstrapPromise = (async () => {
+    await pgClient.waitReady;
+    const missing = await checkMissingTables();
+    if (!missing) {
+      return false;
+    }
+    await ensureDatabaseSchema();
+    await applySeedSql();
+    await ensureSaasControlPlane();
+    return true;
+  })().finally(() => {
+    devSeedBootstrapPromise = null;
+  });
+
+  return devSeedBootstrapPromise;
 }
 
 /**
