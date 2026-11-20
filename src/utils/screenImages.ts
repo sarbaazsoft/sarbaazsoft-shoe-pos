@@ -145,16 +145,16 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     url: 'https://images.pexels.com/photos/27008332/pexels-photo-27008332/free-photo-of-zapatilla-lila-glitter.jpeg?auto=compress&cs=tinysrgb&w=1600',
   },
 
-  // INDIGO / SAPPHIRE BLUE / COBALT SKY
+  // INDIGO / SAPPHIRE BLUE / MIDNIGHT NAVY
   {
     id: 'indigo-lit-showroom',
-    title: 'Cobalt Lit Shoe Wall',
+    title: 'Sapphire Lit Shoe Wall',
     subtitle: 'Glowing dark indigo shoe shelves',
     source: 'Unsplash',
     colorTag: 'Indigo',
     colorHex: '#4F46E5',
     matchedPresets: ['indigo'],
-    matchedCuratedKeys: ['sapphire', 'cobalt'],
+    matchedCuratedKeys: ['sapphire', 'navy', 'obsidian'],
     url: 'https://images.unsplash.com/photo-1542755687-a33ff0c970ec?auto=format&fit=crop&w=1600&q=80',
   },
   {
@@ -165,7 +165,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Sapphire',
     colorHex: '#2563EB',
     matchedPresets: ['indigo'],
-    matchedCuratedKeys: ['sapphire', 'cobalt'],
+    matchedCuratedKeys: ['sapphire', 'navy'],
     url: 'https://images.unsplash.com/photo-1616258372736-f5e5d5337d6e?auto=format&fit=crop&w=1600&q=80',
   },
   {
@@ -176,18 +176,18 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Blue',
     colorHex: '#2563EB',
     matchedPresets: ['indigo'],
-    matchedCuratedKeys: ['sapphire', 'cobalt'],
+    matchedCuratedKeys: ['sapphire', 'navy'],
     url: 'https://images.unsplash.com/photo-1672840005700-fd8e4159a8df?auto=format&fit=crop&w=1600&q=80',
   },
   {
     id: 'cobalt-nike-duo',
-    title: 'Cobalt & White Sneakers',
+    title: 'Midnight Navy & White Sneakers',
     subtitle: 'High-contrast blue leather pair',
     source: 'Unsplash',
-    colorTag: 'Cobalt',
-    colorHex: '#0284C7',
+    colorTag: 'Navy',
+    colorHex: '#1E3A8A',
     matchedPresets: ['indigo', 'cyan'],
-    matchedCuratedKeys: ['cobalt', 'sapphire'],
+    matchedCuratedKeys: ['navy', 'sapphire'],
     url: 'https://images.unsplash.com/photo-1615450996941-33dc3878a88a?auto=format&fit=crop&w=1600&q=80',
   },
 
@@ -200,7 +200,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Cyan',
     colorHex: '#06B6D4',
     matchedPresets: ['cyan'],
-    matchedCuratedKeys: ['cobalt'],
+    matchedCuratedKeys: ['navy', 'cypress'],
     url: 'https://images.pexels.com/photos/19090/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=1600',
   },
   {
@@ -211,7 +211,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Cyan',
     colorHex: '#0891B2',
     matchedPresets: ['cyan'],
-    matchedCuratedKeys: ['cobalt'],
+    matchedCuratedKeys: ['navy', 'obsidian'],
     url: 'https://images.pexels.com/photos/1070360/pexels-photo-1070360.jpeg?auto=compress&cs=tinysrgb&w=1600',
   },
   {
@@ -222,20 +222,20 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Cyan',
     colorHex: '#06B6D4',
     matchedPresets: ['cyan', 'teal'],
-    matchedCuratedKeys: ['mint'],
+    matchedCuratedKeys: ['cypress', 'emerald'],
     url: 'https://i.pinimg.com/originals/c2/0b/71/c20b7103b965eeaf960112797f54e7bf.jpg',
   },
 
-  // TEAL / EMERALD FOREST / ARCTIC MINT
+  // TEAL / EMERALD FOREST / DEEP CYPRESS / NORDIC OLIVE
   {
     id: 'teal-geode-dunk',
     title: 'Geode Teal Sneakers',
-    subtitle: 'Deep teal & emerald court pair',
+    subtitle: 'Deep teal & cypress court pair',
     source: 'Pinterest',
     colorTag: 'Teal',
     colorHex: '#0D9488',
     matchedPresets: ['teal'],
-    matchedCuratedKeys: ['emerald', 'mint'],
+    matchedCuratedKeys: ['emerald', 'cypress'],
     url: 'https://i.pinimg.com/736x/9c/d6/1e/9cd61ea6810fd753636cb72c3f2a9299.jpg',
   },
   {
@@ -246,18 +246,18 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Emerald',
     colorHex: '#059669',
     matchedPresets: ['teal'],
-    matchedCuratedKeys: ['emerald', 'mint'],
+    matchedCuratedKeys: ['emerald', 'olive', 'cypress'],
     url: 'https://images.pexels.com/photos/1456706/pexels-photo-1456706.jpeg?auto=compress&cs=tinysrgb&w=1600',
   },
   {
     id: 'mint-spruce-sneakers',
-    title: 'Arctic Mint Sneakers',
-    subtitle: 'Fresh seafoam & spruce low-tops',
+    title: 'Spruce & Cypress Sneakers',
+    subtitle: 'Deep pine & olive court low-tops',
     source: 'Pinterest',
-    colorTag: 'Mint',
-    colorHex: '#10B981',
+    colorTag: 'Cypress',
+    colorHex: '#115E59',
     matchedPresets: ['teal'],
-    matchedCuratedKeys: ['mint', 'emerald'],
+    matchedCuratedKeys: ['cypress', 'olive', 'emerald'],
     url: 'https://i.pinimg.com/originals/e5/8c/03/e58c03d80ac8c3ccc2cbea806acb929f.jpg',
   },
 
@@ -281,7 +281,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Orange',
     colorHex: '#EA580C',
     matchedPresets: ['orange'],
-    matchedCuratedKeys: ['amber', 'bronze'],
+    matchedCuratedKeys: ['amber', 'bronze', 'terracotta', 'noir'],
     url: 'https://images.pexels.com/photos/14337851/pexels-photo-14337851.jpeg?auto=compress&cs=tinysrgb&w=1600',
   },
   {
@@ -292,7 +292,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Amber',
     colorHex: '#D97706',
     matchedPresets: ['orange'],
-    matchedCuratedKeys: ['amber', 'bronze'],
+    matchedCuratedKeys: ['amber', 'bronze', 'terracotta', 'taupe'],
     url: 'https://images.pexels.com/photos/29090887/pexels-photo-29090887/free-photo-of-close-up-of-leather-boots-in-shoe-store-display.jpeg?auto=compress&cs=tinysrgb&w=1600',
   },
   {
@@ -303,7 +303,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Bronze',
     colorHex: '#B45309',
     matchedPresets: ['orange'],
-    matchedCuratedKeys: ['bronze', 'amber'],
+    matchedCuratedKeys: ['bronze', 'amber', 'taupe', 'terracotta'],
     url: 'https://images.pexels.com/photos/5669253/pexels-photo-5669253.jpeg?auto=compress&cs=tinysrgb&w=1600',
   },
 
@@ -351,7 +351,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Burgundy',
     colorHex: '#9F1239',
     matchedPresets: ['burgundy'],
-    matchedCuratedKeys: ['rose', 'crimson'],
+    matchedCuratedKeys: ['rose', 'crimson', 'mauve'],
     url: 'https://i.pinimg.com/736x/9e/7f/1e/9e7f1e4fb4e8cc3f2fef566c50544f83.jpg',
   },
   {
@@ -362,7 +362,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Burgundy',
     colorHex: '#881337',
     matchedPresets: ['burgundy'],
-    matchedCuratedKeys: ['rose', 'plum'],
+    matchedCuratedKeys: ['rose', 'plum', 'mauve'],
     url: 'https://i.pinimg.com/originals/60/1c/6a/601c6ae85c4d55c2541b012b578003bb.jpg',
   },
   {
@@ -373,7 +373,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Rose',
     colorHex: '#E11D48',
     matchedPresets: ['burgundy', 'red'],
-    matchedCuratedKeys: ['rose', 'crimson'],
+    matchedCuratedKeys: ['rose', 'crimson', 'mauve'],
     url: 'https://images.unsplash.com/photo-1637228393230-6f7bcfb4a032?auto=format&fit=crop&w=1600&q=80',
   },
 
@@ -421,7 +421,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Warm Gold',
     colorHex: '#D97706',
     matchedPresets: ['orange'],
-    matchedCuratedKeys: ['amber', 'bronze'],
+    matchedCuratedKeys: ['amber', 'bronze', 'noir', 'taupe'],
     url: 'https://images.unsplash.com/photo-1556906781-9a412961c28c?auto=format&fit=crop&w=1600&q=80',
   },
   {
@@ -432,7 +432,7 @@ export const PREDEFINED_SCREEN_IMAGE_LIBRARY: PredefinedLibraryImage[] = [
     colorTag: 'Warm Slate',
     colorHex: '#4F46E5',
     matchedPresets: ['indigo'],
-    matchedCuratedKeys: ['sapphire'],
+    matchedCuratedKeys: ['sapphire', 'obsidian', 'noir', 'taupe'],
     url: 'https://i.pinimg.com/originals/c6/d5/ec/c6d5ec4c2207099c474721283362125f.jpg',
   },
   {

@@ -110,7 +110,10 @@ test('HEX validation, custom shade generation, WCAG contrast calculation, and DO
   assert.equal(isValidHexColor('#12345'), false);
   assert.equal(normalizeHexColor('0ea'), '#00EEAA');
 
-  assert.equal(CURATED_APPEARANCE_PALETTES.length, 10);
+  assert.equal(CURATED_APPEARANCE_PALETTES.length, 16);
+  const curatedKeys = CURATED_APPEARANCE_PALETTES.map((p) => p.key);
+  assert.equal(curatedKeys.includes('cobalt'), false, 'Cobalt Sky should be removed from curated palettes');
+  assert.equal(curatedKeys.includes('mint'), false, 'Arctic Mint should be removed from curated palettes');
   for (const curated of CURATED_APPEARANCE_PALETTES) {
     assert.equal(isValidHexColor(curated.hex), true);
   }

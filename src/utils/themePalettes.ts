@@ -419,11 +419,17 @@ export const CURATED_APPEARANCE_PALETTES: CuratedAppearancePalette[] = [
   { key: 'amber', name: 'Amber Gold', companionName: 'Burnished Honey', hex: '#D97706' },
   { key: 'rose', name: 'Rose Velvet', companionName: 'Berry Silk', hex: '#E11D48' },
   { key: 'lavender', name: 'Electric Violet', companionName: 'Neon Iris', hex: '#7C3AED' },
-  { key: 'cobalt', name: 'Cobalt Sky', companionName: 'Cerulean', hex: '#0284C7' },
   { key: 'crimson', name: 'Crimson Ruby', companionName: 'Garnet Spark', hex: '#B91C1C' },
   { key: 'bronze', name: 'Espresso Bronze', companionName: 'Roasted Copper', hex: '#B45309' },
-  { key: 'mint', name: 'Arctic Mint', companionName: 'Seafoam Pulse', hex: '#10B981' },
   { key: 'plum', name: 'Midnight Plum', companionName: 'Mulberry Dusk', hex: '#86198F' },
+  { key: 'obsidian', name: 'Obsidian Slate', companionName: 'Graphite Mist', hex: '#334155' },
+  { key: 'navy', name: 'Midnight Navy', companionName: 'Abyssal Blue', hex: '#1E3A8A' },
+  { key: 'olive', name: 'Nordic Olive', companionName: 'Moss Sage', hex: '#3F6212' },
+  { key: 'terracotta', name: 'Terracotta Clay', companionName: 'Sienna Rust', hex: '#C2410C' },
+  { key: 'taupe', name: 'Warm Taupe', companionName: 'Cashmere Stone', hex: '#57534E' },
+  { key: 'mauve', name: 'Velvet Mauve', companionName: 'Dusty Berry', hex: '#9D174D' },
+  { key: 'cypress', name: 'Deep Cypress', companionName: 'Pine Shadow', hex: '#115E59' },
+  { key: 'noir', name: 'Carbon Noir', companionName: 'Onyx Mist', hex: '#27272A' },
 ];
 
 export type ThemeModePreference = 'light' | 'dark' | 'system';
