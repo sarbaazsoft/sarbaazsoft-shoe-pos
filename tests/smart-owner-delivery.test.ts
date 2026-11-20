@@ -203,7 +203,7 @@ test('Smart Owner Delivery: Owner Online via heartbeat (without SSE) sends push 
   }
 });
 
-test('Smart Owner Delivery: Owner Offline (even with 0 FCM tokens and Cashier active at POS) reliably sends email and avoids Owner push/SSE duplicates', async () => {
+test('FCM Primary + Email Fallback: Owner receives FCM push even when browser is closed (no email duplicate), and Cashier stays self-scoped', async () => {
   resetServerNotificationDedupeCache();
   resetOwnerPresenceForTests();
 
@@ -214,7 +214,7 @@ test('Smart Owner Delivery: Owner Offline (even with 0 FCM tokens and Cashier ac
     authenticated: true,
   });
 
-  // Ensure a Cashier heartbeat also never counts as Owner online
+  // Ensure a Cashier heartbeat still never counts as Owner online
   const cashierHeartbeatAccepted = recordOwnerHeartbeat({
     tenantId,
     userId: 55,
@@ -228,7 +228,7 @@ test('Smart Owner Delivery: Owner Offline (even with 0 FCM tokens and Cashier ac
   const emailedPayloads: any[] = [];
 
   try {
-    // Case A: Registered tokens exist for Owner + Cashier -> ONLY Cashier token receives push; Owner gets email only
+    // Case A: Registered tokens exist for Owner + Cashier -> FCM delivers to Owner + Cashier tokens; no duplicate Email
     await notifyPosAction(
       tenantId,
       {
@@ -261,9 +261,12 @@ test('Smart Owner Delivery: Owner Offline (even with 0 FCM tokens and Cashier ac
     );
 
     assert.equal(cashierRes.chunks.length, 1, 'Cashier should still see their counter notification');
-    assert.deepEqual(pushedTokenBatches, [['fcm-cashier-55']], 'Owner FCM tokens MUST be skipped when Owner is Offline');
-    assert.equal(emailedPayloads.length, 1, 'Email alert MUST be dispatched when Owner is Offline');
-    assert.equal(emailedPayloads[0].eventId, 'smart-offline-sale-with-tokens');
+    assert.deepEqual(
+      pushedTokenBatches,
+      [['fcm-owner-offline', 'fcm-owner-2', 'fcm-cashier-55']],
+      'FCM primary delivers to Owner background/closed devices alongside counter Cashier'
+    );
+    assert.equal(emailedPayloads.length, 0, 'Email Fallback must stay suppressed when Owner FCM push succeeds');
 
     // Case B: 0 FCM tokens in database -> must NOT early-return before dispatching email alert
     await notifyPosAction(
@@ -294,8 +297,8 @@ test('Smart Owner Delivery: Owner Offline (even with 0 FCM tokens and Cashier ac
       }
     );
 
-    assert.equal(emailedPayloads.length, 2, 'Email MUST still be delivered even when fcm_tokens table has 0 rows');
-    assert.equal(emailedPayloads[1].type, 'RETURN');
+    assert.equal(emailedPayloads.length, 1, 'Email Fallback MUST trigger when Store Owner has 0 active FCM tokens');
+    assert.equal(emailedPayloads[0].type, 'RETURN');
   } finally {
     unregisterCashier();
     resetServerNotificationDedupeCache();
@@ -497,14 +500,14 @@ test('Smart SuperAdmin Delivery: SuperAdmin Online receives SSE + FCM push and N
     assert.equal(isSuperAdminOnline(), false);
     assert.equal(isPlatformSuperAdminOnline(), false);
 
-    // Case A: SuperAdmin Offline -> Email MUST be sent, SSE & FCM skipped
-    const offlineEmails: any[] = [];
-    let offlineFcmCount = 0;
+    // Case A: SuperAdmin has 0 FCM tokens -> Email Fallback triggers reliably
+    const fallbackEmails: any[] = [];
+    let fallbackFcmCalls = 0;
 
     await notifyPlatformAnnouncement(
       {
         id: 701,
-        eventId: 'sa-trial-offline-1',
+        eventId: 'sa-trial-fallback-1',
         tenantId: null,
         targetRole: 'SUPERADMIN',
         title: 'New Free Trial: Star Footwear',
@@ -514,22 +517,52 @@ test('Smart SuperAdmin Delivery: SuperAdmin Online receives SSE + FCM push and N
         actionLabel: 'View Store',
       },
       {
-        fetchFcmTokensFn: async () => ['fcm-superadmin-1'],
+        fetchFcmTokensFn: async () => [],
         sendFcmPushToTokensFn: async () => {
-          offlineFcmCount++;
-          return { success: true, sentCount: 1, failureCount: 0 };
+          fallbackFcmCalls++;
+          return { success: true, sentCount: 0, failureCount: 0 };
         },
         dispatchSuperAdminEmailAlertFn: async (payload) => {
-          offlineEmails.push(payload);
+          fallbackEmails.push(payload);
           return true;
         },
       }
     );
 
-    assert.equal(offlineEmails.length, 1, 'Offline SuperAdmin alert MUST trigger email');
-    assert.equal(offlineEmails[0].title, 'New Free Trial: Star Footwear');
-    assert.equal(offlineFcmCount, 0, 'Offline SuperAdmin MUST NOT get duplicate FCM push');
+    assert.equal(fallbackEmails.length, 1, 'SuperAdmin alert with 0 FCM tokens MUST trigger email fallback');
+    assert.equal(fallbackEmails[0].title, 'New Free Trial: Star Footwear');
+    assert.equal(fallbackFcmCalls, 0);
     assert.equal(storeOwnerRes.chunks.length, 0);
+
+    // Case A2: SuperAdmin has active FCM token (even with browser closed) -> FCM primary delivers, email suppressed
+    const primaryFcmBatches: string[][] = [];
+    let suppressedEmailCount = 0;
+    await notifyPlatformAnnouncement(
+      {
+        id: 7011,
+        eventId: 'sa-trial-fcm-primary-1',
+        tenantId: null,
+        targetRole: 'SUPERADMIN',
+        title: 'New Free Trial: Crescent Footwear',
+        message: 'Registered by owner@crescent.com',
+        type: 'INFO',
+        actionUrl: '/superadmin',
+        actionLabel: 'View Store',
+      },
+      {
+        fetchFcmTokensFn: async () => ['fcm-superadmin-1'],
+        sendFcmPushToTokensFn: async (tokens) => {
+          primaryFcmBatches.push(tokens);
+          return { success: true, sentCount: tokens.length, failureCount: 0 };
+        },
+        dispatchSuperAdminEmailAlertFn: async () => {
+          suppressedEmailCount++;
+          return true;
+        },
+      }
+    );
+    assert.deepEqual(primaryFcmBatches, [['fcm-superadmin-1']]);
+    assert.equal(suppressedEmailCount, 0, 'SuperAdmin FCM primary must suppress redundant email fallback');
 
     // Case B: SuperAdmin Online via authenticated SSE -> SSE + FCM sent, Email suppressed
     const saRes = createMockSseRes();

@@ -289,7 +289,55 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
           payload.messageId ||
           dedupeKey;
 
-        // Play alert audio chime only if SSE / SW did not already play it for this event
+        const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
+        let activeUserRole = '';
+        try {
+          const rawUser = localStorage.getItem('pos_current_user');
+          if (rawUser) {
+            activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
+          }
+        } catch {}
+
+        const mergedFcmData = {
+          ...(payload.data || {}),
+          url: deepLinkUrl,
+          isAdmin: isAdminTarget ? 'true' : 'false',
+          eventId: payload.data?.eventId || tag,
+          tag,
+          timestamp: parsedTimestamp,
+          userRole: payload.data?.userRole || activeUserRole,
+        };
+
+        // Emit shared foreground FCM event so Header bell, PosNotificationBanner, and SuperAdmin update without polling
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('pos:fcm-notification', {
+              detail: {
+                id: payload.data?.announcementId || payload.data?.notificationId || tag,
+                eventId: mergedFcmData.eventId,
+                tag,
+                type: payload.data?.type || 'INFO',
+                itemType: payload.data?.itemType || '',
+                title,
+                message: body,
+                invoiceNumber: payload.data?.invoiceNumber || undefined,
+                purchaseNumber: payload.data?.purchaseNumber || undefined,
+                returnNumber: payload.data?.returnNumber || undefined,
+                saleId: payload.data?.saleId || undefined,
+                announcementId: payload.data?.announcementId || undefined,
+                totalAmount: payload.data?.totalAmount ? Number(payload.data.totalAmount) : undefined,
+                targetRole: payload.data?.targetRole || undefined,
+                deepLinkUrl,
+                actionUrl: deepLinkUrl,
+                actionLabel: payload.data?.actionLabel || undefined,
+                timestamp: new Date(parsedTimestamp).toISOString(),
+                isAdmin: isAdminTarget,
+              },
+            })
+          );
+        }
+
+        // Play alert audio chime once per foreground FCM event
         if (claimNotificationChannel(dedupeKey, 'audio')) {
           playAudioFeedback.success();
         }
@@ -309,25 +357,6 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
           !isNotificationChannelClaimed(dedupeKey, 'os_notification') &&
           claimNotificationChannel(dedupeKey, 'os_notification')
         ) {
-          const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
-          let activeUserRole = '';
-          try {
-            const rawUser = localStorage.getItem('pos_current_user');
-            if (rawUser) {
-              activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
-            }
-          } catch {}
-
-          const mergedFcmData = {
-            ...(payload.data || {}),
-            url: deepLinkUrl,
-            isAdmin: isAdminTarget ? 'true' : 'false',
-            eventId: payload.data?.eventId || tag,
-            tag,
-            timestamp: parsedTimestamp,
-            userRole: payload.data?.userRole || activeUserRole,
-          };
-
           void showSingleShadeNotification(
             title,
             {

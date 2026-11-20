@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ShoppingCart, Boxes, Users, AlertTriangle, Calendar, Truck, RefreshCw, RotateCcw, BarChart3, Building2, Store, Sparkles, X, CheckCircle2, AlertCircle, TrendingUp, DollarSign, Zap, Package, Clock } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { api } from '../../services/api.ts';
-import { useDashboardReportQuery, useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
+import { useDashboardReportQuery } from '../../hooks/useLiveData.ts';
+import { useNotifications } from '../../context/NotificationContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { formatCurrency } from '../../utils/priceFormat.ts';
 import { isFreeTrial, calculateDaysLeft, normalizeSubscriptionPlan, getAvailableTemplateChips, getRenewalMessageTemplate, resolveDefaultRenewalTemplateType, type RenewalTemplateType } from '../../utils/subscription.ts';
@@ -249,12 +250,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const visitKey = `pos_store_owner_visited_${tenantId}_${userId}`;
   const dismissKey = `pos_welcome_banner_dismissed_${tenantId}_${userId}`;
 
-  const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
-    enabled: isActive,
-  });
+  const { notices, dismissNotice, refreshGrouped } = useNotifications();
 
   const activeNotices = useMemo(() => {
-    const raw = groupedNotifsQuery.data?.notices || [];
+    const raw = notices || [];
     const seen = new Set<string>();
     return raw.filter((n: any) => {
       const key = (n.title || '').trim().toLowerCase();
@@ -262,19 +261,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       seen.add(key);
       return true;
     });
-  }, [groupedNotifsQuery.data]);
+  }, [notices]);
 
   const handleDismissNotice = async (noticeId: number | string) => {
     try {
-      groupedNotifsQuery.setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              notices: (prev.notices || []).filter((n) => n.id !== noticeId),
-            }
-          : prev
-      );
-      await api.notifications.dismiss(noticeId, 'NOTICE');
+      await dismissNotice(noticeId);
       emitDataSync(['notifications'], { source: 'dashboard-overview' });
     } catch (err) {
       console.error('Failed to dismiss notice from dashboard:', err);
@@ -526,25 +517,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       });
       for (const wn of welcomeNotices) {
         if (wn?.id) {
-          api.notifications.dismiss(wn.id, 'NOTICE').catch(() => {});
+          void dismissNotice(wn.id).catch(() => {});
         }
       }
-      groupedNotifsQuery.setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              notices: (prev.notices || []).filter((n) => {
-                const titleLower = (n.title || '').toLowerCase();
-                const msgLower = (n.message || '').toLowerCase();
-                return (
-                  !titleLower.includes('welcome') &&
-                  !msgLower.includes('welcome') &&
-                  !msgLower.includes('thank you for choosing')
-                );
-              }),
-            }
-          : prev
-      );
       emitDataSync(['notifications'], { source: 'dashboard-overview' });
     } catch {}
   };
@@ -867,7 +842,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   }, [dashboardReportQuery.data]);
 
   const loadData = async () => {
-    await Promise.all([dashboardReportQuery.refetch(), groupedNotifsQuery.refetch()]);
+    await Promise.all([dashboardReportQuery.refetch(), refreshGrouped({ noticesOnly: true })]);
     triggerStatRecount();
   };
 

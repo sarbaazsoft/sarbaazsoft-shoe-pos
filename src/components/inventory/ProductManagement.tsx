@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Edit2, Trash2, AlertTriangle, Barcode, SlidersHorizontal, ShoppingBag, Boxes, Layers, DollarSign, Box, RefreshCw, Upload, CheckCircle2, Check, X, Loader2, LayoutGrid, List } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { useCategoriesQuery, useProductsQuery } from '../../hooks/useLiveData.ts';
-import { ProductFormModal } from './ProductFormModal.tsx';
-import { CsvImportModal } from './CsvImportModal.tsx';
-import { BarcodeStickerModal } from './BarcodeStickerModal.tsx';
-import { BarcodeGeneratorTool } from './BarcodeGeneratorTool.tsx';
-import { SideEndBoxLabelModal } from './SideEndBoxLabelModal.tsx';
-import { StockAdjustModal } from './StockAdjustModal.tsx';
+const ProductFormModal = lazy(() => import('./ProductFormModal.tsx').then((m) => ({ default: m.ProductFormModal })));
+const CsvImportModal = lazy(() => import('./CsvImportModal.tsx').then((m) => ({ default: m.CsvImportModal })));
+const BarcodeStickerModal = lazy(() => import('./BarcodeStickerModal.tsx').then((m) => ({ default: m.BarcodeStickerModal })));
+const BarcodeGeneratorTool = lazy(() => import('./BarcodeGeneratorTool.tsx').then((m) => ({ default: m.BarcodeGeneratorTool })));
+const SideEndBoxLabelModal = lazy(() => import('./SideEndBoxLabelModal.tsx').then((m) => ({ default: m.SideEndBoxLabelModal })));
+const StockAdjustModal = lazy(() => import('./StockAdjustModal.tsx').then((m) => ({ default: m.StockAdjustModal })));
 import { BarcodeSvg } from '../common/BarcodeSvg.tsx';
 import { formatStockPrice, getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { useTheme } from '../../context/ThemeContext.tsx';
@@ -1531,85 +1531,97 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       {/* MODALS */}
       <AnimatePresence>
         {isBarcodeToolOpen && (
-          <BarcodeGeneratorTool
-            products={products}
-            initialSelectedProduct={barcodeToolProduct}
-            companySettings={companySettings}
-            onClose={() => {
-              setIsBarcodeToolOpen(false);
-              setBarcodeToolProduct(null);
-            }}
-            onRefreshProducts={loadProducts}
-          />
+          <Suspense fallback={null}>
+            <BarcodeGeneratorTool
+              products={products}
+              initialSelectedProduct={barcodeToolProduct}
+              companySettings={companySettings}
+              onClose={() => {
+                setIsBarcodeToolOpen(false);
+                setBarcodeToolProduct(null);
+              }}
+              onRefreshProducts={loadProducts}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {isFormModalOpen && (
-          <ProductFormModal
-            product={editingProduct}
-            companySettings={companySettings}
-            onClose={() => {
-              setIsFormModalOpen(false);
-              setEditingProduct(null);
-            }}
-            onSuccess={() => {
-              emitDataSync(['products', 'inventory'], { source: 'product-management' });
-              loadProducts();
-            }}
-          />
+          <Suspense fallback={null}>
+            <ProductFormModal
+              product={editingProduct}
+              companySettings={companySettings}
+              onClose={() => {
+                setIsFormModalOpen(false);
+                setEditingProduct(null);
+              }}
+              onSuccess={() => {
+                emitDataSync(['products', 'inventory'], { source: 'product-management' });
+                loadProducts();
+              }}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {stickerProduct && (
-          <BarcodeStickerModal
-            product={stickerProduct}
-            companySettings={companySettings}
-            onClose={() => setStickerProduct(null)}
-          />
+          <Suspense fallback={null}>
+            <BarcodeStickerModal
+              product={stickerProduct}
+              companySettings={companySettings}
+              onClose={() => setStickerProduct(null)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {sideEndLabelProduct && !isWholesaleStore && (
-          <SideEndBoxLabelModal
-            product={sideEndLabelProduct}
-            companySettings={companySettings}
-            onClose={() => setSideEndLabelProduct(null)}
-          />
+          <Suspense fallback={null}>
+            <SideEndBoxLabelModal
+              product={sideEndLabelProduct}
+              companySettings={companySettings}
+              onClose={() => setSideEndLabelProduct(null)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {adjustingProduct && (
-          <StockAdjustModal
-            product={adjustingProduct}
-            onClose={() => setAdjustingProduct(null)}
-            onSuccess={() => {
-              emitDataSync(['products', 'inventory'], { source: 'product-management' });
-              loadProducts();
-            }}
-          />
+          <Suspense fallback={null}>
+            <StockAdjustModal
+              product={adjustingProduct}
+              onClose={() => setAdjustingProduct(null)}
+              onSuccess={() => {
+                emitDataSync(['products', 'inventory'], { source: 'product-management' });
+                loadProducts();
+              }}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {isCsvImportOpen && (
-          <CsvImportModal
-            companySettings={companySettings}
-            existingProducts={products}
-            onClose={() => setIsCsvImportOpen(false)}
-            onImportSuccess={(summaryMsg) => {
-              setImportToastMessage(summaryMsg);
-              emitDataSync(['products', 'inventory'], { source: 'product-management' });
-              loadProducts();
-              void categoriesQuery.refetch();
-              setTimeout(() => {
-                setImportToastMessage((prev) => (prev === summaryMsg ? null : prev));
-              }, 7000);
-            }}
-          />
+          <Suspense fallback={null}>
+            <CsvImportModal
+              companySettings={companySettings}
+              existingProducts={products}
+              onClose={() => setIsCsvImportOpen(false)}
+              onImportSuccess={(summaryMsg) => {
+                setImportToastMessage(summaryMsg);
+                emitDataSync(['products', 'inventory'], { source: 'product-management' });
+                loadProducts();
+                void categoriesQuery.refetch();
+                setTimeout(() => {
+                  setImportToastMessage((prev) => (prev === summaryMsg ? null : prev));
+                }, 7000);
+              }}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
     </div>

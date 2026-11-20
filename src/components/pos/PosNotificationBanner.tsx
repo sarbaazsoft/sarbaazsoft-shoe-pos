@@ -10,10 +10,9 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
-import { useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
+import { useNotifications } from '../../context/NotificationContext.tsx';
 import type { PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
-import { connectRealtimeNotificationStream } from '../../services/pushNotificationClient.ts';
 import { navigateToNotificationUrl } from '../../utils/notificationActions.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
@@ -103,34 +102,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
     };
   }, []);
 
-  const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
-    enabled: Boolean(currentUser),
-    refetchInterval: 30_000,
-  });
-
-  const rawServerNotices = useMemo<PlatformNotification[]>(
-    () => groupedNotifsQuery.data?.notices || [],
-    [groupedNotifsQuery.data]
-  );
-
-  // Refetch on real-time notification stream events for immediate delivery of notices
-  useEffect(() => {
-    const cleanupStream = connectRealtimeNotificationStream((payload) => {
-      const targetRole = payload.targetRole ? String(payload.targetRole).toUpperCase() : 'ALL';
-      const isSuperAdminOnly =
-        targetRole === 'SUPERADMIN' ||
-        (payload.title || '').toLowerCase().includes('new free trial') ||
-        (payload.title || '').toLowerCase().includes('renewal request');
-
-      if (!isSuperAdminOnly && (targetRole === 'ALL' || targetRole === 'CASHIER')) {
-        void groupedNotifsQuery.refetch();
-      }
-    });
-
-    return () => {
-      if (cleanupStream) cleanupStream();
-    };
-  }, [groupedNotifsQuery.refetch]);
+  const { notices: rawServerNotices, removeNoticeLocally } = useNotifications();
 
   // Combine Super Admin notices + exactly ONE cashier welcome message with strict deduplication
   const activeNotices = useMemo<BannerNoticeItem[]>(() => {
@@ -271,6 +243,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
     // If server notice, inform backend to mark dismissed/read
     if (typeof notice.id === 'number' || notice.rawId) {
       const notifId = notice.rawId || Number(notice.id);
+      removeNoticeLocally(notifId);
       try {
         await api.notifications.dismissAnnouncement(notifId);
       } catch (err) {
@@ -297,6 +270,7 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
       allIds.forEach((id) => {
         next.add(id);
         next.add(String(id));
+        removeNoticeLocally(id);
       });
       try {
         localStorage.setItem(dismissedStorageKey, JSON.stringify(Array.from(next)));

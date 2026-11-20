@@ -429,28 +429,28 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     let isMounted = true;
     api.saas.getPublicStats()
       .then((stats) => {
-        if (isMounted) {
-          setPublicStats(stats);
-          if (stats.superAdminEmail) {
-            setPlatformOwnerEmail(stats.superAdminEmail);
-          }
-          if (stats.superAdminPhone) {
-            setPlatformOwnerPhone(stats.superAdminPhone);
-          }
+        if (!isMounted) return;
+        setPublicStats(stats);
+        if (stats.superAdminEmail) {
+          setPlatformOwnerEmail(stats.superAdminEmail);
+        }
+        if (stats.superAdminPhone) {
+          setPlatformOwnerPhone(stats.superAdminPhone);
+        }
+        if (!stats.superAdminEmail || !stats.superAdminPhone) {
+          api.saas.getPlatformOwner()
+            .then((owner) => {
+              if (isMounted) {
+                if (owner?.email) setPlatformOwnerEmail(owner.email);
+                if (owner?.phone) setPlatformOwnerPhone(owner.phone);
+              }
+            })
+            .catch(() => {});
         }
       })
       .catch(() => {
         // Keep the counters blank when live totals cannot be loaded; never show invented figures.
       });
-
-    api.saas.getPlatformOwner()
-      .then((owner) => {
-        if (isMounted) {
-          if (owner?.email) setPlatformOwnerEmail(owner.email);
-          if (owner?.phone) setPlatformOwnerPhone(owner.phone);
-        }
-      })
-      .catch(() => {});
 
     return () => {
       isMounted = false;
@@ -463,8 +463,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     }
   }, [availableTenants]);
 
+  const hasInitialTenants = Array.isArray(availableTenants) && availableTenants.length > 0;
   const saasDirectoryQuery = useSaasDirectoryQuery(undefined, {
-    refetchInterval: 30_000,
+    enabled: !hasInitialTenants,
   });
 
   useEffect(() => {

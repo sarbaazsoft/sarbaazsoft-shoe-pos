@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import {
   Bell,
   CheckCircle2,
@@ -26,7 +26,9 @@ import {
 import { api, getActiveTenantId } from '../../services/api.ts';
 import type { AllNotificationsResponse, HistoricalNotificationItem } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
-import { NotificationAlertProvidersSettings } from '../settings/NotificationAlertProvidersSettings.tsx';
+const NotificationAlertProvidersSettings = lazy(() =>
+  import('../settings/NotificationAlertProvidersSettings.tsx').then((m) => ({ default: m.NotificationAlertProvidersSettings }))
+);
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { FeedLedgerSkeleton } from '../common/RouteSkeletons.tsx';
 import { useAllNotificationsQuery } from '../../hooks/useLiveData.ts';
@@ -699,9 +701,11 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {/* ALERT PROVIDER CONFIGURATION PANEL - SUPERADMIN EXCLUSIVE */}
       {isSuperAdmin && showProviderSettings && (
         <div className="transition-all duration-200 animate-in fade-in">
-          <NotificationAlertProvidersSettings
-            onClose={() => setShowProviderSettings(false)}
-          />
+          <Suspense fallback={null}>
+            <NotificationAlertProvidersSettings
+              onClose={() => setShowProviderSettings(false)}
+            />
+          </Suspense>
         </div>
       )}
 

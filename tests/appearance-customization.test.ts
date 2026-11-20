@@ -540,7 +540,7 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
 
 test('Frontend architecture wires SettingsView, unified backdrop across all routes, and removes backdrop section for Cashiers', () => {
   const settingsSrc = readProjectFile('src/components/settings/SettingsView.tsx');
-  assert.ok(settingsSrc.includes("import { AppearanceSettingsTab } from './AppearanceSettingsTab.tsx'"));
+  assert.ok(settingsSrc.includes("import('./AppearanceSettingsTab.tsx')"));
   assert.ok(settingsSrc.includes('id="settings-tab-appearance"'));
   assert.ok(settingsSrc.includes('id="settings-tab-printers"'));
   assert.ok(

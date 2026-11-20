@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Barcode, Search, Plus, Minus, Trash2, AlertTriangle, Banknote, ShieldAlert, Printer, ScanLine, Zap, Keyboard, Repeat, RotateCcw, X, CheckCircle2, Lock, ImageIcon, Truck, BookOpen, Package, Eye, EyeOff, AlertCircle, Coins, ArrowLeftRight, Landmark, Volume2, VolumeX } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { playAudioFeedback, isAudioMuted, toggleAudioMuted } from '../../utils/audio.ts';
-import { InvoicePrintModal } from './InvoicePrintModal.tsx';
-import { ShoeExchangeModal } from './ShoeExchangeModal.tsx';
+const InvoicePrintModal = lazy(() => import('./InvoicePrintModal.tsx').then((m) => ({ default: m.InvoicePrintModal })));
+const ShoeExchangeModal = lazy(() => import('./ShoeExchangeModal.tsx').then((m) => ({ default: m.ShoeExchangeModal })));
 import { formatStockPrice, cleanStockPriceInput, getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { isHalfCartonAllowed } from '../../utils/footwear.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
@@ -4037,31 +4037,35 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
 
       {/* COMPLETED INVOICE PRINT MODAL */}
       {completedSale && (
-        <InvoicePrintModal
-          sale={completedSale}
-          companySettings={companySettings}
-          onClose={() => {
-            setCompletedSale(null);
-            focusScannerInput();
-          }}
-        />
+        <Suspense fallback={null}>
+          <InvoicePrintModal
+            sale={completedSale}
+            companySettings={companySettings}
+            onClose={() => {
+              setCompletedSale(null);
+              focusScannerInput();
+            }}
+          />
+        </Suspense>
       )}
 
       {/* DIRECT SHOE EXCHANGE / RETURN MODAL */}
       {isExchangeModalOpen && (
-        <ShoeExchangeModal
-          currencySymbol={currencySymbol}
-          companySettings={companySettings}
-          onClose={() => setIsExchangeModalOpen(false)}
-          onApplyExchange={(exchange) => {
-            setActiveExchange(exchange);
-            if (exchange.customerId) {
-              selectCustomerForPayment(exchange.customerId);
-            }
-            setIsExchangeModalOpen(false);
-            focusScannerInput();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ShoeExchangeModal
+            currencySymbol={currencySymbol}
+            companySettings={companySettings}
+            onClose={() => setIsExchangeModalOpen(false)}
+            onApplyExchange={(exchange) => {
+              setActiveExchange(exchange);
+              if (exchange.customerId) {
+                selectCustomerForPayment(exchange.customerId);
+              }
+              setIsExchangeModalOpen(false);
+              focusScannerInput();
+            }}
+          />
+        </Suspense>
       )}
       {/* OFFLINE SALES QUEUE & SYNC MODAL */}
       <OfflineSyncModal

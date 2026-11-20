@@ -1,6 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import JsBarcode from 'jsbarcode';
 import { useTheme } from '../../context/ThemeContext.tsx';
+
+let cachedJsBarcodePromise: Promise<any> | null = null;
+function loadJsBarcode() {
+  if (!cachedJsBarcodePromise) {
+    cachedJsBarcodePromise = import('jsbarcode').then((m: any) => m.default || m);
+  }
+  return cachedJsBarcodePromise;
+}
 
 interface BarcodeSvgProps {
   value: string;
@@ -38,40 +45,48 @@ export const BarcodeSvg: React.FC<BarcodeSvgProps> = ({
   }
 
   useEffect(() => {
-    if (svgRef.current && value) {
-      const cleanVal = String(value).trim();
-      const isDark = currentTheme === 'dark';
-      // If printing or explicitly set, force black, otherwise dark mode is pure high-contrast white #FFFFFF
-      const resolvedLineColor = lineColor || (forcePrintBlack ? '#000000' : (isDark ? '#FFFFFF' : '#000000'));
-      
-      const tryFormat = (fmt: string) => {
-        JsBarcode(svgRef.current, cleanVal, {
-          format: fmt as any,
-          width,
-          height,
-          displayValue,
-          fontSize,
-          margin: 4,
-          font: 'monospace',
-          background: 'transparent',
-          lineColor: resolvedLineColor,
-        });
-      };
+    if (!svgRef.current || !value) return;
+    let cancelled = false;
+    const cleanVal = String(value).trim();
+    const isDark = currentTheme === 'dark';
+    const resolvedLineColor = lineColor || (forcePrintBlack ? '#000000' : (isDark ? '#FFFFFF' : '#000000'));
 
-      try {
-        if (cleanVal.length === 13 && /^\d{13}$/.test(cleanVal)) {
-          tryFormat('EAN13');
-        } else {
-          tryFormat(format);
-        }
-      } catch {
+    void loadJsBarcode()
+      .then((JsBarcode) => {
+        if (cancelled || !svgRef.current) return;
+        const tryFormat = (fmt: string) => {
+          JsBarcode(svgRef.current, cleanVal, {
+            format: fmt as any,
+            width,
+            height,
+            displayValue,
+            fontSize,
+            margin: 4,
+            font: 'monospace',
+            background: 'transparent',
+            lineColor: resolvedLineColor,
+          });
+        };
+
         try {
-          tryFormat('CODE128');
-        } catch (e2) {
-          console.warn('JsBarcode render error for:', value, e2);
+          if (cleanVal.length === 13 && /^\d{13}$/.test(cleanVal)) {
+            tryFormat('EAN13');
+          } else {
+            tryFormat(format);
+          }
+        } catch {
+          try {
+            tryFormat('CODE128');
+          } catch (e2) {
+            console.warn('JsBarcode render error for:', value, e2);
+          }
         }
-      }
-    }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, [value, format, width, height, displayValue, fontSize, lineColor, currentTheme, forcePrintBlack]);
 
   if (!value) return null;

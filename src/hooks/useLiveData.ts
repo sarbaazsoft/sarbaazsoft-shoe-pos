@@ -447,7 +447,7 @@ export function useGroupedNotificationsQuery(
     {
       enabled: options?.enabled ?? true,
       refetchInterval: options?.refetchInterval ?? false,
-      syncTopics: ['notifications', 'sales', 'returns', 'purchases'],
+      syncTopics: ['notifications'],
       scopeKey: String(tenantId ?? 'public'),
     }
   );
@@ -473,7 +473,7 @@ export function useAllNotificationsQuery(
     `notifications:all:${paramsKey}`,
     {
       enabled: options?.enabled ?? true,
-      syncTopics: ['notifications', 'sales', 'returns', 'purchases'],
+      syncTopics: ['notifications'],
       scopeKey: String(tenantId ?? 'public'),
     }
   );

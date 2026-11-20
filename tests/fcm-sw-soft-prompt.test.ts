@@ -171,22 +171,27 @@ test('initNativeNotificationPrompt never calls requestPermission or getToken aut
   }
 });
 
-test('firebaseConfig imports and invokes deleteToken() during unregisterFcmDeviceToken and NotificationBanner implements 2-step soft prompt', () => {
+test('firebaseConfig imports and invokes deleteToken() during unregisterFcmDeviceToken, legacy NotificationBanner is removed, and PushNotificationSoftPrompt implements 2-step soft prompt', () => {
   const firebaseCfgSrc = fs.readFileSync(path.join(process.cwd(), 'src/services/firebaseConfig.ts'), 'utf8');
   assert.match(firebaseCfgSrc, /import\s*\{[^}]*\bdeleteToken\b[^}]*\}\s*from\s*'firebase\/messaging'/);
   assert.match(firebaseCfgSrc, /unregisterFcmDeviceToken[\s\S]*?deleteToken\(messagingInstance\)/);
   assert.match(firebaseCfgSrc, /unregisterFcmDeviceToken[\s\S]*?api\.notifications\.removeFcmToken\(token\)/);
 
-  const bannerSrc = fs.readFileSync(
-    path.join(process.cwd(), 'src/components/notifications/NotificationBanner.tsx'),
+  assert.equal(
+    fs.existsSync(path.join(process.cwd(), 'src/components/notifications/NotificationBanner.tsx')),
+    false,
+    'Legacy duplicate NotificationBanner.tsx should be removed'
+  );
+
+  const softPromptSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/notifications/PushNotificationSoftPrompt.tsx'),
     'utf8'
   );
-  assert.ok(bannerSrc.includes('export function useNotificationSoftPrompt'));
-  assert.ok(bannerSrc.includes('export const NotificationBanner'));
-  assert.ok(bannerSrc.includes('Enable Notifications'));
-  assert.ok(bannerSrc.includes('Not Now'));
-  assert.ok(bannerSrc.includes('dismissSoftPushPrompt'));
-  assert.ok(bannerSrc.includes('unsubscribeDeviceFromWebPush'));
+  assert.ok(softPromptSrc.includes('export const PushNotificationSoftPrompt'));
+  assert.ok(softPromptSrc.includes('Enable Notifications'));
+  assert.ok(softPromptSrc.includes('Maybe Later'));
+  assert.ok(softPromptSrc.includes('dismissSoftPushPrompt'));
+  assert.ok(softPromptSrc.includes('subscribeDeviceToWebPush'));
 });
 
 test('public/sw.js focuses existing matching window client before falling back to clients.openWindow', async () => {

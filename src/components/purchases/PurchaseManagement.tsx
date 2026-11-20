@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Truck, Plus, Search, DollarSign, X, Trash2, CheckCircle2, Building2, Barcode, Phone, ArrowRight, ArrowLeft, Table, Check, Package, Mail, RefreshCw, Eye, AlertCircle, AlertTriangle, FileText, CreditCard } from 'lucide-react';
 import { api, getActiveTenantId } from '../../services/api.ts';
 import { playAudioFeedback } from '../../utils/audio.ts';
 import { cleanStockPriceInput, formatStockPrice } from '../../utils/priceFormat.ts';
-import { ProductFormModal } from '../inventory/ProductFormModal.tsx';
+const ProductFormModal = lazy(() => import('../inventory/ProductFormModal.tsx').then((m) => ({ default: m.ProductFormModal })));
 import { SupplierReturnModal } from './SupplierReturnModal.tsx';
 import { PurchaseReturnDetailsModal } from './PurchaseReturnDetailsModal.tsx';
 import { SupplierPaymentModal } from '../suppliers/SupplierPaymentModal.tsx';
@@ -3318,21 +3318,23 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* QUICK ADD PRODUCT FORM MODAL */}
       {isAddProductModalOpen && (
-        <ProductFormModal
-          currentUser={currentUser}
-          companySettings={companySettings}
-          onClose={() => setIsAddProductModalOpen(false)}
-          onSuccess={async (newProduct) => {
-            setIsAddProductModalOpen(false);
-            await loadProducts();
-            emitDataSync(['products', 'inventory'], { source: 'purchase-management' });
-            if (newProduct) {
-              handleSelectProduct(newProduct, true);
-              setPurchaseScanFeedback(`✓ Product created & selected: ${newProduct.article || newProduct.name}`);
-              setTimeout(() => setPurchaseScanFeedback(null), 3200);
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <ProductFormModal
+            currentUser={currentUser}
+            companySettings={companySettings}
+            onClose={() => setIsAddProductModalOpen(false)}
+            onSuccess={async (newProduct) => {
+              setIsAddProductModalOpen(false);
+              await loadProducts();
+              emitDataSync(['products', 'inventory'], { source: 'purchase-management' });
+              if (newProduct) {
+                handleSelectProduct(newProduct, true);
+                setPurchaseScanFeedback(`✓ Product created & selected: ${newProduct.article || newProduct.name}`);
+                setTimeout(() => setPurchaseScanFeedback(null), 3200);
+              }
+            }}
+          />
+        </Suspense>
       )}
 
       {/* SUPPLIER PURCHASE RETURN MODAL (DEFECTIVE ITEMS) */}

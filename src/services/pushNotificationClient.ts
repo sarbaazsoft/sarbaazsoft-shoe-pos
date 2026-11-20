@@ -1,5 +1,3 @@
-import { getAuthToken, getActiveTenantId, subscribeSessionClear } from './api.ts';
-import { playAudioFeedback } from '../utils/audio.ts';
 import {
   ANDROID_SYSTEM_DISABLED_KEY,
   ANDROID_SYSTEM_DISABLED_REASON_KEY,
@@ -16,7 +14,6 @@ import {
 } from './firebaseConfig.ts';
 import {
   claimNotificationChannel,
-  getNotificationDedupeKey,
   isNotificationChannelClaimed,
 } from '../utils/notificationDedupe.ts';
 import {
@@ -570,9 +567,104 @@ export function openPushSoftPrePrompt(): void {
   window.dispatchEvent(new CustomEvent('pos:open-push-soft-prompt'));
 }
 
+const permissionWatchCallbacks = new Set<(snapshot: PushPermissionSnapshot) => void>();
+let sharedWatcherAttached = false;
+let sharedPermStatusObj: PermissionStatus | null = null;
+let sharedFocusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function notifyAllPermissionWatchers(): void {
+  if (permissionWatchCallbacks.size === 0) return;
+  void getDetailedPushPermissionStatus().then((snap) => {
+    for (const cb of Array.from(permissionWatchCallbacks)) {
+      try {
+        cb(snap);
+      } catch {}
+    }
+  });
+}
+
+function handleSharedVisibilityOrFocus(): void {
+  if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+    if (sharedFocusDebounceTimer) clearTimeout(sharedFocusDebounceTimer);
+    sharedFocusDebounceTimer = setTimeout(() => {
+      sharedFocusDebounceTimer = null;
+      notifyAllPermissionWatchers();
+    }, 120);
+  }
+}
+
+function handleSharedDeliveryBlocked(e: any): void {
+  markSystemNotificationDeliveryBlocked(e?.detail?.reason || 'delivery-rejected');
+}
+
+function handleSharedDeliveryRestored(): void {
+  try {
+    if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected') {
+      clearSystemNotificationDeliveryBlocked();
+      window.dispatchEvent(
+        new CustomEvent('pos:push-status-changed', {
+          detail: {
+            permission: getNotificationPermissionState(),
+            androidSystemDisabled: false,
+          },
+        })
+      );
+    }
+  } catch {}
+}
+
+function attachSharedPermissionWatchers(): void {
+  if (typeof window === 'undefined' || sharedWatcherAttached) return;
+  sharedWatcherAttached = true;
+
+  window.addEventListener('pos:push-status-changed', notifyAllPermissionWatchers);
+  window.addEventListener('focus', handleSharedVisibilityOrFocus);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleSharedVisibilityOrFocus);
+  }
+  window.addEventListener('pos:notification-delivery-blocked', handleSharedDeliveryBlocked);
+  window.addEventListener('pos:notification-delivery-restored', handleSharedDeliveryRestored);
+
+  if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+    navigator.permissions
+      .query({ name: 'notifications' as PermissionName })
+      .then((status) => {
+        if (!sharedWatcherAttached || !status) return;
+        sharedPermStatusObj = status;
+        sharedPermStatusObj.onchange = () => {
+          notifyAllPermissionWatchers();
+        };
+      })
+      .catch(() => {});
+  }
+}
+
+function detachSharedPermissionWatchersIfIdle(): void {
+  if (!sharedWatcherAttached || permissionWatchCallbacks.size > 0 || typeof window === 'undefined') {
+    return;
+  }
+  sharedWatcherAttached = false;
+  if (sharedFocusDebounceTimer) {
+    clearTimeout(sharedFocusDebounceTimer);
+    sharedFocusDebounceTimer = null;
+  }
+  window.removeEventListener('pos:push-status-changed', notifyAllPermissionWatchers);
+  window.removeEventListener('focus', handleSharedVisibilityOrFocus);
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleSharedVisibilityOrFocus);
+  }
+  window.removeEventListener('pos:notification-delivery-blocked', handleSharedDeliveryBlocked);
+  window.removeEventListener('pos:notification-delivery-restored', handleSharedDeliveryRestored);
+  if (sharedPermStatusObj) {
+    sharedPermStatusObj.onchange = null;
+    sharedPermStatusObj = null;
+  }
+}
+
 /**
- * Watches browser Permissions API, app visibility/focus (e.g. returning from Android Settings),
- * and internal push status events so UI reflects real browser + OS state immediately.
+ * Shared singleton observer for browser Permissions API, app visibility/focus
+ * (e.g. returning from Android Settings), and internal push status events.
+ * Consolidates all subscribers onto one set of browser listeners.
  */
 export function watchNotificationPermissionChanges(
   onUpdate: (snapshot: PushPermissionSnapshot) => void
@@ -581,78 +673,12 @@ export function watchNotificationPermissionChanges(
     return () => {};
   }
 
-  let disposed = false;
-  let permStatusObj: PermissionStatus | null = null;
-  let focusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const emitSnapshot = () => {
-    void getDetailedPushPermissionStatus().then((snap) => {
-      if (!disposed) {
-        onUpdate(snap);
-      }
-    });
-  };
-
-  const handleVisibilityOrFocus = () => {
-    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-      if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
-      focusDebounceTimer = setTimeout(() => {
-        focusDebounceTimer = null;
-        if (!disposed) emitSnapshot();
-      }, 120);
-    }
-  };
-
-  const handleDeliveryBlocked = (e: any) => {
-    markSystemNotificationDeliveryBlocked(e?.detail?.reason || 'delivery-rejected');
-  };
-
-  const handleDeliveryRestored = () => {
-    try {
-      if (localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected') {
-        clearSystemNotificationDeliveryBlocked();
-        window.dispatchEvent(
-          new CustomEvent('pos:push-status-changed', {
-            detail: {
-              permission: getNotificationPermissionState(),
-              androidSystemDisabled: false,
-            },
-          })
-        );
-      }
-    } catch {}
-  };
-
-  window.addEventListener('pos:push-status-changed', emitSnapshot);
-  window.addEventListener('focus', handleVisibilityOrFocus);
-  document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-  window.addEventListener('pos:notification-delivery-blocked', handleDeliveryBlocked);
-  window.addEventListener('pos:notification-delivery-restored', handleDeliveryRestored);
-
-  if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
-    navigator.permissions
-      .query({ name: 'notifications' as PermissionName })
-      .then((status) => {
-        if (disposed || !status) return;
-        permStatusObj = status;
-        permStatusObj.onchange = () => {
-          emitSnapshot();
-        };
-      })
-      .catch(() => {});
-  }
+  permissionWatchCallbacks.add(onUpdate);
+  attachSharedPermissionWatchers();
 
   return () => {
-    disposed = true;
-    if (focusDebounceTimer) clearTimeout(focusDebounceTimer);
-    window.removeEventListener('pos:push-status-changed', emitSnapshot);
-    window.removeEventListener('focus', handleVisibilityOrFocus);
-    document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.removeEventListener('pos:notification-delivery-blocked', handleDeliveryBlocked);
-    window.removeEventListener('pos:notification-delivery-restored', handleDeliveryRestored);
-    if (permStatusObj) {
-      permStatusObj.onchange = null;
-    }
+    permissionWatchCallbacks.delete(onUpdate);
+    detachSharedPermissionWatchersIfIdle();
   };
 }
 
@@ -712,481 +738,34 @@ export async function unsubscribeDeviceFromWebPush(): Promise<boolean> {
   }
 }
 
-const activeStreamSubscribers = new Set<(payload: any) => void>();
-let sharedEventSource: EventSource | null = null;
-let sharedStreamSignature = '';
-let sharedReconnectTimeout: any = null;
-let hiddenStreamCloseTimer: any = null;
-let generalStreamVisibilityAttached = false;
-const osFallbackTimers = new Set<ReturnType<typeof setTimeout>>();
-
-const OWNER_PRESENCE_SESSION_KEY = 'pos_owner_presence_session_id';
-const OWNER_HEARTBEAT_INTERVAL_MS = 30_000;
-const HIDDEN_CASHIER_SSE_GRACE_MS = 15_000;
-let cachedPresenceSessionId = '';
-let ownerHeartbeatTimer: any = null;
-let ownerPresenceListenersAttached = false;
-let sessionClearUnsubscribe: (() => void) | null = null;
-
-export function getClientPresenceSessionId(): string {
-  if (cachedPresenceSessionId) return cachedPresenceSessionId;
-  try {
-    if (typeof sessionStorage !== 'undefined') {
-      const existing = sessionStorage.getItem(OWNER_PRESENCE_SESSION_KEY);
-      if (existing && existing.trim()) {
-        cachedPresenceSessionId = existing.trim();
-        return cachedPresenceSessionId;
-      }
-    }
-  } catch {}
-
-  const generated =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? `tab-${crypto.randomUUID()}`
-      : `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  cachedPresenceSessionId = generated;
-  try {
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem(OWNER_PRESENCE_SESSION_KEY, generated);
-    }
-  } catch {}
-  return cachedPresenceSessionId;
-}
-
-function decodeJwtPayloadSafe(token: string | null): any | null {
-  if (!token || token === 'null' || token === 'undefined') return null;
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    const payload = JSON.parse(json);
-    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) {
-      return null;
-    }
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-function isAuthenticatedOwnerSession(): boolean {
-  const token = getAuthToken();
-  const payload = decodeJwtPayloadSafe(token);
-  if (!payload) return false;
-  const role = String(payload.role || '').toUpperCase();
-  return role === 'ADMIN' || role === 'OWNER' || role === 'SUPERADMIN';
-}
-
-export function sendOwnerPresenceHeartbeat(): void {
-  if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
-  if (!isAuthenticatedOwnerSession()) return;
-  const token = getAuthToken();
-  if (!token) return;
-  const sessionId = getClientPresenceSessionId();
-  try {
-    fetch('/api/notifications/presence/heartbeat', {
-      method: 'POST',
-      credentials: 'include',
-      cache: 'no-store',
-      keepalive: true,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Auth-Token': token,
-      },
-      body: JSON.stringify({ sessionId }),
-    }).catch(() => {});
-  } catch {}
-}
-
-export function sendOwnerPresenceOffline(): void {
-  if (typeof window === 'undefined') return;
-  if (!isAuthenticatedOwnerSession()) return;
-  const token = getAuthToken();
-  if (!token) return;
-  const sessionId = getClientPresenceSessionId();
-  const offlineUrl = `/api/notifications/presence/offline?__token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sessionId)}`;
-  try {
-    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-      const blob = new Blob([JSON.stringify({ sessionId })], { type: 'application/json' });
-      if (navigator.sendBeacon(offlineUrl, blob)) {
-        return;
-      }
-    }
-    if (typeof fetch !== 'undefined') {
-      fetch(offlineUrl, {
-        method: 'POST',
-        credentials: 'include',
-        keepalive: true,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ sessionId }),
-      }).catch(() => {});
-    }
-  } catch {}
-}
-
-function handleOwnerVisibilityChange() {
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-    if (activeStreamSubscribers.size > 0 && isAuthenticatedOwnerSession()) {
-      sendOwnerPresenceHeartbeat();
-      ensureSharedStreamConnected();
-    }
-  }
-}
-
-function handleOwnerPageUnload() {
-  sendOwnerPresenceOffline();
-}
-
-function stopOwnerHeartbeatLifecycle() {
-  if (ownerHeartbeatTimer) {
-    clearInterval(ownerHeartbeatTimer);
-    ownerHeartbeatTimer = null;
-  }
-  if (ownerPresenceListenersAttached && typeof window !== 'undefined') {
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', handleOwnerVisibilityChange);
-    }
-    window.removeEventListener('pagehide', handleOwnerPageUnload);
-    window.removeEventListener('beforeunload', handleOwnerPageUnload);
-    ownerPresenceListenersAttached = false;
-  }
-}
-
-function handleGeneralStreamVisibilityChange() {
-  if (typeof document === 'undefined') return;
-  if (document.visibilityState === 'hidden') {
-    // For Cashier sessions (not Owner/SuperAdmin presence-tracked), close idle SSE after 15s hidden;
-    // FCM Web Push delivers background alerts and SSE reconnects automatically on return.
-    if (!isAuthenticatedOwnerSession() && sharedEventSource && !hiddenStreamCloseTimer) {
-      hiddenStreamCloseTimer = setTimeout(() => {
-        hiddenStreamCloseTimer = null;
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isAuthenticatedOwnerSession()) {
-          closeSharedStream();
-        }
-      }, HIDDEN_CASHIER_SSE_GRACE_MS);
-    }
-  } else if (document.visibilityState === 'visible') {
-    if (hiddenStreamCloseTimer) {
-      clearTimeout(hiddenStreamCloseTimer);
-      hiddenStreamCloseTimer = null;
-    }
-    if (activeStreamSubscribers.size > 0 && !sharedEventSource) {
-      ensureSharedStreamConnected();
-    }
-  }
-}
-
-function attachGeneralStreamVisibilityListener() {
-  if (generalStreamVisibilityAttached || typeof document === 'undefined') return;
-  document.addEventListener('visibilitychange', handleGeneralStreamVisibilityChange);
-  generalStreamVisibilityAttached = true;
-}
-
-function detachGeneralStreamVisibilityListener() {
-  if (!generalStreamVisibilityAttached || typeof document === 'undefined') return;
-  document.removeEventListener('visibilitychange', handleGeneralStreamVisibilityChange);
-  generalStreamVisibilityAttached = false;
-}
-
-function syncOwnerHeartbeatLifecycle() {
-  if (typeof window === 'undefined') return;
-  if (!sessionClearUnsubscribe) {
-    sessionClearUnsubscribe = subscribeSessionClear(() => {
-      for (const timer of osFallbackTimers) {
-        clearTimeout(timer);
-      }
-      osFallbackTimers.clear();
-      stopOwnerHeartbeatLifecycle();
-      detachGeneralStreamVisibilityListener();
-      closeSharedStream();
-    });
+/**
+ * Subscribes to foreground Firebase Cloud Messaging notifications (`pos:fcm-notification`)
+ * without opening any legacy SSE streams or polling timers.
+ */
+export function subscribeForegroundNotifications(
+  onNotification: (payload: any) => void
+): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
   }
 
-  if (activeStreamSubscribers.size > 0 && isAuthenticatedOwnerSession()) {
-    if (!ownerPresenceListenersAttached) {
-      if (typeof document !== 'undefined') {
-        document.addEventListener('visibilitychange', handleOwnerVisibilityChange);
-      }
-      window.addEventListener('pagehide', handleOwnerPageUnload);
-      window.addEventListener('beforeunload', handleOwnerPageUnload);
-      ownerPresenceListenersAttached = true;
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent)?.detail;
+    if (detail) {
+      onNotification(detail);
     }
-    if (!ownerHeartbeatTimer) {
-      sendOwnerPresenceHeartbeat();
-      ownerHeartbeatTimer = setInterval(() => {
-        if (!isAuthenticatedOwnerSession() || activeStreamSubscribers.size === 0) {
-          stopOwnerHeartbeatLifecycle();
-          return;
-        }
-        sendOwnerPresenceHeartbeat();
-      }, OWNER_HEARTBEAT_INTERVAL_MS);
-    }
-  } else {
-    stopOwnerHeartbeatLifecycle();
-  }
-}
-
-function buildStreamConnectionInfo() {
-  const token = getAuthToken() || '';
-  const sessionId = getClientPresenceSessionId();
-  let currentRole = 'ADMIN';
-  let currentUserId = 0;
-  try {
-    const stored = localStorage.getItem('pos_current_user');
-    if (stored) {
-      const u = JSON.parse(stored);
-      if (u.role) currentRole = String(u.role).toUpperCase();
-      if (u.id) currentUserId = Number(u.id) || 0;
-    }
-  } catch {}
-  const jwtPayload = decodeJwtPayloadSafe(token);
-  const resolvedRole = String(jwtPayload?.role || currentRole || 'ADMIN').toUpperCase();
-  const tenantId = resolvedRole === 'SUPERADMIN' ? 0 : (getActiveTenantId() || 1);
-
-  const signature = `${token}|${tenantId}|${currentRole}|${currentUserId}|${sessionId}`;
-  const params = new URLSearchParams();
-  if (token) params.set('__token', token);
-  params.set('__tenantId', String(tenantId));
-  params.set('role', currentRole);
-  params.set('sessionId', sessionId);
-  if (currentUserId > 0) params.set('userId', String(currentUserId));
-  params.set('_t', String(Date.now()));
-
-  return {
-    signature,
-    streamUrl: `/api/notifications/stream?${params.toString()}`,
   };
-}
 
-function handleSharedIncomingNotification(payload: any, isPlatformAnnouncement: boolean = false) {
-  const normalizedPayload = isPlatformAnnouncement
-    ? { ...payload, isPlatformAnnouncement: true }
-    : payload;
-  const dedupeKey = getNotificationDedupeKey(normalizedPayload);
-
-  if (!claimNotificationChannel(dedupeKey, 'sse')) {
-    return;
-  }
-
-  if (isPlatformAnnouncement) {
-    window.dispatchEvent(new CustomEvent('platform:announcement', { detail: payload }));
-  }
-
-  // 1. Play audio chime once per notification event
-  if (claimNotificationChannel(dedupeKey, 'audio')) {
-    try {
-      playAudioFeedback.success();
-    } catch {}
-  }
-
-  // 2. Dispatch custom event for in-app UI toasts & modals
-  window.dispatchEvent(
-    new CustomEvent('pos:action-notification', { detail: normalizedPayload })
-  );
-
-  // 3. Trigger OS/shade notification whenever notification permission is granted
-  // (both focused tabs/APK windows and background tabs) unless explicitly opted out or blocked at OS level.
-  // When Web Push (FCM + active SW) is registered on this browser, briefly yield (1200ms)
-  // so the Service Worker `push` event can display and claim `os_notification`
-  // first without duplicating alerts; if SW did not claim within 1200ms, deliver via shade fallback.
-  let androidSystemDisabled = false;
-  try {
-    androidSystemDisabled =
-      localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
-      localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
-  } catch {}
-
-  if (
-    typeof Notification !== 'undefined' &&
-    Notification.permission === 'granted' &&
-    !androidSystemDisabled &&
-    !isExplicitUserPushOptOut() &&
-    !isNotificationChannelClaimed(dedupeKey, 'os_notification')
-  ) {
-    const dispatchOsFallback = () => {
-      if (isNotificationChannelClaimed(dedupeKey, 'os_notification')) {
-        return;
-      }
-      if (!claimNotificationChannel(dedupeKey, 'os_notification')) {
-        return;
-      }
-      try {
-        const deepLinkUrl = normalizedPayload.deepLinkUrl || normalizedPayload.url || '';
-        const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || normalizedPayload.targetRole === 'SUPERADMIN';
-        const icon = normalizedPayload.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
-        const rawBadge = normalizedPayload.badge;
-        const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : NOTIFICATION_BADGE_ICON;
-        const tag =
-          normalizedPayload.tag ||
-          normalizedPayload.eventId ||
-          normalizedPayload.event_id ||
-          dedupeKey;
-        const parsedTimestamp = normalizedPayload.timestamp
-          ? Date.parse(String(normalizedPayload.timestamp)) || Number(normalizedPayload.timestamp) || Date.now()
-          : Date.now();
-        let activeUserRole = '';
-        try {
-          const rawUser = localStorage.getItem('pos_current_user');
-          if (rawUser) {
-            activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
-          }
-        } catch {}
-
-        const fallbackData = {
-          ...normalizedPayload,
-          url: deepLinkUrl || '/notifications',
-          isAdmin: isAdminTarget ? 'true' : 'false',
-          eventId: normalizedPayload.eventId || tag,
-          tag,
-          timestamp: parsedTimestamp,
-          userRole: normalizedPayload.userRole || activeUserRole,
-        };
-
-        void showSingleShadeNotification(
-          normalizedPayload.title || 'POS Alert',
-          {
-            body: normalizedPayload.message || 'Transaction confirmed.',
-            icon,
-            badge,
-            tag,
-            timestamp: parsedTimestamp,
-            requireInteraction: false,
-            renotify: false,
-            actions: buildPushNotificationActions(fallbackData, activeUserRole),
-            data: fallbackData,
-          },
-          () => {
-            window.focus();
-            navigateToNotificationUrl(fallbackData.url, fallbackData);
-          }
-        );
-      } catch {}
-    };
-
-    const hasActiveWebPush =
-      isWebPushSupported() &&
-      Boolean(localStorage.getItem(FCM_TOKEN_KEY));
-
-    if (hasActiveWebPush) {
-      const timerId = setTimeout(() => {
-        osFallbackTimers.delete(timerId);
-        dispatchOsFallback();
-      }, 3500);
-      osFallbackTimers.add(timerId);
-    } else {
-      dispatchOsFallback();
-    }
-  }
-
-  for (const subscriber of Array.from(activeStreamSubscribers)) {
-    try {
-      subscriber(normalizedPayload);
-    } catch (err) {
-      console.warn('Error in notification stream subscriber:', err);
-    }
-  }
-}
-
-function closeSharedStream() {
-  if (hiddenStreamCloseTimer) {
-    clearTimeout(hiddenStreamCloseTimer);
-    hiddenStreamCloseTimer = null;
-  }
-  if (sharedReconnectTimeout) {
-    clearTimeout(sharedReconnectTimeout);
-    sharedReconnectTimeout = null;
-  }
-  if (sharedEventSource) {
-    sharedEventSource.close();
-    sharedEventSource = null;
-  }
-  sharedStreamSignature = '';
-}
-
-function ensureSharedStreamConnected() {
-  if (activeStreamSubscribers.size === 0) return;
-  const { signature, streamUrl } = buildStreamConnectionInfo();
-
-  if (sharedEventSource && sharedStreamSignature === signature) {
-    return;
-  }
-
-  closeSharedStream();
-  sharedStreamSignature = signature;
-
-  try {
-    const es = new EventSource(streamUrl);
-    sharedEventSource = es;
-
-    es.addEventListener('pos_action', (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data);
-        handleSharedIncomingNotification(payload, false);
-      } catch (e) {
-        console.warn('Error parsing POS action event data:', e);
-      }
-    });
-
-    es.addEventListener('platform_announcement', (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data);
-        handleSharedIncomingNotification(payload, true);
-      } catch (e) {
-        console.warn('Error parsing platform announcement event data:', e);
-      }
-    });
-
-    es.onmessage = (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload && payload.type && payload.type !== 'CONNECTED') {
-          handleSharedIncomingNotification(payload, false);
-        }
-      } catch {}
-    };
-
-    es.onerror = () => {
-      if (sharedEventSource === es) {
-        es.close();
-        sharedEventSource = null;
-        sharedStreamSignature = '';
-      }
-      if (activeStreamSubscribers.size > 0 && !sharedReconnectTimeout) {
-        sharedReconnectTimeout = setTimeout(() => {
-          sharedReconnectTimeout = null;
-          ensureSharedStreamConnected();
-        }, 6000);
-      }
-    };
-  } catch {
-    if (activeStreamSubscribers.size > 0 && !sharedReconnectTimeout) {
-      sharedReconnectTimeout = setTimeout(() => {
-        sharedReconnectTimeout = null;
-        ensureSharedStreamConnected();
-      }, 8000);
-    }
-  }
-}
-
-export function refreshRealtimeNotificationStream(): void {
-  if (typeof window === 'undefined' || activeStreamSubscribers.size === 0) return;
-  syncOwnerHeartbeatLifecycle();
-  ensureSharedStreamConnected();
+  window.addEventListener('pos:fcm-notification', handler);
+  return () => {
+    window.removeEventListener('pos:fcm-notification', handler);
+  };
 }
 
 /**
  * Ensures a Test Alert produces a real OS/shade notification on the current Chrome or Android TWA
  * device whenever permission is granted, yielding briefly for SW FCM delivery if this device has
- * a local FCM token and never duplicating if SW/SSE already claimed `os_notification`.
+ * a local FCM token and never duplicating if SW already claimed `os_notification`.
  */
 export async function triggerTestNotificationShadeFallback(params: {
   eventId: string;
@@ -1264,31 +843,5 @@ export async function triggerTestNotificationShadeFallback(params: {
       navigateToNotificationUrl(targetUrl, testData);
     }
   );
-}
-
-/**
- * Connects to the real-time Server-Sent Events (SSE) notification stream using a
- * single shared EventSource per browser tab so mounted components never duplicate deliveries.
- */
-export function connectRealtimeNotificationStream(
-  onNotification: (payload: any) => void
-): () => void {
-  if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
-    return () => {};
-  }
-
-  activeStreamSubscribers.add(onNotification);
-  attachGeneralStreamVisibilityListener();
-  syncOwnerHeartbeatLifecycle();
-  ensureSharedStreamConnected();
-
-  return () => {
-    activeStreamSubscribers.delete(onNotification);
-    if (activeStreamSubscribers.size === 0) {
-      stopOwnerHeartbeatLifecycle();
-      detachGeneralStreamVisibilityListener();
-      closeSharedStream();
-    }
-  };
 }
 

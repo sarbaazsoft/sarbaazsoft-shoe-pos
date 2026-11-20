@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Sparkles, Barcode, CheckCircle2, AlertCircle, Package, ArrowRight, ArrowLeft, Scan, Tag, DollarSign, Check, Info, TrendingUp, Building2, Boxes, RefreshCw, Box, Upload } from 'lucide-react';
 import { api } from '../../services/api.ts';
-import { SideEndBoxLabelModal } from './SideEndBoxLabelModal.tsx';
-import { BarcodeStickerModal } from './BarcodeStickerModal.tsx';
+const SideEndBoxLabelModal = lazy(() => import('./SideEndBoxLabelModal.tsx').then((m) => ({ default: m.SideEndBoxLabelModal })));
+const BarcodeStickerModal = lazy(() => import('./BarcodeStickerModal.tsx').then((m) => ({ default: m.BarcodeStickerModal })));
 
 import { generateCode128Barcode, analyzeBarcode } from '../../utils/barcode.ts';
 import { parseBrandPrefix, parseCategoryPrefix, generateSuggestedArticle, STANDARD_FOOTWEAR_CATEGORIES, normalizeFootwearCategory } from '../../utils/footwear.ts';
@@ -2417,53 +2417,57 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
       <AnimatePresence>
         {isSideEndLabelOpen && !isWholesaleStore && (
-          <SideEndBoxLabelModal
-            product={
-              product || {
-                id: effectiveProductId,
-                article: article || 'Shoe Article',
-                name: article || 'Shoe Article',
-                barcode: barcode,
-                costPrice: costVal || 0,
-                sellingPrice: effectiveMaxSale || 0,
-                minPrice: effectiveMinSale || 0,
-                maxPrice: effectiveMaxSale || 0,
-                salePrice: effectiveMaxSale || 0,
-                minSalePrice: effectiveMinSale || 0,
-                maxSalePrice: effectiveMaxSale || 0,
-                brandName: currentBrandName,
-                categoryName: currentCategoryName,
+          <Suspense fallback={null}>
+            <SideEndBoxLabelModal
+              product={
+                product || {
+                  id: effectiveProductId,
+                  article: article || 'Shoe Article',
+                  name: article || 'Shoe Article',
+                  barcode: barcode,
+                  costPrice: costVal || 0,
+                  sellingPrice: effectiveMaxSale || 0,
+                  minPrice: effectiveMinSale || 0,
+                  maxPrice: effectiveMaxSale || 0,
+                  salePrice: effectiveMaxSale || 0,
+                  minSalePrice: effectiveMinSale || 0,
+                  maxSalePrice: effectiveMaxSale || 0,
+                  brandName: currentBrandName,
+                  categoryName: currentCategoryName,
+                }
               }
-            }
-            companySettings={companySettings}
-            onClose={() => setIsSideEndLabelOpen(false)}
-          />
+              companySettings={companySettings}
+              onClose={() => setIsSideEndLabelOpen(false)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {isBarcodeStickerOpen && (
-          <BarcodeStickerModal
-            product={
-              product || {
-                id: effectiveProductId,
-                article: article || 'Shoe Article',
-                name: article || 'Shoe Article',
-                barcode: barcode,
-                costPrice: costVal || 0,
-                sellingPrice: effectiveMaxSale || 0,
-                minPrice: effectiveMinSale || 0,
-                maxPrice: effectiveMaxSale || 0,
-                salePrice: effectiveMaxSale || 0,
-                minSalePrice: effectiveMinSale || 0,
-                maxSalePrice: effectiveMaxSale || 0,
-                brandName: currentBrandName,
-                categoryName: currentCategoryName,
+          <Suspense fallback={null}>
+            <BarcodeStickerModal
+              product={
+                product || {
+                  id: effectiveProductId,
+                  article: article || 'Shoe Article',
+                  name: article || 'Shoe Article',
+                  barcode: barcode,
+                  costPrice: costVal || 0,
+                  sellingPrice: effectiveMaxSale || 0,
+                  minPrice: effectiveMinSale || 0,
+                  maxPrice: effectiveMaxSale || 0,
+                  salePrice: effectiveMaxSale || 0,
+                  minSalePrice: effectiveMinSale || 0,
+                  maxSalePrice: effectiveMaxSale || 0,
+                  brandName: currentBrandName,
+                  categoryName: currentCategoryName,
+                }
               }
-            }
-            companySettings={companySettings}
-            onClose={() => setIsBarcodeStickerOpen(false)}
-          />
+              companySettings={companySettings}
+              onClose={() => setIsBarcodeStickerOpen(false)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
     </motion.div>

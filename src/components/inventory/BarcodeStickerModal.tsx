@@ -94,11 +94,11 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
     window.print();
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     setIsExportingPdf(true);
     setDirectFeedback(null);
     try {
-      exportStickersToPdf(product, copies, companySettings, {
+      await exportStickersToPdf(product, copies, companySettings, {
         ...options,
         labelSize: tagSize,
       });
@@ -110,10 +110,10 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
     }
   };
 
-  const handleDownloadImage = () => {
+  const handleDownloadImage = async () => {
     setDirectFeedback(null);
     try {
-      exportStickersToImage(product, companySettings, {
+      await exportStickersToImage(product, companySettings, {
         ...options,
         labelSize: tagSize,
       });

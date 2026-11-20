@@ -62,7 +62,7 @@ describe('Auth Route Free Trial Registration Link', () => {
 
     const appSrc = readFileSync(join(ROOT, 'src/App.tsx'), 'utf8');
     const callbackMatches = appSrc.match(/onStoreCreated=\{handleFreeTrialStoreCreated\}/g) || [];
-    assert.equal(callbackMatches.length, 3, 'App.tsx should pass handleFreeTrialStoreCreated to both AuthModal mounts and SaasLandingPage');
+    assert.equal(callbackMatches.length, 2, 'App.tsx should pass handleFreeTrialStoreCreated to unified AuthModal and SaasLandingPage');
 
     const modalHtml = renderToStaticMarkup(
       React.createElement(

@@ -76,11 +76,11 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
   };
 
   // 3. Export PDF
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     setIsExportingPdf(true);
     setFeedback(null);
     try {
-      exportSideEndBoxLabelToPdf(product, copies, companySettings, {
+      await exportSideEndBoxLabelToPdf(product, copies, companySettings, {
         color: activeColor,
         size: activeSize,
         orientation,
@@ -95,11 +95,11 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
   };
 
   // 4. Export PNG
-  const handleDownloadImage = () => {
+  const handleDownloadImage = async () => {
     setIsExportingImage(true);
     setFeedback(null);
     try {
-      exportSideEndBoxLabelToImage(product, companySettings, {
+      await exportSideEndBoxLabelToImage(product, companySettings, {
         color: activeColor,
         size: activeSize,
         orientation,

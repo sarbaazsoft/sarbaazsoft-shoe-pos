@@ -502,27 +502,17 @@ export function resolveStoreChannelDelivery(input: StoreChannelDeliveryInput): S
   }
 
   const canDeliverOwnerPush = nonDeliveryReason === null;
-  const sendOwnerWebPush =
-    ownerTargeted &&
-    canDeliverOwnerPush &&
-    (input.ownerOnline || !emailAlertsEnabled);
-
+  const sendOwnerWebPush = ownerTargeted && canDeliverOwnerPush;
   const sendCashierWebPush = webPushEnabled && fcmConfigured;
 
   let emailFallbackReason: EmailFallbackReason = null;
   let emailFallbackTriggered = false;
   let sendOwnerEmail = false;
 
-  if (ownerTargeted && emailAlertsEnabled) {
-    if (nonDeliveryReason !== null) {
-      emailFallbackReason = nonDeliveryReason;
-      emailFallbackTriggered = true;
-      sendOwnerEmail = true;
-    } else if (!input.ownerOnline) {
-      emailFallbackReason = 'owner_offline';
-      emailFallbackTriggered = false;
-      sendOwnerEmail = true;
-    }
+  if (ownerTargeted && emailAlertsEnabled && nonDeliveryReason !== null) {
+    emailFallbackReason = nonDeliveryReason;
+    emailFallbackTriggered = true;
+    sendOwnerEmail = true;
   }
 
   return {

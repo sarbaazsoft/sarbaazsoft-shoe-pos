@@ -12,6 +12,7 @@ import { BodyLayoutWrapper } from './components/common/BodyLayoutWrapper.tsx';
 import { resolveRouteLayoutMetadata, type SaasRouteMode } from './config/routeLayoutMetadata.ts';
 import { emitDataSync } from './utils/dataSyncBus.ts';
 import { useTheme } from './context/ThemeContext.tsx';
+import { NotificationProvider } from './context/NotificationContext.tsx';
 
 const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
 const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: memo(m.ProductManagement) })));
@@ -807,7 +808,11 @@ export default function App() {
   // Warm up Firebase client foreground listener, sync auth context to SW, and preload POS terminal in memory
   useEffect(() => {
     if (currentUser?.role) {
-      if (saasMode === 'TENANT_ACTIVE' && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+      if (
+        saasMode === 'TENANT_ACTIVE' &&
+        String(currentUser.role).toUpperCase() === 'CASHIER' &&
+        (typeof navigator === 'undefined' || navigator.onLine !== false)
+      ) {
         void import('./components/pos/PosTerminal.tsx').catch(() => {});
       }
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -2073,8 +2078,11 @@ export default function App() {
     ]
   );
 
+  const showAuthModal = saasMode === 'AUTH' || (saasMode === 'LANDING' && isLoginModalOpen);
+
   return (
-    <div className="min-h-[100dvh] w-full flex flex-col bg-slate-100 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
+    <NotificationProvider currentUser={currentUser}>
+      <div className="min-h-[100dvh] w-full flex flex-col bg-slate-100 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
       {saasMode === 'INSTALLER' && (
         <Suspense fallback={<PortalRouteFallback label="Loading..." />}>
           <InstallationWizard
@@ -2101,93 +2109,70 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* 0. AUTH ROUTE (/auth?tenantId=...) */}
-      {saasMode === 'AUTH' && (
+      {/* 0. AUTH ROUTE (/auth?tenantId=...) & 1. ROOT DOMAIN SAAS LANDING PAGE (keep SaasLandingPage mounted & hidden during Auth to preserve UI state & scroll) */}
+      {(saasMode === 'LANDING' || saasMode === 'AUTH') && (
         <>
-          {tenantIdNotice && (
-            <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
-              {tenantIdNotice}
-            </div>
+          {showAuthModal && (
+            <>
+              {tenantIdNotice && (
+                <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+                  {tenantIdNotice}
+                </div>
+              )}
+              <AuthModal
+                layoutMeta={activeRouteLayoutMeta}
+                companySettings={storeLoginTarget
+                  ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
+                  : (activeTenant
+                      ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
+                      : (tenantIdParam
+                          ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
+                          : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
+                onBack={handleBackToStoreDirectory}
+                onClearTenantScope={handleClearAuthTenantScope}
+                onStoreCreated={handleFreeTrialStoreCreated}
+                onSuccess={handleAuthSuccess}
+                sessionNotice={authSessionNotice}
+              />
+            </>
           )}
-          <AuthModal
-            layoutMeta={activeRouteLayoutMeta}
-            companySettings={storeLoginTarget
-              ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
-              : (activeTenant
-                  ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
-                  : (tenantIdParam
-                      ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
-                      : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
-            onBack={handleBackToStoreDirectory}
-            onClearTenantScope={handleClearAuthTenantScope}
-            onStoreCreated={handleFreeTrialStoreCreated}
-            onSuccess={handleAuthSuccess}
-            sessionNotice={authSessionNotice}
-          />
-        </>
-      )}
-
-      {/* 1. ROOT DOMAIN SAAS LANDING PAGE */}
-      {saasMode === 'LANDING' && (
-        isLoginModalOpen ? (
-          <>
-            {tenantIdNotice && (
-              <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
-                {tenantIdNotice}
-              </div>
-            )}
-            <AuthModal
+          <div className={showAuthModal ? 'hidden' : 'contents'} aria-hidden={showAuthModal || undefined}>
+            <SaasLandingPage
               layoutMeta={activeRouteLayoutMeta}
-              companySettings={storeLoginTarget
-                ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
-                : (activeTenant
-                    ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
-                    : (tenantIdParam
-                        ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
-                        : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
-              onBack={handleBackToStoreDirectory}
-              onClearTenantScope={handleClearAuthTenantScope}
+              availableTenants={availableTenants}
+              unauthTenantId={tenantIdParam || getStoredUnauthTenantId()}
+              onClearTenantScope={handleClearTenantScope}
+              onGlobalLogin={() => {
+                const activeScopeId = tenantIdParam || getStoredUnauthTenantId();
+                if (activeScopeId) {
+                  const targetStore = availableTenants.find((t) => Number(t.id) === Number(activeScopeId)) || null;
+                  setStoreLoginTarget(targetStore);
+                  setTenantIdParam(String(activeScopeId));
+                  setStoredUnauthTenantId(String(activeScopeId));
+                  setIsLoginModalOpen(true);
+                  setSaasMode('AUTH');
+                  window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(activeScopeId)}`);
+                } else {
+                  setTenantIdParam('');
+                  setStoreLoginTarget(null);
+                  setIsLoginModalOpen(true);
+                  setSaasMode('AUTH');
+                  window.history.pushState({}, '', '/auth');
+                }
+              }}
+              onSelectStore={(selectedStore) => {
+                setStoredUnauthTenantId(String(selectedStore.id));
+                setStoreLoginTarget(selectedStore);
+                setTenantIdParam(String(selectedStore.id));
+                setIsLoginModalOpen(true);
+                setSaasMode('AUTH');
+                window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(selectedStore.id)}`);
+              }}
+              onOpenSuperAdmin={() => handleNavigateDomain({ mode: 'SUPERADMIN' })}
               onStoreCreated={handleFreeTrialStoreCreated}
-              onSuccess={handleAuthSuccess}
-              sessionNotice={authSessionNotice}
             />
-          </>
-        ) : (
-          <SaasLandingPage
-            layoutMeta={activeRouteLayoutMeta}
-            availableTenants={availableTenants}
-            unauthTenantId={tenantIdParam || getStoredUnauthTenantId()}
-            onClearTenantScope={handleClearTenantScope}
-            onGlobalLogin={() => {
-              const activeScopeId = tenantIdParam || getStoredUnauthTenantId();
-              if (activeScopeId) {
-                const targetStore = availableTenants.find((t) => Number(t.id) === Number(activeScopeId)) || null;
-                setStoreLoginTarget(targetStore);
-                setTenantIdParam(String(activeScopeId));
-                setStoredUnauthTenantId(String(activeScopeId));
-                setIsLoginModalOpen(true);
-                setSaasMode('AUTH');
-                window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(activeScopeId)}`);
-              } else {
-                setTenantIdParam('');
-                setStoreLoginTarget(null);
-                setIsLoginModalOpen(true);
-                setSaasMode('AUTH');
-                window.history.pushState({}, '', '/auth');
-              }
-            }}
-            onSelectStore={(selectedStore) => {
-              setStoredUnauthTenantId(String(selectedStore.id));
-              setStoreLoginTarget(selectedStore);
-              setTenantIdParam(String(selectedStore.id));
-              setIsLoginModalOpen(true);
-              setSaasMode('AUTH');
-              window.history.pushState({}, '', `/auth?tenantId=${encodeURIComponent(selectedStore.id)}`);
-            }}
-            onOpenSuperAdmin={() => handleNavigateDomain({ mode: 'SUPERADMIN' })}
-            onStoreCreated={handleFreeTrialStoreCreated}
-          />
-        )
+          </div>
+        </>
       )}
 
       {/* EMAIL VERIFICATION REQUIRED NOTICE VIEW */}
@@ -2478,6 +2463,7 @@ export default function App() {
           />
         </Suspense>
       )}
-    </div>
+      </div>
+    </NotificationProvider>
   );
 }

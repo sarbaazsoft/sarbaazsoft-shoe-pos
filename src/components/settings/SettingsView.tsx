@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette } from 'lucide-react';
 import { api } from '../../services/api.ts';
-import { PrinterHardwareSettings } from './PrinterHardwareSettings.tsx';
-import { DataBackupRestore } from './DataBackupRestore.tsx';
-import { AppearanceSettingsTab } from './AppearanceSettingsTab.tsx';
+const PrinterHardwareSettings = lazy(() => import('./PrinterHardwareSettings.tsx').then((m) => ({ default: m.PrinterHardwareSettings })));
+const DataBackupRestore = lazy(() => import('./DataBackupRestore.tsx').then((m) => ({ default: m.DataBackupRestore })));
+const AppearanceSettingsTab = lazy(() => import('./AppearanceSettingsTab.tsx').then((m) => ({ default: m.AppearanceSettingsTab })));
 import { UserAvatar } from '../common/UserAvatar.tsx';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
 import { motion, AnimatePresence } from 'motion/react';
-import { CreateStaffModal } from './CreateStaffModal.tsx';
+const CreateStaffModal = lazy(() => import('./CreateStaffModal.tsx').then((m) => ({ default: m.CreateStaffModal })));
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber, cleanPhoneNumber, getPhoneValidationError, isValidPhoneNumber } from '../../utils/textFormat.ts';
 import { calculateDaysLeft, normalizeSubscriptionPlan, normalizeSubscriptionType, isFreeTrial, getSubscriptionShortLabel, getAvailableTemplateChips, getRenewalMessageTemplate, resolveDefaultRenewalTemplateType, type RenewalTemplateType } from '../../utils/subscription.ts';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.tsx';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip.tsx';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
-import { NotificationAlertProvidersSettings } from './NotificationAlertProvidersSettings.tsx';
-import { StoreNotificationPreferencesCard } from './StoreNotificationPreferencesCard.tsx';
+const NotificationAlertProvidersSettings = lazy(() => import('./NotificationAlertProvidersSettings.tsx').then((m) => ({ default: m.NotificationAlertProvidersSettings })));
+const StoreNotificationPreferencesCard = lazy(() => import('./StoreNotificationPreferencesCard.tsx').then((m) => ({ default: m.StoreNotificationPreferencesCard })));
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import {
@@ -2999,11 +2999,13 @@ setFormErrors(errors);
           {/* Add Staff / Cashier Modal */}
           <AnimatePresence>
             {isAddUserModalOpen && (
-              <CreateStaffModal
-                isOpen={isAddUserModalOpen}
-                onClose={() => setIsAddUserModalOpen(false)}
-                onUserCreated={loadUsers}
-              />
+              <Suspense fallback={null}>
+                <CreateStaffModal
+                  isOpen={isAddUserModalOpen}
+                  onClose={() => setIsAddUserModalOpen(false)}
+                  onUserCreated={loadUsers}
+                />
+              </Suspense>
             )}
           </AnimatePresence>
 
@@ -3810,14 +3812,16 @@ setFormErrors(errors);
             </div>
 
             {/* TAB 2: FCM NOTIFICATION SETTINGS */}
-            <div className={servicesIntegrationsTab === 'fcm' ? 'block' : 'hidden'}>
-              <NotificationAlertProvidersSettings
-                embedded={true}
-                onSaveSuccess={() => {
-                  loadAppSettings();
-                }}
-              />
-            </div>
+            {servicesIntegrationsTab === 'fcm' && (
+              <Suspense fallback={null}>
+                <NotificationAlertProvidersSettings
+                  embedded={true}
+                  onSaveSuccess={() => {
+                    loadAppSettings();
+                  }}
+                />
+              </Suspense>
+            )}
           </div>
 
           {/* CATEGORY 4: SUPERADMIN NATIVE PUSH NOTIFICATION EVENT TRIGGERS */}
@@ -4252,7 +4256,9 @@ setFormErrors(errors);
       {/* TAB 4: HARDWARE & PRINTERS (Store Admin & Cashiers) */}
       {!isSuperAdmin && activeTab === 'printers' && (
         <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
-          <PrinterHardwareSettings />
+          <Suspense fallback={null}>
+            <PrinterHardwareSettings />
+          </Suspense>
         </div>
       )}
 
@@ -4444,13 +4450,15 @@ setFormErrors(errors);
           </div>
 
           {/* Store Owner Notification Preferences: Presets, Delivery Channels, Event Types, & Email Fallback */}
-          {isStoreAdmin && (
-            <StoreNotificationPreferencesCard
-              refreshTrigger={notifPrefsRefreshKey}
-              isDeviceSubscribed={isNotifSubscribed}
-              onNavigateToStoreProfile={() => handleSelectTab('store')}
-            />
-          )}
+          <Suspense fallback={null}>
+            {isStoreAdmin && (
+              <StoreNotificationPreferencesCard
+                refreshTrigger={notifPrefsRefreshKey}
+                isDeviceSubscribed={isNotifSubscribed}
+                onNavigateToStoreProfile={() => handleSelectTab('store')}
+              />
+            )}
+          </Suspense>
 
           {/* Card 2: Send Test Notification Message */}
           <form
@@ -4579,24 +4587,26 @@ setFormErrors(errors);
 
       {/* TAB: DATABASE BACKUP & SAFETY RESTORE */}
       {activeTab === 'backup' && isSuperAdmin && (
-        <DataBackupRestore
-          currentUser={currentUser}
-          companySettings={companySettings}
-          onDataRestored={() => {
-            emitDataSync([
-              'settings',
-              'products',
-              'inventory',
-              'sales',
-              'returns',
-              'purchases',
-              'suppliers',
-              'customers',
-              'notifications',
-            ], { source: 'backup-restore' });
-            onSettingsUpdated();
-          }}
-        />
+        <Suspense fallback={null}>
+          <DataBackupRestore
+            currentUser={currentUser}
+            companySettings={companySettings}
+            onDataRestored={() => {
+              emitDataSync([
+                'settings',
+                'products',
+                'inventory',
+                'sales',
+                'returns',
+                'purchases',
+                'suppliers',
+                'customers',
+                'notifications',
+              ], { source: 'backup-restore' });
+              onSettingsUpdated();
+            }}
+          />
+        </Suspense>
       )}
 
       {/* TAB 5: SERVER INSTALLER & ROUTE LOCKDOWN */}
@@ -4916,7 +4926,9 @@ setFormErrors(errors);
 
       {/* TAB: APPEARANCE & COLORS (All Authenticated Roles) */}
       {activeTab === 'appearance' && (
-        <AppearanceSettingsTab currentUser={currentUser} />
+        <Suspense fallback={null}>
+          <AppearanceSettingsTab currentUser={currentUser} />
+        </Suspense>
       )}
 
       {/* Renew Subscription Modal (Auto-displayed when status is EXPIRED or triggered via Renew Subscription button) */}

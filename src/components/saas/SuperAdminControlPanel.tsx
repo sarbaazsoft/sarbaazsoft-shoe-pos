@@ -19,12 +19,11 @@ import { useResendCooldown } from '../../hooks/useResendCooldown';
 import { getRememberedEmail, normalizeRememberedEmail } from '../../utils/rememberedAccount';
 import { StatCard, triggerStatRecount } from '../common/StatCard';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics';
-import { SuperAdminReportsView } from './SuperAdminReportsView';
-import { SettingsView } from '../settings/SettingsView';
 import {
   AnalyticsOverviewSkeleton,
   DirectoryCrudSkeleton,
   FeedLedgerSkeleton,
+  FocusedUtilitySkeleton,
 } from '../common/RouteSkeletons';
 import { useTheme } from '../../context/ThemeContext';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils/textFormat';
@@ -36,7 +35,7 @@ import {
   getNotificationPermissionState,
   subscribeDeviceToWebPush,
   unsubscribeDeviceFromWebPush,
-  connectRealtimeNotificationStream,
+  subscribeForegroundNotifications,
   triggerTestNotificationShadeFallback,
   getDetailedPushPermissionStatus,
   watchNotificationPermissionChanges,
@@ -44,6 +43,13 @@ import {
   isWebPushSupported,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient';
+
+const SuperAdminReportsView = React.lazy(() =>
+  import('./SuperAdminReportsView').then((m) => ({ default: m.SuperAdminReportsView }))
+);
+const SettingsView = React.lazy(() =>
+  import('../settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { getStandardDocumentTitle } from '../../utils/documentTitle';
@@ -372,16 +378,25 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     };
   }, [isSuperAdmin, applyPermissionSnapshot]);
 
-  // Connect real-time Server-Sent Events (SSE) stream for SuperAdmin
+  // Subscribe to foreground Firebase Cloud Messaging notifications (replaces legacy SSE polling stream)
   useEffect(() => {
     if (!isSuperAdmin) return;
-    const cleanupStream = connectRealtimeNotificationStream((_payload) => {
-      loadNotifications();
+    const cleanupForeground = subscribeForegroundNotifications((_payload) => {
+      if (showNotifDropdown || activeTab === 'notifications') {
+        void loadNotifications();
+      }
     });
     return () => {
-      cleanupStream();
+      cleanupForeground();
     };
-  }, [isSuperAdmin, loadNotifications]);
+  }, [isSuperAdmin, loadNotifications, showNotifDropdown, activeTab]);
+
+  // Fetch broadcast notification history on demand when switching to the Notifications tab
+  useEffect(() => {
+    if (isSuperAdmin && activeTab === 'notifications' && !hasLoadedNotificationsOnceRef.current) {
+      void loadNotifications();
+    }
+  }, [isSuperAdmin, activeTab, loadNotifications]);
 
   // Listen for global notification modal trigger events
   useEffect(() => {
@@ -759,7 +774,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         if (Array.isArray(data.reports.sevenDaySales)) setSevenDaySales(data.reports.sevenDaySales);
         if (Array.isArray(data.reports.recentTransactions)) setRecentTransactions(data.reports.recentTransactions);
       }
-      await loadNotifications();
     } catch (err: any) {
       setError(err.message || 'Failed to load SuperAdmin overview.');
     } finally {
@@ -767,7 +781,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       setLoading(false);
       triggerStatRecount();
     }
-  }, [isSuperAdmin, loadNotifications]);
+  }, [isSuperAdmin]);
 
   const handleExtendTrial = async (trialId: number, days: number = 30) => {
     setExtendingTrialId(trialId);
@@ -2571,9 +2585,13 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setShowNotifDropdown((prev) => !prev);
+                  const nextOpen = !showNotifDropdown;
+                  setShowNotifDropdown(nextOpen);
                   setShowToolsDropdown(false);
                   setShowUserDropdown(false);
+                  if (nextOpen && !hasLoadedNotificationsOnceRef.current) {
+                    void loadNotifications();
+                  }
                 }}
                 className={`relative p-2 rounded-xl transition cursor-pointer border ${
                   showNotifDropdown
@@ -5466,19 +5484,21 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* SECTION 3: DEDICATED REPORTS & ANALYTICS VIEW (ALIGNED WITH STORE REPORTS DASHBOARD) */}
             {activeTab === 'reports' && (
-              <SuperAdminReportsView
-                stores={stores}
-                totalTrials={metrics.totalTrials}
-                reportProducts={reportProducts}
-                reportCategories={reportCategories}
-                reportBrands={reportBrands}
-                subscriptionPlans={subscriptionPlans}
-                expiringTenants={expiringTenants}
-                recentTransactions={recentTransactions}
-                loading={loading}
-                onRefresh={loadOverview}
-                onOpenStore={onOpenStore}
-              />
+              <React.Suspense fallback={<AnalyticsOverviewSkeleton />}>
+                <SuperAdminReportsView
+                  stores={stores}
+                  totalTrials={metrics.totalTrials}
+                  reportProducts={reportProducts}
+                  reportCategories={reportCategories}
+                  reportBrands={reportBrands}
+                  subscriptionPlans={subscriptionPlans}
+                  expiringTenants={expiringTenants}
+                  recentTransactions={recentTransactions}
+                  loading={loading}
+                  onRefresh={loadOverview}
+                  onOpenStore={onOpenStore}
+                />
+              </React.Suspense>
             )}
 
             {/* SECTION 4: SCOPED PWA MANIFEST REGISTRY VIEW */}
@@ -5538,16 +5558,18 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             {/* SECTION 5: APP & ENVIRONMENT SETTINGS (app_settings) */}
             {activeTab === 'settings' && (
               <div className="space-y-6">
-                <SettingsView
-                  currentUser={currentUser}
-                  companySettings={{
-                    name: 'Platform SuperAdmin',
-                    currency: 'PKR',
-                    currency_symbol: 'Rs.',
-                  }}
-                  initialTab={superAdminSettingsTab}
-                  onSettingsUpdated={() => {}}
-                />
+                <React.Suspense fallback={<FocusedUtilitySkeleton variant="settings" />}>
+                  <SettingsView
+                    currentUser={currentUser}
+                    companySettings={{
+                      name: 'Platform SuperAdmin',
+                      currency: 'PKR',
+                      currency_symbol: 'Rs.',
+                    }}
+                    initialTab={superAdminSettingsTab}
+                    onSettingsUpdated={() => {}}
+                  />
+                </React.Suspense>
               </div>
             )}
 

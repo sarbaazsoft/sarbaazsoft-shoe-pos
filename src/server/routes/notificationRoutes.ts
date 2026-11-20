@@ -456,6 +456,7 @@ router.get('/grouped', async (req: Request, res: Response) => {
     const { tenantId, userId, role } = resolveRequestIdentity(req);
     const cleanTenantId = tenantId || 1;
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || '5'), 10) || 5, 1), 10);
+    const noticesOnly = String(req.query.noticesOnly || req.query.includeHistory === '0') === '1' || req.query.includeHistory === '0';
 
     // 1. Fetch active Platform Notices: (expires_at IS NULL OR expires_at > NOW()) and NOT dismissed
     const noticesRes = await pgClient.query<{
@@ -562,11 +563,9 @@ router.get('/grouped', async (req: Request, res: Response) => {
     }));
 
     // 2. Fetch active POS Operational Notifications (Sales, Purchases, Returns, Low Stock)
-    // Strictly enforces a 48-hour sliding window (created_at >= NOW() - INTERVAL '48 HOURS')
-    // Excludes records present in pos_notification_dismissals
-    // Cashiers ONLY receive notifications for their own operations (never PURCHASE or LOW_STOCK)
+    // Only queried when history is requested (omitted when noticesOnly=1 during lightweight banner load)
     let operationalNotifications: any[] = [];
-    if (role !== 'SUPERADMIN') {
+    if (!noticesOnly && role !== 'SUPERADMIN') {
       const { isWholesaleTenant, linkedSaleReturnNumbers, exchangeLinkedReturnNumbers } =
         await resolveStoreNotificationContext(cleanTenantId);
 

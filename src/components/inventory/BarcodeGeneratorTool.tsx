@@ -294,7 +294,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
     window.print();
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (totalStickersToPrint === 0) {
       alert('Please select at least one item to print.');
       return;
@@ -302,7 +302,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
     setIsExportingPdf(true);
     setFeedbackNotice(null);
     try {
-      exportBatchStickersToPdf(labelQueue, companySettings, labelFormat, {
+      await exportBatchStickersToPdf(labelQueue, companySettings, labelFormat, {
         showStore,
         showBrand,
         showArticle,
@@ -316,10 +316,10 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
     }
   };
 
-  const handleExportPng = () => {
+  const handleExportPng = async () => {
     setFeedbackNotice(null);
     try {
-      exportStickersToImage(previewProduct, companySettings);
+      await exportStickersToImage(previewProduct, companySettings);
       setFeedbackNotice(`Sticker image saved for ${previewProduct.article || 'product'}.`);
     } catch (err: any) {
       setFeedbackNotice(`Image export error: ${err.message || 'Unknown error'}`);

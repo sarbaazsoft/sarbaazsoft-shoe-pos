@@ -1055,33 +1055,16 @@ export async function notifyPlatformAnnouncement(
     timestamp: payload.timestamp || new Date().toISOString(),
   };
 
-  // Smart SuperAdmin Delivery:
-  // - SuperAdmin Online  -> In-app (SSE) + FCM push ONLY (do NOT send email)
-  // - SuperAdmin Offline -> Email alert reliably (skip SSE & FCM push to avoid duplicate alerts)
-  if (targetRole === 'SUPERADMIN') {
-    const superAdminOnline = deps?.isSuperAdminOnlineFn
-      ? deps.isSuperAdminOnlineFn()
-      : isSuperAdminOnline();
-
-    if (!superAdminOnline) {
-      const dispatchEmailImpl = deps?.dispatchSuperAdminEmailAlertFn || dispatchSuperAdminEmailAlert;
-      try {
-        await dispatchEmailImpl(eventPayload);
-      } catch (err: any) {
-        console.warn('[pushNotificationService] Error in dispatchSuperAdminEmailAlert:', err?.message || err);
-      }
-      return;
-    }
-  }
-
-  // 1. Deliver to active browser sessions via SSE
+  // 1. Deliver to any legacy/test active browser sessions via SSE
   broadcastSsePlatformAnnouncement(eventPayload, { isGlobal, cleanTenantId, targetRole });
 
-  // 2. Deliver via Firebase Cloud Messaging (FCM) respecting store Web Push preference
+  // 2. Deliver via Firebase Cloud Messaging (FCM) as primary transport
   const allowWebPush = storePrefs ? Boolean(storePrefs.channels.webPush) : true;
   const ownerTargeted = targetRole === 'ADMIN' || targetRole === 'ALL';
   let hasOwnerToken = false;
   let ownerPushSentCount = 0;
+  let superAdminTokensCount = 0;
+  let superAdminPushSentCount = 0;
 
   const fcmConfigured = deps?.isFirebaseReadyFn
     ? await deps.isFirebaseReadyFn()
@@ -1092,6 +1075,9 @@ export async function notifyPlatformAnnouncement(
     if (deps?.fetchFcmTokensFn) {
       tokens = await deps.fetchFcmTokensFn(targetRole, cleanTenantId);
       hasOwnerToken = ownerTargeted && tokens.length > 0;
+      if (targetRole === 'SUPERADMIN') {
+        superAdminTokensCount = tokens.length;
+      }
     } else {
       await ensureFcmTokensSchema();
       let query = '';
@@ -1120,6 +1106,9 @@ export async function notifyPlatformAnnouncement(
       const tokensRes = await pgClient.query<{ token: string; user_role: string }>(query, params);
       tokens = tokensRes.rows.map((r) => r.token).filter(Boolean);
       hasOwnerToken = ownerTargeted && tokensRes.rows.some((r) => Boolean(r.token) && isOwnerRole(r.user_role));
+      if (targetRole === 'SUPERADMIN') {
+        superAdminTokensCount = tokens.length;
+      }
     }
 
     if (tokens.length > 0 && allowWebPush && fcmConfigured) {
@@ -1139,18 +1128,39 @@ export async function notifyPlatformAnnouncement(
           tag: eventTag,
           announcementId: String(payload.id || ''),
           notificationId: String(payload.id || ''),
+          targetRole: String(targetRole || 'ALL'),
+          actionLabel: String(payload.actionLabel || ''),
           isAdmin: isAdminAnnouncement ? 'true' : 'false',
+          timestamp: eventPayload.timestamp,
         },
       });
       if (hasOwnerToken) {
         ownerPushSentCount = pushRes?.sentCount || 0;
+      }
+      if (targetRole === 'SUPERADMIN') {
+        superAdminPushSentCount = pushRes?.sentCount || 0;
       }
     }
   } catch (err) {
     console.error('Error during FCM announcement push dispatch:', err);
   }
 
-  // 3. Store Owner Email Fallback for tenant-targeted announcements & subscription alerts
+  // 3a. SuperAdmin Email Fallback when FCM is unavailable, unsubscribed, or fails delivery
+  if (targetRole === 'SUPERADMIN') {
+    const needsSuperAdminFallback =
+      !fcmConfigured || superAdminTokensCount === 0 || superAdminPushSentCount === 0;
+    if (needsSuperAdminFallback) {
+      const dispatchEmailImpl = deps?.dispatchSuperAdminEmailAlertFn || dispatchSuperAdminEmailAlert;
+      try {
+        await dispatchEmailImpl(eventPayload);
+      } catch (err: any) {
+        console.warn('[pushNotificationService] Error in dispatchSuperAdminEmailAlert:', err?.message || err);
+      }
+    }
+    return;
+  }
+
+  // 3b. Store Owner Email Fallback for tenant-targeted announcements & subscription alerts
   if (cleanTenantId !== null && ownerTargeted && storePrefs?.channels.emailAlerts) {
     const ownerOnline = deps?.isOwnerOnlineFn
       ? deps.isOwnerOnlineFn(cleanTenantId)

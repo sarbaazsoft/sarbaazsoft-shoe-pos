@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Printer, X, FileText, Receipt, CheckCircle, Zap, MessageCircle, Send, Copy, Smartphone, ChevronDown, ChevronUp, Package, Truck } from 'lucide-react';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { executePrintReceipt, getSavedPrinterSettings } from '../../utils/printer/printerManager.ts';
-import { buildWhatsAppInvoiceText, buildSmsInvoiceText, buildWhatsAppLink, buildSmsLink } from '../../utils/pdfExport.ts';
+import { buildWhatsAppInvoiceText, buildSmsInvoiceText, buildWhatsAppLink, buildSmsLink } from '../../utils/receiptText.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface InvoicePrintModalProps {

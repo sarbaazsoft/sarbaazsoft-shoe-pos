@@ -17,7 +17,6 @@ import {
 import {
   SOFT_PROMPT_DISMISSED_KEY,
   SOFT_PROMPT_STORAGE_KEY,
-  connectRealtimeNotificationStream,
   dismissSoftPushPrompt,
   getDetailedPushPermissionStatus,
   initNativeNotificationPrompt,
@@ -27,8 +26,10 @@ import {
   resyncPushSubscriptionIfEnabled,
   shouldShowSoftPushPrompt,
   shouldShowSoftPushPromptAsync,
+  subscribeForegroundNotifications,
   triggerTestNotificationShadeFallback,
   unsubscribeDeviceFromWebPush,
+  watchNotificationPermissionChanges,
 } from '../src/services/pushNotificationClient.ts';
 import {
   recordSwNotificationShown,
@@ -206,10 +207,24 @@ function setupMockBrowserEnv(options: {
     matchMedia: (query: string) => ({
       matches: Boolean(options.isAndroidTwa && query.includes('standalone')),
     }),
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type: string, fn: any) {
+      this._listeners = this._listeners || new Map();
+      const list = this._listeners.get(type) || [];
+      list.push(fn);
+      this._listeners.set(type, list);
+    },
+    removeEventListener(type: string, fn: any) {
+      const list = this._listeners?.get(type);
+      if (list) {
+        this._listeners.set(type, list.filter((f: any) => f !== fn));
+      }
+    },
     dispatchEvent(evt: any) {
       dispatchedEvents.push({ type: evt.type, detail: evt.detail });
+      const list = this._listeners?.get(evt.type) || [];
+      for (const fn of list) {
+        fn(evt);
+      }
       return true;
     },
   };
@@ -558,7 +573,7 @@ test('Prior denial does not permanently lock out notifications once re-allowed i
   }
 });
 
-test('Focused Chrome/APK windows show shade notification from SSE & Test Alert without throwing on SW-only actions', async () => {
+test('Focused Chrome/APK windows handle FCM foreground events cleanly without SSE and watchNotificationPermissionChanges shares a single listener pool', async () => {
   resetNotificationDedupeCache();
 
   // 1. Verify window Notification fallback strips SW-only `actions` when SW is unavailable
@@ -581,9 +596,10 @@ test('Focused Chrome/APK windows show shade notification from SSE & Test Alert w
     noSwEnv.restore();
   }
 
-  // 2. Verify focused Chrome/APK displays SSE OS notification via SW when SW push did not claim it first
+  // 2. Verify subscribeForegroundNotifications listens to pos:fcm-notification without opening any EventSource,
+  //    and multiple watchNotificationPermissionChanges subscribers share 1 permission watcher
   resetNotificationDedupeCache();
-  const sseEnv = setupMockBrowserEnv({
+  const fgEnv = setupMockBrowserEnv({
     permission: 'granted',
     permissionsApiState: 'granted',
     pushManagerState: 'granted',
@@ -592,23 +608,32 @@ test('Focused Chrome/APK windows show shade notification from SSE & Test Alert w
   });
 
   const receivedPayloads: any[] = [];
-  const disconnect = connectRealtimeNotificationStream((p) => receivedPayloads.push(p));
+  const unsubscribeFcm = subscribeForegroundNotifications((p) => receivedPayloads.push(p));
+
+  const unwatch1 = watchNotificationPermissionChanges(() => {});
+  const unwatch2 = watchNotificationPermissionChanges(() => {});
+  const unwatch3 = watchNotificationPermissionChanges(() => {});
 
   try {
-    assert.equal(sseEnv.eventSourceInstances.length, 1);
-    sseEnv.eventSourceInstances[0].emit('pos_action', {
-      eventId: 'sale-fg-101',
-      tag: 'sale-fg-101',
-      type: 'SALE',
-      title: 'Sale #INV-101',
-      message: 'Rs. 2,500 completed',
-      deepLinkUrl: '/?tab=reports',
-    });
+    assert.equal(fgEnv.eventSourceInstances.length, 0, 'FCM-primary client must never open legacy SSE EventSource');
+    assert.equal(fgEnv.getPermissionsQueryCalls(), 1, '3 watchers must consolidate onto a single shared permissions.query watcher');
 
-    await new Promise((r) => setTimeout(r, 30));
+    (globalThis as any).window.dispatchEvent(
+      new (globalThis as any).CustomEvent('pos:fcm-notification', {
+        detail: {
+          eventId: 'sale-fg-101',
+          tag: 'sale-fg-101',
+          type: 'SALE',
+          title: 'Sale #INV-101',
+          message: 'Rs. 2,500 completed',
+          deepLinkUrl: '/?tab=reports',
+        },
+      })
+    );
+
+    await new Promise((r) => setTimeout(r, 20));
     assert.equal(receivedPayloads.length, 1);
-    assert.equal(sseEnv.swShownNotifications.length, 1);
-    assert.equal(sseEnv.swShownNotifications[0].title, 'Sale #INV-101');
+    assert.equal(receivedPayloads[0].title, 'Sale #INV-101');
 
     // 3. Test Alert fallback delivers once and skips duplicate if SW already claimed the event
     const testShown = await triggerTestNotificationShadeFallback({
@@ -618,7 +643,7 @@ test('Focused Chrome/APK windows show shade notification from SSE & Test Alert w
       fcmSentCount: 0,
     });
     assert.equal(testShown, true);
-    assert.equal(sseEnv.swShownNotifications.length, 2);
+    assert.equal(fgEnv.swShownNotifications.length, 1);
 
     recordSwNotificationShown({ eventId: 'test-sw-303', tag: 'test-sw-303', dedupeKey: 'id:test-sw-303' });
     const dedupedTestShown = await triggerTestNotificationShadeFallback({
@@ -628,10 +653,13 @@ test('Focused Chrome/APK windows show shade notification from SSE & Test Alert w
       fcmSentCount: 0,
     });
     assert.equal(dedupedTestShown, false);
-    assert.equal(sseEnv.swShownNotifications.length, 2);
+    assert.equal(fgEnv.swShownNotifications.length, 1);
   } finally {
-    disconnect();
-    sseEnv.restore();
+    unwatch1();
+    unwatch2();
+    unwatch3();
+    unsubscribeFcm();
+    fgEnv.restore();
   }
 });
 

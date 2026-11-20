@@ -113,10 +113,21 @@ test('shouldPollBackendHealth skips polling when online, healthy, and queue empt
   );
 });
 
-test('KeepAliveRouteHost bounds default mounted tabs to 3 while keeping pos and dashboard pinned', () => {
-  assert.equal(DEFAULT_MAX_KEEP_ALIVE_TABS, 3);
+test('KeepAliveRouteHost expands mounted tabs to 8 while keeping pos and dashboard pinned, with zero 30s polling', () => {
+  assert.equal(DEFAULT_MAX_KEEP_ALIVE_TABS, 8);
   assert.equal(CORE_PINNED_TABS.has('pos'), true);
   assert.equal(CORE_PINNED_TABS.has('dashboard'), true);
+
+  const headerSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/common/Header.tsx'), 'utf8');
+  const posBannerSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/pos/PosNotificationBanner.tsx'), 'utf8');
+  const landingSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/saas/SaasLandingPage.tsx'), 'utf8');
+  const notifCtxSrc = fs.readFileSync(path.join(process.cwd(), 'src/context/NotificationContext.tsx'), 'utf8');
+
+  assert.equal(headerSrc.includes('30_000'), false);
+  assert.equal(posBannerSrc.includes('30_000'), false);
+  assert.equal(landingSrc.includes('30_000'), false);
+  assert.ok(notifCtxSrc.includes('noticesOnly: true'));
+  assert.ok(notifCtxSrc.includes('loadHistoryOnDemand'));
 });
 
 test('offlineDb strips heavy base64 data URLs from localStorage catalog mirror while preserving barcodes and pricing', async () => {

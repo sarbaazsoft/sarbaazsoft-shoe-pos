@@ -1347,10 +1347,13 @@ export const api = {
       apiFetch('/backup/import-sql', { method: 'POST', body: { sql: sqlContent, sqlContent } }),
   },
   notifications: {
-    grouped: (limit: number = 5, reqOptions?: { signal?: AbortSignal }) =>
-      apiFetch<GroupedNotificationsResponse>(`/notifications/grouped?limit=${limit}`, {
-        signal: reqOptions?.signal,
-      }),
+    grouped: (limit: number = 5, reqOptions?: { signal?: AbortSignal; noticesOnly?: boolean }) =>
+      apiFetch<GroupedNotificationsResponse>(
+        `/notifications/grouped?limit=${limit}${reqOptions?.noticesOnly ? '&noticesOnly=1' : ''}`,
+        {
+          signal: reqOptions?.signal,
+        }
+      ),
     all: (
       params?: {
         page?: number;

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, DollarSign, ShoppingBag, AlertTriangle, Award, Printer, Receipt, RotateCw, RefreshCw, Search, X, Download, LayoutDashboard, BarChart3, CheckCircle2 } from 'lucide-react';
 import { api, getActiveTenantId } from '../../services/api.ts';
-import { InvoicePrintModal } from '../pos/InvoicePrintModal.tsx';
-import { FinancialSummaryPrintModal } from './FinancialSummaryPrintModal.tsx';
+const InvoicePrintModal = lazy(() => import('../pos/InvoicePrintModal.tsx').then((m) => ({ default: m.InvoicePrintModal })));
+const FinancialSummaryPrintModal = lazy(() => import('./FinancialSummaryPrintModal.tsx').then((m) => ({ default: m.FinancialSummaryPrintModal })));
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { RetailShoeMetrics, useDataPerIntersectionObserver } from '../common/RetailShoeMetrics.tsx';
@@ -1526,23 +1526,27 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       )}
 
       {selectedSaleForPrint && (
-        <InvoicePrintModal
-          sale={selectedSaleForPrint}
-          companySettings={companySettings}
-          onClose={handleCloseReceiptModal}
-        />
+        <Suspense fallback={null}>
+          <InvoicePrintModal
+            sale={selectedSaleForPrint}
+            companySettings={companySettings}
+            onClose={handleCloseReceiptModal}
+          />
+        </Suspense>
       )}
 
       {/* Financial Summary Print Modal / Z-Report Closing Slip */}
       {isPrintSummaryOpen && (
-        <FinancialSummaryPrintModal
-          dashboardData={dashboardData}
-          salesHistory={salesHistory}
-          topSelling={topSelling}
-          companySettings={companySettings}
-          currentUser={currentUser}
-          onClose={() => setIsPrintSummaryOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <FinancialSummaryPrintModal
+            dashboardData={dashboardData}
+            salesHistory={salesHistory}
+            topSelling={topSelling}
+            companySettings={companySettings}
+            currentUser={currentUser}
+            onClose={() => setIsPrintSummaryOpen(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

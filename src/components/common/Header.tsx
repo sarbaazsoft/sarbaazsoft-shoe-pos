@@ -7,26 +7,20 @@ import { ShoeIcon } from './ShoeIcon.tsx';
 import { ThemeDropdown } from './ThemeDropdown.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { ClickableMessage } from './ClickableMessage.tsx';
-import { api, getActiveTenantId, isAbortError } from '../../services/api.ts';
-import { useGroupedNotificationsQuery } from '../../hooks/useLiveData.ts';
+import { api, isAbortError } from '../../services/api.ts';
+import { useNotifications } from '../../context/NotificationContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { PlatformNotification, PlatformNotificationType } from '../../types.ts';
 import { getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { getAllCachedProductsOffline } from '../../utils/offlineDb.ts';
 import {
   getNotificationPermissionState,
-  connectRealtimeNotificationStream,
-  refreshRealtimeNotificationStream,
   initNativeNotificationPrompt,
   getDetailedPushPermissionStatus,
   watchNotificationPermissionChanges,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal.tsx';
-import {
-  claimNotificationChannel,
-  getNotificationDedupeKey,
-} from '../../utils/notificationDedupe.ts';
 import {
   resolveNotificationActions,
   navigateToNotificationUrl,
@@ -366,31 +360,21 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, []);
 
-  // Real-time system notifications & announcements fetched directly without cache
-  const activeTenantId = getActiveTenantId();
-  const groupedNotifsQuery = useGroupedNotificationsQuery(10, {
-    enabled: Boolean(currentUser),
-    refetchInterval: 30_000,
-  });
-  const notifications = useMemo(
-    () => (groupedNotifsQuery.data?.notifications || []).slice(0, 5),
-    [groupedNotifsQuery.data]
-  );
-  const platformAnnouncements = useMemo<PlatformNotification[]>(
-    () => groupedNotifsQuery.data?.notices || [],
-    [groupedNotifsQuery.data]
-  );
-  const isLoadingNotifs = groupedNotifsQuery.isFetching;
-
-  const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('pos_read_notifications');
-      const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  // Shared notification state powered by foreground FCM + on-demand history fetch (zero 30s polling)
+  const {
+    notifications,
+    notices: platformAnnouncements,
+    readNotifIds,
+    isLoading: isLoadingNotifs,
+    isBellPulsing,
+    refreshGrouped,
+    setDropdownOpen,
+    markAsRead,
+    markAllAsRead,
+    dismissActivity,
+    dismissNotice,
+    dismissAll,
+  } = useNotifications();
 
   // Platform Announcements dismissal state
   const [isDismissingAnnouncement, setIsDismissingAnnouncement] = useState<number | null>(null);
@@ -399,48 +383,12 @@ export const Header: React.FC<HeaderProps> = ({
   const [isPushSubscribed, setIsPushSubscribed] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => getNotificationPermissionState());
   const [permissionSnapshot, setPermissionSnapshot] = useState<PushPermissionSnapshot | null>(null);
-  const suppressedLocalTestIdsRef = useRef<Set<string>>(new Set());
   const [notificationModalData, setNotificationModalData] = useState<NotificationModalData | null>(null);
-  const [livePushToast, setLivePushToast] = useState<{
-    id: string;
-    type: 'SALE' | 'PURCHASE' | 'RETURN' | 'EXCHANGE' | 'SALE_RETURN' | 'SALE_EXCHANGE' | 'PLATFORM_ANNOUNCEMENT' | 'ANNOUNCEMENT' | string;
-    title: string;
-    message: string;
-    invoiceNumber?: string;
-    purchaseNumber?: string;
-    saleId?: string | number;
-    announcementId?: string | number;
-    returnNumber?: string;
-    totalAmount?: number;
-    deepLinkUrl?: string;
-    actionUrl?: string;
-    actionLabel?: string;
-  } | null>(null);
-
-  // Animate notification bell icon to pulse when a new push notification arrives while app is active
-  const [isBellPulsing, setIsBellPulsing] = useState(false);
-  const bellPulseTimeoutRef = useRef<any>(null);
-
-  const triggerBellPulse = useCallback(() => {
-    setIsBellPulsing(true);
-    if (bellPulseTimeoutRef.current) {
-      clearTimeout(bellPulseTimeoutRef.current);
-    }
-    // Pulse for 6.5 seconds or until user interacts with notification dropdown
-    bellPulseTimeoutRef.current = setTimeout(() => {
-      setIsBellPulsing(false);
-    }, 6500);
-  }, []);
 
   const currentRole = String(currentUser?.role || '').trim().toUpperCase();
   const isSuperAdminUser = currentRole === 'SUPERADMIN';
   const isAdminUser = currentRole === 'ADMIN';
   const isCashierUser = currentRole === 'CASHIER';
-
-  const currentRoleRef = useRef(currentRole);
-  useEffect(() => {
-    currentRoleRef.current = currentRole;
-  }, [currentRole]);
 
   const applyPermissionSnapshot = useCallback((snap: PushPermissionSnapshot) => {
     setPermissionSnapshot(snap);
@@ -448,9 +396,8 @@ export const Header: React.FC<HeaderProps> = ({
     setPushPermission(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission);
   }, []);
 
-  // Sync Firebase push token, SSE stream identity, & permission snapshot on mount and whenever active role/tenant changes
+  // Sync Firebase foreground client & shared browser permission watcher on mount / role change
   useEffect(() => {
-    refreshRealtimeNotificationStream();
     const cleanupNativePrompt = initNativeNotificationPrompt(currentRole || 'ADMIN');
 
     void getDetailedPushPermissionStatus()
@@ -465,117 +412,10 @@ export const Header: React.FC<HeaderProps> = ({
       cleanupNativePrompt();
       cleanupWatcher();
     };
-  }, [currentRole, activeTenantId, applyPermissionSnapshot]);
+  }, [currentRole, applyPermissionSnapshot]);
 
-  // Setup real-time SSE stream and global modal listener
+  // Listen for notification status guide modal events
   useEffect(() => {
-
-    // Connect to real-time event stream for active sessions with strict role isolation
-    const cleanupStream = connectRealtimeNotificationStream((payload) => {
-      const userRole = currentRoleRef.current;
-      const targetRole = payload.targetRole ? String(payload.targetRole).toUpperCase() : undefined;
-      const targetRoles = Array.isArray(payload.targetRoles) ? payload.targetRoles.map((r: string) => r.toUpperCase()) : undefined;
-
-      // 1. Role isolation guards:
-      const titleLower = (payload.title || '').toLowerCase();
-      const msgLower = (payload.message || '').toLowerCase();
-      const actionUrlLower = (payload.actionUrl || '').toLowerCase();
-      const isRenewalRequestNotice =
-        titleLower.startsWith('renewal request:') ||
-        titleLower.includes('new renewal request') ||
-        msgLower.includes('requested subscription renewal');
-      const isSuperAdminOnlyNotice =
-        targetRole === 'SUPERADMIN' ||
-        titleLower.includes('new free trial') ||
-        isRenewalRequestNotice ||
-        msgLower.includes('free tier store registered') ||
-        actionUrlLower.includes('/superadmin');
-
-      if (String(payload.type || '').toUpperCase() === 'PURCHASE') {
-        return;
-      }
-
-      if (userRole !== 'SUPERADMIN' && isSuperAdminOnlyNotice) {
-        return;
-      }
-
-      if (userRole === 'SUPERADMIN') {
-        // SuperAdmin NEVER receives store POS events (SALE, RETURN, EXCHANGE, SALE_RETURN, SALE_EXCHANGE, PURCHASE, STOCK)
-        if (['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'PURCHASE', 'STOCK'].includes(payload.type)) {
-          return;
-        }
-        if (targetRole && !['ALL', 'SUPERADMIN'].includes(targetRole)) {
-          return;
-        }
-        if (titleLower.includes('welcome') || msgLower.includes('welcome to sarbaazsoft')) {
-          return;
-        }
-      } else if (userRole === 'CASHIER') {
-        // Cashiers never receive store owner management alerts (PURCHASE, STOCK, SUPPLIER) or welcome messages
-        if (['PURCHASE', 'STOCK', 'SUPPLIER'].includes(payload.type)) {
-          return;
-        }
-        if (targetRole && !['ALL', 'CASHIER'].includes(targetRole)) {
-          return;
-        }
-        if (targetRoles && !targetRoles.includes('CASHIER')) {
-          return;
-        }
-        if (titleLower.includes('welcome') || msgLower.includes('welcome to sarbaazsoft')) {
-          return;
-        }
-      } else if (userRole === 'ADMIN') {
-        // Store Owners never receive CASHIER-only or SUPERADMIN-only alerts
-        if (targetRole && !['ALL', 'ADMIN'].includes(targetRole)) {
-          return;
-        }
-        if (targetRoles && !targetRoles.includes('ADMIN')) {
-          return;
-        }
-        if (titleLower.includes('welcome') || msgLower.includes('welcome') || msgLower.includes('staff account')) {
-          return;
-        }
-      }
-
-      // Animate notification bell icon to pulse when a push notification arrives
-      triggerBellPulse();
-      fetchLiveNotifications();
-
-      const incomingEventId = String(payload.eventId || payload.event_id || payload.tag || '');
-      if (incomingEventId && suppressedLocalTestIdsRef.current.has(incomingEventId)) {
-        suppressedLocalTestIdsRef.current.delete(incomingEventId);
-        return;
-      }
-
-      const toastDedupeKey = getNotificationDedupeKey(payload);
-      if (!claimNotificationChannel(toastDedupeKey, 'toast')) {
-        return;
-      }
-
-      // Display instant floating notification toast
-      const toastId = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      setLivePushToast({
-        id: toastId,
-        type: payload.type || 'SALE',
-        title: payload.title || 'POS Alert',
-        message: payload.message || 'Transaction confirmed.',
-        invoiceNumber: payload.invoiceNumber,
-        purchaseNumber: payload.purchaseNumber,
-        saleId: payload.saleId || payload.orderId,
-        announcementId: payload.announcementId || (payload.type === 'ANNOUNCEMENT' ? payload.id : undefined),
-        returnNumber: payload.returnNumber,
-        totalAmount: payload.totalAmount,
-        deepLinkUrl: payload.deepLinkUrl,
-        actionUrl: payload.actionUrl,
-        actionLabel: payload.actionLabel,
-      });
-
-      // Automatically dismiss after 9 seconds
-      setTimeout(() => {
-        setLivePushToast((prev) => (prev?.id === toastId ? null : prev));
-      }, 9000);
-    });
-
     const handleShowNotificationModal = (event: any) => {
       if (event?.detail) {
         setNotificationModalData({
@@ -585,25 +425,16 @@ export const Header: React.FC<HeaderProps> = ({
       }
     };
 
-    const handleLocalTestPushDispatched = (event: any) => {
-      const eventId = event?.detail?.eventId ? String(event.detail.eventId) : '';
-      if (!eventId) return;
-      suppressedLocalTestIdsRef.current.add(eventId);
-      setTimeout(() => suppressedLocalTestIdsRef.current.delete(eventId), 15_000);
-    };
-
     window.addEventListener('pos:show-notification-modal', handleShowNotificationModal);
-    window.addEventListener('pos:local-test-push-dispatched', handleLocalTestPushDispatched);
-
     return () => {
-      cleanupStream();
       window.removeEventListener('pos:show-notification-modal', handleShowNotificationModal);
-      window.removeEventListener('pos:local-test-push-dispatched', handleLocalTestPushDispatched);
-      if (bellPulseTimeoutRef.current) {
-        clearTimeout(bellPulseTimeoutRef.current);
-      }
     };
-  }, [triggerBellPulse]);
+  }, []);
+
+  // Sync bell dropdown open state with shared NotificationContext to load history on demand
+  useEffect(() => {
+    setDropdownOpen(showNotifications);
+  }, [showNotifications, setDropdownOpen]);
 
   const effectivePushStatus =
     permissionSnapshot?.effectiveStatus ||
@@ -621,80 +452,24 @@ export const Header: React.FC<HeaderProps> = ({
   ) => {
     e.stopPropagation();
     setShowNotifications(false);
-    setLivePushToast(null);
     if (meta?.markActivityId) {
       markAsRead(String(meta.markActivityId));
     }
     if (meta?.markNoticeId) {
-      void api.notifications.dismiss(meta.markNoticeId, 'NOTICE').catch(() => {});
+      void dismissNotice(meta.markNoticeId).catch(() => {});
     }
     navigateToNotificationUrl(btn.url, { ...meta, action: btn.action });
   };
 
-  const handleToastClick = () => {
-    if (!livePushToast) return;
-    const toast = livePushToast;
-    setLivePushToast(null);
-
-    const actions = resolveNotificationActions(toast as any, currentRole);
-    const primaryAction = actions[0];
-    const targetUrl =
-      (toast.deepLinkUrl && String(toast.deepLinkUrl).trim()) ||
-      (toast.actionUrl && String(toast.actionUrl).trim()) ||
-      primaryAction?.url ||
-      '';
-
-    if (targetUrl) {
-      navigateToNotificationUrl(targetUrl, toast as Record<string, any>);
-      return;
-    }
-
-    setShowNotifications(true);
-  };
-
   const fetchLiveNotifications = useCallback(async () => {
     if (!currentUser) return;
-    try {
-      await groupedNotifsQuery.refetch();
-    } catch {
-      // Ignore transient polling errors during server restarts
-    }
-  }, [currentUser, groupedNotifsQuery.refetch]);
-
-  const markAsRead = (id: string) => {
-    setReadNotifIds((prev) => {
-      if (prev.includes(id)) return prev;
-      const next = [...prev, id];
-      try {
-        localStorage.setItem('pos_read_notifications', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const markAllAsRead = () => {
-    const allIds = notifications.map((n) => n.id);
-    setReadNotifIds((prev) => {
-      const merged = Array.from(new Set([...prev, ...allIds]));
-      try {
-        localStorage.setItem('pos_read_notifications', JSON.stringify(merged));
-      } catch {}
-      return merged;
-    });
-  };
+    await refreshGrouped({ noticesOnly: false });
+  }, [currentUser, refreshGrouped]);
 
   const handleDismissActivity = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
-      groupedNotifsQuery.setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              notifications: (prev.notifications || []).filter((n) => n.id !== id),
-            }
-          : prev
-      );
-      await api.notifications.dismiss(id);
+      await dismissActivity(id);
       emitDataSync(['notifications'], { source: 'header' });
     } catch (err) {
       console.warn('Failed to dismiss activity:', err);
@@ -705,15 +480,7 @@ export const Header: React.FC<HeaderProps> = ({
     e?.stopPropagation();
     try {
       setIsDismissingAnnouncement(id);
-      groupedNotifsQuery.setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              notices: (prev.notices || []).filter((a) => a.id !== id),
-            }
-          : prev
-      );
-      await api.notifications.dismiss(id, 'NOTICE');
+      await dismissNotice(id);
       emitDataSync(['notifications'], { source: 'header' });
     } catch (err) {
       console.error('Failed to dismiss announcement:', err);
@@ -724,16 +491,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleDismissAllAnnouncements = async () => {
     try {
-      groupedNotifsQuery.setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              notices: [],
-              notifications: [],
-            }
-          : prev
-      );
-      await api.notifications.dismissAll();
+      await dismissAll();
       emitDataSync(['notifications'], { source: 'header' });
     } catch (err) {
       console.error('Failed to dismiss all announcements:', err);
@@ -1524,16 +1282,9 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={() => {
               setShowNotifications((prev) => !prev);
-              setIsBellPulsing(false);
-              if (bellPulseTimeoutRef.current) {
-                clearTimeout(bellPulseTimeoutRef.current);
-              }
               setShowUserDropdown(false);
               setShowThemeDropdown(false);
               setIsSearching(false);
-              if (!showNotifications) {
-                fetchLiveNotifications();
-              }
             }}
             className={`h-9 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs relative ${
               showNotifications
@@ -2267,95 +2018,6 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </header>
 
-      {/* Real-time Floating POS Action Notification Toast with Direct Deep-Link */}
-      <AnimatePresence>
-        {livePushToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -24, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -24, scale: 0.94 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed top-16 left-3 right-3 sm:left-auto sm:right-4 z-50 w-auto sm:w-full sm:max-w-md bg-white dark:bg-[var(--brand-dark-surface,#120726)] border-2 border-purple-500/80 rounded-2xl shadow-2xl p-3 sm:p-3.5 backdrop-blur-xl ring-4 ring-purple-500/10 no-print"
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                  livePushToast.type === 'SALE' ||
-                  livePushToast.type === 'SALE_RETURN' ||
-                  livePushToast.type === 'SALE_EXCHANGE'
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                    : livePushToast.type === 'PURCHASE'
-                    ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30'
-                    : livePushToast.type === 'RETURN'
-                    ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
-                    : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
-                }`}
-              >
-                {livePushToast.type === 'SALE' ? (
-                  <ShoppingBag className="w-5 h-5" />
-                ) : livePushToast.type === 'PURCHASE' ? (
-                  <Truck className="w-5 h-5" />
-                ) : livePushToast.type === 'SALE_RETURN' || livePushToast.type === 'SALE_EXCHANGE' ? (
-                  <CheckCircle2 className="w-5 h-5" />
-                ) : livePushToast.type === 'RETURN' ? (
-                  <RefreshCw className="w-5 h-5" />
-                ) : (
-                  <ArrowLeftRight className="w-5 h-5" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-purple-100 min-w-0">
-                    <NotificationHeaderTitle
-                      title={livePushToast.title}
-                      type={livePushToast.type}
-                      titleClassName="truncate"
-                    />
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => setLivePushToast(null)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-0.5 rounded cursor-pointer transition"
-                    title="Dismiss alert"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-600 dark:text-purple-200/85 mt-1 whitespace-pre-line leading-snug">
-                  {livePushToast.message}
-                </p>
-                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                  {resolveNotificationActions(livePushToast, currentRole).map((btn) => {
-                    const isPrimary = btn.action !== 'open_pos';
-                    return (
-                      <button
-                        key={btn.action}
-                        type="button"
-                        onClick={(e) =>
-                          handleDynamicNotificationAction(e, btn, {
-                            type: livePushToast.type,
-                            invoiceNumber: livePushToast.invoiceNumber,
-                            saleId: livePushToast.saleId,
-                            announcementId: livePushToast.announcementId,
-                          })
-                        }
-                        className={
-                          isPrimary
-                            ? 'py-1 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold text-[11px] flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95'
-                            : 'py-1 px-2.5 rounded-lg bg-slate-100 dark:bg-purple-900/60 hover:bg-slate-200 dark:hover:bg-purple-800/70 text-slate-700 dark:text-purple-100 font-semibold text-[11px] cursor-pointer transition active:scale-95'
-                        }
-                      >
-                        <span>{btn.label}</span>
-                        {isPrimary && <span aria-hidden="true">&rarr;</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 };
