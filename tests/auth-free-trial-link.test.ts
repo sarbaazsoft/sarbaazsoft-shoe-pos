@@ -76,5 +76,12 @@ describe('Auth Route Free Trial Registration Link', () => {
       )
     );
     assert.ok(modalHtml.includes('Register Free Trial Store'), 'FreeTrialOnboardingModal should render dialog heading when opened');
+    assert.ok(modalHtml.includes('z-[120]'), 'FreeTrialOnboardingModal backdrop must use elevated z-[120] above PublicHeader');
+
+    const modalSrc = readFileSync(join(ROOT, 'src/components/saas/FreeTrialOnboardingModal.tsx'), 'utf8');
+    assert.ok(
+      modalSrc.includes('createPortal(modalContent, document.body)'),
+      'FreeTrialOnboardingModal must portal to document.body to escape BodyLayoutWrapper z-10 body stacking context'
+    );
   });
 });

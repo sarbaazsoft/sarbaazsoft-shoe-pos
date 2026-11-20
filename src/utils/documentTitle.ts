@@ -33,7 +33,6 @@ export const APP_ROUTE_TITLES: Record<string, string> = {
   trials: 'Trial Activations',
   stores: 'Stores Management',
   requests: 'Subscription Requests',
-  manifests: 'WebAPK Manifests',
 };
 
 export interface StandardTitleOptions {

@@ -108,24 +108,31 @@ describe('SuperAdmin & Store Loading UI Alignment', () => {
     assert.ok(saSrc.includes('<AnalyticsOverviewSkeleton />'));
     assert.ok(saSrc.includes('<AnalyticsOverviewSkeleton showFilterBar={true} />'));
     assert.ok(saSrc.includes('<DirectoryCrudSkeleton variant="table" statCount={3} />'));
-    assert.ok(saSrc.includes('<DirectoryCrudSkeleton variant="grid" statCount={0} />'));
     assert.ok(saSrc.includes('<FeedLedgerSkeleton />'));
     assert.ok(saSrc.includes('header={superAdminHeader}'));
     assert.ok(saSrc.includes('sidebar={superAdminSidebar}'));
     assert.ok(saSrc.includes('footer={superAdminFooter}'));
+    assert.equal(
+      saSrc.includes('Quick Store Jump List') || saSrc.includes('stores.slice(0, 5).map'),
+      false,
+      'SuperAdmin sidebar must not render provisioned stores under Provision New Store'
+    );
+    assert.equal(
+      saSrc.includes('Scoped Manifests') || saSrc.includes("activeTab === 'manifests'"),
+      false,
+      'SuperAdmin sidebar and router must not expose Scoped Manifests'
+    );
 
     // Verify all SuperAdmin route skeleton variants render cleanly via SSR
     const dashboardSkeletonHtml = renderToStaticMarkup(React.createElement(AnalyticsOverviewSkeleton));
     const reportsSkeletonHtml = renderToStaticMarkup(React.createElement(AnalyticsOverviewSkeleton, { showFilterBar: true }));
     const directorySkeletonHtml = renderToStaticMarkup(React.createElement(DirectoryCrudSkeleton, { variant: 'table', statCount: 3 }));
-    const manifestsSkeletonHtml = renderToStaticMarkup(React.createElement(DirectoryCrudSkeleton, { variant: 'grid', statCount: 0 }));
     const notificationsSkeletonHtml = renderToStaticMarkup(React.createElement(FeedLedgerSkeleton));
     const storeDashboardSkeletonHtml = renderToStaticMarkup(React.createElement(RouteSkeleton, { tab: 'dashboard' }));
 
     assert.equal(dashboardSkeletonHtml, storeDashboardSkeletonHtml);
     assert.ok(reportsSkeletonHtml.includes('aria-label="Loading analytics overview"'));
     assert.ok(directorySkeletonHtml.includes('aria-label="Loading directory workspace"'));
-    assert.ok(manifestsSkeletonHtml.includes('aria-label="Loading directory workspace"'));
     assert.ok(notificationsSkeletonHtml.includes('aria-label="Loading activity feed"'));
   });
 

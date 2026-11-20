@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User,
@@ -317,7 +318,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
     }
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -327,7 +328,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         role="dialog"
         aria-modal="true"
         aria-labelledby="free-trial-title"
-        className={`form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto transition-colors duration-200 ${
+        className={`form-modal-theme fixed inset-0 z-[120] flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto transition-colors duration-200 ${
           isDark ? 'dark bg-black/80' : 'light bg-slate-900/60'
         } backdrop-blur-xs`}
         data-theme={isDark ? 'dark' : 'light'}
@@ -336,13 +337,13 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           if (e.target === e.currentTarget && !isLoading) onClose();
         }}
       >
-        <ShowroomBackground intensity="portal" />
+        <ShowroomBackground intensity="portal" contained={true} />
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className={`relative w-full max-w-xl max-h-[92dvh] sm:max-h-[94dvh] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
+          className={`relative z-10 w-full max-w-xl max-h-[92dvh] sm:max-h-[94dvh] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
             isDark
               ? 'bg-[#131B2E] text-white border border-purple-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.8)]'
               : 'bg-white text-slate-900 border border-slate-200 shadow-2xl'
@@ -942,4 +943,10 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
       </motion.div>
     </AnimatePresence>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 };

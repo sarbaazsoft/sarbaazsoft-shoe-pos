@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, FileCode2, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Settings, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
+import { Shield, Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Settings, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { PublicHeader } from '../common/PublicHeader';
@@ -67,7 +67,7 @@ interface SuperAdminControlPanelProps {
   layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
-type SuperAdminTab = 'dashboard' | 'stores' | 'trials' | 'requests' | 'notifications' | 'reports' | 'manifests' | 'settings';
+type SuperAdminTab = 'dashboard' | 'stores' | 'trials' | 'requests' | 'notifications' | 'reports' | 'settings';
 
 export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   currentUser,
@@ -188,7 +188,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     requests: 'Subscription Requests',
     notifications: 'Notifications',
     reports: 'Reports & Analytics',
-    manifests: 'WebAPK Manifests',
     settings: 'System Settings',
   };
 
@@ -1014,7 +1013,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     reportCategories.length,
   ]);
 
-  // Keyboard shortcuts (Ctrl+B to toggle sidebar, F1-F5 for tabs)
+  // Keyboard shortcuts (Ctrl+B to toggle sidebar, F1-F5 for tabs & quick modal)
   useEffect(() => {
     if (!isSuperAdmin) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1029,7 +1028,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         if (e.key === 'F2') setActiveTab('trials');
         if (e.key === 'F3') setCreateModalOpen(true);
         if (e.key === 'F4') setActiveTab('reports');
-        if (e.key === 'F5') setActiveTab('manifests');
+        if (e.key === 'F5') setActiveTab('settings');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1975,16 +1974,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           shortcut: 'F4',
         },
         {
-          id: 'manifests' as SuperAdminTab,
-          label: 'Scoped Manifests',
-          icon: FileCode2,
-          shortcut: 'F5',
-        },
-        {
           id: 'settings' as SuperAdminTab,
           label: 'App Config',
           icon: Sliders,
-          shortcut: 'F6',
+          shortcut: 'F5',
         },
       ],
     },
@@ -2191,7 +2184,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           <div className="space-y-1 pt-1">
             {!collapsed && (
               <div className="text-[10px] font-bold text-indigo-200/80 uppercase tracking-wider px-2 py-0.5 [text-shadow:0_1px_6px_rgba(5,7,27,0.9)]">
-                PROVISIONING &amp; STORES
+                PROVISIONING
               </div>
             )}
             <button
@@ -2214,39 +2207,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 </kbd>
               )}
             </button>
-
-            {/* Quick Store Jump List */}
-            {!collapsed && stores.length > 0 && (
-              <div className="pt-1.5 space-y-1">
-                {stores.slice(0, 5).map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => {
-                      onOpenStore(st.id);
-                      if (isMobile) setMobileMenuOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-slate-200 hover:text-white hover:bg-white/10 transition cursor-pointer group [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{
-                          backgroundColor: st.status === 'ACTIVE' ? '#10B981' : '#F43F5E',
-                        }}
-                      />
-                      <span className="truncate font-semibold">{st.name}</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-indigo-200/70 group-hover:text-white">
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* BOTTOM: SuperAdmin Profile, PWA Manifest, Theme & Database Status (identical to Store Sidebar) */}
+        {/* BOTTOM: SuperAdmin Profile, Theme & Database Status (identical to Store Sidebar) */}
         <div
           className={`border-t border-indigo-400/20 space-y-2 bg-[#080A2A]/55 backdrop-blur-md mt-auto transition-colors ${
             collapsed ? 'p-2 pt-3' : 'p-3.5 pt-3'
@@ -3074,8 +3038,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         return <AnalyticsOverviewSkeleton showFilterBar={true} />;
       case 'notifications':
         return <FeedLedgerSkeleton />;
-      case 'manifests':
-        return <DirectoryCrudSkeleton variant="grid" statCount={0} />;
       case 'stores':
       case 'trials':
       case 'requests':
@@ -3107,13 +3069,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         ref={superAdminWorkspaceRef}
         className="p-3 sm:p-6 lg:p-7 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full select-none"
       >
-            {/* DASHBOARD HEADER ROW (Shown on Dashboard & Manifests tabs; Stores, Requests & Reports use Product-route Top Banner Card) */}
-            {(activeTab === 'dashboard' || activeTab === 'manifests') && (
+            {/* DASHBOARD HEADER ROW (Shown on Dashboard tab; Stores, Requests & Reports use Product-route Top Banner Card) */}
+            {activeTab === 'dashboard' && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                 <div>
                   <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                    {activeTab === 'dashboard' && 'Dashboard'}
-                    {activeTab === 'manifests' && 'Scoped Store & Admin PWA Manifests'}
+                    Dashboard
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                     Welcome back, {currentUser?.name || 'Platform SuperAdmin'}! Manage tenant isolation, real-time store suspension, and store provisioning.
@@ -4315,7 +4276,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           Quick Actions
                         </h2>
                         <span className="hidden lg:inline text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                          Shortcuts F1–F5
+                          Shortcuts F1–F4
                         </span>
                       </div>
 
@@ -4416,38 +4377,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                           </div>
                         </button>
 
-                        {/* Action 5: Scoped PWA Manifests (F5) */}
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('manifests')}
-                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
-                              <FileCode2 className="w-4 h-4" />
-                            </div>
-                            <kbd className="hidden lg:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition">
-                              F5
-                            </kbd>
-                          </div>
-                          <div className="mt-2.5 sm:mt-3">
-                            <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-300 transition">
-                              PWA Manifests
-                            </div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 transition">
-                              Scoped Store Apps
-                            </div>
-                          </div>
-                        </button>
-
-                        {/* Action 6: Import & Export Platform SQL */}
+                        {/* Action 5: Import & Export Platform SQL */}
                         <button
                           type="button"
                           onClick={() => {
                             setImportSqlError(null);
                             setImportSqlModalOpen(true);
                           }}
-                          className="quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
+                          className="col-span-2 quick-action-btn p-2.5 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/50 text-left transition-all duration-200 flex flex-col justify-between group cursor-pointer shadow-2xs overflow-hidden"
                         >
                           <div className="flex items-center justify-between">
                             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:border-purple-300 dark:group-hover:border-purple-500/50 transition shadow-2xs">
@@ -5506,61 +5443,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </React.Suspense>
             )}
 
-            {/* SECTION 4: SCOPED PWA MANIFEST REGISTRY VIEW */}
-            {activeTab === 'manifests' && (
-              <div className="app-card bg-white dark:bg-[#111827] border border-slate-200/90 dark:border-indigo-500/20 rounded-2xl p-3.5 sm:p-6 space-y-4 shadow-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 dark:border-indigo-500/20 pb-3 sm:pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <FileCode2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>Multi-PWA Scoped Manifest Registry</span>
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Each tenant store and the SuperAdmin Control Panel has an isolated Web App Manifest and scope.
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30 text-xs font-mono font-bold">
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>SuperAdmin PWA</span>
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {stores.map((st) => (
-                    <div
-                      key={st.id}
-                      className="p-4 rounded-2xl bg-slate-50/80 dark:bg-[#131B2E] border border-slate-200/80 dark:border-indigo-500/20 flex flex-col justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 bg-purple-600"
-                        >
-                          {(st.name || 'ST').slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-bold text-slate-900 dark:text-white truncate">
-                            {st.name} — POS
-                          </div>
-                          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 dark:border-indigo-500/15 text-xs font-mono">
-                        <span className="text-slate-500 dark:text-slate-400">
-                          tenant #{st.id}
-                        </span>
-                        <span className="text-purple-600 dark:text-purple-300 font-bold">
-                          Active PWA
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* SECTION 5: APP & ENVIRONMENT SETTINGS (app_settings) */}
+            {/* SECTION 4: APP & ENVIRONMENT SETTINGS (app_settings) */}
             {activeTab === 'settings' && (
               <div className="space-y-6">
                 <React.Suspense fallback={<FocusedUtilitySkeleton variant="settings" />}>
