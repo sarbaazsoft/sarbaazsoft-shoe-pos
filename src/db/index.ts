@@ -544,6 +544,9 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
           list = list.filter((s) => keys.includes(s.key.toUpperCase()));
         }
       }
+      if (upper.includes('COUNT(*)')) {
+        return { rows: [{ count: String(list.length) } as unknown as T], rowCount: 1 };
+      }
       return { rows: list as unknown as T[], rowCount: list.length };
     }
 

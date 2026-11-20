@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pgClient } from '../../db/index.ts';
-import { ensureSaasControlPlane, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions } from '../../db/schemaInit.ts';
+import { ensureSaasControlPlane, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions, seedDatabaseAndAppSettings } from '../../db/schemaInit.ts';
 import { requireAuth, requireAdmin, requireSuperAdmin, getJwtSecret } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
@@ -462,6 +462,25 @@ router.patch('/app', requireAuth, requireSuperAdmin, async (req: AuthenticatedRe
   } catch (err: any) {
     const status = err.statusCode || 500;
     return res.status(status).json({ error: 'Failed to update app settings: ' + err.message });
+  }
+});
+
+// POST /api/settings/app/seed - Exclusively Platform Owner: idempotently runs seed.sql & seeds missing app_settings
+router.post('/app/seed', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const seedResult = await seedDatabaseAndAppSettings();
+    const allAppSettings = await getAllAppSettings(req.user?.role);
+    const filtered = filterAppLevelSettings(allAppSettings);
+    return res.json({
+      success: true,
+      message: 'Database seed and app_settings synchronization completed idempotently.',
+      seedSqlApplied: seedResult.seedSqlApplied,
+      appSettingsCount: seedResult.appSettingsCount,
+      ...filtered,
+    });
+  } catch (err: any) {
+    const status = err.statusCode || 500;
+    return res.status(status).json({ error: 'Failed to seed app settings: ' + err.message });
   }
 });
 

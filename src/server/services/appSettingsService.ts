@@ -372,7 +372,10 @@ export function registerSettingsUpdateListener(listener: SettingsUpdateListener)
 /**
  * Initializes the app_settings table and seeds default values exclusively in the database.
  */
-export async function ensureAppSettingsSchema(): Promise<void> {
+export async function ensureAppSettingsSchema(options?: { force?: boolean }): Promise<void> {
+  if (options?.force) {
+    schemaInitPromise = null;
+  }
   if (schemaInitPromise) return schemaInitPromise;
 
   schemaInitPromise = (async () => {
@@ -438,6 +441,7 @@ export async function ensureAppSettingsSchema(): Promise<void> {
         UPDATE public.app_settings SET value = 'G-YNR6ETB365' WHERE key = 'FCM_MEASUREMENT_ID' AND (value IS NULL OR value = '');
       `).catch(() => {});
     } catch (err: any) {
+      schemaInitPromise = null;
       console.warn('Notice while ensuring app_settings schema:', err?.message || err);
     }
   })();

@@ -16,6 +16,7 @@ import {
   autoSeedDevDatabaseIfTablesMissing,
   ensureSaasControlPlane,
   isSaasControlPlaneInitialized,
+  seedDatabaseAndAppSettings,
 } from './src/db/schemaInit.ts';
 
 let startupBootstrapPromise: Promise<void> | null = null;
@@ -657,6 +658,11 @@ async function startServer() {
       });
       if (didAutoSeed) {
         console.log('🌱 Database tables missing in dev mode — auto-created schema and applied seed.sql.');
+      } else if (process.env.NODE_ENV !== 'production') {
+        const seedResult = await seedDatabaseAndAppSettings();
+        console.log(
+          `🌱 Verified idempotent seed.sql (${seedResult.seedSqlApplied ? 'applied' : 'skipped'}) and app_settings (${seedResult.appSettingsCount} keys).`
+        );
       }
 
       const installStatus = await checkInstallationStatus();

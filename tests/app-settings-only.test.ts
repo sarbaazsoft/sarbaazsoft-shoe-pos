@@ -200,6 +200,14 @@ test('app_settings is the sole source of truth and ignores process.env overrides
     // Ensure no empty-key row polluted public.app_settings in DB/mock store
     const rawRows = await pgClient.query<{ key: string }>(`SELECT key FROM public.app_settings`);
     assert.ok(rawRows.rows.every((r) => Boolean(r.key && r.key.trim())));
+
+    // seedDatabaseAndAppSettings must be idempotent and preserve existing secrets/values
+    const { seedDatabaseAndAppSettings } = await import('../src/db/schemaInit.ts');
+    const seedRun = await seedDatabaseAndAppSettings();
+    assert.equal(seedRun.seedSqlApplied, true);
+    assert.ok(seedRun.appSettingsCount >= 35, `Expected seeded app_settings count >= 35, got ${seedRun.appSettingsCount}`);
+    assert.equal(await getDynamicResendApiKey(), 're_db_valid_key_12345678901234');
+    assert.equal(await getAppSetting('PUBLIC_APP_URL'), 'https://pos.db.example.com');
   } finally {
     for (const [k, orig] of Object.entries(envSnapshot)) {
       if (orig === undefined) delete process.env[k];

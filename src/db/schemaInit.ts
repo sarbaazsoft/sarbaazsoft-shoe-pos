@@ -1109,6 +1109,7 @@ export async function ensureSaasControlPlane(): Promise<void> {
         fastCheck.rows[0]?.has_core_tables &&
         parseInt(fastCheck.rows[0]?.count || '0', 10) > 0
       ) {
+        await ensureAppSettingsSchema();
         await syncExpiredTenantSubscriptions();
         saasControlPlaneInitialized = true;
         return;
@@ -1291,6 +1292,39 @@ export async function applySeedSql(): Promise<boolean> {
 }
 
 /**
+ * Idempotently runs seed.sql and ensures all app_settings defaults exist
+ * without overwriting any previously configured values or secrets.
+ */
+export async function seedDatabaseAndAppSettings(): Promise<{
+  seedSqlApplied: boolean;
+  appSettingsCount: number;
+}> {
+  await pgClient.waitReady;
+
+  const coreCheck = await pgClient
+    .query<{ has_app_settings: boolean; has_users: boolean }>(
+      `SELECT
+         (to_regclass('public.app_settings') IS NOT NULL) AS has_app_settings,
+         (to_regclass('public.users') IS NOT NULL) AS has_users`
+    )
+    .catch(() => null);
+
+  if (!coreCheck || !coreCheck.rows[0]?.has_app_settings || !coreCheck.rows[0]?.has_users) {
+    await ensureDatabaseSchema();
+  }
+
+  const seedSqlApplied = await applySeedSql();
+  await ensureAppSettingsSchema({ force: true });
+
+  const countRes = await pgClient
+    .query<{ count: string }>(`SELECT COUNT(*) AS count FROM public.app_settings`)
+    .catch(() => ({ rows: [{ count: '0' }] }));
+  const appSettingsCount = parseInt(countRes.rows[0]?.count || '0', 10) || 0;
+
+  return { seedSqlApplied, appSettingsCount };
+}
+
+/**
  * Automatically creates missing schema tables and applies seed.sql when running
  * in development mode if tables do not exist yet.
  */
@@ -1312,6 +1346,7 @@ export async function autoSeedDevDatabaseIfTablesMissing(
     }
     await ensureDatabaseSchema();
     await applySeedSql();
+    await ensureAppSettingsSchema({ force: true });
     await ensureSaasControlPlane();
     return true;
   })().finally(() => {
