@@ -541,8 +541,15 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
 test('Frontend architecture wires SettingsView, unified backdrop across all routes, and removes backdrop section for Cashiers', () => {
   const settingsSrc = readProjectFile('src/components/settings/SettingsView.tsx');
   assert.ok(settingsSrc.includes("import('./AppearanceSettingsTab.tsx')"));
+  assert.ok(settingsSrc.includes('id="settings-tab-notifications"'));
   assert.ok(settingsSrc.includes('id="settings-tab-appearance"'));
+  assert.ok(settingsSrc.includes('id="settings-tab-backup"'));
   assert.ok(settingsSrc.includes('id="settings-tab-printers"'));
+  assert.ok(
+    settingsSrc.indexOf('id="settings-tab-notifications"') < settingsSrc.indexOf('id="settings-tab-appearance"') &&
+      settingsSrc.indexOf('id="settings-tab-appearance"') < settingsSrc.indexOf('id="settings-tab-backup"'),
+    'Appearance & Colors tab should sit directly next to Notifications'
+  );
   assert.ok(
     settingsSrc.indexOf('id="settings-tab-appearance"') < settingsSrc.indexOf('id="settings-tab-printers"'),
     'Hardware & Printers tab should be placed last after Appearance & Colors'

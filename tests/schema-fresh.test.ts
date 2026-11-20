@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import bcrypt from 'bcryptjs';
 import {
   DATABASE_ENUM_DDL,
   DATABASE_INDEX_DDL,
@@ -354,4 +355,57 @@ test('caseTransformer supports snake_case canonical keys, camelCase compatibilit
   assert.equal(normalizedReq.customerName, 'Ali Footwear');
   assert.equal(normalizedReq.total_amount, 4500);
   assert.equal(normalizedReq.totalAmount, 4500);
+});
+
+test('seed.sql provides an idempotent app_settings seed without redacted placeholders or duplicate legacy keys', () => {
+  const seedSql = fs.readFileSync(path.join(ROOT_DIR, 'seed.sql'), 'utf8');
+  assert.ok(seedSql.includes('INSERT INTO public.app_settings (key, value, category, description, is_secret, updated_at)'));
+  assert.ok(seedSql.includes('ON CONFLICT (key) DO NOTHING;'));
+  assert.equal(/REDACTED/i.test(seedSql), false, 'seed.sql must not contain [REDACTED] placeholders');
+  assert.equal(/OVERRIDING\s+SYSTEM\s+VALUE/i.test(seedSql), false, 'seed.sql must not include OVERRIDING SYSTEM VALUE');
+
+  for (const legacyKey of [
+    "'active_email_provider'",
+    "'gmail_app_password'",
+    "'gmail_from_name'",
+    "'gmail_user'",
+    "'resend_api_key'",
+  ]) {
+    const activePart = seedSql.split('-- Optional cleanup')[0];
+    assert.equal(
+      activePart.includes(legacyKey),
+      false,
+      `seed.sql INSERT block should exclude duplicate lowercase key ${legacyKey}`
+    );
+  }
+
+  // SuperAdmin seed checks
+  assert.ok(seedSql.includes("'Khalid Dashti'"));
+  assert.ok(seedSql.includes("'sarbaazsoft@gmail.com'"));
+  assert.ok(seedSql.includes("'+92-321-2257340'"));
+  assert.ok(seedSql.includes("'SUPERADMIN'"));
+  assert.ok(seedSql.includes("'APPROVED'"));
+  const hashMatch = seedSql.match(/'(\$2[aby]\$\d{2}\$[^']+)'/);
+  assert.ok(hashMatch, 'seed.sql must contain a bcrypt password hash for SuperAdmin');
+  assert.equal(bcrypt.compareSync('admin123', hashMatch[1]), true, 'SuperAdmin bcrypt hash must verify admin123');
+});
+
+test('drop_tables.sql drops every required table and custom enum type cleanly with CASCADE', () => {
+  const dropSql = fs.readFileSync(path.join(ROOT_DIR, 'drop_tables.sql'), 'utf8');
+  const parsed = parseSchemaSql(SCHEMA_SQL);
+
+  assert.ok(dropSql.includes('DROP TABLE IF EXISTS'));
+  assert.ok(dropSql.includes('DROP TYPE IF EXISTS'));
+  for (const tableName of REQUIRED_DATABASE_TABLES) {
+    assert.ok(
+      new RegExp(`public\\.${tableName}\\b`).test(dropSql),
+      `drop_tables.sql must include public.${tableName}`
+    );
+  }
+  for (const enumName of parsed.enumNames) {
+    assert.ok(
+      new RegExp(`public\\.${enumName}\\b`).test(dropSql),
+      `drop_tables.sql must include public.${enumName}`
+    );
+  }
 });
