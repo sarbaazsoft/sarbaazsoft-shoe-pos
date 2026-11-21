@@ -1988,7 +1988,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
     return (
       <div
-        className="relative w-full h-full max-h-screen flex flex-col bg-[#080A2A] text-slate-100 select-none border-r border-indigo-400/25 shadow-lg rounded-none overflow-hidden transition-colors"
+        className="sidebar-showroom-shell relative w-full h-full max-h-screen flex flex-col bg-[#080A2A] text-slate-100 select-none border-r border-indigo-400/25 shadow-lg rounded-none overflow-hidden transition-colors"
       >
         <ShowroomBackground contained={true} intensity="portal" />
         <div

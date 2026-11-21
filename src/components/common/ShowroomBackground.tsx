@@ -76,10 +76,10 @@ export const ShowroomBackground: React.FC<ShowroomBackgroundProps> = ({
             setFailedUrl(customImageUrl);
           }
         }}
-        className={`w-full h-full object-cover object-center transition-opacity duration-300 select-none ${preset.imageClass}`}
+        className={`showroom-bg-img w-full h-full object-cover object-center transition-opacity duration-300 select-none ${preset.imageClass}`}
       />
       <div
-        className={`absolute inset-0 transition-colors duration-300 ${
+        className={`showroom-bg-scrim absolute inset-0 transition-colors duration-300 ${
           theme === 'dark' ? preset.darkScrim : preset.lightScrim
         }`}
       />

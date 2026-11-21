@@ -3765,6 +3765,14 @@ aside {
     background-color: rgba(148, 163, 184, 0.5);
   }
 
+  /* Sidebar-only higher opacity for showroom backdrop background */
+  .sidebar-showroom-shell .showroom-bg-img {
+    opacity: 0.95 !important;
+  }
+  .sidebar-showroom-shell .showroom-bg-scrim {
+    opacity: 0.65 !important;
+  }
+
   /* Installation Wizard Dark Mode Visual Adaptation */
   .dark #installation-wizard-container .bg-white {
     background-color: #0e1628 !important;

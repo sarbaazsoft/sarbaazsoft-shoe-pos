@@ -637,12 +637,22 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
   assert.ok(appSrc.includes('mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"'));
   const sidebarSrc = readProjectFile('src/components/common/Sidebar.tsx');
   assert.ok(sidebarSrc.includes('<ShowroomBackground contained={true} intensity="portal" />'));
+  assert.ok(sidebarSrc.includes('sidebar-showroom-shell'));
   assert.ok(sidebarSrc.includes('bg-[#080A2A]'));
   const superAdminSrc = readProjectFile('src/components/saas/SuperAdminControlPanel.tsx');
   assert.equal(superAdminSrc.includes('intensity="workspace"'), false, 'SuperAdmin workspace routes must use solid background instead of showroom backdrop');
   assert.ok(superAdminSrc.includes('mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"'));
   assert.ok(superAdminSrc.includes('<ShowroomBackground contained={true} intensity="portal" />'));
+  assert.ok(superAdminSrc.includes('sidebar-showroom-shell'));
   assert.ok(superAdminSrc.includes('bg-[#080A2A]'));
+  const indexCssSrc = readProjectFile('src/index.css');
+  assert.ok(indexCssSrc.includes('.sidebar-showroom-shell .showroom-bg-img'));
+  assert.ok(indexCssSrc.includes('opacity: 0.95 !important;'));
+  assert.equal(
+    readProjectFile('src/components/saas/FreeTrialOnboardingModal.tsx').includes('sidebar-showroom-shell'),
+    false,
+    'Non-sidebar modals must not apply sidebar-only showroom opacity'
+  );
   const skeletonsSrc = readProjectFile('src/components/common/RouteSkeletons.tsx');
   assert.ok(skeletonsSrc.includes('bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh'));
 
