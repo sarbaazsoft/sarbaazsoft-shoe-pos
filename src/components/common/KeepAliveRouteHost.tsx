@@ -8,6 +8,7 @@ import {
   updateKeepAliveState,
 } from '../../context/RouteLifecycleContext.tsx';
 import { RouteSkeleton } from './RouteSkeletons.tsx';
+import { bumpLazyRetryGeneration } from '../../utils/lazyWithRetry.ts';
 
 interface TabErrorBoundaryProps {
   tabId: string;
@@ -17,12 +18,18 @@ interface TabErrorBoundaryProps {
 interface TabErrorBoundaryState {
   hasError: boolean;
   isOffline: boolean;
+  retryNonce: number;
 }
 
 class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundaryState> {
   private handleOnline = () => {
     if (this.state.hasError) {
-      this.setState({ hasError: false, isOffline: false });
+      bumpLazyRetryGeneration();
+      this.setState((prev) => ({
+        hasError: false,
+        isOffline: false,
+        retryNonce: prev.retryNonce + 1,
+      }));
     }
   };
 
@@ -31,10 +38,11 @@ class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundary
     this.state = {
       hasError: false,
       isOffline: typeof navigator !== 'undefined' && navigator.onLine === false,
+      retryNonce: 0,
     };
   }
 
-  static getDerivedStateFromError(): TabErrorBoundaryState {
+  static getDerivedStateFromError(): Partial<TabErrorBoundaryState> {
     return {
       hasError: true,
       isOffline: typeof navigator !== 'undefined' && navigator.onLine === false,
@@ -55,9 +63,23 @@ class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundary
 
   componentDidUpdate(prevProps: TabErrorBoundaryProps) {
     if (prevProps.tabId !== this.props.tabId && this.state.hasError) {
-      this.setState({ hasError: false, isOffline: false });
+      bumpLazyRetryGeneration();
+      this.setState((prev) => ({
+        hasError: false,
+        isOffline: false,
+        retryNonce: prev.retryNonce + 1,
+      }));
     }
   }
+
+  private handleRetry = () => {
+    bumpLazyRetryGeneration();
+    this.setState((prev) => ({
+      hasError: false,
+      isOffline: typeof navigator !== 'undefined' && navigator.onLine === false,
+      retryNonce: prev.retryNonce + 1,
+    }));
+  };
 
   render() {
     if (this.state.hasError) {
@@ -76,7 +98,7 @@ class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundary
           </p>
           <button
             type="button"
-            onClick={() => this.setState({ hasError: false, isOffline: false })}
+            onClick={this.handleRetry}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:opacity-95 transition cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -85,7 +107,7 @@ class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundary
         </div>
       );
     }
-    return this.props.children;
+    return <React.Fragment key={this.state.retryNonce}>{this.props.children}</React.Fragment>;
   }
 }
 

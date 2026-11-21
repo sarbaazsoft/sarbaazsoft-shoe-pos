@@ -56,18 +56,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pass-through API calls, version probe, service worker scripts, binary installers, and Vite dev internals directly to network
+  // Never intercept non-navigation fetches in Vite development mode;
+  // let the browser and Vite middleware fetch /src/*.tsx, deps, and modules directly.
+  if (SW_ENV === 'development' && request.mode !== 'navigate') {
+    return;
+  }
+
+  // Pass-through API calls, version probe, service worker scripts, binary installers,
+  // ES modules/source files, and Vite dev internals directly to network
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname === '/version.json' ||
     url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
     url.pathname.startsWith('/node_modules') ||
+    url.pathname.startsWith('/assets/js/') ||
+    url.pathname.startsWith('/assets/css/') ||
     url.pathname.includes('hot-update') ||
     url.pathname === '/sw.js' ||
     url.pathname === '/firebase-messaging-sw.js' ||
     url.pathname === '/sw-background-sync.js' ||
     url.pathname.startsWith('/assets/windows/') ||
     url.pathname.startsWith('/assets/android/') ||
+    /\.(?:ts|tsx|jsx|mjs)(?:$|\?)/i.test(url.pathname) ||
+    request.destination === 'script' ||
+    request.destination === 'style' ||
     BINARY_INSTALLER_EXT_RE.test(url.pathname)
   ) {
     return;

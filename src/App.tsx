@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
 import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, getAuthToken, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
+import { lazyWithRetry } from './utils/lazyWithRetry.ts';
 import { Header } from './components/common/Header.tsx';
 import { Sidebar } from './components/common/Sidebar.tsx';
 import { AuthModal } from './components/auth/AuthModal.tsx';
@@ -15,26 +16,26 @@ import { emitDataSync } from './utils/dataSyncBus.ts';
 import { useTheme } from './context/ThemeContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
 
-const PosTerminal = lazy(() => import('./components/pos/PosTerminal.tsx').then((m) => ({ default: memo(m.PosTerminal) })));
-const ProductManagement = lazy(() => import('./components/inventory/ProductManagement.tsx').then((m) => ({ default: memo(m.ProductManagement) })));
-const StockLedgerView = lazy(() => import('./components/inventory/StockLedgerView.tsx').then((m) => ({ default: memo(m.StockLedgerView) })));
-const PurchaseManagement = lazy(() => import('./components/purchases/PurchaseManagement.tsx').then((m) => ({ default: memo(m.PurchaseManagement) })));
-const SalesReturnView = lazy(() => import('./components/returns/SalesReturnView.tsx').then((m) => ({ default: memo(m.SalesReturnView) })));
-const CustomerManagement = lazy(() => import('./components/customers/CustomerManagement.tsx').then((m) => ({ default: memo(m.CustomerManagement) })));
-const ReportsDashboard = lazy(() => import('./components/reports/ReportsDashboard.tsx').then((m) => ({ default: memo(m.ReportsDashboard) })));
-const SettingsView = lazy(() => import('./components/settings/SettingsView.tsx').then((m) => ({ default: memo(m.SettingsView) })));
-const SupplierManagement = lazy(() => import('./components/suppliers/SupplierManagement.tsx').then((m) => ({ default: memo(m.SupplierManagement) })));
-const DashboardOverview = lazy(() => import('./components/dashboard/DashboardOverview.tsx').then((m) => ({ default: memo(m.DashboardOverview) })));
-const UserProfileModal = lazy(() => import('./components/auth/UserProfileModal.tsx').then((m) => ({ default: m.UserProfileModal })));
-const SammiAssistantView = lazy(() => import('./components/chat/SammiAssistantView.tsx').then((m) => ({ default: memo(m.SammiAssistantView) })));
-const UnknownStore404View = lazy(() => import('./components/saas/UnknownStore404View.tsx').then((m) => ({ default: m.UnknownStore404View })));
-const SuspendedStoreView = lazy(() => import('./components/saas/SuspendedStoreView.tsx').then((m) => ({ default: m.SuspendedStoreView })));
-const SuperAdminControlPanel = lazy(() => import('./components/saas/SuperAdminControlPanel.tsx').then((m) => ({ default: m.SuperAdminControlPanel })));
-const TenantOnboardingWizard = lazy(() => import('./components/saas/TenantOnboardingWizard.tsx').then((m) => ({ default: m.TenantOnboardingWizard })));
-const InstallationWizard = lazy(() => import('./components/saas/InstallationWizard.tsx').then((m) => ({ default: m.InstallationWizard })));
-const NotificationsView = lazy(() => import('./components/notifications/NotificationsView.tsx').then((m) => ({ default: memo(m.NotificationsView) })));
-const VerifyEmailNoticeView = lazy(() => import('./components/auth/VerifyEmailNoticeView.tsx').then((m) => ({ default: m.VerifyEmailNoticeView })));
-const InstallAppModal = lazy(() => import('./components/common/InstallAppModal.tsx').then((m) => ({ default: m.InstallAppModal })));
+const PosTerminal = lazyWithRetry(() => import('./components/pos/PosTerminal.tsx'), (m) => memo(m.PosTerminal), '/src/components/pos/PosTerminal.tsx');
+const ProductManagement = lazyWithRetry(() => import('./components/inventory/ProductManagement.tsx'), (m) => memo(m.ProductManagement), '/src/components/inventory/ProductManagement.tsx');
+const StockLedgerView = lazyWithRetry(() => import('./components/inventory/StockLedgerView.tsx'), (m) => memo(m.StockLedgerView), '/src/components/inventory/StockLedgerView.tsx');
+const PurchaseManagement = lazyWithRetry(() => import('./components/purchases/PurchaseManagement.tsx'), (m) => memo(m.PurchaseManagement), '/src/components/purchases/PurchaseManagement.tsx');
+const SalesReturnView = lazyWithRetry(() => import('./components/returns/SalesReturnView.tsx'), (m) => memo(m.SalesReturnView), '/src/components/returns/SalesReturnView.tsx');
+const CustomerManagement = lazyWithRetry(() => import('./components/customers/CustomerManagement.tsx'), (m) => memo(m.CustomerManagement), '/src/components/customers/CustomerManagement.tsx');
+const ReportsDashboard = lazyWithRetry(() => import('./components/reports/ReportsDashboard.tsx'), (m) => memo(m.ReportsDashboard), '/src/components/reports/ReportsDashboard.tsx');
+const SettingsView = lazyWithRetry(() => import('./components/settings/SettingsView.tsx'), (m) => memo(m.SettingsView), '/src/components/settings/SettingsView.tsx');
+const SupplierManagement = lazyWithRetry(() => import('./components/suppliers/SupplierManagement.tsx'), (m) => memo(m.SupplierManagement), '/src/components/suppliers/SupplierManagement.tsx');
+const DashboardOverview = lazyWithRetry(() => import('./components/dashboard/DashboardOverview.tsx'), (m) => memo(m.DashboardOverview), '/src/components/dashboard/DashboardOverview.tsx');
+const UserProfileModal = lazyWithRetry(() => import('./components/auth/UserProfileModal.tsx'), (m) => m.UserProfileModal, '/src/components/auth/UserProfileModal.tsx');
+const SammiAssistantView = lazyWithRetry(() => import('./components/chat/SammiAssistantView.tsx'), (m) => memo(m.SammiAssistantView), '/src/components/chat/SammiAssistantView.tsx');
+const UnknownStore404View = lazyWithRetry(() => import('./components/saas/UnknownStore404View.tsx'), (m) => m.UnknownStore404View, '/src/components/saas/UnknownStore404View.tsx');
+const SuspendedStoreView = lazyWithRetry(() => import('./components/saas/SuspendedStoreView.tsx'), (m) => m.SuspendedStoreView, '/src/components/saas/SuspendedStoreView.tsx');
+const SuperAdminControlPanel = lazyWithRetry(() => import('./components/saas/SuperAdminControlPanel.tsx'), (m) => m.SuperAdminControlPanel, '/src/components/saas/SuperAdminControlPanel.tsx');
+const TenantOnboardingWizard = lazyWithRetry(() => import('./components/saas/TenantOnboardingWizard.tsx'), (m) => m.TenantOnboardingWizard, '/src/components/saas/TenantOnboardingWizard.tsx');
+const InstallationWizard = lazyWithRetry(() => import('./components/saas/InstallationWizard.tsx'), (m) => m.InstallationWizard, '/src/components/saas/InstallationWizard.tsx');
+const NotificationsView = lazyWithRetry(() => import('./components/notifications/NotificationsView.tsx'), (m) => memo(m.NotificationsView), '/src/components/notifications/NotificationsView.tsx');
+const VerifyEmailNoticeView = lazyWithRetry(() => import('./components/auth/VerifyEmailNoticeView.tsx'), (m) => m.VerifyEmailNoticeView, '/src/components/auth/VerifyEmailNoticeView.tsx');
+const InstallAppModal = lazyWithRetry(() => import('./components/common/InstallAppModal.tsx'), (m) => m.InstallAppModal, '/src/components/common/InstallAppModal.tsx');
 import { ShieldAlert, Loader2 } from 'lucide-react';
 import { initNativeNotificationPrompt } from './services/pushNotificationClient.ts';
 import { usePwaManifest } from './hooks/usePwaManifest.ts';
@@ -1605,13 +1606,13 @@ export default function App() {
     syncUserThemeFromAuth(authUser);
     if (role === 'CASHIER') {
       setCurrentTab('pos');
-      void import('./components/pos/PosTerminal.tsx');
+      void import('./components/pos/PosTerminal.tsx').catch(() => {});
     } else if (role === 'SUPERADMIN') {
       setCurrentTab('dashboard');
-      void import('./components/saas/SuperAdminControlPanel.tsx');
+      void import('./components/saas/SuperAdminControlPanel.tsx').catch(() => {});
     } else {
       setCurrentTab('dashboard');
-      void import('./components/dashboard/DashboardOverview.tsx');
+      void import('./components/dashboard/DashboardOverview.tsx').catch(() => {});
     }
     if (role === 'SUPERADMIN') {
       setActiveTenant(null);

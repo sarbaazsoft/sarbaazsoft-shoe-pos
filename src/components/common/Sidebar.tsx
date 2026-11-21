@@ -207,23 +207,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ? { backgroundColor: `rgba(8, 10, 42, ${headerGlassAlpha})` }
               : undefined
           }
-          className={`h-[3.6rem] flex items-center justify-between shrink-0 transition-colors ${
+          className={`h-[3.6rem] flex items-center shrink-0 transition-colors ${
             isSolidLight
               ? 'border-b border-slate-200 bg-white'
               : isSolidBackdrop
               ? 'border-b border-[#1A263D] bg-[#0A0E1A]'
               : 'border-b border-indigo-400/20 backdrop-blur-md'
-          } ${collapsed ? 'px-2 justify-center' : 'px-3.5 sm:px-4'}`}
+          } ${collapsed ? 'px-1.5 justify-center gap-1' : 'px-3.5 sm:px-4 justify-between gap-2'}`}
         >
           {/* Brand Banner */}
-          <div className={`flex items-center gap-2.5 min-w-0 ${collapsed ? 'justify-center w-full' : ''}`}>
-            <div className={`w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border shrink-0 shadow-xs flex items-center justify-center overflow-hidden ${
+          <div className={`flex items-center min-w-0 ${collapsed ? 'justify-center' : 'gap-2.5 flex-1'}`}>
+            <div className={`${collapsed ? 'w-8 h-8 rounded-lg' : 'w-9 h-9 rounded-xl'} bg-white dark:bg-slate-900 border shrink-0 shadow-xs flex items-center justify-center overflow-hidden ${
               isSolidLight ? 'border-slate-200' : 'border-indigo-400/30'
             }`}>
               <ShoeIcon
-                src={companySettings?.logo}
+                src={companySettings?.logo || '/pwa-192x192.png'}
                 alt={`${storeName} Logo`}
-                className="w-full h-full object-cover rounded-xl"
+                className={`w-full h-full object-cover ${collapsed ? 'rounded-lg' : 'rounded-xl'}`}
               />
             </div>
             {!collapsed && (

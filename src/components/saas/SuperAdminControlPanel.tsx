@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Settings, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
+import { Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Settings, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { PublicHeader } from '../common/PublicHeader';
@@ -8,6 +8,7 @@ import { PublicFooter } from '../common/PublicFooter';
 import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { APP_VERSION } from '../../version.ts';
+import { ShoeIcon } from '../common/ShoeIcon';
 import { UserAvatar } from '../common/UserAvatar';
 import { ThemeDropdown } from '../common/ThemeDropdown';
 import { UserProfileModal } from '../auth/UserProfileModal';
@@ -44,11 +45,17 @@ import {
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient';
 
-const SuperAdminReportsView = React.lazy(() =>
-  import('./SuperAdminReportsView').then((m) => ({ default: m.SuperAdminReportsView }))
+import { lazyWithRetry } from '../../utils/lazyWithRetry';
+
+const SuperAdminReportsView = lazyWithRetry(
+  () => import('./SuperAdminReportsView'),
+  (m) => m.SuperAdminReportsView,
+  '/src/components/saas/SuperAdminReportsView.tsx'
 );
-const SettingsView = React.lazy(() =>
-  import('../settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+const SettingsView = lazyWithRetry(
+  () => import('../settings/SettingsView'),
+  (m) => m.SettingsView,
+  '/src/components/settings/SettingsView.tsx'
 );
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -2015,26 +2022,30 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               ? { backgroundColor: `rgba(8, 10, 42, ${headerGlassAlpha})` }
               : undefined
           }
-          className={`h-[3.6rem] flex items-center justify-between shrink-0 transition-colors ${
+          className={`h-[3.6rem] flex items-center shrink-0 transition-colors ${
             isSolidLight
               ? 'border-b border-slate-200 bg-white'
               : isSolidBackdrop
               ? 'border-b border-[#1A263D] bg-[#0A0E1A]'
               : 'border-b border-indigo-400/20 backdrop-blur-md'
-          } ${collapsed ? 'px-2 justify-center' : 'px-3.5 sm:px-4'}`}
+          } ${collapsed ? 'px-1.5 justify-center gap-1' : 'px-3.5 sm:px-4 justify-between gap-2'}`}
         >
-          <div className={`flex items-center gap-2.5 min-w-0 ${collapsed ? 'justify-center w-full' : ''}`}>
-            <div className={`w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border shrink-0 shadow-sm p-1 flex items-center justify-center overflow-hidden ${
-              isSolidLight ? 'border-slate-200' : 'border-purple-400/40'
+          <div className={`flex items-center min-w-0 ${collapsed ? 'justify-center' : 'gap-2.5 flex-1'}`}>
+            <div className={`${collapsed ? 'w-8 h-8 rounded-lg' : 'w-9 h-9 rounded-xl'} bg-white dark:bg-slate-900 border shrink-0 shadow-xs flex items-center justify-center overflow-hidden ${
+              isSolidLight ? 'border-slate-200' : 'border-indigo-400/30'
             }`}>
-              <img src="/admin/pwa-192x192.png" alt="SuperAdmin PWA Icon" className="w-full h-full object-contain rounded-md" />
+              <ShoeIcon
+                src="/admin/pwa-192x192.png"
+                alt="SarbaazSoft Shoe POS Logo"
+                className={`w-full h-full object-cover ${collapsed ? 'rounded-lg' : 'rounded-xl'}`}
+              />
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <h1 className={`text-xs font-bold truncate tracking-tight leading-tight ${
                   isSolidLight ? 'text-slate-900' : 'text-white'
                 }`}>
-                  POS SaaS C-Panel
+                  SarbaazSoft Shoe POS
                 </h1>
                 <p className={`text-[10px] font-medium truncate mt-0.5 ${
                   isSolidLight ? 'text-slate-500' : 'text-indigo-200/80'
@@ -2047,16 +2058,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
           {isMobile && (
             <button
+              id="superadmin-sidebar-close-mobile-btn"
               type="button"
               onClick={() => setMobileMenuOpen(false)}
-              className={`p-1.5 rounded-lg transition cursor-pointer ${
+              className={`w-10 h-10 flex items-center justify-center rounded-lg transition cursor-pointer shrink-0 ${
                 isSolidLight
                   ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
               }`}
               aria-label="Close Mobile Navigation"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4.5 h-4.5" />
             </button>
           )}
 
@@ -2452,7 +2464,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   ? 'border-slate-200 text-slate-500'
                   : 'border-indigo-400/20 text-slate-300/80'
               }`}>
-                <span>POS SaaS C-Panel</span>
+                <span>SarbaazSoft Shoe POS</span>
                 <span className="font-mono">{APP_VERSION}</span>
               </div>
             )}
@@ -2531,47 +2543,39 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   );
 
   const superAdminHeader = (
-    <header className="h-[3.6rem] bg-white/95 dark:bg-[#0D1322]/95 backdrop-blur-lg border-b border-indigo-500/20 px-3 sm:px-6 flex items-center justify-between gap-3 shrink-0 shadow-2xs transition-colors">
-          {/* Left: Mobile Menu Button & Mobile Brand Identity */}
-          <div className="flex items-center gap-2.5 min-w-0">
+    <header className="h-[3.6rem] bg-white/95 dark:bg-[#0D1322]/95 backdrop-blur-lg border-b border-indigo-500/20 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-2xs transition-colors">
+          {/* Left: Mobile Menu Button & Quick Filter Search Input */}
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 max-w-md">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-xl border-0 bg-transparent text-slate-600 dark:text-slate-300 shadow-none cursor-pointer focus:outline-none"
+              className="lg:hidden h-10 w-10 flex items-center justify-center p-1.5 rounded-lg border-0 bg-transparent text-slate-600 dark:text-slate-300 shadow-none cursor-pointer shrink-0 focus:outline-none"
               aria-label="Open Navigation Drawer"
             >
               <Menu className="w-5 h-5 stroke-[2.2]" />
             </button>
-            <div className="lg:hidden flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm border border-purple-400/30">
-                <Shield className="w-3.5 h-3.5" />
-              </div>
-              <span className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                POS SaaS C-Panel
-              </span>
-            </div>
-          </div>
 
-          {/* Center: Quick Filter Search Input (aligned with Store Header Quick Search) */}
-          <div className="hidden lg:flex items-center flex-1 max-w-xs xl:max-w-sm mx-2">
-            <div className="relative w-full">
-              <Search className="w-4 h-4 text-slate-400 dark:text-purple-300/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search stores or owners..."
-                className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-slate-100/90 dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/30 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+            {/* Quick Filter Search Input (aligned with Store Header Quick Search) */}
+            <div className="hidden lg:flex items-center flex-1 max-w-xs xl:max-w-sm">
+              <div className="relative w-full">
+                <Search className="w-4 h-4 text-slate-400 dark:text-purple-300/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search stores or owners..."
+                  className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-slate-100/90 dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/30 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

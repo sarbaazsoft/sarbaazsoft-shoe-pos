@@ -3,7 +3,6 @@ import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, Settings, ChevronDown, Menu, Sun, Moon, Monitor, UserCog, LogOut, AlertTriangle, AlertCircle, CheckCircle2, ShoppingBag, ArrowLeftRight, Truck, RefreshCw, CheckCheck, Check, Boxes, X, ShieldCheck, User, ShoppingCart, Copy, Coins, Loader2, ImageIcon, Edit3, PackagePlus, Printer, BellRing, ExternalLink, Globe, Store, Info, Flame, Search } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
-import { ShoeIcon } from './ShoeIcon.tsx';
 import { ThemeDropdown } from './ThemeDropdown.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { ClickableMessage } from './ClickableMessage.tsx';
@@ -800,11 +799,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Menu className="w-5 h-5 stroke-[2.2]" />
         </button>
-
-        {/* Store PWA Icon */}
-        <div className={`w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 items-center justify-center overflow-hidden shadow-2xs ${isMobileSearchExpanded ? 'hidden sm:flex' : 'flex'}`}>
-          <ShoeIcon src={companySettings?.logo || '/pwa-192x192.png'} alt="Store Icon" className="w-full h-full object-cover rounded-xl" />
-        </div>
 
         {/* Quick Price Retrieval Search Bar (position: relative expandable layout on mobile) */}
         <div
