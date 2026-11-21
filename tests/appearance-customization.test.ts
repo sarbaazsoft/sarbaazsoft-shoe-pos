@@ -9,13 +9,20 @@ import {
   ACCENT_THEME_LIST,
   CURATED_APPEARANCE_PALETTES,
   DEFAULT_ACCENT_THEME,
+  DEFAULT_BACKDROP_DARKNESS,
+  DEFAULT_BACKDROP_STYLE,
   DEFAULT_CUSTOM_ACCENT_HEX,
   GUEST_ACCENT_THEME_STORAGE_KEY,
+  GUEST_BACKDROP_DARKNESS_STORAGE_KEY,
+  GUEST_BACKDROP_STYLE_STORAGE_KEY,
   GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY,
   GUEST_THEME_MODE_STORAGE_KEY,
   THEME_MODE_STORAGE_KEY,
   ACCENT_THEME_STORAGE_KEY,
+  BACKDROP_DARKNESS_STORAGE_KEY,
+  BACKDROP_STYLE_STORAGE_KEY,
   applyAccentThemeToDOM,
+  applyBackdropThemeToDOM,
   buildCustomAccentPalette,
   getAccessibleTextColor,
   getStoredGuestThemePreferences,
@@ -23,6 +30,8 @@ import {
   getWcagContrastRatio,
   isValidHexColor,
   migrateLegacyGuestThemeIfNeeded,
+  normalizeBackdropDarkness,
+  normalizeBackdropStyle,
   normalizeHexColor,
   parseUserThemePreference,
   persistActiveHydrationMirror,
@@ -78,29 +87,98 @@ test('serializeUserThemePreference & parseUserThemePreference handle structured,
     serializeUserThemePreference({ themeMode: 'system', accentTheme: 'custom', customAccentHex: '#0ea' }),
     'system|custom|#00EEAA'
   );
+  assert.equal(
+    serializeUserThemePreference({
+      themeMode: 'light',
+      accentTheme: 'purple',
+      customAccentHex: '#2563EB',
+      backdropStyle: 'solid',
+      backdropDarkness: 55,
+    }),
+    'light|purple|solid|55'
+  );
+  assert.equal(
+    serializeUserThemePreference({
+      themeMode: 'dark',
+      accentTheme: 'custom',
+      customAccentHex: '#10b981',
+      backdropStyle: 'showroom',
+      backdropDarkness: 85,
+    }),
+    'dark|custom|#10B981|showroom|85'
+  );
 
   assert.deepEqual(parseUserThemePreference('dark|custom|#10B981'), {
     themeMode: 'dark',
     accentTheme: 'custom',
     customAccentHex: '#10B981',
+    backdropStyle: DEFAULT_BACKDROP_STYLE,
+    backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
   });
+
+  assert.deepEqual(parseUserThemePreference('light|purple|solid|55'), {
+    themeMode: 'light',
+    accentTheme: 'purple',
+    customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+    backdropStyle: 'solid',
+    backdropDarkness: 55,
+  });
+
+  assert.deepEqual(parseUserThemePreference('dark|custom|#10B981|showroom|85'), {
+    themeMode: 'dark',
+    accentTheme: 'custom',
+    customAccentHex: '#10B981',
+    backdropStyle: 'showroom',
+    backdropDarkness: 85,
+  });
+
+  // Clamping & fallback for backdrop normalization
+  assert.equal(normalizeBackdropDarkness(-5), 0);
+  assert.equal(normalizeBackdropDarkness(150), 100);
+  assert.equal(normalizeBackdropDarkness('abc', 55), 55);
+  assert.equal(normalizeBackdropStyle('SOLID'), 'solid');
+  assert.equal(normalizeBackdropStyle('unknown', 'showroom'), 'showroom');
 
   // Legacy values preserved
   assert.deepEqual(
     parseUserThemePreference('violet', { themeMode: 'light', accentTheme: 'purple', customAccentHex: '#2563EB' }),
-    { themeMode: 'light', accentTheme: 'purple', customAccentHex: '#2563EB' }
+    {
+      themeMode: 'light',
+      accentTheme: 'purple',
+      customAccentHex: '#2563EB',
+      backdropStyle: DEFAULT_BACKDROP_STYLE,
+      backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+    }
   );
   assert.deepEqual(
     parseUserThemePreference('#1E88E5', { themeMode: 'dark', accentTheme: 'purple', customAccentHex: '#2563EB' }),
-    { themeMode: 'dark', accentTheme: 'custom', customAccentHex: '#1E88E5' }
+    {
+      themeMode: 'dark',
+      accentTheme: 'custom',
+      customAccentHex: '#1E88E5',
+      backdropStyle: DEFAULT_BACKDROP_STYLE,
+      backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+    }
   );
   assert.deepEqual(
-    parseUserThemePreference('{"mode":"dark","accent":"cyan"}'),
-    { themeMode: 'dark', accentTheme: 'cyan', customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX }
+    parseUserThemePreference('{"mode":"dark","accent":"cyan","backdropStyle":"solid","backdropDarkness":20}'),
+    {
+      themeMode: 'dark',
+      accentTheme: 'cyan',
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: 'solid',
+      backdropDarkness: 20,
+    }
   );
   assert.deepEqual(
     parseUserThemePreference('', { themeMode: 'light', accentTheme: DEFAULT_ACCENT_THEME, customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX }),
-    { themeMode: 'light', accentTheme: DEFAULT_ACCENT_THEME, customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX }
+    {
+      themeMode: 'light',
+      accentTheme: DEFAULT_ACCENT_THEME,
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: DEFAULT_BACKDROP_STYLE,
+      backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+    }
   );
 });
 
@@ -127,11 +205,15 @@ test('HEX validation, custom shade generation, WCAG contrast calculation, and DO
   assert.equal(brightCustom.contrastText, '#0F172A');
 
   const props = new Map<string, string>();
+  const attrs = new Map<string, string>();
   const originalDoc = (globalThis as { document?: unknown }).document;
   (globalThis as { document?: unknown }).document = {
     documentElement: {
-      setAttribute: () => {},
+      setAttribute: (k: string, v: string) => attrs.set(k, v),
       style: { setProperty: (k: string, v: string) => props.set(k, v) },
+    },
+    body: {
+      setAttribute: (k: string, v: string) => attrs.set(`body:${k}`, v),
     },
     querySelector: () => null,
   };
@@ -141,6 +223,16 @@ test('HEX validation, custom shade generation, WCAG contrast calculation, and DO
     assert.equal(props.get('--primary-contrast'), '#0F172A');
     assert.ok(props.get('--brand-soft-surface-light'));
     assert.ok(props.get('--brand-soft-surface-dark'));
+
+    applyBackdropThemeToDOM('solid', 85);
+    assert.equal(attrs.get('data-backdrop-style'), 'solid');
+    assert.equal(props.get('--backdrop-darkness'), '85');
+    assert.equal(props.get('--backdrop-darkness-alpha'), '0.85');
+
+    applyBackdropThemeToDOM('showroom', 30);
+    assert.equal(attrs.get('data-backdrop-style'), 'showroom');
+    assert.equal(props.get('--backdrop-darkness'), '30');
+    assert.equal(props.get('--backdrop-darkness-alpha'), '0.30');
   } finally {
     if (originalDoc === undefined) delete (globalThis as { document?: unknown }).document;
     else (globalThis as { document?: unknown }).document = originalDoc;
@@ -163,27 +255,37 @@ test('Guest localStorage stays completely isolated from authenticated user hydra
   };
 
   try {
-    // Guest picks Pink + Dark
+    // Guest picks Pink + Dark + Solid backdrop with 80% darkness
     persistGuestThemePreferences({
       themeMode: 'dark',
       accentTheme: 'pink',
       customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: 'solid',
+      backdropDarkness: 80,
     });
     assert.equal(storage.get(GUEST_THEME_MODE_STORAGE_KEY), 'dark');
     assert.equal(storage.get(GUEST_ACCENT_THEME_STORAGE_KEY), 'pink');
+    assert.equal(storage.get(GUEST_BACKDROP_STYLE_STORAGE_KEY), 'solid');
+    assert.equal(storage.get(GUEST_BACKDROP_DARKNESS_STORAGE_KEY), '80');
 
-    // User logs in with Teal + Light -> only hydration mirror & user cache update; guest keys remain Pink + Dark
+    // User logs in with Teal + Light + Showroom 30% -> only hydration mirror & user cache update; guest keys stay intact
     persistActiveHydrationMirror({
       themeMode: 'light',
       accentTheme: 'teal',
       customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: 'showroom',
+      backdropDarkness: 30,
     });
-    storage.set(getUserThemeCacheKey(42), 'light|teal');
+    storage.set(getUserThemeCacheKey(42), 'light|teal|showroom|30');
 
     assert.equal(storage.get(THEME_MODE_STORAGE_KEY), 'light');
     assert.equal(storage.get(ACCENT_THEME_STORAGE_KEY), 'teal');
+    assert.equal(storage.get(BACKDROP_STYLE_STORAGE_KEY), 'showroom');
+    assert.equal(storage.get(BACKDROP_DARKNESS_STORAGE_KEY), '30');
     assert.equal(storage.get(GUEST_THEME_MODE_STORAGE_KEY), 'dark');
     assert.equal(storage.get(GUEST_ACCENT_THEME_STORAGE_KEY), 'pink');
+    assert.equal(storage.get(GUEST_BACKDROP_STYLE_STORAGE_KEY), 'solid');
+    assert.equal(storage.get(GUEST_BACKDROP_DARKNESS_STORAGE_KEY), '80');
 
     // User logs out -> restoreGuestThemeOnLogout reads independent guest keys (never user mirror)
     const restoredGuest = getStoredGuestThemePreferences();
@@ -191,16 +293,22 @@ test('Guest localStorage stays completely isolated from authenticated user hydra
       themeMode: 'dark',
       accentTheme: 'pink',
       customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: 'solid',
+      backdropDarkness: 80,
     });
 
     // Legacy guest migration runs once when GUEST_* keys are absent
     storage.clear();
     storage.set(THEME_MODE_STORAGE_KEY, 'system');
     storage.set(ACCENT_THEME_STORAGE_KEY, 'orange');
+    storage.set(BACKDROP_STYLE_STORAGE_KEY, 'solid');
+    storage.set(BACKDROP_DARKNESS_STORAGE_KEY, '90');
     migrateLegacyGuestThemeIfNeeded();
     assert.equal(storage.get(GUEST_THEME_MODE_STORAGE_KEY), 'system');
     assert.equal(storage.get(GUEST_ACCENT_THEME_STORAGE_KEY), 'orange');
     assert.equal(storage.get(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY), DEFAULT_CUSTOM_ACCENT_HEX);
+    assert.equal(storage.get(GUEST_BACKDROP_STYLE_STORAGE_KEY), 'solid');
+    assert.equal(storage.get(GUEST_BACKDROP_DARKNESS_STORAGE_KEY), '90');
   } finally {
     if (originalWin === undefined) delete (globalThis as { window?: unknown }).window;
     else (globalThis as { window?: unknown }).window = originalWin;
@@ -335,61 +443,100 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
     });
     assert.equal(badThemeRes.status, 400);
 
-    // 3. User 2 saves custom hex dark theme -> persisted to DB & visible via /api/auth/me without affecting User 3
+    // 3. User 2 (Store Owner) saves custom hex dark theme with showroom darkness 85% -> persisted to DB & visible via /api/auth/me without affecting User 3
     const save2Res = await fetch(`${baseUrl}/api/auth/theme`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${tokenAdmin2}`,
       },
-      body: JSON.stringify({ themeColor: 'dark|custom|#10B981' }),
+      body: JSON.stringify({ themeColor: 'dark|custom|#10B981|showroom|85' }),
     });
     assert.equal(save2Res.status, 200);
     const save2Body = (await save2Res.json()) as { success: boolean; themeColor: string };
     assert.equal(save2Body.success, true);
-    assert.equal(save2Body.themeColor, 'dark|custom|#10B981');
+    assert.equal(save2Body.themeColor, 'dark|custom|#10B981|showroom|85');
 
     const me2Res = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${tokenAdmin2}` },
     });
     assert.equal(me2Res.status, 200);
     const me2Body = (await me2Res.json()) as { user: { themeColor: string } };
-    assert.equal(me2Body.user.themeColor, 'dark|custom|#10B981');
+    assert.equal(me2Body.user.themeColor, 'dark|custom|#10B981|showroom|85');
 
-    // User 3 saves completely different preset independently
+    // User 3 (Tenant 2 Owner) saves solid backdrop preset independently
     const save3Res = await fetch(`${baseUrl}/api/auth/theme`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${tokenAdmin3}`,
       },
-      body: JSON.stringify({ themeColor: 'light|orange' }),
+      body: JSON.stringify({ themeColor: 'light|orange|solid|55' }),
     });
     assert.equal(save3Res.status, 200);
 
-    // Cashier saves personal color preference cleanly (200)
+    // Cashier saves personal solid color preference cleanly (200)
     const saveCashierRes = await fetch(`${baseUrl}/api/auth/theme`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${tokenCashier}`,
       },
-      body: JSON.stringify({ themeColor: 'system|cyan' }),
+      body: JSON.stringify({ themeColor: 'light|cyan|solid|55' }),
     });
     assert.equal(saveCashierRes.status, 200);
+    const meCashierOwnRes = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${tokenCashier}` },
+    });
+    const meCashierOwnBody = (await meCashierOwnRes.json()) as { user: { themeColor: string } };
+    assert.equal(meCashierOwnBody.user.themeColor, 'light|cyan|solid|55');
 
-    // Verify User 2 stayed dark|custom|#10B981 while User 3 is light|orange
+    // SuperAdmin saves personal showroom darkness cleanly (200) if present
+    const superAdminRow = await pgClient.query<{ id: number; tenant_id: number; email: string; name: string; theme_color: string }>(
+      `SELECT id, tenant_id, email, name, theme_color FROM users WHERE role = 'SUPERADMIN' LIMIT 1`
+    );
+    if (superAdminRow.rows[0]) {
+      const sa = superAdminRow.rows[0];
+      const tokenSa = generateToken({
+        id: Number(sa.id),
+        tenantId: Number(sa.tenant_id || 1),
+        email: sa.email,
+        name: sa.name,
+        role: 'SUPERADMIN',
+        status: 'APPROVED',
+      });
+      try {
+        const saveSaRes = await fetch(`${baseUrl}/api/auth/theme`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${tokenSa}`,
+          },
+          body: JSON.stringify({ themeColor: 'dark|purple|showroom|90' }),
+        });
+        assert.equal(saveSaRes.status, 200);
+        const meSaRes = await fetch(`${baseUrl}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${tokenSa}` },
+        });
+        const meSaBody = (await meSaRes.json()) as { user: { themeColor: string } };
+        assert.equal(meSaBody.user.themeColor, 'dark|purple|showroom|90');
+      } finally {
+        await pgClient.query('UPDATE users SET theme_color = $1 WHERE id = $2', [sa.theme_color || '', sa.id]);
+      }
+    }
+
+    // Verify User 2 stayed dark|custom|#10B981|showroom|85 while User 3 is light|orange|solid|55
     const me2AfterRes = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${tokenAdmin2}` },
     });
     const me2AfterBody = (await me2AfterRes.json()) as { user: { themeColor: string } };
-    assert.equal(me2AfterBody.user.themeColor, 'dark|custom|#10B981');
+    assert.equal(me2AfterBody.user.themeColor, 'dark|custom|#10B981|showroom|85');
 
     const me3AfterRes = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${tokenAdmin3}` },
     });
     const me3AfterBody = (await me3AfterRes.json()) as { user: { themeColor: string } };
-    assert.equal(me3AfterBody.user.themeColor, 'light|orange');
+    assert.equal(me3AfterBody.user.themeColor, 'light|orange|solid|55');
 
     // 3b. Apply to Staff: CASHIER receives 403 Forbidden
     const cashierBulkRes = await fetch(`${baseUrl}/api/auth/theme/staff`, {
@@ -421,19 +568,19 @@ test('API integration: /api/auth/theme & /api/settings/screen-images enforce use
     assert.equal(bulkStaffBody.themeColor, 'dark|custom|#E11D48');
     assert.ok(bulkStaffBody.updatedCount >= 2, 'Should update both owner and cashier in Tenant 1');
 
-    // Verify Cashier in Tenant 1 was overwritten (from system|cyan -> dark|custom|#E11D48)
+    // Verify Cashier in Tenant 1 was overwritten (from light|cyan|solid|55 -> dark|custom|#E11D48)
     const meCashierAfterBulk = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${tokenCashier}` },
     });
     const meCashierBody = (await meCashierAfterBulk.json()) as { user: { themeColor: string } };
     assert.equal(meCashierBody.user.themeColor, 'dark|custom|#E11D48');
 
-    // Verify Admin in Tenant 2 remained completely isolated (still light|orange)
+    // Verify Admin in Tenant 2 remained completely isolated (still light|orange|solid|55)
     const me3AfterBulk = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${tokenAdmin3}` },
     });
     const me3AfterBulkBody = (await me3AfterBulk.json()) as { user: { themeColor: string } };
-    assert.equal(me3AfterBulkBody.user.themeColor, 'light|orange');
+    assert.equal(me3AfterBulkBody.user.themeColor, 'light|orange|solid|55');
 
     // 4. Screen images: public GET works without auth
     const publicImgRes = await fetch(`${baseUrl}/api/settings/screen-images`);
@@ -580,10 +727,33 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
   assert.ok(appearanceTabSrc.includes('Theme Match'));
 
   // Unified single backdrop editor: no 4-slot tabs, and completely hidden when !canManageScreenImages (Cashier)
+  // Sidebar Backdrop Style (Fixed 50% Showroom vs Solid — no slider) + Auth/Loading Backdrop Opacity slider
+  // Both live outside canManageScreenImages so Owner, Cashier, and SuperAdmin can all configure them
   assert.equal(appearanceTabSrc.includes('screen-image-slot-'), false);
   assert.equal(appearanceTabSrc.includes('Admin permission required to edit screen images'), false);
+  assert.ok(appearanceTabSrc.includes('id="appearance-backdrop-style-section"'));
+  assert.ok(appearanceTabSrc.includes('id="appearance-backdrop-showroom"'));
+  assert.ok(appearanceTabSrc.includes('id="appearance-backdrop-solid"'));
+  assert.ok(appearanceTabSrc.includes('id="appearance-route-backdrop-opacity-section"'));
+  assert.ok(appearanceTabSrc.includes('id="appearance-backdrop-darkness-slider"'));
+  assert.ok(appearanceTabSrc.includes('id="appearance-backdrop-darkness-value"'));
+  assert.ok(appearanceTabSrc.includes('White in Light'));
   assert.ok(appearanceTabSrc.includes('{canManageScreenImages && ('));
   assert.ok(appearanceTabSrc.includes('id="unified-backdrop-settings-card"'));
+  assert.ok(
+    appearanceTabSrc.indexOf('id="appearance-backdrop-style-section"') <
+      appearanceTabSrc.indexOf('id="appearance-route-backdrop-opacity-section"') &&
+      appearanceTabSrc.indexOf('id="appearance-route-backdrop-opacity-section"') <
+        appearanceTabSrc.indexOf('{canManageScreenImages && ('),
+    'Sidebar Backdrop Style & Auth/Loading Opacity sections must remain available to Cashiers as well as Owners and SuperAdmins'
+  );
+  assert.ok(
+    appearanceTabSrc.indexOf('id="appearance-backdrop-style-section"') <
+      appearanceTabSrc.indexOf('id="appearance-backdrop-darkness-slider"') &&
+      appearanceTabSrc.indexOf('id="appearance-route-backdrop-opacity-section"') <
+        appearanceTabSrc.indexOf('id="appearance-backdrop-darkness-slider"'),
+    'Opacity slider must live inside the Auth/Loading section, not inside the Sidebar Backdrop Style section'
+  );
 
   const themeContextSrc = readProjectFile('src/context/ThemeContext.tsx');
   assert.ok(themeContextSrc.includes('requestEpochRef'));
@@ -595,6 +765,10 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
   assert.ok(themeContextSrc.includes('applyAndSaveToAllStaff'));
   assert.ok(themeContextSrc.includes('effectiveBackdropImage'));
   assert.ok(themeContextSrc.includes('updateBackdropImagePreview'));
+  assert.ok(themeContextSrc.includes('backdropStyle'));
+  assert.ok(themeContextSrc.includes('backdropDarkness'));
+  assert.ok(themeContextSrc.includes('setBackdropStyle'));
+  assert.ok(themeContextSrc.includes('setBackdropDarkness'));
 
   const appSrc = readProjectFile('src/App.tsx');
   assert.ok(appSrc.includes('syncUserThemeFromAuth('));
@@ -629,25 +803,67 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
   assert.ok(showroomBgSrc.includes("containerBg: 'bg-[#080A2A]'"));
   assert.ok(showroomBgSrc.includes("imageClass: 'opacity-75 dark:opacity-70'"));
   assert.ok(showroomBgSrc.includes('from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55'));
+  assert.ok(showroomBgSrc.includes("scope = 'route'"));
+  assert.ok(showroomBgSrc.includes("const isSidebarScope = scope === 'sidebar';"));
+  assert.ok(showroomBgSrc.includes("const isSolidBackdrop = isSidebarScope && backdropStyle === 'solid';"));
+  assert.ok(showroomBgSrc.includes('? 50'));
+  assert.ok(showroomBgSrc.includes('const scrimScaleOpacity = isSidebarScope ? 0.5 : Math.min(1, clampedDarkness / 55);'));
+  assert.ok(showroomBgSrc.includes('!isSidebarScope && clampedDarkness > 55'));
+  assert.ok(showroomBgSrc.includes("theme === 'dark' ? 'bg-[#0A0E1A]' : 'bg-white'"));
+  assert.ok(showroomBgSrc.includes('showroom-bg-darkness-veil'));
+  assert.ok(appearanceTabSrc.includes('Sidebar Backdrop Style'));
+  assert.ok(appearanceTabSrc.includes('Auth, Loading &amp; Portal Backdrop Opacity'));
+  assert.ok(appearanceTabSrc.includes('Preview: Auth, Login &amp; Loading Routes'));
   assert.ok(appearanceTabSrc.includes('bg-[#080A2A]'));
   assert.ok(appearanceTabSrc.includes('opacity-75 dark:opacity-70'));
   assert.ok(appearanceTabSrc.includes('from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55'));
   assert.equal(appSrc.includes('intensity="workspace"'), false, 'Tenant workspace routes must use solid background instead of showroom backdrop');
+  assert.equal(appSrc.includes('scope="sidebar"'), false, 'Non-sidebar loading backdrop in App must not apply sidebar solid/opacity overrides');
   assert.ok(appSrc.includes('className="saas-panel bg-[#F8FAFC] dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 transition-colors"'));
   assert.ok(appSrc.includes('mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"'));
+  for (const nonSidebarFile of [
+    'src/components/common/LoadingWindow.tsx',
+    'src/components/common/PublicLayout.tsx',
+    'src/components/auth/AuthModal.tsx',
+    'src/components/saas/TenantOnboardingWizard.tsx',
+    'src/components/saas/FreeTrialOnboardingModal.tsx',
+    'src/components/saas/SuspendedStoreView.tsx',
+    'src/components/saas/UnknownStore404View.tsx',
+  ]) {
+    assert.equal(
+      readProjectFile(nonSidebarFile).includes('scope="sidebar"'),
+      false,
+      `${nonSidebarFile} must always retain Showroom Backdrop and never use sidebar-only backdrop preferences`
+    );
+  }
   const sidebarSrc = readProjectFile('src/components/common/Sidebar.tsx');
-  assert.ok(sidebarSrc.includes('<ShowroomBackground contained={true} intensity="portal" />'));
+  assert.ok(sidebarSrc.includes('<ShowroomBackground contained={true} intensity="portal" scope="sidebar" />'));
   assert.ok(sidebarSrc.includes('sidebar-showroom-shell'));
   assert.ok(sidebarSrc.includes('bg-[#080A2A]'));
+  assert.ok(sidebarSrc.includes("backdropStyle === 'solid'"));
+  assert.ok(sidebarSrc.includes('bg-white text-slate-900'));
+  assert.ok(sidebarSrc.includes('bg-[#0A0E1A] text-slate-100'));
+  assert.ok(sidebarSrc.includes('const navGlassAlpha = 0.5;'));
+  assert.equal(sidebarSrc.includes('backdropDarkness'), false, 'Sidebar showroom opacity must stay locked at 50% and never depend on backdropDarkness');
   const superAdminSrc = readProjectFile('src/components/saas/SuperAdminControlPanel.tsx');
   assert.equal(superAdminSrc.includes('intensity="workspace"'), false, 'SuperAdmin workspace routes must use solid background instead of showroom backdrop');
   assert.ok(superAdminSrc.includes('mainClassName="bg-[#F8FAFC] dark:bg-[#0A0E1A] transition-colors"'));
-  assert.ok(superAdminSrc.includes('<ShowroomBackground contained={true} intensity="portal" />'));
+  assert.ok(superAdminSrc.includes('<ShowroomBackground contained={true} intensity="portal" scope="sidebar" />'));
   assert.ok(superAdminSrc.includes('sidebar-showroom-shell'));
   assert.ok(superAdminSrc.includes('bg-[#080A2A]'));
+  assert.ok(superAdminSrc.includes("backdropStyle === 'solid'"));
+  assert.ok(superAdminSrc.includes('bg-white text-slate-900'));
+  assert.ok(superAdminSrc.includes('bg-[#0A0E1A] text-slate-100'));
+  assert.ok(superAdminSrc.includes('const navGlassAlpha = 0.5;'));
+  assert.equal(superAdminSrc.includes('backdropDarkness'), false, 'SuperAdmin sidebar showroom opacity must stay locked at 50% and never depend on backdropDarkness');
   const indexCssSrc = readProjectFile('src/index.css');
   assert.ok(indexCssSrc.includes('.sidebar-showroom-shell .showroom-bg-img'));
   assert.ok(indexCssSrc.includes('opacity: 0.95 !important;'));
+  assert.equal(
+    indexCssSrc.includes('html[data-backdrop-style="solid"]'),
+    false,
+    'Solid sidebar mode must not override main workspace .saas-panel styles'
+  );
   assert.equal(
     readProjectFile('src/components/saas/FreeTrialOnboardingModal.tsx').includes('sidebar-showroom-shell'),
     false,

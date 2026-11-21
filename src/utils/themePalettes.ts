@@ -433,24 +433,33 @@ export const CURATED_APPEARANCE_PALETTES: CuratedAppearancePalette[] = [
 ];
 
 export type ThemeModePreference = 'light' | 'dark' | 'system';
+export type BackdropStyle = 'showroom' | 'solid';
 
 export interface ThemePreferencesSnapshot {
   themeMode: ThemeModePreference;
   accentTheme: AccentThemeId;
   customAccentHex: string;
+  backdropStyle: BackdropStyle;
+  backdropDarkness: number;
 }
 
 export const THEME_MODE_STORAGE_KEY = 'pos_theme';
 export const ACCENT_THEME_STORAGE_KEY = 'pos_accent_theme';
 export const CUSTOM_ACCENT_HEX_STORAGE_KEY = 'pos_custom_accent_hex';
+export const BACKDROP_STYLE_STORAGE_KEY = 'pos_backdrop_style';
+export const BACKDROP_DARKNESS_STORAGE_KEY = 'pos_backdrop_darkness';
 
 export const GUEST_THEME_MODE_STORAGE_KEY = 'pos_guest_theme';
 export const GUEST_ACCENT_THEME_STORAGE_KEY = 'pos_guest_accent_theme';
 export const GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY = 'pos_guest_custom_accent_hex';
+export const GUEST_BACKDROP_STYLE_STORAGE_KEY = 'pos_guest_backdrop_style';
+export const GUEST_BACKDROP_DARKNESS_STORAGE_KEY = 'pos_guest_backdrop_darkness';
 
 export const DEFAULT_THEME_MODE: ThemeModePreference = 'system';
 export const DEFAULT_ACCENT_THEME: AccentThemeId = 'purple';
 export const DEFAULT_CUSTOM_ACCENT_HEX = '#2563EB';
+export const DEFAULT_BACKDROP_STYLE: BackdropStyle = 'showroom';
+export const DEFAULT_BACKDROP_DARKNESS = 55;
 
 export function getUserThemeCacheKey(userId: number | string): string {
   return `pos_user_theme_cache_${String(userId).trim()}`;
@@ -809,19 +818,66 @@ export function normalizeThemeMode(value: unknown, fallback: ThemeModePreference
   return fallback;
 }
 
+export function normalizeBackdropStyle(
+  value: unknown,
+  fallback: BackdropStyle = DEFAULT_BACKDROP_STYLE
+): BackdropStyle {
+  if (typeof value !== 'string') return fallback;
+  const clean = value.trim().toLowerCase();
+  if (clean === 'showroom' || clean === 'solid') return clean;
+  return fallback;
+}
+
+export function normalizeBackdropDarkness(
+  value: unknown,
+  fallback: number = DEFAULT_BACKDROP_DARKNESS
+): number {
+  const safeFallback =
+    typeof fallback === 'number' && Number.isFinite(fallback)
+      ? Math.max(0, Math.min(100, Math.round(fallback)))
+      : DEFAULT_BACKDROP_DARKNESS;
+  if (value === null || value === undefined || value === '') return safeFallback;
+  const num = typeof value === 'number' ? value : Number(String(value).trim());
+  if (!Number.isFinite(num)) return safeFallback;
+  return Math.max(0, Math.min(100, Math.round(num)));
+}
+
+export function applyBackdropThemeToDOM(
+  backdropStyle: BackdropStyle,
+  backdropDarkness: number
+): void {
+  if (typeof document === 'undefined') return;
+  const style = normalizeBackdropStyle(backdropStyle, DEFAULT_BACKDROP_STYLE);
+  const darkness = normalizeBackdropDarkness(backdropDarkness, DEFAULT_BACKDROP_DARKNESS);
+  const root = document.documentElement;
+  root.setAttribute('data-backdrop-style', style);
+  root.style.setProperty('--backdrop-darkness', String(darkness));
+  root.style.setProperty('--backdrop-darkness-alpha', (darkness / 100).toFixed(2));
+  if (document.body && typeof document.body.setAttribute === 'function') {
+    document.body.setAttribute('data-backdrop-style', style);
+  }
+}
+
 /**
- * Serializes theme mode + accent palette + custom hex into a compact string
+ * Serializes theme mode + accent palette + custom hex + backdrop preference into a compact string
  * suitable for `users.theme_color` database column.
+ * Default backdrop values (`showroom` + `55`) omit extra tokens to preserve canonical strings.
  */
 export function serializeUserThemePreference(prefs: Partial<ThemePreferencesSnapshot>): string {
   const mode = normalizeThemeMode(prefs.themeMode, DEFAULT_THEME_MODE);
   const accent = normalizeAccentThemeId(prefs.accentTheme) ?? DEFAULT_ACCENT_THEME;
   const hex = normalizeHexColor(prefs.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
-  return accent === 'custom' ? `${mode}|custom|${hex}` : `${mode}|${accent}`;
+  const backdropStyle = normalizeBackdropStyle(prefs.backdropStyle, DEFAULT_BACKDROP_STYLE);
+  const backdropDarkness = normalizeBackdropDarkness(prefs.backdropDarkness, DEFAULT_BACKDROP_DARKNESS);
+  const base = accent === 'custom' ? `${mode}|custom|${hex}` : `${mode}|${accent}`;
+  if (backdropStyle === DEFAULT_BACKDROP_STYLE && backdropDarkness === DEFAULT_BACKDROP_DARKNESS) {
+    return base;
+  }
+  return `${base}|${backdropStyle}|${backdropDarkness}`;
 }
 
 /**
- * Parses `users.theme_color` value supporting structured `"mode|accent|hex"`, JSON,
+ * Parses `users.theme_color` value supporting structured `"mode|accent|hex|backdropStyle|darkness"`, JSON,
  * and legacy plain values like `"purple"`, `"violet"`, or `"#1E88E5"`.
  */
 export function parseUserThemePreference(
@@ -831,9 +887,17 @@ export function parseUserThemePreference(
   const baseMode = normalizeThemeMode(fallback?.themeMode, DEFAULT_THEME_MODE);
   const baseAccent = normalizeAccentThemeId(fallback?.accentTheme) ?? DEFAULT_ACCENT_THEME;
   const baseHex = normalizeHexColor(fallback?.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+  const baseBackdropStyle = normalizeBackdropStyle(fallback?.backdropStyle, DEFAULT_BACKDROP_STYLE);
+  const baseBackdropDarkness = normalizeBackdropDarkness(fallback?.backdropDarkness, DEFAULT_BACKDROP_DARKNESS);
 
   if (typeof raw !== 'string' || !raw.trim()) {
-    return { themeMode: baseMode, accentTheme: baseAccent, customAccentHex: baseHex };
+    return {
+      themeMode: baseMode,
+      accentTheme: baseAccent,
+      customAccentHex: baseHex,
+      backdropStyle: baseBackdropStyle,
+      backdropDarkness: baseBackdropDarkness,
+    };
   }
 
   const trimmed = raw.trim();
@@ -850,21 +914,34 @@ export function parseUserThemePreference(
         themeMode: normalizeThemeMode(parsed.themeMode ?? parsed.mode, baseMode),
         accentTheme: parsedAccent ?? (isValidHexColor(parsed.hex) ? 'custom' : baseAccent),
         customAccentHex: parsedHex,
+        backdropStyle: normalizeBackdropStyle(parsed.backdropStyle ?? parsed.backdrop_style, baseBackdropStyle),
+        backdropDarkness: normalizeBackdropDarkness(
+          parsed.backdropDarkness ?? parsed.backdrop_darkness,
+          baseBackdropDarkness
+        ),
       };
     } catch {
       // fall through
     }
   }
 
-  // Pipe-delimited format: "mode|accent|hex"
+  // Pipe-delimited format: "mode|accent[|hex][|backdropStyle|darkness]"
   if (trimmed.includes('|')) {
-    const [rawMode, rawAccent, rawHex] = trimmed.split('|').map((s) => s.trim());
+    const parts = trimmed.split('|').map((s) => s.trim());
+    const [rawMode, rawAccent] = parts;
     const accent = normalizeAccentThemeId(rawAccent);
+    const hasHexSlot = accent === 'custom' || isValidHexColor(parts[2]);
+    const rawHex = hasHexSlot ? parts[2] : undefined;
     const hex = isValidHexColor(rawHex) ? normalizeHexColor(rawHex, baseHex) : baseHex;
+    const backdropStartIndex = hasHexSlot ? 3 : 2;
+    const backdropStyle = normalizeBackdropStyle(parts[backdropStartIndex], baseBackdropStyle);
+    const backdropDarkness = normalizeBackdropDarkness(parts[backdropStartIndex + 1], baseBackdropDarkness);
     return {
       themeMode: normalizeThemeMode(rawMode, baseMode),
       accentTheme: accent ?? (isValidHexColor(rawHex) ? 'custom' : baseAccent),
       customAccentHex: hex,
+      backdropStyle,
+      backdropDarkness,
     };
   }
 
@@ -874,6 +951,8 @@ export function parseUserThemePreference(
       themeMode: baseMode,
       accentTheme: 'custom',
       customAccentHex: normalizeHexColor(trimmed, baseHex),
+      backdropStyle: baseBackdropStyle,
+      backdropDarkness: baseBackdropDarkness,
     };
   }
 
@@ -884,10 +963,18 @@ export function parseUserThemePreference(
       themeMode: baseMode,
       accentTheme: legacyAccent,
       customAccentHex: baseHex,
+      backdropStyle: baseBackdropStyle,
+      backdropDarkness: baseBackdropDarkness,
     };
   }
 
-  return { themeMode: baseMode, accentTheme: baseAccent, customAccentHex: baseHex };
+  return {
+    themeMode: baseMode,
+    accentTheme: baseAccent,
+    customAccentHex: baseHex,
+    backdropStyle: baseBackdropStyle,
+    backdropDarkness: baseBackdropDarkness,
+  };
 }
 
 export function migrateLegacyGuestThemeIfNeeded(): void {
@@ -900,8 +987,10 @@ export function migrateLegacyGuestThemeIfNeeded(): void {
     const legacyMode = window.localStorage?.getItem(THEME_MODE_STORAGE_KEY);
     const legacyAccent = window.localStorage?.getItem(ACCENT_THEME_STORAGE_KEY);
     const legacyHex = window.localStorage?.getItem(CUSTOM_ACCENT_HEX_STORAGE_KEY);
+    const legacyBackdropStyle = window.localStorage?.getItem(BACKDROP_STYLE_STORAGE_KEY);
+    const legacyBackdropDarkness = window.localStorage?.getItem(BACKDROP_DARKNESS_STORAGE_KEY);
 
-    if (legacyMode || legacyAccent || legacyHex) {
+    if (legacyMode || legacyAccent || legacyHex || legacyBackdropStyle || legacyBackdropDarkness) {
       window.localStorage?.setItem(
         GUEST_THEME_MODE_STORAGE_KEY,
         normalizeThemeMode(legacyMode, 'light')
@@ -913,6 +1002,14 @@ export function migrateLegacyGuestThemeIfNeeded(): void {
       window.localStorage?.setItem(
         GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY,
         normalizeHexColor(legacyHex, DEFAULT_CUSTOM_ACCENT_HEX)
+      );
+      window.localStorage?.setItem(
+        GUEST_BACKDROP_STYLE_STORAGE_KEY,
+        normalizeBackdropStyle(legacyBackdropStyle, DEFAULT_BACKDROP_STYLE)
+      );
+      window.localStorage?.setItem(
+        GUEST_BACKDROP_DARKNESS_STORAGE_KEY,
+        String(normalizeBackdropDarkness(legacyBackdropDarkness, DEFAULT_BACKDROP_DARKNESS))
       );
     }
   } catch {
@@ -926,23 +1023,40 @@ export function getStoredGuestThemePreferences(): ThemePreferencesSnapshot {
       themeMode: 'light',
       accentTheme: DEFAULT_ACCENT_THEME,
       customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: DEFAULT_BACKDROP_STYLE,
+      backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
     };
   }
   try {
     const guestModeRaw = window.localStorage?.getItem(GUEST_THEME_MODE_STORAGE_KEY);
     const guestAccentRaw = window.localStorage?.getItem(GUEST_ACCENT_THEME_STORAGE_KEY);
     const guestHexRaw = window.localStorage?.getItem(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY);
+    const guestBackdropStyleRaw = window.localStorage?.getItem(GUEST_BACKDROP_STYLE_STORAGE_KEY);
+    const guestBackdropDarknessRaw = window.localStorage?.getItem(GUEST_BACKDROP_DARKNESS_STORAGE_KEY);
 
     const mode = normalizeThemeMode(guestModeRaw, 'light');
     const accent = normalizeAccentThemeId(guestAccentRaw) ?? DEFAULT_ACCENT_THEME;
     const hex = normalizeHexColor(guestHexRaw, DEFAULT_CUSTOM_ACCENT_HEX);
+    const backdropStyle = normalizeBackdropStyle(guestBackdropStyleRaw, DEFAULT_BACKDROP_STYLE);
+    const backdropDarkness = normalizeBackdropDarkness(
+      guestBackdropDarknessRaw,
+      DEFAULT_BACKDROP_DARKNESS
+    );
 
-    return { themeMode: mode, accentTheme: accent, customAccentHex: hex };
+    return {
+      themeMode: mode,
+      accentTheme: accent,
+      customAccentHex: hex,
+      backdropStyle,
+      backdropDarkness,
+    };
   } catch {
     return {
       themeMode: 'light',
       accentTheme: DEFAULT_ACCENT_THEME,
       customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: DEFAULT_BACKDROP_STYLE,
+      backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
     };
   }
 }
@@ -953,13 +1067,19 @@ export function persistGuestThemePreferences(prefs: ThemePreferencesSnapshot): v
     const mode = normalizeThemeMode(prefs.themeMode, 'light');
     const accent = normalizeAccentThemeId(prefs.accentTheme) ?? DEFAULT_ACCENT_THEME;
     const hex = normalizeHexColor(prefs.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+    const backdropStyle = normalizeBackdropStyle(prefs.backdropStyle, DEFAULT_BACKDROP_STYLE);
+    const backdropDarkness = normalizeBackdropDarkness(prefs.backdropDarkness, DEFAULT_BACKDROP_DARKNESS);
     window.localStorage?.setItem(GUEST_THEME_MODE_STORAGE_KEY, mode);
     window.localStorage?.setItem(GUEST_ACCENT_THEME_STORAGE_KEY, accent);
     window.localStorage?.setItem(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
+    window.localStorage?.setItem(GUEST_BACKDROP_STYLE_STORAGE_KEY, backdropStyle);
+    window.localStorage?.setItem(GUEST_BACKDROP_DARKNESS_STORAGE_KEY, String(backdropDarkness));
     // Keep pre-hydration keys in sync for guest reload without flash
     window.localStorage?.setItem(THEME_MODE_STORAGE_KEY, mode);
     window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, accent);
     window.localStorage?.setItem(CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
+    window.localStorage?.setItem(BACKDROP_STYLE_STORAGE_KEY, backdropStyle);
+    window.localStorage?.setItem(BACKDROP_DARKNESS_STORAGE_KEY, String(backdropDarkness));
   } catch {
     // ignore storage errors
   }
@@ -971,9 +1091,13 @@ export function persistActiveHydrationMirror(prefs: ThemePreferencesSnapshot): v
     const mode = normalizeThemeMode(prefs.themeMode, 'light');
     const accent = normalizeAccentThemeId(prefs.accentTheme) ?? DEFAULT_ACCENT_THEME;
     const hex = normalizeHexColor(prefs.customAccentHex, DEFAULT_CUSTOM_ACCENT_HEX);
+    const backdropStyle = normalizeBackdropStyle(prefs.backdropStyle, DEFAULT_BACKDROP_STYLE);
+    const backdropDarkness = normalizeBackdropDarkness(prefs.backdropDarkness, DEFAULT_BACKDROP_DARKNESS);
     window.localStorage?.setItem(THEME_MODE_STORAGE_KEY, mode);
     window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, accent);
     window.localStorage?.setItem(CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
+    window.localStorage?.setItem(BACKDROP_STYLE_STORAGE_KEY, backdropStyle);
+    window.localStorage?.setItem(BACKDROP_DARKNESS_STORAGE_KEY, String(backdropDarkness));
   } catch {
     // ignore storage errors
   }

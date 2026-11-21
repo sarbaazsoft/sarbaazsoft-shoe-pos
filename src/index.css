@@ -3769,9 +3769,6 @@ aside {
   .sidebar-showroom-shell .showroom-bg-img {
     opacity: 0.95 !important;
   }
-  .sidebar-showroom-shell .showroom-bg-scrim {
-    opacity: 0.65 !important;
-  }
 
   /* Installation Wizard Dark Mode Visual Adaptation */
   .dark #installation-wizard-container .bg-white {

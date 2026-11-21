@@ -3,22 +3,32 @@ import { api } from '../services/api.ts';
 import {
   ACCENT_THEME_LIST,
   ACCENT_THEME_STORAGE_KEY,
+  BACKDROP_DARKNESS_STORAGE_KEY,
+  BACKDROP_STYLE_STORAGE_KEY,
   CUSTOM_ACCENT_HEX_STORAGE_KEY,
   DEFAULT_ACCENT_THEME,
+  DEFAULT_BACKDROP_DARKNESS,
+  DEFAULT_BACKDROP_STYLE,
   DEFAULT_CUSTOM_ACCENT_HEX,
   GUEST_ACCENT_THEME_STORAGE_KEY,
+  GUEST_BACKDROP_DARKNESS_STORAGE_KEY,
+  GUEST_BACKDROP_STYLE_STORAGE_KEY,
   GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY,
   GUEST_THEME_MODE_STORAGE_KEY,
   THEME_MODE_STORAGE_KEY,
   type AccentThemeId,
   type AccentThemePalette,
+  type BackdropStyle,
   type ThemeModePreference,
   type ThemePreferencesSnapshot,
   applyAccentThemeToDOM,
+  applyBackdropThemeToDOM,
   getStoredGuestThemePreferences,
   getUserThemeCacheKey,
   migrateLegacyGuestThemeIfNeeded,
   normalizeAccentThemeId,
+  normalizeBackdropDarkness,
+  normalizeBackdropStyle,
   normalizeHexColor,
   normalizeThemeMode,
   parseUserThemePreference,
@@ -54,6 +64,12 @@ interface ThemeContextType {
   setAccentTheme: (accent: AccentThemeId) => void;
   setCustomAccentColor: (hex: string) => void;
 
+  // Per-user Backdrop Mode & Darkness
+  backdropStyle: BackdropStyle;
+  backdropDarkness: number;
+  setBackdropStyle: (style: BackdropStyle) => void;
+  setBackdropDarkness: (darkness: number) => void;
+
   // Smart persistence & live preview controls
   isAuthenticatedSession: boolean;
   isPreviewActive: boolean;
@@ -87,6 +103,8 @@ const defaultPrefs: ThemePreferencesSnapshot = {
   themeMode: 'light',
   accentTheme: DEFAULT_ACCENT_THEME,
   customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+  backdropStyle: DEFAULT_BACKDROP_STYLE,
+  backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
 };
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -102,6 +120,10 @@ const ThemeContext = createContext<ThemeContextType>({
   pwaThemeColor: defaultPalette.baseHex,
   setAccentTheme: () => {},
   setCustomAccentColor: () => {},
+  backdropStyle: DEFAULT_BACKDROP_STYLE,
+  backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+  setBackdropStyle: () => {},
+  setBackdropDarkness: () => {},
   isAuthenticatedSession: false,
   isPreviewActive: false,
   hasUnsavedColorPreview: false,
@@ -216,6 +238,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const themeMode = effectivePrefs.themeMode;
   const accentTheme = effectivePrefs.accentTheme;
   const customAccentHex = effectivePrefs.customAccentHex;
+  const backdropStyle = effectivePrefs.backdropStyle;
+  const backdropDarkness = effectivePrefs.backdropDarkness;
 
   const [theme, setResolvedTheme] = useState<ResolvedTheme>(() => {
     if (effectivePrefs.themeMode === 'dark') return 'dark';
@@ -421,6 +445,28 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [commitQuickPreferenceChange]
   );
 
+  const setBackdropStyle = useCallback(
+    (style: BackdropStyle) => {
+      const nextStyle = normalizeBackdropStyle(style, DEFAULT_BACKDROP_STYLE);
+      commitQuickPreferenceChange((prev) => ({
+        ...prev,
+        backdropStyle: nextStyle,
+      }));
+    },
+    [commitQuickPreferenceChange]
+  );
+
+  const setBackdropDarkness = useCallback(
+    (darkness: number) => {
+      const nextDarkness = normalizeBackdropDarkness(darkness, DEFAULT_BACKDROP_DARKNESS);
+      commitQuickPreferenceChange((prev) => ({
+        ...prev,
+        backdropDarkness: nextDarkness,
+      }));
+    },
+    [commitQuickPreferenceChange]
+  );
+
   // Live Preview Actions (never mutate saved localStorage or database until Apply/Save)
   const updatePreview = useCallback((partial: Partial<ThemePreferencesSnapshot>) => {
     setAppearanceSaveError(null);
@@ -436,6 +482,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           partial.customAccentHex !== undefined
             ? normalizeHexColor(partial.customAccentHex, base.customAccentHex)
             : base.customAccentHex,
+        backdropStyle:
+          partial.backdropStyle !== undefined
+            ? normalizeBackdropStyle(partial.backdropStyle, base.backdropStyle)
+            : base.backdropStyle,
+        backdropDarkness:
+          partial.backdropDarkness !== undefined
+            ? normalizeBackdropDarkness(partial.backdropDarkness, base.backdropDarkness)
+            : base.backdropDarkness,
       };
     });
   }, []);
@@ -463,7 +517,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       previewPreferences.themeMode !== committedPreferences.themeMode ||
       previewPreferences.accentTheme !== committedPreferences.accentTheme ||
       (previewPreferences.accentTheme === 'custom' &&
-        previewPreferences.customAccentHex !== committedPreferences.customAccentHex)
+        previewPreferences.customAccentHex !== committedPreferences.customAccentHex) ||
+      previewPreferences.backdropStyle !== committedPreferences.backdropStyle ||
+      previewPreferences.backdropDarkness !== committedPreferences.backdropDarkness
     );
   }, [previewPreferences, committedPreferences]);
 
@@ -731,6 +787,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyAccentThemeToDOM(accentTheme, customAccentHex);
   }, [accentTheme, customAccentHex]);
 
+  // Apply backdrop style & darkness attributes + CSS variables to DOM whenever effective backdrop changes
+  useEffect(() => {
+    applyBackdropThemeToDOM(backdropStyle, backdropDarkness);
+  }, [backdropStyle, backdropDarkness]);
+
   // Real-time OS theme change listener when "system" is selected
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -788,6 +849,24 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             customAccentHex: normalizeHexColor(e.newValue, DEFAULT_CUSTOM_ACCENT_HEX),
           }));
         }
+        if (
+          e.key === GUEST_BACKDROP_STYLE_STORAGE_KEY ||
+          e.key === BACKDROP_STYLE_STORAGE_KEY
+        ) {
+          setCommittedPreferences((prev) => ({
+            ...prev,
+            backdropStyle: normalizeBackdropStyle(e.newValue, DEFAULT_BACKDROP_STYLE),
+          }));
+        }
+        if (
+          e.key === GUEST_BACKDROP_DARKNESS_STORAGE_KEY ||
+          e.key === BACKDROP_DARKNESS_STORAGE_KEY
+        ) {
+          setCommittedPreferences((prev) => ({
+            ...prev,
+            backdropDarkness: normalizeBackdropDarkness(e.newValue, DEFAULT_BACKDROP_DARKNESS),
+          }));
+        }
       } else {
         const expectedUserCacheKey = getUserThemeCacheKey(activeUserIdRef.current);
         if (e.key === expectedUserCacheKey && e.newValue) {
@@ -816,6 +895,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pwaThemeColor: accentPalette.baseHex,
         setAccentTheme,
         setCustomAccentColor,
+        backdropStyle,
+        backdropDarkness,
+        setBackdropStyle,
+        setBackdropDarkness,
         isAuthenticatedSession: activeUserId !== null,
         isPreviewActive,
         hasUnsavedColorPreview,

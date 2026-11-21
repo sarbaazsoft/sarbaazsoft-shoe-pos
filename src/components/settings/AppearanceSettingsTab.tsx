@@ -3,6 +3,7 @@ import {
   AlertCircle,
   Check,
   CheckCircle2,
+  Contrast,
   Eye,
   Image as ImageIcon,
   Layers,
@@ -15,6 +16,7 @@ import {
   RotateCcw,
   Save,
   Shield,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Trash2,
@@ -29,8 +31,10 @@ import {
   DEFAULT_ACCENT_THEME,
   getWcagContrastRatio,
   isValidHexColor,
+  normalizeBackdropDarkness,
   normalizeHexColor,
   resolveAccentPalette,
+  type BackdropStyle,
   type PresetAccentThemeId,
 } from '../../utils/themePalettes.ts';
 import {
@@ -55,6 +59,8 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     accentTheme,
     accentPalette,
     customAccentHex,
+    backdropStyle,
+    backdropDarkness,
     isAuthenticatedSession,
     isPreviewActive,
     hasUnsavedColorPreview,
@@ -111,6 +117,23 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     setLocalErrorMsg(null);
     clearAppearanceSaveError();
     updatePreview({ themeMode: mode });
+  };
+
+  const handleBackdropStylePreview = (style: BackdropStyle) => {
+    setSaveSuccessMsg(null);
+    setLocalErrorMsg(null);
+    clearAppearanceSaveError();
+    updatePreview({ backdropStyle: style });
+  };
+
+  const handleBackdropDarknessPreview = (darkness: number) => {
+    setSaveSuccessMsg(null);
+    setLocalErrorMsg(null);
+    clearAppearanceSaveError();
+    updatePreview({
+      backdropStyle: 'showroom',
+      backdropDarkness: normalizeBackdropDarkness(darkness),
+    });
   };
 
   const handlePresetPreview = (presetId: (typeof ACCENT_THEME_LIST)[number]['id']) => {
@@ -321,8 +344,8 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
               {isPreviewActive
                 ? 'Changes are previewing live across buttons, navigation, tables, modals, and cards. Click Apply & Save to commit or Cancel to revert.'
                 : canManageScreenImages
-                ? 'Customize Light/Dark/System mode, curated or custom HEX palettes, and the unified app backdrop image.'
-                : 'Customize Light/Dark/System mode and curated or custom HEX palettes.'}
+                ? 'Customize Light/Dark/System mode, sidebar backdrop style (fixed 50% showroom or solid), auth/loading backdrop opacity, and brand palettes.'
+                : 'Customize Light/Dark/System mode, sidebar showroom/solid backdrop, auth/loading backdrop opacity, and brand palettes.'}
             </p>
           </div>
         </div>
@@ -485,6 +508,170 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Sidebar Backdrop Style (Available to Owner, Cashier & SuperAdmin — Fixed 50% Showroom vs Solid, No Slider) */}
+          <div id="appearance-backdrop-style-section" className="pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Sidebar Backdrop Style</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Applies exclusively to the navigation sidebar: fixed 50% balanced showroom opacity or solid color (White in Light · Dark in Dark).
+                </p>
+              </div>
+              <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                {backdropStyle === 'solid'
+                  ? `Sidebar: Solid · ${theme === 'dark' ? '#0A0E1A' : 'White'}`
+                  : 'Sidebar: Showroom · 50%'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                id="appearance-backdrop-showroom"
+                type="button"
+                onClick={() => handleBackdropStylePreview('showroom')}
+                aria-pressed={backdropStyle === 'showroom'}
+                className={`min-h-[68px] p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  backdropStyle === 'showroom'
+                    ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 ring-2 ring-purple-500/25 shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-900/40 hover:border-purple-400/60'
+                }`}
+              >
+                <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 bg-[#080A2A] shrink-0">
+                  <img
+                    src={resolvedPreviewImg}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover opacity-85"
+                  />
+                  <div className="absolute inset-0 bg-[#080A2A]/50" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      Showroom Sidebar
+                    </span>
+                    {backdropStyle === 'showroom' && (
+                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    Balanced 50% opacity (unchangeable)
+                  </div>
+                </div>
+              </button>
+
+              <button
+                id="appearance-backdrop-solid"
+                type="button"
+                onClick={() => handleBackdropStylePreview('solid')}
+                aria-pressed={backdropStyle === 'solid'}
+                className={`min-h-[68px] p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  backdropStyle === 'solid'
+                    ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 ring-2 ring-purple-500/25 shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-900/40 hover:border-purple-400/60'
+                }`}
+              >
+                <div
+                  className={`w-11 h-11 rounded-lg border shrink-0 flex items-center justify-center ${
+                    theme === 'dark'
+                      ? 'bg-[#0A0E1A] border-slate-700 text-slate-300'
+                      : 'bg-white border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <Contrast className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      Solid Sidebar
+                    </span>
+                    {backdropStyle === 'solid' && (
+                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    White in Light · Default Dark in Dark
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Auth, Login & Loading Routes Backdrop Opacity Slider (Exclusively for non-sidebar routes) */}
+          <div id="appearance-route-backdrop-opacity-section" className="pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Auth, Loading &amp; Portal Backdrop Opacity</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Adjust showroom backdrop darkness/opacity on Login, Auth, Loading, and portal screens. Sidebars remain locked at 50%.
+                </p>
+              </div>
+              <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                Routes: {backdropDarkness}%
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-900/50 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  htmlFor="appearance-backdrop-darkness-slider"
+                  className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span>Auth &amp; Loading Backdrop Darkness</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {[
+                    { label: 'Bright', value: 20 },
+                    { label: 'Balanced', value: 55 },
+                    { label: 'Deep', value: 85 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => handleBackdropDarknessPreview(preset.value)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer ${
+                        backdropDarkness === preset.value
+                          ? 'border-purple-500 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-purple-400'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <span
+                    id="appearance-backdrop-darkness-value"
+                    className="min-w-[44px] text-center text-[11px] font-mono font-bold tabular-nums px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
+                  >
+                    {backdropDarkness}%
+                  </span>
+                </div>
+              </div>
+
+              <input
+                id="appearance-backdrop-darkness-slider"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={backdropDarkness}
+                onChange={(e) => handleBackdropDarknessPreview(Number(e.target.value))}
+                aria-label="Auth and loading route backdrop darkness percentage"
+                className="w-full h-2 rounded-lg accent-purple-600 cursor-pointer"
+              />
+
+              <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                <span>0% (Vivid Photo)</span>
+                <span>55% (Default)</span>
+                <span>100% (Ultra Dark)</span>
+              </div>
             </div>
           </div>
 
@@ -763,7 +950,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
             {/* Preview Frame */}
             <div className="lg:col-span-5 space-y-2.5">
               <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
-                <span>Preview: Auth, Portal &amp; Sidebars</span>
+                <span>Preview: Auth, Login &amp; Loading Routes</span>
                 {effectiveBackdropImage && (
                   <button
                     id="screen-image-restore-default-btn"
@@ -788,7 +975,16 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
                   }}
                   className="w-full h-full object-cover object-center opacity-75 dark:opacity-70"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55" />
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-[#080A2A]/65 via-[#080A2A]/40 to-[#080A2A]/55"
+                  style={{ opacity: Math.min(1, backdropDarkness / 55) }}
+                />
+                {backdropDarkness > 55 && (
+                  <div
+                    className="absolute inset-0 bg-[#040618]"
+                    style={{ opacity: Number((((backdropDarkness - 55) / 45) * 0.88).toFixed(3)) }}
+                  />
+                )}
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,rgba(var(--primary-rgb,147,51,234),0.14),transparent_60%)] opacity-60" />
                 {/* Simulated Portal Card Overlay to inspect readability */}
                 <div className="absolute inset-0 flex items-center justify-center p-4">

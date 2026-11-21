@@ -108,6 +108,15 @@
           if (metaTheme) {
             metaTheme.setAttribute('content', activeHex);
           }
+          const rawBackdropStyle = localStorage.getItem('pos_backdrop_style');
+          const backdropStyle = rawBackdropStyle === 'solid' ? 'solid' : 'showroom';
+          const rawDarkness = Number(localStorage.getItem('pos_backdrop_darkness'));
+          const backdropDarkness = Number.isFinite(rawDarkness)
+            ? Math.max(0, Math.min(100, Math.round(rawDarkness)))
+            : 55;
+          document.documentElement.setAttribute('data-backdrop-style', backdropStyle);
+          document.documentElement.style.setProperty('--backdrop-darkness', String(backdropDarkness));
+          document.documentElement.style.setProperty('--backdrop-darkness-alpha', (backdropDarkness / 100).toFixed(2));
         } catch (e) {}
       })();
     </script>
