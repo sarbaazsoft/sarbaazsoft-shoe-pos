@@ -461,3 +461,13 @@ export async function resetResendCooldown(flow: AuthResendFlow, email: string): 
     )
     .catch(() => {});
 }
+
+const VERIFY_CODE_ATTEMPT_FLOW = 'email_verification_attempt' as AuthResendFlow;
+
+export async function checkVerifyCodeIpRateLimit(ip: string, nowMs = Date.now()): Promise<ConsumeLimitResult> {
+  return checkIpRateLimit(VERIFY_CODE_ATTEMPT_FLOW, ip, nowMs);
+}
+
+export async function recordVerifyCodeIpFailure(ip: string, nowMs = Date.now()): Promise<ConsumeLimitResult> {
+  return incrementIpWindow(VERIFY_CODE_ATTEMPT_FLOW, ip, nowMs);
+}

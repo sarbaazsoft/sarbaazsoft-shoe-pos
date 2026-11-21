@@ -39,9 +39,6 @@ export interface TransactionSaleRecord {
   discount?: number | string;
   total_amount?: number | string;
   total_cartons?: number | string;
-  transport_name?: string;
-  bilty_number?: string;
-  booking_destination?: string;
   previous_balance?: number | string;
   paid_amount?: number | string;
   remaining_balance?: number | string;
@@ -193,10 +190,7 @@ export function resolveIsWholesaleTransaction(
   const isWholesaleSale =
     String(sale?.sale_type || sale?.saleType || '').toUpperCase() === 'WHOLESALE';
   const hasWholesaleAttributes = Boolean(
-    sale?.customer_shop_name ||
-      sale?.bilty_number ||
-      sale?.transport_name ||
-      Number(sale?.total_cartons || 0) > 0
+    sale?.customer_shop_name || Number(sale?.total_cartons || 0) > 0
   );
 
   return (
@@ -643,9 +637,6 @@ function renderWholesaleA4PreviewHtml(params: {
   dealerNtn: string;
   paymentMethodLabel: string;
   rawPaymentMethod: string;
-  transportName: string;
-  biltyNumber: string;
-  bookingDestination: string;
   displayTotalCartons: string;
   totalPairsDispatched: number;
   halfCartonItemsCount: number;
@@ -687,9 +678,6 @@ function renderWholesaleA4PreviewHtml(params: {
     dealerNtn,
     paymentMethodLabel,
     rawPaymentMethod,
-    transportName,
-    biltyNumber,
-    bookingDestination,
     displayTotalCartons,
     totalPairsDispatched,
     halfCartonItemsCount,
@@ -719,9 +707,6 @@ function renderWholesaleA4PreviewHtml(params: {
       : '';
 
   const locationLine = [dealerMarket, dealerCity || customerAddress].filter(Boolean).join(', ');
-  const showDispatchCard =
-    !isStandaloneReturn &&
-    Boolean(transportName || biltyNumber || bookingDestination || Number(displayTotalCartons) > 0);
 
   const itemsTableRowsHtml = items
     .map((item, idx) => {
@@ -1045,36 +1030,6 @@ function renderWholesaleA4PreviewHtml(params: {
               </td>
             </tr>
           </table>
-
-          <!-- Cargo / Transport Dispatch Bar -->
-          ${
-            showDispatchCard
-              ? `
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="8" style="margin: 10px 0; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 10.5px;">
-              <tr>
-                <td width="25%" valign="top">
-                  <div style="font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase;">Transport / Cargo</div>
-                  <div style="font-weight: 700; color: #111827; margin-top: 2px;">${escapeHtml(transportName || 'Direct Delivery')}</div>
-                </td>
-                <td width="25%" valign="top">
-                  <div style="font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase;">Bilty / LR #</div>
-                  <div style="font-weight: 700; color: #111827; font-family: 'Courier New', Courier, monospace; margin-top: 2px;">${escapeHtml(biltyNumber || 'N/A')}</div>
-                </td>
-                <td width="25%" valign="top">
-                  <div style="font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase;">Destination City</div>
-                  <div style="font-weight: 700; color: #111827; margin-top: 2px;">${escapeHtml(bookingDestination || dealerCity || 'Local')}</div>
-                </td>
-                <td width="25%" valign="top">
-                  <div style="font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase;">Total Master Cartons</div>
-                  <div style="font-weight: 900; color: #4338ca; font-family: 'Courier New', Courier, monospace; font-size: 11.5px; margin-top: 2px;">${escapeHtml(
-                    displayTotalCartons
-                  )} Ctns (${totalPairsDispatched} prs)</div>
-                </td>
-              </tr>
-            </table>
-          `
-              : ''
-          }
 
           <!-- Wholesale Items Table -->
           ${
@@ -1421,9 +1376,6 @@ export function buildTransactionReceiptEmailHtml(
         dealerNtn,
         paymentMethodLabel,
         rawPaymentMethod,
-        transportName: String(sale?.transport_name || '').trim(),
-        biltyNumber: String(sale?.bilty_number || '').trim(),
-        bookingDestination: String(sale?.booking_destination || '').trim(),
         displayTotalCartons,
         totalPairsDispatched,
         halfCartonItemsCount,

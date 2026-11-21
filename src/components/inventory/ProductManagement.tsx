@@ -18,6 +18,7 @@ import { STANDARD_FOOTWEAR_CATEGORIES, isHalfCartonAllowed } from '../../utils/f
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
+import { LazyProductImage } from '../common/LazyProductImage.tsx';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface ProductManagementProps {
@@ -751,18 +752,18 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                   {/* Card Image & Overlay */}
                   <div className="relative p-3 pb-2 flex flex-col items-center">
                     <div className="w-full aspect-4/3 rounded-xl border border-slate-200/80 dark:border-slate-700/60 bg-slate-100 dark:bg-[#0A0E1A] overflow-hidden flex items-center justify-center p-1 relative shadow-inner">
-                      {p.primaryImageUrl ? (
-                        <img
-                          src={p.primaryImageUrl}
-                          alt={p.article || p.name}
-                          className="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-300 dark:text-slate-600">
-                          <ShoppingBag className="w-9 h-9 stroke-[1.5]" />
-                        </div>
-                      )}
+                      <LazyProductImage
+                        src={p.primaryImageUrl}
+                        alt={p.article || p.name}
+                        containerClassName="w-full h-full flex items-center justify-center overflow-hidden rounded-lg"
+                        imgClassName="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
+                        rootMargin="180px 0px"
+                        fallback={
+                          <div className="flex flex-col items-center justify-center text-slate-300 dark:text-slate-600">
+                            <ShoppingBag className="w-9 h-9 stroke-[1.5]" />
+                          </div>
+                        }
+                      />
 
                       {/* Stock status badge overlay */}
                       <div className="absolute top-2 right-2">
@@ -1122,19 +1123,18 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
                       {/* Image */}
                       <td className="py-3.5 px-4">
-                        {p.primaryImageUrl ? (
-                          <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 dark:bg-[#0A0E1A] overflow-hidden flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
-                            <img
-                              src={p.primaryImageUrl}
-                              alt={p.article || p.name}
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 dark:bg-[#0A0E1A] flex items-center justify-center text-slate-400 shrink-0">
-                            <ShoppingBag className="w-5 h-5" />
-                          </div>
-                        )}
+                        <LazyProductImage
+                          src={p.primaryImageUrl}
+                          alt={p.article || p.name}
+                          containerClassName="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 dark:bg-[#0A0E1A] overflow-hidden flex items-center justify-center shrink-0 p-0.5 shadow-2xs"
+                          imgClassName="w-full h-full object-cover rounded-lg"
+                          rootMargin="180px 0px"
+                          fallback={
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <ShoppingBag className="w-5 h-5" />
+                            </div>
+                          }
+                        />
                       </td>
 
                       {/* Article & Identifiers */}

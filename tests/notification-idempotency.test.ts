@@ -113,9 +113,6 @@ test('sales enforces atomic (tenant_id, client_tx_id) uniqueness to block offlin
     0,
     1000,
     0,
-    '',
-    '',
-    '',
     0,
     1000,
     0,
@@ -134,11 +131,11 @@ test('sales enforces atomic (tenant_id, client_tx_id) uniqueness to block offlin
   const first = await pgClient.query(
     `INSERT INTO sales (
       tenant_id, invoice_number, sale_type, customer_id, sale_date, subtotal, discount,
-      total_amount, total_cartons, transport_name, bilty_number, booking_destination,
+      total_amount, total_cartons,
       previous_balance, paid_amount, remaining_balance,
       payment_method, cash_received, change_given,
       created_by, is_min_price_overridden, overridden_by, notes, transaction_id, client_tx_id
-    ) VALUES ($1,$2,$3,$4,$22,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$23,$24)
+    ) VALUES ($1,$2,$3,$4,$19,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$20,$21)
     RETURNING id`,
     insertParams
   );
@@ -149,11 +146,11 @@ test('sales enforces atomic (tenant_id, client_tx_id) uniqueness to block offlin
       await pgClient.query(
         `INSERT INTO sales (
           tenant_id, invoice_number, sale_type, customer_id, sale_date, subtotal, discount,
-          total_amount, total_cartons, transport_name, bilty_number, booking_destination,
+          total_amount, total_cartons,
           previous_balance, paid_amount, remaining_balance,
           payment_method, cash_received, change_given,
           created_by, is_min_price_overridden, overridden_by, notes, transaction_id, client_tx_id
-        ) VALUES ($1,$2,$3,$4,$22,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$23,$24)
+        ) VALUES ($1,$2,$3,$4,$19,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$20,$21)
         RETURNING id`,
         insertParams
       );

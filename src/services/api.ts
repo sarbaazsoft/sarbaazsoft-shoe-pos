@@ -876,7 +876,7 @@ export const api = {
           body: { themeColor },
         }
       ),
-    verifyEmail: (token: string) =>
+    verifyEmail: (token: string, email?: string) =>
       apiFetch<{
         success: boolean;
         verified: boolean;
@@ -884,7 +884,14 @@ export const api = {
         token?: string;
         user?: any;
         message: string;
-      }>(`/auth/verify-email?token=${encodeURIComponent(token)}`),
+      }>('/auth/verify-email', {
+        method: 'POST',
+        body: {
+          token,
+          code: token,
+          ...(email ? { email } : {}),
+        },
+      }),
     resendVerification: (email: string, tenantId?: number) =>
       apiFetch<{
         success: boolean;

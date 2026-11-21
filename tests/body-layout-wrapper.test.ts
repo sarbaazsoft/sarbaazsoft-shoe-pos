@@ -145,6 +145,14 @@ describe('BodyLayoutWrapper Component Structure & Props', () => {
     assert.ok(html.includes('--layout-sidebar-width:280px'), 'Configurable sidebarWidth CSS variable should be set');
     assert.ok(html.includes('width:280px'), 'Configurable sidebarWidth should size sidebar container');
 
+    const bodySectionMatch = html.match(/<div data-layout-section="body"[^>]*>/);
+    assert.ok(bodySectionMatch, 'Expected body section container tag');
+    assert.equal(
+      bodySectionMatch[0].includes('z-10'),
+      false,
+      'Body section must not create a z-10 stacking context that traps drawers/modals underneath the z-40 header'
+    );
+
     const headerIdx = html.indexOf('data-layout-section="header"');
     const bodyIdx = html.indexOf('data-layout-section="body"');
     const sidebarIdx = html.indexOf('data-layout-section="sidebar"');

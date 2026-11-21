@@ -102,7 +102,7 @@ test('Retail Sale email embeds 50mm thermal receipt preview in middle with exact
   assert.doesNotMatch(result.html, /<script/i);
 });
 
-test('Wholesale A4 email embeds complete A4 commercial invoice preview with cartons, half-cartons, transport, khata, and returned items', () => {
+test('Wholesale A4 email embeds complete A4 commercial invoice preview with cartons, half-cartons, khata, and returned items', () => {
   const payload: PosActionNotification = {
     type: 'SALE_RETURN',
     title: 'Sale & Return Completed',
@@ -144,9 +144,6 @@ test('Wholesale A4 email embeds complete A4 commercial invoice preview with cart
       remaining_balance: 35000,
       payment_method: 'KHATA',
       total_cartons: 1.5,
-      transport_name: 'Daewoo FastEx Cargo',
-      bilty_number: 'LR-88421',
-      booking_destination: 'Multan',
       cashier_name: 'Usman',
       customer_name: 'Bilal Ahmed',
       customer_phone: '0301-9998877',
@@ -195,9 +192,10 @@ test('Wholesale A4 email embeds complete A4 commercial invoice preview with cart
   assert.match(result.html, /Bilal Traders Footwear/);
   assert.match(result.html, /Hussain Agahi Market, Multan/);
   assert.match(result.html, /NTN: NTN-445566/);
-  assert.match(result.html, /Daewoo FastEx Cargo/);
-  assert.match(result.html, /LR-88421/);
-  assert.match(result.html, /1\.5 Ctns \(18 prs\)/);
+  assert.doesNotMatch(result.html, /Transport \/ Cargo/);
+  assert.doesNotMatch(result.html, /Bilty \/ LR #/);
+  assert.match(result.html, /1\.5 Ctns/);
+  assert.match(result.html, /18 Pairs/);
   assert.match(result.html, /0\.5 Ctn \(HALF\)/);
   assert.match(result.html, /includes 1 half-carton/);
   assert.match(result.html, /Returned Footwear/);

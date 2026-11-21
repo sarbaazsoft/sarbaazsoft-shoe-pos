@@ -13,6 +13,7 @@ import {
 import { sendWelcomeMsg } from '../services/welcomeService.ts';
 import { sendTrialActivationEmail } from '../utils/email.ts';
 import { recordInitialAuthSend } from '../services/authResendRateLimitService.ts';
+import { issueEmailVerificationCode } from '../services/emailVerificationService.ts';
 import { resolveTenantContext, isTenantOnlineInMiddleware, getTenantMiddlewareLastSeen, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import { buildPwaManifest } from '../../utils/pwaBranding.ts';
@@ -307,32 +308,23 @@ router.post('/saas/store-request', async (req: Request, res: Response) => {
 
     // CASE 1: Verification is required (Default: REQUIRE_EMAIL_VERIFICATION_FOR_FREE_TRIAL = true)
     if (requireEmailVerification) {
-      await ensureEmailVerificationSchema();
-      const verificationToken = crypto.randomBytes(32).toString('hex');
-      const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-      await pgClient.query(
-        'DELETE FROM email_verification_tokens WHERE user_id = $1',
-        [provisioned.adminUserId]
-      ).catch(() => {});
-
-      await pgClient.query(
-        'INSERT INTO email_verification_tokens (tenant_id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
-        [provisioned.tenantId, provisioned.adminUserId, verificationToken, tokenExpiresAt]
-      ).catch(() => {});
+      const { code: verificationCode, expiresAt: tokenExpiresAt } = await issueEmailVerificationCode({
+        tenantId: provisioned.tenantId,
+        userId: provisioned.adminUserId,
+      });
 
       const requestOrigin =
         (typeof req.body?.origin === 'string' && req.body.origin.trim().startsWith('http') ? req.body.origin.trim() : '') ||
         (typeof req.headers.origin === 'string' && req.headers.origin.startsWith('http') ? req.headers.origin : '') ||
         `${req.protocol}://${req.get('host')}`;
 
-      const activationLink = `${requestOrigin.replace(/\/+$/, '')}/verify-email?token=${verificationToken}&email=${encodeURIComponent(ownerEmail)}&tenantId=${provisioned.tenantId}`;
+      const activationLink = `${requestOrigin.replace(/\/+$/, '')}/verify-email?token=${encodeURIComponent(verificationCode)}&email=${encodeURIComponent(ownerEmail)}&tenantId=${provisioned.tenantId}`;
 
       const mailResult = await sendTrialActivationEmail({
         to: ownerEmail,
         userName: ownerName,
         storeName: provisioned.storeName,
-        activationToken: verificationToken,
+        activationToken: verificationCode,
         activationLink,
         expiresAt: tokenExpiresAt,
       }).catch((err) => ({

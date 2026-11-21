@@ -41,12 +41,38 @@ test('filterDisplayQuickReceiveChips: hides Exact when > 3 non-exact chips exist
   );
 });
 
-test('generateRetailQuickReceiveChips: ignores rare Rs. 75 note and supports up to 5 chips across tiers', () => {
-  // Small bill below 100 uses Rs. 50 increment (never Rs. 75)
+test('generateRetailQuickReceiveChips: ignores rare Rs. 75 note and generates all PKR notes up to 5000 top note', () => {
+  // Small bill 40 uses 50, 100, 500, 1000, and top note 5000 (never Rs. 75)
   assert.deepEqual(
     generateRetailQuickReceiveChips(40).map((c) => c.amount),
-    [40, 50, 100, 500, 1000]
+    [40, 50, 100, 500, 1000, 5000]
   );
+
+  // Bill with small tail triggers Rs. 10 and Rs. 20 notes too (e.g. 36,005)
+  assert.deepEqual(
+    generateRetailQuickReceiveChips(36005).map((c) => c.amount),
+    [36005, 36010, 36020, 36050, 36100, 36500, 37000, 40000]
+  );
+
+  // Bill between 50 and 100 tail uses 50+20 = 70 smartly (never 4x20 = 80)
+  assert.deepEqual(
+    generateRetailQuickReceiveChips(36055).map((c) => c.amount),
+    [36055, 36060, 36070, 36100, 36500, 37000, 40000]
+  );
+
+  // Bill 36,120 includes 50, 100, 500, 1000, and 5000 steps (never 50,000)
+  assert.deepEqual(
+    generateRetailQuickReceiveChips(36120).map((c) => c.amount),
+    [36120, 36150, 36200, 36500, 37000, 40000]
+  );
+
+  // Bill 36,000 produces only Exact (36,000) and next 5,000 top note multiple (40,000) — NEVER 50,000
+  const for36000 = generateRetailQuickReceiveChips(36000);
+  assert.deepEqual(
+    for36000.map((c) => c.amount),
+    [36000, 40000]
+  );
+  assert.equal(for36000.some((c) => c.amount === 50000), false);
 
   // Bill between 5000 and 10000
   assert.deepEqual(
@@ -60,14 +86,29 @@ test('generateRetailQuickReceiveChips: ignores rare Rs. 75 note and supports up 
     [10000]
   );
 
-  // Bill above 10000 returns up to 5 chips
+  // Bill 12,250 rounds through 100, 500, 1000, and 5000 (15,000) — never non-PKR 20,000 jump
   assert.deepEqual(
     generateRetailQuickReceiveChips(12250).map((c) => c.amount),
-    [12250, 12500, 13000, 15000, 20000]
+    [12250, 12300, 12500, 13000, 15000]
   );
 });
 
-test('generateWholesaleQuickReceiveChips: caps at invoice + ledger balance for wholesale accounts', () => {
+test('generateWholesaleQuickReceiveChips: cash customers (0 ledger) use PKR note denominations; Khata accounts cap at invoice + ledger', () => {
+  // Wholesale cash customer with 0 ledger balance and 36,000 bill gets [36000, 40000] (never 50,000)
+  const cash36k = generateWholesaleQuickReceiveChips(36000, 0);
+  assert.deepEqual(
+    cash36k.map((c) => c.amount),
+    [36000, 40000]
+  );
+  assert.equal(cash36k.some((c) => c.amount === 50000), false);
+
+  // Wholesale cash customer with non-round 36,120 bill gets full PKR denominations
+  assert.deepEqual(
+    generateWholesaleQuickReceiveChips(36120, 0).map((c) => c.amount),
+    [36120, 36150, 36200, 36500, 37000, 40000]
+  );
+
+  // Wholesale dealer with existing Khata balance caps at invoice + ledger balance
   const withLedger = generateWholesaleQuickReceiveChips(3250, 20000);
   assert.ok(withLedger.every((c) => c.amount <= 23250));
   assert.equal(withLedger[0].amount, 3250);

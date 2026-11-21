@@ -99,3 +99,25 @@ test('ESC/POS receipt bytes include Powered by : SarbaazSoft Shoe POS credit lin
     'ESC/POS receipt output should include Powered by : SarbaazSoft Shoe POS'
   );
 });
+
+test('App credit does not appear at bottom of PosTerminal route or FinancialSummaryPrintModal, only in footers and invoices', () => {
+  const posSrc = readFileSync(path.join(process.cwd(), 'src', 'components', 'pos', 'PosTerminal.tsx'), 'utf8');
+  assert.equal(/Powered by/i.test(posSrc), false, 'PosTerminal must not render Powered by app credits');
+  assert.equal(/All rights reserved/i.test(posSrc), false, 'PosTerminal must not render copyright footer credit');
+  assert.equal(/Dedicated Footer Branding/i.test(posSrc), false, 'PosTerminal must not have inline footer branding');
+
+  const finReportSrc = readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'reports', 'FinancialSummaryPrintModal.tsx'),
+    'utf8'
+  );
+  assert.equal(/Powered by/i.test(finReportSrc), false, 'FinancialSummaryPrintModal must not render app credit');
+
+  const appSrc = readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
+  assert.ok(appSrc.includes('<footer') && appSrc.includes('SarbaazSoft Shoe POS. All rights reserved.'), 'App footer retains app credit');
+
+  const publicFooterSrc = readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'common', 'PublicFooter.tsx'),
+    'utf8'
+  );
+  assert.ok(publicFooterSrc.includes('<footer') && publicFooterSrc.includes('SarbaazSoft Shoe POS. All rights reserved.'), 'PublicFooter retains app credit');
+});

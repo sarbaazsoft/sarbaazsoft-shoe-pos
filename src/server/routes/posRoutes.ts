@@ -653,9 +653,6 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     const saleType = isWholesaleStore ? 'WHOLESALE' : 'RETAIL';
     const totalCartons = Math.max(0, parseFloat(String(req.body.totalCartons || req.body.total_cartons || 0)) || 0);
-    const transportName = String(req.body.transportName || req.body.transport_name || '').trim();
-    const biltyNumber = String(req.body.biltyNumber || req.body.bilty_number || '').trim();
-    const bookingDestination = String(req.body.bookingDestination || req.body.booking_destination || '').trim();
 
     // Fetch authoritative customer previous balance
     let customerPreviousBalance = 0;
@@ -721,11 +718,11 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       const saleRes = await pgClient.query<{ id: number }>(
         `INSERT INTO sales (
           tenant_id, invoice_number, sale_type, customer_id, sale_date, subtotal, discount, 
-          total_amount, total_cartons, transport_name, bilty_number, booking_destination,
+          total_amount, total_cartons,
           previous_balance, paid_amount, remaining_balance,
           payment_method, cash_received, change_given, 
           created_by, is_min_price_overridden, overridden_by, notes, transaction_id, client_tx_id
-        ) VALUES ($1, $2, $3, $4, COALESCE($22, NOW()::date::text), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $23, $24)
+        ) VALUES ($1, $2, $3, $4, COALESCE($19, NOW()::date::text), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $20, $21)
         RETURNING id`,
         [
           tenantId,
@@ -736,9 +733,6 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           calculatedTotalDiscount,
           totalAmountDue,
           totalCartons,
-          transportName,
-          biltyNumber,
-          bookingDestination,
           customerPreviousBalance,
           effectivePaidAmount,
           remainingBalance,

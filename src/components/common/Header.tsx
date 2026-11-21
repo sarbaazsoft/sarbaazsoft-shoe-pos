@@ -3,6 +3,8 @@ import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, Settings, ChevronDown, Menu, Sun, Moon, Monitor, UserCog, LogOut, AlertTriangle, AlertCircle, CheckCircle2, ShoppingBag, ArrowLeftRight, Truck, RefreshCw, CheckCheck, Check, Boxes, X, ShieldCheck, User, ShoppingCart, Copy, Coins, Loader2, ImageIcon, Edit3, PackagePlus, Printer, BellRing, ExternalLink, Globe, Store, Info, Flame, Search } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
+import { ShoeIcon } from './ShoeIcon.tsx';
+import { LazyProductImage } from './LazyProductImage.tsx';
 import { ThemeDropdown } from './ThemeDropdown.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { ClickableMessage } from './ClickableMessage.tsx';
@@ -56,46 +58,30 @@ interface QuickSearchProductImageProps {
 
 const QuickSearchProductImage: React.FC<QuickSearchProductImageProps> = ({ prod }) => {
   const imageUrl = (prod.primaryImageUrl || prod.primary_image_url || prod.imageUrl || prod.image || '').trim();
-  const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
 
-  // If no image exists or image URL fails to load, show skeleton placeholder
-  if (!imageUrl || imageError) {
-    return (
-      <div
-        className="w-13 h-13 sm:w-14 sm:h-14 shrink-0 rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-slate-200/70 dark:bg-slate-800/60 animate-pulse flex flex-col items-center justify-center p-1.5 relative overflow-hidden shadow-2xs select-none"
-        title="No image - placeholder skeleton"
-        aria-label="Product image skeleton"
-      >
-        <div className="w-6 h-6 rounded-lg bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center shadow-2xs">
-          <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-        </div>
-        <div className="w-7 h-1 bg-slate-300/60 dark:bg-slate-700/60 rounded-full mt-1.5" />
+  const skeleton = (
+    <div
+      className="w-full h-full rounded-xl bg-slate-200/70 dark:bg-slate-800/60 animate-pulse flex flex-col items-center justify-center p-1.5 select-none"
+      title="No image - placeholder skeleton"
+      aria-label="Product image skeleton"
+    >
+      <div className="w-6 h-6 rounded-lg bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center shadow-2xs">
+        <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
       </div>
-    );
-  }
+      <div className="w-7 h-1 bg-slate-300/60 dark:bg-slate-700/60 rounded-full mt-1.5" />
+    </div>
+  );
 
   return (
-    <div className="relative w-13 h-13 sm:w-14 sm:h-14 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 dark:bg-[#0A0E1A] overflow-hidden p-0.5 shadow-2xs flex items-center justify-center select-none">
-      {!imageLoaded && (
-        <div className="absolute inset-0 w-full h-full bg-slate-200/70 dark:bg-slate-800/60 animate-pulse flex flex-col items-center justify-center">
-          <div className="w-6 h-6 rounded-lg bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center">
-            <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-          </div>
-          <div className="w-7 h-1 bg-slate-300/60 dark:bg-slate-700/60 rounded-full mt-1.5" />
-        </div>
-      )}
-      <img
-        src={imageUrl}
-        alt={prod.article || prod.name || 'Shoe product'}
-        className={`w-full h-full object-cover rounded-lg transition-opacity duration-200 ${
-          imageLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
-        onLoad={() => setImageLoaded(true)}
-        onError={() => setImageError(true)}
-        loading="lazy"
-      />
-    </div>
+    <LazyProductImage
+      src={imageUrl}
+      alt={prod.article || prod.name || 'Shoe product'}
+      containerClassName="w-13 h-13 sm:w-14 sm:h-14 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 dark:bg-[#0A0E1A] overflow-hidden p-0.5 shadow-2xs flex items-center justify-center select-none"
+      imgClassName="w-full h-full object-cover rounded-lg"
+      rootMargin="80px 0px"
+      placeholder={skeleton}
+      fallback={skeleton}
+    />
   );
 };
 
@@ -788,8 +774,8 @@ export const Header: React.FC<HeaderProps> = ({
       />
 
       <header className="px-3 sm:px-4 border border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 sticky top-0 z-30 select-none text-slate-800 dark:text-slate-100 flex items-center justify-between gap-2 sm:gap-4 min-h-[3.6rem] py-1.5 no-print">
-      {/* LEFT: Mobile Menu Toggle Button & Collapsible Global Search Bar */}
-      <div className={`flex items-center gap-2 sm:gap-2.5 pl-0.5 sm:pl-1 min-w-0 ${isMobileSearchExpanded ? 'flex-1 w-full sm:flex-initial sm:w-auto' : ''}`}>
+      {/* LEFT: Mobile Menu Toggle Button, Brand Logo + App Name, & Collapsible Global Search Bar */}
+      <div className={`flex items-center gap-2 sm:gap-2.5 pl-0.5 sm:pl-1 min-w-0 ${isMobileSearchExpanded ? 'flex-1 w-full sm:flex-initial sm:w-auto' : 'flex-1 sm:flex-initial'}`}>
         {/* Mobile Menu Toggle Button (< lg) */}
         <button
           type="button"
@@ -798,6 +784,31 @@ export const Header: React.FC<HeaderProps> = ({
           aria-label="Toggle navigation menu"
         >
           <Menu className="w-5 h-5 stroke-[2.2]" />
+        </button>
+
+        {/* Brand Logo & App Name (desktop only — shown in Sidebar drawer on small devices) */}
+        <button
+          id="header-brand-home-btn"
+          type="button"
+          onClick={() => onTabChange?.('dashboard')}
+          className="hidden lg:flex items-center gap-2.5 min-w-0 lg:w-[236px] lg:shrink-0 lg:pr-3 lg:border-r lg:border-slate-200/80 dark:lg:border-indigo-500/20 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none"
+          title="SarbaazSoft Shoe POS — Dashboard"
+        >
+          <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden p-0.5">
+            <ShoeIcon
+              src="/pwa-192x192.png"
+              alt="SarbaazSoft Shoe POS Logo"
+              className="w-full h-full object-cover rounded-xl"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="font-bold text-slate-900 dark:text-white text-sm tracking-tight leading-tight truncate block">
+              SarbaazSoft Shoe POS
+            </span>
+            <span className="block text-[10px] text-slate-500 dark:text-indigo-200/75 font-medium truncate mt-0.5">
+              {companySettings?.name || companySettings?.company_name || 'Retail & Wholesale'}
+            </span>
+          </div>
         </button>
 
         {/* Quick Price Retrieval Search Bar (position: relative expandable layout on mobile) */}

@@ -47,7 +47,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
     if (initialToken) return initialToken;
     try {
       const params = new URLSearchParams(window.location.search);
-      return params.get('token') || params.get('verificationToken') || '';
+      return params.get('code') || params.get('token') || params.get('verificationToken') || '';
     } catch {
       return '';
     }
@@ -80,10 +80,10 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
     enabled: !verificationSuccess,
   });
 
-  // Auto-verify if token is present in URL
+  // Auto-verify if code/token is present in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const tokenFromUrl = params.get('token') || params.get('verificationToken');
+    const tokenFromUrl = params.get('code') || params.get('token') || params.get('verificationToken');
     if (tokenFromUrl && !verificationSuccess && !isVerifying) {
       handleVerify(tokenFromUrl);
     }
@@ -92,14 +92,14 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
   const handleVerify = async (tokenToUse?: string) => {
     const rawToken = (tokenToUse || tokenInput).trim();
     if (!rawToken) {
-      setErrorMessage('Please enter the verification code or token received in your email.');
+      setErrorMessage('Please enter the 6-digit confirmation code received in your email.');
       return;
     }
 
     setIsVerifying(true);
     setErrorMessage(null);
     try {
-      const res = await api.auth.verifyEmail(rawToken);
+      const res = await api.auth.verifyEmail(rawToken, email.trim() || undefined);
       verificationCooldown.clearCooldown();
       setVerificationSuccess(true);
       setSuccessData(res);
@@ -108,7 +108,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
         localStorage.removeItem('pos_pending_verification_tenant_id');
       } catch {}
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Invalid or expired verification token. Please request a new verification link.');
+      setErrorMessage(err?.message || 'Invalid or expired verification code. Please request a new confirmation email.');
     } finally {
       setIsVerifying(false);
     }
@@ -117,7 +117,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
   const handleResend = async () => {
     const targetEmail = email.trim();
     if (!targetEmail) {
-      setResendError('Please enter your email address to receive a new confirmation link.');
+      setResendError('Please enter your email address to receive a new confirmation code.');
       return;
     }
     if (verificationCooldown.isInCooldown) return;
@@ -131,7 +131,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
       const res = await api.auth.resendVerification(targetEmail, tenantId || undefined);
       setResendStatus(
         res.message ||
-          `A fresh confirmation email has been sent to ${targetEmail}. Please check your Inbox or Spam/Junk folder and enter the verification token from the email.`
+          `A fresh 6-digit confirmation code has been sent to ${targetEmail}. Please check your Inbox or Spam/Junk folder and enter the code below.`
       );
       if (res.cooldown) {
         verificationCooldown.applyServerCooldown(res.cooldown);
@@ -236,27 +236,31 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
             >
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Verification Code or Token
+                  6-Digit Confirmation Code
                 </label>
                 <div className="relative">
                   <input
+                    id="email-verification-code-input"
                     type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
                     value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                    placeholder="Paste 64-char activation token or code from email"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/80 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    onChange={(e) => setTokenInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit code"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/80 text-slate-900 dark:text-white text-center text-base sm:text-lg font-mono font-bold tracking-[0.35em] placeholder:tracking-normal placeholder:font-sans placeholder:font-normal placeholder:text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isVerifying || !tokenInput.trim()}
+                disabled={isVerifying || tokenInput.trim().length < 5}
                 className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white font-bold text-xs shadow-md shadow-purple-600/25 disabled:opacity-50 transition-all cursor-pointer"
               >
                 {isVerifying ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Verifying Token...
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Verifying Code...
                   </>
                 ) : (
                   <>

@@ -7,16 +7,20 @@ function readProjectFile(relPath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
 }
 
-test('Store Header removes brand logo while keeping mobile menu toggle and quick search intact', () => {
+test('Store Header renders brand logo and SarbaazSoft Shoe POS app name alongside mobile menu toggle and quick search', () => {
   const headerSrc = readProjectFile('src/components/common/Header.tsx');
 
-  assert.equal(headerSrc.includes('ShoeIcon'), false, 'Store Header must not import or render ShoeIcon brand logo');
-  assert.equal(headerSrc.includes('alt="Store Icon"'), false, 'Store Header must not render Store Icon container');
+  assert.ok(headerSrc.includes("import { ShoeIcon } from './ShoeIcon.tsx';"), 'Store Header must import ShoeIcon');
 
   const headerTagIdx = headerSrc.indexOf('<header ');
   assert.ok(headerTagIdx !== -1, 'Store Header <header> element must exist');
   const headerMarkup = headerSrc.slice(headerTagIdx);
-  assert.equal(headerMarkup.includes('/pwa-192x192.png'), false, 'Store Header markup must not embed fallback PWA logo');
+
+  assert.ok(headerMarkup.includes('id="header-brand-home-btn"'), 'Store Header must include brand home trigger');
+  assert.ok(headerMarkup.includes('hidden lg:flex items-center gap-2.5 min-w-0 lg:w-[236px]'), 'Store Header brand logo must be hidden on small devices (< lg) and shown on desktop');
+  assert.ok(headerMarkup.includes('src="/pwa-192x192.png"'), 'Store Header must render brand logo /pwa-192x192.png');
+  assert.ok(headerMarkup.includes('alt="SarbaazSoft Shoe POS Logo"'), 'Store Header brand logo must use descriptive alt text');
+  assert.ok(headerMarkup.includes('SarbaazSoft Shoe POS'), 'Store Header must display SarbaazSoft Shoe POS app name');
   assert.ok(headerMarkup.includes('aria-label="Toggle navigation menu"'), 'Store Header must preserve mobile navigation toggle');
   assert.ok(headerMarkup.includes('id="header-mobile-search-trigger"'), 'Store Header must preserve mobile search trigger');
 });
@@ -35,11 +39,14 @@ test('Store Sidebar displays brand logo alongside dynamic store name with consis
     'Store Sidebar brand logo must use dynamic storeName alt attribute'
   );
   assert.ok(sidebarSrc.includes('{storeName}'), 'Store Sidebar must display dynamic storeName alongside logo');
+  assert.ok(sidebarSrc.includes('SarbaazSoft Shoe POS'), 'Store Sidebar must include SarbaazSoft Shoe POS app name');
   assert.ok(sidebarSrc.includes('id="sidebar-close-mobile-btn"'), 'Store Sidebar must preserve mobile close button');
   assert.ok(sidebarSrc.includes('id="sidebar-collapse-toggle-btn"'), 'Store Sidebar must preserve desktop collapse button');
+  assert.ok(sidebarSrc.includes('z-[60] lg:hidden'), 'Store mobile sidebar drawer must stack above z-40 header');
+  assert.ok(sidebarSrc.includes('createPortal(mobileDrawer, document.body)'), 'Store mobile sidebar drawer must portal to document.body');
 });
 
-test('Super Admin Header removes brand logo and keeps responsive menu toggle and search bar aligned', () => {
+test('Super Admin Header renders brand logo and SarbaazSoft Shoe POS app name alongside menu toggle and search bar', () => {
   const saSrc = readProjectFile('src/components/saas/SuperAdminControlPanel.tsx');
 
   const headerStart = saSrc.indexOf('const superAdminHeader = (');
@@ -47,10 +54,12 @@ test('Super Admin Header removes brand logo and keeps responsive menu toggle and
   assert.ok(headerStart !== -1 && headerEnd !== -1, 'superAdminHeader definition must exist');
   const headerBlock = saSrc.slice(headerStart, headerEnd);
 
-  assert.equal(headerBlock.includes('<ShoeIcon'), false, 'Super Admin Header must not render ShoeIcon');
-  assert.equal(headerBlock.includes('<Shield '), false, 'Super Admin Header must not render Shield brand badge');
-  assert.equal(headerBlock.includes('pwa-192x192.png'), false, 'Super Admin Header must not render PWA brand image');
-  assert.equal(headerBlock.includes('POS SaaS C-Panel'), false, 'Super Admin Header must not render mobile brand banner');
+  assert.ok(headerBlock.includes('id="superadmin-header-brand-home-btn"'), 'Super Admin Header must include brand home trigger');
+  assert.ok(headerBlock.includes('hidden lg:flex items-center gap-2.5 min-w-0 lg:w-[232px]'), 'Super Admin Header brand logo must be hidden on small devices (< lg) and shown on desktop');
+  assert.ok(headerBlock.includes('<ShoeIcon'), 'Super Admin Header must render ShoeIcon brand logo');
+  assert.ok(headerBlock.includes('src="/admin/pwa-192x192.png"'), 'Super Admin Header must render /admin/pwa-192x192.png brand logo');
+  assert.ok(headerBlock.includes('alt="SarbaazSoft Shoe POS Logo"'), 'Super Admin Header brand logo must use SarbaazSoft Shoe POS alt text');
+  assert.ok(headerBlock.includes('SarbaazSoft Shoe POS'), 'Super Admin Header must display SarbaazSoft Shoe POS app name');
   assert.ok(headerBlock.includes('aria-label="Open Navigation Drawer"'), 'Super Admin Header must retain mobile drawer toggle');
   assert.ok(headerBlock.includes('placeholder="Search stores or owners..."'), 'Super Admin Header must retain quick search');
 });
@@ -86,4 +95,11 @@ test('Super Admin Sidebar displays brand logo alongside "SarbaazSoft Shoe POS" c
     sidebarBlock.includes('id="superadmin-sidebar-close-mobile-btn"'),
     'Super Admin Sidebar must include touch-friendly mobile close button'
   );
+
+  const drawerStart = saSrc.indexOf('const superAdminSidebar = (');
+  const drawerEnd = saSrc.indexOf('const superAdminFooter = (', drawerStart);
+  assert.ok(drawerStart !== -1 && drawerEnd !== -1, 'superAdminSidebar definition must exist');
+  const drawerBlock = saSrc.slice(drawerStart, drawerEnd);
+  assert.ok(drawerBlock.includes('z-[60] lg:hidden'), 'SuperAdmin mobile sidebar drawer must stack above z-40 header');
+  assert.ok(drawerBlock.includes('createPortal(mobileDrawer, document.body)'), 'SuperAdmin mobile sidebar drawer must portal to document.body');
 });

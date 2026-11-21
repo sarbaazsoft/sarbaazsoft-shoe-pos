@@ -883,16 +883,28 @@ export async function sendTrialActivationEmail(
   opts: SendTrialActivationEmailOptions
 ): Promise<SendEmailResult> {
   try {
+    const escHtml = (value: string) =>
+      String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
     const store = opts.storeName || 'SarbaazSoft Shoe POS';
     const name = opts.userName || opts.to;
-    const subject = `Activate your Free Trial Store — ${store}`;
+    const safeStore = escHtml(store);
+    const safeName = escHtml(name);
+    const safeCode = escHtml(opts.activationToken);
+    const safeLink = escHtml(opts.activationLink);
+    const subject = `Your Verification Code (${opts.activationToken}) — ${store}`;
     const html = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Activate Your Free Trial Account</title>
+  <title>Confirm Your Email Address</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f172a;padding:32px 16px;">
@@ -903,31 +915,31 @@ export async function sendTrialActivationEmail(
             <td style="background:linear-gradient(135deg,#7e22ce 0%,#2563eb 100%);padding:28px 32px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:800;">SarbaazSoft Shoe POS</h1>
               <p style="margin:6px 0 0;color:#e9d5ff;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
-                Free Trial Email Verification
+                Email Confirmation Code
               </p>
             </td>
           </tr>
           <tr>
             <td style="padding:32px;">
-              <h2 style="margin:0 0 12px;color:#f8fafc;font-size:18px;">Hello, ${name}!</h2>
+              <h2 style="margin:0 0 12px;color:#f8fafc;font-size:18px;">Hello, ${safeName}!</h2>
               <p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.6;">
-                Thank you for signing up for a 30-day free trial on <strong>${store}</strong>. Please verify your email address to activate your account and start using your Point of Sale terminal.
+                Thank you for signing up for a 30-day free trial on <strong>${safeStore}</strong>. Enter the 6-digit confirmation code below to verify your email address and activate your store account.
               </p>
-              <div style="text-align:center;margin:28px 0;">
-                <a href="${opts.activationLink}" style="display:inline-block;background:linear-gradient(135deg,#9333ea 0%,#4f46e5 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;box-shadow:0 4px 14px rgba(147,51,234,0.4);">
-                  Activate Free Trial Account
+              <div style="background-color:#0f172a;border:1px solid #4c1d95;border-radius:12px;padding:20px 16px;margin:24px 0;text-align:center;">
+                <p style="margin:0 0 10px;color:#cbd5e1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">
+                  Your 6-Digit Verification Code
+                </p>
+                <div style="color:#c084fc;font-family:monospace;font-size:32px;font-weight:800;letter-spacing:0.35em;line-height:1.2;">
+                  ${safeCode}
+                </div>
+              </div>
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${safeLink}" style="display:inline-block;background:linear-gradient(135deg,#9333ea 0%,#4f46e5 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 28px;border-radius:12px;box-shadow:0 4px 14px rgba(147,51,234,0.4);">
+                  Verify &amp; Activate Account
                 </a>
               </div>
-              <div style="background-color:#0f172a;border:1px solid #334155;border-radius:10px;padding:14px 16px;margin:24px 0;">
-                <p style="margin:0 0 6px;color:#cbd5e1;font-size:11px;font-weight:600;text-transform:uppercase;">
-                  Instant Activation Token:
-                </p>
-                <code style="color:#a855f7;font-family:monospace;font-size:13px;word-break:break-all;">
-                  ${opts.activationToken}
-                </code>
-              </div>
               <p style="margin:0;color:#64748b;font-size:12px;">
-                This link expires in 24 hours. If you did not create this account, you can safely ignore this email.
+                This code expires in 24 hours. If you did not create this account, you can safely ignore this email.
               </p>
             </td>
           </tr>
@@ -939,7 +951,7 @@ export async function sendTrialActivationEmail(
 </html>
   `.trim();
 
-    const text = `Hello ${name}!\n\nPlease activate your free trial account on ${store} by opening the following link:\n\n${opts.activationLink}\n\nActivation Token: ${opts.activationToken}\n\nExpires in 24 hours.`;
+    const text = `Hello ${name}!\n\nYour 6-digit email confirmation code for ${store} is: ${opts.activationToken}\n\nYou can also activate directly using this link:\n${opts.activationLink}\n\nThis code expires in 24 hours.`;
 
     return await sendEmail({
       to: opts.to,

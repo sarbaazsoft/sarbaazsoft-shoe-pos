@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, ShoppingCart, Boxes, Truck, RotateCcw, Users, TrendingUp, Settings, Printer, BookOpen, X, Building2, Check, Cloud, Keyboard, Sun, Moon, Download, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { UserAvatar } from './UserAvatar.tsx';
@@ -707,30 +708,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {renderSidebar(false)}
       </motion.aside>
 
-      {/* MOBILE DRAWER WITH FLUID ANIMATEPRESENCE ENTRY & EXIT */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex no-print">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
-              onClick={onCloseMobile}
-            />
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative w-72 max-w-[85vw] h-full max-h-screen shadow-2xl z-10 overflow-hidden rounded-none border-r border-indigo-500/20"
-            >
-              {renderSidebar(true)}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* MOBILE DRAWER WITH FLUID ANIMATEPRESENCE ENTRY & EXIT (Portaled above sticky header) */}
+      {(() => {
+        const mobileDrawer = (
+          <AnimatePresence>
+            {mobileOpen && (
+              <div className="fixed inset-0 z-[60] lg:hidden flex no-print">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
+                  onClick={onCloseMobile}
+                />
+                <motion.div
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                  className="relative w-72 max-w-[85vw] h-full max-h-screen shadow-2xl z-10 overflow-hidden rounded-none border-r border-indigo-500/20"
+                >
+                  {renderSidebar(true)}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        );
+
+        if (typeof document !== 'undefined' && document.body) {
+          return createPortal(mobileDrawer, document.body);
+        }
+        return mobileDrawer;
+      })()}
 
       {/* PWA & EXE INSTALLATION MODAL */}
       {isInstallModalOpen && (

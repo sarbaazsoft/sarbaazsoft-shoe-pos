@@ -1793,7 +1793,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                       <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Shipment Notes</label>
                       <input
                         type="text"
-                        placeholder="e.g. Received via Cargo Freight, Lot #42"
+                        placeholder="e.g. Received Master Cartons, Lot #42"
                         value={notes}
                         onChange={(e) => setNotes(toTitleCaseLive(e.target.value))}
                         className="capitalize w-full px-3 py-2 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/60 text-slate-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-xs placeholder-slate-400 dark:placeholder-slate-500"

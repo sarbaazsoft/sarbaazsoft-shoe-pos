@@ -251,6 +251,7 @@ export const DATABASE_TABLE_DDL: string[] = [
     tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token TEXT NOT NULL UNIQUE,
+    attempts INTEGER NOT NULL DEFAULT 0,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
@@ -422,9 +423,6 @@ export const DATABASE_TABLE_DDL: string[] = [
     discount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     total_amount NUMERIC(12, 2) NOT NULL,
     total_cartons NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    transport_name TEXT NOT NULL DEFAULT '',
-    bilty_number TEXT NOT NULL DEFAULT '',
-    booking_destination TEXT NOT NULL DEFAULT '',
     previous_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     remaining_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
@@ -725,6 +723,15 @@ export async function ensureDatabaseSchema(): Promise<void> {
         ensureEnums: ensureDatabaseEnumsSchema,
       });
 
+      await pgClient
+        .exec(
+          `ALTER TABLE sales
+           DROP COLUMN IF EXISTS transport_name,
+           DROP COLUMN IF EXISTS bilty_number,
+           DROP COLUMN IF EXISTS booking_destination`
+        )
+        .catch(() => {});
+
       for (const idxDdl of DATABASE_INDEX_DDL) {
         await pgClient.exec(idxDdl).catch(() => {});
       }
@@ -836,6 +843,9 @@ export async function ensureEmailVerificationSchema(): Promise<void> {
   try {
     await pgClient.waitReady;
     await pgClient.exec(findTableDdl('email_verification_tokens'));
+    await pgClient.exec(
+      `ALTER TABLE email_verification_tokens ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`
+    ).catch(() => {});
     for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('email_verification_tokens'))) {
       await pgClient.exec(idxDdl).catch(() => {});
     }

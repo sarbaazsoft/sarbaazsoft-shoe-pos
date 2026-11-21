@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Tag } from 'lucide-react';
+import { useIntersectionObserver } from '../../hooks/useIntersectionObserver.ts';
 
 export interface BrandLogoProps {
   logo?: string | null;
@@ -75,9 +76,16 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     .toUpperCase() || 'BR';
 
   const hasValidLogo = Boolean(logo && typeof logo === 'string' && logo.trim().length > 0 && !imageFailed);
+  const { ref, hasIntersected } = useIntersectionObserver<HTMLDivElement>({
+    rootMargin: '120px 0px',
+    threshold: 0.01,
+    triggerOnce: true,
+    enabled: hasValidLogo,
+  });
 
   return (
     <div
+      ref={ref}
       id={id}
       className={`inline-flex items-center gap-2.5 select-none ${className}`}
       title={name}
@@ -92,13 +100,19 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
         }`}
       >
         {hasValidLogo ? (
-          <img
-            src={logo!.trim()}
-            alt={`${name} logo`}
-            referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
-            className={`object-contain transition-transform duration-200 ${cfg.img} ${imgClassName}`}
-          />
+          hasIntersected ? (
+            <img
+              src={logo!.trim()}
+              alt={`${name} logo`}
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={() => setImageFailed(true)}
+              className={`object-contain transition-transform duration-200 ${cfg.img} ${imgClassName}`}
+            />
+          ) : (
+            <span aria-hidden="true" className="w-full h-full bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
+          )
         ) : (
           <div className="flex flex-col items-center justify-center leading-none text-center">
             {size === 'xs' || size === 'sm' ? (

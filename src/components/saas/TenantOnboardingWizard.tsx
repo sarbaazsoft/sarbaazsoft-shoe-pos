@@ -1130,7 +1130,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                                   <span>Wholesale Store (B2B)</span>
                                 </span>
                                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                                  Bulk carton packing, min order pairs, khata credit ledger &amp; transport bilty
+                                  Bulk carton packing, min order pairs &amp; khata credit ledger
                                 </span>
                               </div>
                             </label>

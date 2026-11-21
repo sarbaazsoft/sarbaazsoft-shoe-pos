@@ -7,29 +7,30 @@ export interface QuickReceiveChip {
   label?: string;
 }
 
+export const PKR_BANKNOTE_DENOMINATIONS = [10, 20, 50, 100, 500, 1000, 5000] as const;
+export const PKR_TOP_NOTE = 5000;
+
 /**
  * Calculates dynamic quick-receive cash denominations in Pakistani Rupees (PKR)
- * based on standard circulated banknotes (Rs. 50, 100, 500, 1,000, 5,000) and
- * the invoice amount. Intentionally excludes the rare commemorative Rs. 75 note.
+ * based exclusively on standard circulated banknotes:
+ *   Rs. 10, 20, 50, 100, 500, 1,000, and 5,000 (where Rs. 5,000 is the top note).
+ * Intentionally excludes the rare commemorative Rs. 75 note and never invents
+ * non-existent Rs. 50,000 or Rs. 100,000 note jumps above the next Rs. 5,000 multiple.
  *
- * Real-world retail cash payment rules (up to 5 chips):
- * 1. If invoice is an exact multiple of Rs. 5,000 (e.g. Rs. 5,000, 10,000, 15,000, 50,000):
- *    Exactly (total / 5000) notes of Rs. 5,000 pay the bill in full with zero change.
- *    -> Returns [total] (Exact only).
- * 2. If invoice is below Rs. 5,000:
- *    Offers exact amount, next Rs. 100, next Rs. 500, next Rs. 1,000, and Rs. 5,000 note
- *    (plus next Rs. 50 if fewer than 5 chips exist, e.g., 3,250 -> [3,250, 3,300, 3,500, 4,000, 5,000]).
- * 3. If invoice is between Rs. 5,000 and Rs. 10,000:
- *    Offers exact amount, next Rs. 100, next Rs. 500, next Rs. 1,000, and Rs. 10,000 (two Rs. 5,000 notes).
- * 4. If invoice exceeds Rs. 10,000 (and is not an exact multiple of 5,000):
- *    Offers exact amount, next Rs. 500, next Rs. 1,000, next Rs. 5,000, next Rs. 10,000, and Rs. 50k/100k milestones.
+ * Examples:
+ * - 36,000 -> [36,000 (Exact), 40,000] (next Rs. 5,000 note multiple is 8x5k = 40,000; never 50,000)
+ * - 36,120 -> [36,120, 36,150, 36,200, 36,500, 37,000, 40,000]
+ * - 36,005 -> [36,005, 36,010, 36,020, 36,050, 36,100, 36,500, 37,000, 40,000]
+ * - 35,000 -> [35,000 (Exact)] (already an exact multiple of Rs. 5,000)
+ * -  3,250 -> [3,250, 3,300, 3,500, 4,000, 5,000]
  */
 export function generateRetailQuickReceiveChips(totalAmount: number): QuickReceiveChip[] {
   const total = Math.max(0, Math.round(totalAmount));
   if (total <= 0) return [];
 
-  // RULE 1: If the invoice is ALREADY an exact multiple of Rs. 5,000
-  if (total % 5000 === 0) {
+  // If the invoice is already an exact multiple of the top Rs. 5,000 note,
+  // (total / 5000) notes of Rs. 5,000 pay it cleanly with zero change.
+  if (total % PKR_TOP_NOTE === 0) {
     return [
       {
         amount: total,
@@ -42,107 +43,32 @@ export function generateRetailQuickReceiveChips(totalAmount: number): QuickRecei
   const candidates = new Set<number>();
   candidates.add(total);
 
-  if (total < 5000) {
-    if (total < 500) {
-      const next50 = Math.ceil(total / 50) * 50;
-      if (next50 > total && next50 < 5000) {
-        candidates.add(next50);
-      }
-    }
+  // Generate every smart tender amount formed by rounding up to each PKR banknote:
+  // 10, 20 (within the current Rs. 50 block), 50, 100, 500, 1,000, and 5,000.
+  const next10 = Math.ceil(total / 10) * 10;
+  if (next10 > total) {
+    candidates.add(next10);
+  }
 
-    const next100 = Math.ceil(total / 100) * 100;
-    if (next100 > total && next100 < 5000) {
-      candidates.add(next100);
-    }
-
-    const next500 = Math.ceil(total / 500) * 500;
-    if (next500 > total && next500 < 5000) {
-      candidates.add(next500);
-    }
-
-    const next1000 = Math.ceil(total / 1000) * 1000;
-    if (next1000 > total && next1000 < 5000) {
-      candidates.add(next1000);
-    }
-
-    candidates.add(5000);
-
-    // Fill 5th slot with next Rs. 50 increment when applicable (ignoring rare Rs. 75 note)
-    if (candidates.size < 5) {
-      const next50 = Math.ceil(total / 50) * 50;
-      if (next50 > total && next50 < 5000) {
-        candidates.add(next50);
-      }
-    }
-  } else if (total < 10000) {
-    const next100 = Math.ceil(total / 100) * 100;
-    if (next100 > total && next100 < 10000) {
-      candidates.add(next100);
-    }
-
-    const next500 = Math.ceil(total / 500) * 500;
-    if (next500 > total && next500 < 10000) {
-      candidates.add(next500);
-    }
-
-    const next1000 = Math.ceil(total / 1000) * 1000;
-    if (next1000 > total && next1000 < 10000) {
-      candidates.add(next1000);
-    }
-
-    candidates.add(10000);
-
-    if (candidates.size < 5) {
-      const next50 = Math.ceil(total / 50) * 50;
-      if (next50 > total && next50 < 10000) {
-        candidates.add(next50);
-      }
-    }
-  } else {
-    const next500 = Math.ceil(total / 500) * 500;
-    if (next500 > total) {
-      candidates.add(next500);
-    }
-
-    const next1000 = Math.ceil(total / 1000) * 1000;
-    if (next1000 > total) {
-      candidates.add(next1000);
-    }
-
-    const next5000 = Math.ceil(total / 5000) * 5000;
-    if (next5000 > total) {
-      candidates.add(next5000);
-    }
-
-    const next10000 = Math.ceil(total / 10000) * 10000;
-    if (next10000 > total && candidates.size < 5) {
-      candidates.add(next10000);
-    }
-
-    if (total > 20000 && total < 50000 && candidates.size < 5) {
-      candidates.add(50000);
-    }
-
-    if (total > 50000) {
-      const next50000 = Math.ceil(total / 50000) * 50000;
-      if (next50000 > total && candidates.size < 5) {
-        candidates.add(next50000);
-      }
-      const next100000 = Math.ceil(total / 100000) * 100000;
-      if (next100000 > total && candidates.size < 5) {
-        candidates.add(next100000);
-      }
-    }
-
-    if (candidates.size < 5) {
-      const next100 = Math.ceil(total / 100) * 100;
-      if (next100 > total) {
-        candidates.add(next100);
-      }
+  // Handle Rs. 20 note smartly inside each Rs. 50 interval so an exact Rs. 50
+  // remainder (e.g. 3,250) never degrades to 3,260 (3x20) and 41..49 prefers 50 over 60.
+  const base50 = Math.floor(total / 50) * 50;
+  const rem50 = total - base50;
+  if (rem50 > 0) {
+    const next20In50Block = base50 + Math.ceil(rem50 / 20) * 20;
+    if (next20In50Block > total && next20In50Block < base50 + 50) {
+      candidates.add(next20In50Block);
     }
   }
 
-  const sorted = Array.from(candidates).sort((a, b) => a - b).slice(0, 5);
+  for (const denom of [50, 100, 500, 1000, PKR_TOP_NOTE] as const) {
+    const rounded = Math.ceil(total / denom) * denom;
+    if (rounded > total) {
+      candidates.add(rounded);
+    }
+  }
+
+  const sorted = Array.from(candidates).sort((a, b) => a - b);
 
   return sorted.map((amt) => ({
     amount: amt,
@@ -155,20 +81,13 @@ export function generateRetailQuickReceiveChips(totalAmount: number): QuickRecei
  * Calculates dynamic quick-receive cash tender chips tailored for B2B wholesale transactions.
  *
  * Core Rules:
- * 1. Smart Chip Capping:
+ * 1. Cash Customer (ledger balance = 0):
+ *    Delegates to PKR banknote denomination chips [10, 20, 50, 100, 500, 1000, 5000]
+ *    with Rs. 5,000 as the top note so wholesale cash sales get full change-making chips.
+ * 2. Khata Ledger Settlement (ledger balance > 0):
  *    Calculates totalCombined = (Current Invoice Total) + (Customer Khata Ledger Due Balance).
  *    Strict Invariant: NEVER suggest or display any chip amount exceeding totalCombined.
- * 2. Dynamic Wholesale Denominations:
- *    Intelligently incorporates wholesale cash milestones (e.g., 20,000, 50,000, 100,000, etc.)
- *    that are <= totalCombined.
- * 3. Cashier Context:
- *    - If customer has an existing Khata ledger balance:
- *      Includes current invoice ('Bill Only') and full combined balance ('Pay All'),
- *      plus clean intermediate wholesale milestones between 0 and totalCombined.
- *    - If walk-in cash customer (ledger balance = 0):
- *      Includes the exact invoice ('Exact') plus round wholesale milestone tenders <= invoice total.
- * 4. Density:
- *    Returns up to 4 clean, distinct, ascending chips.
+ *    Includes 'Bill Only', intermediate lump-sum multiples of Rs. 5,000, and 'Pay All'.
  */
 export function generateWholesaleQuickReceiveChips(
   invoiceAmount: number,
@@ -180,6 +99,11 @@ export function generateWholesaleQuickReceiveChips(
 
   if (totalCombined <= 0) return [];
 
+  // For cash customers without Khata dues, generate smart PKR note chips directly
+  if (ledger <= 0) {
+    return generateRetailQuickReceiveChips(invoice);
+  }
+
   const candidatesMap = new Map<number, QuickReceiveChip>();
 
   // 1. Current Invoice Amount (if > 0 and <= totalCombined)
@@ -187,12 +111,12 @@ export function generateWholesaleQuickReceiveChips(
     candidatesMap.set(invoice, {
       amount: invoice,
       isExact: invoice === totalCombined,
-      label: ledger > 0 ? 'Bill Only' : 'Exact Bill',
+      label: 'Bill Only',
     });
   }
 
-  // 2. Full Combined Settlement (Bill + Ledger) if customer has ledger balance
-  if (ledger > 0 && totalCombined > 0) {
+  // 2. Full Combined Settlement (Bill + Ledger)
+  if (totalCombined > 0) {
     candidatesMap.set(totalCombined, {
       amount: totalCombined,
       isExact: true,
@@ -200,9 +124,9 @@ export function generateWholesaleQuickReceiveChips(
     });
   }
 
-  // 3. Wholesale B2B milestone denominations (20k, 50k, 100k, etc.)
+  // 3. Wholesale lump-sum cash milestones (multiples of Rs. 5,000 top note)
   const wholesaleMilestones = [
-    5000, 10000, 20000, 25000, 50000, 75000, 100000, 150000, 200000, 250000, 500000, 1000000,
+    5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000, 150000, 200000, 250000, 500000, 1000000,
   ];
 
   // Strictly enforce capping at totalCombined (Never exceed combined balance)
@@ -212,7 +136,7 @@ export function generateWholesaleQuickReceiveChips(
         candidatesMap.set(milestone, {
           amount: milestone,
           isExact: milestone === totalCombined,
-          label: milestone === totalCombined ? (ledger > 0 ? 'Pay All' : 'Exact') : undefined,
+          label: milestone === totalCombined ? 'Pay All' : undefined,
         });
       }
     }
@@ -232,7 +156,7 @@ export function generateWholesaleQuickReceiveChips(
   if (invoice > 0) essentialSet.add(invoice);
   if (ledger > 0) essentialSet.add(totalCombined);
 
-  // Prioritized wholesale milestones (100k, 50k, 20k)
+  // Prioritized wholesale milestones
   const preferredMilestones = [100000, 50000, 20000, 10000, 200000, 25000, 5000, 150000, 500000];
   for (const m of preferredMilestones) {
     if (essentialSet.size >= 4) break;
@@ -303,19 +227,26 @@ export const QuickReceiveChips: React.FC<QuickReceiveChipsProps> = ({
   onSelectAmount,
   formatPrice = (val) => val.toLocaleString('en-PK', { maximumFractionDigits: 0 }),
 }) => {
+  const hasLedgerBalance = Number(customerLedgerBalance || 0) > 0;
+  const useWholesaleLedgerMode = isWholesale && hasLedgerBalance;
+
   const visibleChips = React.useMemo(() => {
-    const generated = isWholesale
+    const generated = useWholesaleLedgerMode
       ? generateWholesaleQuickReceiveChips(totalAmount, customerLedgerBalance)
       : generateRetailQuickReceiveChips(totalAmount);
     return filterDisplayQuickReceiveChips(generated, {
-      isWholesale,
+      isWholesale: useWholesaleLedgerMode,
       customerLedgerBalance,
     });
-  }, [isWholesale, totalAmount, customerLedgerBalance]);
+  }, [useWholesaleLedgerMode, totalAmount, customerLedgerBalance]);
 
   if (visibleChips.length === 0) return null;
 
   const totalCombined = Math.max(0, Math.round(totalAmount + Math.max(0, customerLedgerBalance || 0)));
+  const gridColumns =
+    visibleChips.length <= 4
+      ? visibleChips.length
+      : Math.min(4, Math.ceil(visibleChips.length / 2));
 
   return (
     <div className="space-y-1.5" aria-label="Quick cash receive suggestions">
@@ -323,13 +254,11 @@ export const QuickReceiveChips: React.FC<QuickReceiveChipsProps> = ({
       <div className="flex items-center justify-between text-[11px] pb-0.5">
         <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
           <Banknote className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-          <span>{isWholesale ? 'Wholesale Quick Tender:' : 'Quick Receive Note:'}</span>
+          <span>{useWholesaleLedgerMode ? 'Wholesale Quick Tender:' : 'Quick Receive Note:'}</span>
         </span>
         <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-          {isWholesale
-            ? customerLedgerBalance && customerLedgerBalance > 0
-              ? `Max Balance: ${currencySymbol} ${formatPrice(totalCombined)}`
-              : `Capped at Invoice: ${currencySymbol} ${formatPrice(totalAmount)}`
+          {useWholesaleLedgerMode
+            ? `Max Balance: ${currencySymbol} ${formatPrice(totalCombined)}`
             : visibleChips.length === 1
             ? 'Tap for exact cash'
             : 'Tap note for instant change'}
@@ -340,7 +269,7 @@ export const QuickReceiveChips: React.FC<QuickReceiveChipsProps> = ({
       <div
         className="grid gap-1 sm:gap-1.5"
         style={{
-          gridTemplateColumns: `repeat(${visibleChips.length}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
         }}
       >
         {visibleChips.map((chip) => {

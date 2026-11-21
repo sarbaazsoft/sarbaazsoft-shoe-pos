@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Barcode, Search, Plus, Minus, Trash2, AlertTriangle, Banknote, ShieldAlert, Printer, ScanLine, Zap, Keyboard, Repeat, RotateCcw, X, CheckCircle2, Lock, ImageIcon, Truck, BookOpen, Package, Eye, EyeOff, AlertCircle, Coins, ArrowLeftRight, Landmark, Volume2, VolumeX } from 'lucide-react';
+import { Barcode, Search, Plus, Minus, Trash2, AlertTriangle, Banknote, ShieldAlert, Printer, ScanLine, Zap, Keyboard, Repeat, RotateCcw, X, CheckCircle2, Lock, ImageIcon, BookOpen, Package, Eye, EyeOff, AlertCircle, Coins, ArrowLeftRight, Landmark, Volume2, VolumeX } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { playAudioFeedback, isAudioMuted, toggleAudioMuted } from '../../utils/audio.ts';
 const InvoicePrintModal = lazy(() => import('./InvoicePrintModal.tsx').then((m) => ({ default: m.InvoicePrintModal })));
@@ -27,6 +27,7 @@ import { QuickReceiveChips } from './QuickReceiveChips.tsx';
 import { useRouteActivity, useDeferredRouteSync } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { setHoldSwUpdate } from '../../utils/swUpdate.ts';
+import { LazyProductImage } from '../common/LazyProductImage.tsx';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 export interface CartItem {
@@ -187,7 +188,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     setErrorMessage(message);
   };
 
-  // Business Type & Wholesale B2B Cargo / Dispatch State
+  // Business Type & Wholesale B2B State
   const isWholesaleStore =
     String(companySettings?.businessType || companySettings?.business_type || '').toUpperCase() === 'WHOLESALE';
   const selectedCustomer = customers.find((c: any) => Number(c.id) === Number(selectedCustomerId));
@@ -295,10 +296,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     setSelectedCustomerId(customerId);
     selectPaymentMethod(isWholesaleStore && customerId ? 'KHATA' : 'CASH');
   };
-  const [transportName, setTransportName] = useState('');
-  const [biltyNumber, setBiltyNumber] = useState('');
-  const [bookingDestination, setBookingDestination] = useState('');
-  const [isB2bCargoOpen, setIsB2bCargoOpen] = useState(false);
 
   // Admin Override Modal State
   const [showAdminOverrideModal, setShowAdminOverrideModal] = useState(false);
@@ -1447,9 +1444,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       transactionId: transactionId.trim(),
       saleType: isWholesaleStore ? 'WHOLESALE' : 'RETAIL',
       totalCartons: totalCartonsSum,
-      transportName: isWholesaleStore ? transportName.trim() : undefined,
-      biltyNumber: isWholesaleStore ? biltyNumber.trim() : undefined,
-      bookingDestination: isWholesaleStore ? bookingDestination.trim() : undefined,
       previousBalance: prevBalance,
       paidAmount: effectivePaidAmount,
       amountReceived: effectivePaidAmount,
@@ -1557,9 +1551,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
       setCashReceived('');
       setTransactionId('');
       setNotes('');
-      setTransportName('');
-      setBiltyNumber('');
-      setBookingDestination('');
       selectCustomerForPayment(null);
       setShowAdminOverrideModal(false);
       setOverridePendingItem(null);
@@ -1776,34 +1767,25 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                           className="p-2.5 sm:p-3 flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer transition"
                         >
                           <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 flex-1">
-                            {prod.primaryImageUrl ? (
-                              <div className="relative w-10 h-10 shrink-0 rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                <img
-                                  src={prod.primaryImageUrl}
-                                  alt={prod.article || prod.name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    const skeleton = e.currentTarget.nextElementSibling;
-                                    if (skeleton) skeleton.classList.remove('hidden');
-                                  }}
-                                />
-                                <div className="hidden absolute inset-0 w-full h-full bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center">
-                                  <ImageIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                            <LazyProductImage
+                              src={prod.primaryImageUrl}
+                              alt={prod.article || prod.name}
+                              containerClassName="w-10 h-10 shrink-0 rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+                              imgClassName="w-full h-full object-cover"
+                              rootMargin="80px 0px"
+                              fallback={
+                                <div
+                                  className="w-full h-full bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center p-1"
+                                  title="No image - skeleton placeholder"
+                                  aria-label="Product image skeleton"
+                                >
+                                  <div className="w-4 h-4 rounded bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center">
+                                    <ImageIcon className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500" />
+                                  </div>
+                                  <div className="w-5 h-1 bg-slate-300/70 dark:bg-slate-700/70 rounded-full mt-1" />
                                 </div>
-                              </div>
-                            ) : (
-                              <div
-                                className="w-10 h-10 shrink-0 rounded border border-slate-200/80 dark:border-slate-800 bg-slate-200/80 dark:bg-slate-800/80 animate-pulse flex flex-col items-center justify-center p-1"
-                                title="No image - skeleton placeholder"
-                                aria-label="Product image skeleton"
-                              >
-                                <div className="w-4 h-4 rounded bg-slate-300/80 dark:bg-slate-700/80 flex items-center justify-center">
-                                  <ImageIcon className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500" />
-                                </div>
-                                <div className="w-5 h-1 bg-slate-300/70 dark:bg-slate-700/70 rounded-full mt-1" />
-                              </div>
-                            )}
+                              }
+                            />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-semibold text-sm text-slate-900 dark:text-white truncate">{prod.article || prod.name}</p>
@@ -3788,64 +3770,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-[#0A0E1A] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-purple-500 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20"
             />
-
-            {/* Wholesale B2B Cargo / Bilty Dispatch Card */}
-            {isWholesaleStore && (
-              <div className="p-3 bg-slate-50 dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setIsB2bCargoOpen(!isB2bCargoOpen)}
-                  className="w-full flex items-center justify-between text-left font-bold text-slate-800 dark:text-slate-200 cursor-pointer"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    <span>Cargo & Bilty Dispatch</span>
-                    {(transportName || biltyNumber || bookingDestination) && (
-                      <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold">
-                        Set
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-                    {isB2bCargoOpen ? '▲ Hide' : '▼ Add Cargo Details'}
-                  </span>
-                </button>
-
-                {isB2bCargoOpen && (
-                  <div className="space-y-2 pt-1 animate-in fade-in duration-150">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        placeholder="Transport (e.g. Faisal Movers)"
-                        value={transportName}
-                        onChange={(e) => setTransportName(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-[#0A0E1A] border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Bilty / Cargo # (e.g. LR-4921)"
-                        value={biltyNumber}
-                        onChange={(e) => setBiltyNumber(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-blue-500 font-mono font-medium"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Destination City (e.g. Rawalpindi / Peshawar)"
-                      value={bookingDestination}
-                      onChange={(e) => setBookingDestination(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-[#0A0E1A] border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono px-1">
-                      <span>Total Cartons to Dispatch:</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-bold">
-                        {cart.reduce((acc, i) => acc + (i.quantity / (Number(i.pairsPerCarton) === 16 ? 16 : 12)), 0).toFixed(1).replace(/\.0$/, '')} Cartons ({totalItemsCount} Pairs)
-                      </strong>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* CHECKOUT BUTTON (F9) & DELETE SALE (F8) */}
@@ -3901,11 +3825,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
         </motion.div>
 
       </div>
-    </div>
-
-    {/* Dedicated Footer Branding */}
-    <div className="text-center py-2 text-[11px] text-slate-400 dark:text-slate-500 select-none no-print">
-      Powered by <span className="text-slate-700 dark:text-slate-200 font-semibold">SarbaazSoft Shoe POS</span> &bull; &copy; 2026 All rights reserved.
     </div>
 
       {/* ADMIN OVERRIDE MODAL FOR MIN SALE PRICE VIOLATION */}

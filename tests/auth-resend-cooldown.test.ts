@@ -24,6 +24,7 @@ registerHooks({
 
 const { pgClient } = await import('../src/db/index.ts');
 const rateLimitSvc = await import('../src/server/services/authResendRateLimitService.ts');
+const emailVerifySvc = await import('../src/server/services/emailVerificationService.ts');
 const authRoutes = (await import('../src/server/routes/authRoutes.ts')).default;
 const {
   formatCountdownMMSS,
@@ -320,15 +321,16 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.equal(statusRes.data.email, undefined);
       assert.equal(statusRes.data.verificationToken, undefined);
 
-      // Verify email resets the email_verification cooldown counter
+      // Verify email token in DB is strictly a 6-digit numeric code and resets cooldown on verification
       const tokenRow = (
         await pgClient.query('SELECT token FROM email_verification_tokens ORDER BY id DESC LIMIT 1')
       ).rows[0] as any;
-      assert.ok(tokenRow?.token, 'Verification token should exist in DB before verification');
+      assert.ok(tokenRow?.token, 'Verification code should exist in DB before verification');
+      assert.match(String(tokenRow.token), /^\d{6}$/, 'Verification code must be a 6-digit numeric string');
 
       const verifyRes = await requestJson(baseUrl, '/api/auth/verify-email', {
         method: 'POST',
-        body: { token: tokenRow.token },
+        body: { code: tokenRow.token, email: routeEmail },
         ip: verifyRouteIp,
       });
       assert.equal(verifyRes.status, 200);
@@ -342,6 +344,50 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.equal(postVerifyStatus.status, 200);
       assert.equal(postVerifyStatus.data.isInCooldown, false);
       assert.equal(postVerifyStatus.data.attemptCount, 0);
+    });
+
+    it('invalidates 6-digit confirmation code after 5 incorrect guesses to prevent brute force', async () => {
+      const bfEmail = `bruteforce-${Date.now()}@example.com`;
+      const bfIp = '192.0.2.52';
+      createdEmails.push(bfEmail);
+      createdIps.push(bfIp);
+
+      const userInsert = await pgClient.query<{ id: number }>(
+        `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'ADMIN', 'PENDING') RETURNING id`,
+        [1, 'Brute Force Guard User', bfEmail, '+923001112244', 'hashed-pw', 'Test123!']
+      );
+      const userId = Number(userInsert.rows[0].id);
+
+      const { code } = await emailVerifySvc.issueEmailVerificationCode({ tenantId: 1, userId });
+      assert.match(code, /^\d{6}$/, 'Issued confirmation code must be 6 numeric digits');
+      const wrongCode = code === '000000' ? '111111' : '000000';
+
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        const failRes = await requestJson(baseUrl, '/api/auth/verify-email', {
+          method: 'POST',
+          body: { code: wrongCode, email: bfEmail },
+          ip: bfIp,
+        });
+        assert.equal(failRes.status, 400, `Attempt ${attempt} should reject wrong 6-digit code with 400`);
+      }
+
+      // 5th failed attempt invalidates the code and returns 429
+      const lockoutRes = await requestJson(baseUrl, '/api/auth/verify-email', {
+        method: 'POST',
+        body: { code: wrongCode, email: bfEmail },
+        ip: bfIp,
+      });
+      assert.equal(lockoutRes.status, 429);
+      assert.equal(lockoutRes.data.code, 'VERIFICATION_ATTEMPTS_EXCEEDED');
+
+      // Even the previously valid code must now fail because it was invalidated
+      const afterLockoutRes = await requestJson(baseUrl, '/api/auth/verify-email', {
+        method: 'POST',
+        body: { code, email: bfEmail },
+        ip: bfIp,
+      });
+      assert.equal(afterLockoutRes.status, 400);
     });
 
     it('enforces backend cooldown (429 + Retry-After + zero token leak) on /send-reset-link and resets after /reset-password', async () => {
@@ -468,6 +514,9 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       );
 
       assert.ok(html.includes('Resend Confirmation Email'), 'Must label Email Confirmation resend button accurately');
+      assert.ok(html.includes('6-Digit Confirmation Code'), 'Must label input as 6-Digit Confirmation Code');
+      assert.ok(html.includes('maxLength="6"'), 'Code input must enforce 6-digit maxLength');
+      assert.ok(html.includes('inputMode="numeric"'), 'Code input must use numeric keyboard on mobile');
       assert.ok(html.includes('Inbox'), 'Must include Inbox guidance');
       assert.ok(html.includes('Spam / Junk'), 'Must include Spam/Junk guidance');
       assert.ok(html.includes('founder@shoepos.com'), 'Must display target confirmation email');
@@ -476,9 +525,9 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.equal(
         verifySrc.includes('res.verificationToken') || verifySrc.includes('setTokenInput(res.'),
         false,
-        'VerifyEmailNoticeView must never auto-fill verification tokens from resend responses'
+        'VerifyEmailNoticeView must never auto-fill verification codes from resend responses'
       );
-      assert.ok(verifySrc.includes("setTokenInput('')"), 'VerifyEmailNoticeView should clear stale input on resend so user enters emailed token manually');
+      assert.ok(verifySrc.includes("setTokenInput('')"), 'VerifyEmailNoticeView should clear stale input on resend so user enters emailed code manually');
     });
 
     it('wires independent cooldowns and Resend Reset Code panel into AuthModal and SuperAdminControlPanel', () => {

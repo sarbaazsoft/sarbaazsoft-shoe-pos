@@ -1305,21 +1305,40 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         tenant_id: tid,
         user_id: uid,
         token,
+        attempts: 0,
         expires_at: exp,
         created_at: new Date().toISOString(),
       };
       mockStore.email_verification_tokens.push(entry);
       return { rows: [entry as unknown as T], rowCount: 1 };
     }
+    if (upper.startsWith('UPDATE')) {
+      const targetId = Number(params[0] || 0);
+      let updated: any = null;
+      mockStore.email_verification_tokens = mockStore.email_verification_tokens.map((t) => {
+        if (Number(t.id) === targetId) {
+          updated = { ...t, attempts: Number(t.attempts || 0) + 1 };
+          return updated;
+        }
+        return t;
+      });
+      return { rows: updated ? [updated as unknown as T] : [], rowCount: updated ? 1 : 0 };
+    }
     if (upper.startsWith('SELECT')) {
-      const hasTokenWhere = upper.includes('WHERE') && params.length > 0;
-      const tokenParam = hasTokenWhere ? String(params[0] || '').trim().toLowerCase() : '';
-      let matches = hasTokenWhere
-        ? mockStore.email_verification_tokens.filter(
-            (t) => String(t.token).trim().toLowerCase() === tokenParam
-          )
-        : [...mockStore.email_verification_tokens];
-      if (upper.includes('ORDER BY ID DESC')) {
+      const hasWhere = upper.includes('WHERE') && params.length > 0;
+      const param0 = hasWhere ? String(params[0] || '').trim().toLowerCase() : '';
+      let matches = [...mockStore.email_verification_tokens];
+      if (hasWhere) {
+        if (upper.includes('U.EMAIL')) {
+          matches = matches.filter((t) => {
+            const u = mockStore.users.find((user) => Number(user.id) === Number(t.user_id));
+            return u && String(u.email || '').trim().toLowerCase() === param0;
+          });
+        } else {
+          matches = matches.filter((t) => String(t.token).trim().toLowerCase() === param0);
+        }
+      }
+      if (upper.includes('ORDER BY') && upper.includes('DESC')) {
         matches = matches.sort((a, b) => Number(b.id) - Number(a.id));
       }
       if (upper.includes('LIMIT 1')) {
@@ -1339,6 +1358,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
             avatar_url: u.avatar_url,
             role: u.role,
             status: u.status,
+            theme_color: u.theme_color,
             store_name: tenant.name,
             onboarding_completed: Boolean(tenant.onboarding_completed),
             subscription_status: tenant.subscription_status || 'ACTIVE',
@@ -1349,8 +1369,12 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       return { rows: matches as unknown as T[], rowCount: matches.length };
     }
     if (upper.startsWith('DELETE FROM')) {
-      const uid = Number(params[0] || 0);
-      mockStore.email_verification_tokens = mockStore.email_verification_tokens.filter((t) => Number(t.user_id) !== uid);
+      const idVal = Number(params[0] || 0);
+      if (upper.includes('WHERE ID =')) {
+        mockStore.email_verification_tokens = mockStore.email_verification_tokens.filter((t) => Number(t.id) !== idVal);
+      } else {
+        mockStore.email_verification_tokens = mockStore.email_verification_tokens.filter((t) => Number(t.user_id) !== idVal);
+      }
       return { rows: [], rowCount: 1 };
     }
     return { rows: [], rowCount: 0 };
@@ -2757,8 +2781,8 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
 
   if (upper.startsWith('INSERT INTO SALES')) {
     const cleanTenantId = Number(params[0] || 1);
-    const clientTxId = params[23] !== undefined && params[23] !== null && String(params[23]).trim() !== ''
-      ? String(params[23]).trim()
+    const clientTxId = params[20] !== undefined && params[20] !== null && String(params[20]).trim() !== ''
+      ? String(params[20]).trim()
       : null;
     if (clientTxId) {
       const dupSale = mockStore.sales.find(
@@ -2780,21 +2804,18 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       discount: Number(params[5] || 0),
       total_amount: Number(params[6] || 0),
       total_cartons: Number(params[7] || 0),
-      transport_name: String(params[8] || ''),
-      bilty_number: String(params[9] || ''),
-      booking_destination: String(params[10] || ''),
-      previous_balance: Number(params[11] || 0),
-      paid_amount: Number(params[12] || 0),
-      remaining_balance: Number(params[13] || 0),
-      payment_method: String(params[14] || 'CASH'),
-      cash_received: Number(params[15] || 0),
-      change_given: Number(params[16] || 0),
-      created_by: Number(params[17] || 1),
-      is_min_price_overridden: Boolean(params[18]),
-      overridden_by: params[19] ? Number(params[19]) : null,
-      notes: String(params[20] || ''),
-      sale_date: params[21] ? String(params[21]) : new Date().toISOString().slice(0, 10),
-      transaction_id: params[22] ? String(params[22]) : '',
+      previous_balance: Number(params[8] || 0),
+      paid_amount: Number(params[9] || 0),
+      remaining_balance: Number(params[10] || 0),
+      payment_method: String(params[11] || 'CASH'),
+      cash_received: Number(params[12] || 0),
+      change_given: Number(params[13] || 0),
+      created_by: Number(params[14] || 1),
+      is_min_price_overridden: Boolean(params[15]),
+      overridden_by: params[16] ? Number(params[16]) : null,
+      notes: String(params[17] || ''),
+      sale_date: params[18] ? String(params[18]) : new Date().toISOString().slice(0, 10),
+      transaction_id: params[19] ? String(params[19]) : '',
       client_tx_id: clientTxId,
       created_at: new Date().toISOString(),
     };

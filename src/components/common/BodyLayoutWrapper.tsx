@@ -159,7 +159,7 @@ export const BodyLayoutWrapper: React.FC<BodyLayoutWrapperProps> = ({
 
       <div
         data-layout-section="body"
-        className={`relative z-10 flex-1 flex min-w-0 min-h-0 w-full ${bodyRowClassName}`}
+        className={`relative flex-1 flex min-w-0 min-h-0 w-full ${bodyRowClassName}`}
       >
         {hasSidebar && (
           <div

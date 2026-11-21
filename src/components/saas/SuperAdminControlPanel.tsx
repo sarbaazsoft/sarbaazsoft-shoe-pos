@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Store, CheckCircle2, Power, Plus, RefreshCw, Wand2, Lock, LogOut, TrendingUp, Clock, KeyRound, Mail, AlertCircle, Eye, EyeOff, Fingerprint, ArrowRight, LayoutDashboard, Search, Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Keyboard, Calendar, Globe, Download, Upload, FileText, Trash2, BarChart3, User as UserIcon, Building2, ChevronDown, UserCog, ShieldCheck, Sliders, Settings, Sparkles, Megaphone, Send, Radio, Info, AlertTriangle, ExternalLink, Bell, BellRing, CheckCheck, SlidersHorizontal, CreditCard, Loader2 } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api';
@@ -2497,30 +2498,39 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         {renderSuperAdminSidebar(false)}
       </motion.aside>
 
-      {/* MOBILE DRAWER */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex no-print">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative w-72 max-w-[85vw] h-full max-h-screen shadow-2xl z-10 overflow-hidden rounded-none border-r border-indigo-500/20"
-            >
-              {renderSuperAdminSidebar(true)}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* MOBILE DRAWER (Portaled above sticky header) */}
+      {(() => {
+        const mobileDrawer = (
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <div className="fixed inset-0 z-[60] lg:hidden flex no-print">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
+                  onClick={() => setMobileMenuOpen(false)}
+                />
+                <motion.div
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                  className="relative w-72 max-w-[85vw] h-full max-h-screen shadow-2xl z-10 overflow-hidden rounded-none border-r border-indigo-500/20"
+                >
+                  {renderSuperAdminSidebar(true)}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        );
+
+        if (typeof document !== 'undefined' && document.body) {
+          return createPortal(mobileDrawer, document.body);
+        }
+        return mobileDrawer;
+      })()}
     </>
   );
 
@@ -2544,8 +2554,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   const superAdminHeader = (
     <header className="h-[3.6rem] bg-white/95 dark:bg-[#0D1322]/95 backdrop-blur-lg border-b border-indigo-500/20 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-2xs transition-colors">
-          {/* Left: Mobile Menu Button & Quick Filter Search Input */}
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 max-w-md">
+          {/* Left: Mobile Menu Button, Brand Logo + App Name, & Quick Filter Search Input */}
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
@@ -2553,6 +2563,31 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               aria-label="Open Navigation Drawer"
             >
               <Menu className="w-5 h-5 stroke-[2.2]" />
+            </button>
+
+            {/* Brand Logo & App Name (desktop only — shown in Sidebar drawer on small devices) */}
+            <button
+              id="superadmin-header-brand-home-btn"
+              type="button"
+              onClick={() => setActiveTab('dashboard')}
+              className="hidden lg:flex items-center gap-2.5 min-w-0 lg:w-[232px] lg:shrink-0 lg:pr-3 lg:border-r lg:border-slate-200/80 dark:lg:border-indigo-500/20 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none"
+              title="SarbaazSoft Shoe POS — SuperAdmin Dashboard"
+            >
+              <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-purple-500/30 shrink-0 shadow-xs flex items-center justify-center overflow-hidden p-1">
+                <ShoeIcon
+                  src="/admin/pwa-192x192.png"
+                  alt="SarbaazSoft Shoe POS Logo"
+                  className="w-full h-full object-contain rounded-lg"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-slate-900 dark:text-white text-sm tracking-tight leading-tight truncate block">
+                  SarbaazSoft Shoe POS
+                </span>
+                <span className="block text-[10px] text-slate-500 dark:text-indigo-200/75 font-medium truncate mt-0.5">
+                  SuperAdmin Control Plane
+                </span>
+              </div>
             </button>
 
             {/* Quick Filter Search Input (aligned with Store Header Quick Search) */}
@@ -6312,7 +6347,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       <div className="text-xs">
                         <span className="font-bold text-slate-900 dark:text-white block">Wholesale Store (B2B)</span>
                         <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                          Bulk carton packing, min order pairs, khata credit ledger &amp; transport bilty
+                          Bulk carton packing, min order pairs &amp; khata credit ledger
                         </span>
                       </div>
                     </label>

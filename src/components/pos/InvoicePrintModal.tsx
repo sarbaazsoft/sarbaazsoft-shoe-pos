@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, X, FileText, Receipt, CheckCircle, Zap, MessageCircle, Send, Copy, Smartphone, ChevronDown, ChevronUp, Package, Truck } from 'lucide-react';
+import { Printer, X, FileText, Receipt, CheckCircle, Zap, MessageCircle, Send, Copy, Smartphone, ChevronDown, ChevronUp, Package } from 'lucide-react';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { executePrintReceipt, getSavedPrinterSettings } from '../../utils/printer/printerManager.ts';
 import { buildWhatsAppInvoiceText, buildSmsInvoiceText, buildWhatsAppLink, buildSmsLink } from '../../utils/receiptText.ts';
@@ -50,8 +50,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
     sale.customer_shop_name ||
     sale.customer?.shop_name ||
     sale.customer?.shopName ||
-    sale.bilty_number ||
-    sale.transport_name ||
     (Number(sale.total_cartons) > 0)
   );
 
@@ -91,7 +89,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
   const hasCustomerPhone = customerPhone.length > 0;
   const shouldShowDigitalReceipt = !isWalkInCustomer && hasCustomerPhone;
 
-  // Wholesale Dealer & Cargo Details
+  // Wholesale Dealer Details
   const dealerShopName = String(
     sale.customer_shop_name ||
     sale.customer?.shop_name ||
@@ -115,9 +113,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
     sale.customer?.ntnNumber ||
     ''
   ).trim();
-  const transportName = String(sale.transport_name || '').trim();
-  const biltyNumber = String(sale.bilty_number || '').trim();
-  const bookingDestination = String(sale.booking_destination || '').trim();
   const items = sale.items || [];
 
   // Wholesale Calculations & Half-Carton Detection
@@ -869,36 +864,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 </div>
               </div>
 
-              {/* Wholesale Cargo / Transport Dispatch Card */}
-              {(transportName || biltyNumber || bookingDestination || totalCartons > 0) && (
-                <div className="my-3 p-3 bg-slate-50 dark:bg-slate-800/45 border border-slate-200 dark:border-slate-700/70 rounded-lg text-xs grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <div>
-                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase flex items-center gap-1">
-                      <Truck className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                      Transport / Cargo
-                    </span>
-                    <strong className="text-gray-900 dark:text-white block mt-0.5">{transportName || 'Direct Delivery'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase block">Bilty / LR #</span>
-                    <strong className="text-gray-900 dark:text-white font-mono block mt-0.5">{biltyNumber || 'N/A'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase block">Destination City</span>
-                    <strong className="text-gray-900 dark:text-white block mt-0.5">{bookingDestination || dealerCity || 'Local'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-gray-500 dark:text-slate-400 font-bold uppercase flex items-center gap-1">
-                      <Package className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                      Total Master Cartons
-                    </span>
-                    <strong className="text-indigo-700 dark:text-indigo-300 font-mono font-black text-sm block mt-0.5">
-                      {displayTotalCartons} Ctns ({totalPairsDispatched} prs)
-                    </strong>
-                  </div>
-                </div>
-              )}
-
               {/* Wholesale Items Table (Handles carton counts, pairs, and half-carton quantities cleanly) */}
               <table className="w-full mt-3 border-collapse text-xs">
                 <thead>
@@ -1332,28 +1297,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 <div><strong>Cashier / Dispatch:</strong> {sale.cashier_name || 'Counter Operator'}</div>
               </div>
             </div>
-
-            {/* Wholesale Cargo / Transport Dispatch Details */}
-            {(transportName || biltyNumber || bookingDestination || totalCartons > 0) && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', padding: '8px', backgroundColor: '#f8f8f8', border: '1px solid #ddd', marginTop: '8px', marginBottom: '8px', fontSize: '11px' }}>
-                <div>
-                  <span style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', display: 'block' }}>Transport</span>
-                  <strong>{transportName || 'Direct Delivery'}</strong>
-                </div>
-                <div>
-                  <span style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', display: 'block' }}>Bilty / LR #</span>
-                  <strong style={{ fontFamily: 'monospace' }}>{biltyNumber || 'N/A'}</strong>
-                </div>
-                <div>
-                  <span style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', display: 'block' }}>Destination City</span>
-                  <strong>{bookingDestination || dealerCity || 'Local'}</strong>
-                </div>
-                <div>
-                  <span style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', display: 'block' }}>Total Cartons</span>
-                  <strong>{displayTotalCartons} Ctns ({totalPairsDispatched} prs)</strong>
-                </div>
-              </div>
-            )}
 
             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px', color: '#000000', fontSize: '11px' }}>
               <thead>

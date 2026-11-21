@@ -14,14 +14,21 @@ import { isOwnerRole, markOwnerSessionOffline, isSuperAdminRole, markSuperAdminS
 import { disconnectOwnerSseClients, disconnectSuperAdminSseClients } from '../pushNotificationService.ts';
 import {
   checkIpRateLimit,
+  checkVerifyCodeIpRateLimit,
   enforceAndConsumeResendLimit,
   extractClientIp,
   getResendCooldownStatus,
   normalizeAuthEmail,
   normalizeAuthFlow,
   recordIpLookupAttempt,
+  recordVerifyCodeIpFailure,
   resetResendCooldown,
 } from '../services/authResendRateLimitService.ts';
+import {
+  issueEmailVerificationCode,
+  MAX_VERIFICATION_CODE_ATTEMPTS,
+  timingSafeCodeMatch,
+} from '../services/emailVerificationService.ts';
 
 const router = Router();
 
@@ -421,35 +428,120 @@ router.all('/logout', (req: Request, res: Response) => {
   return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 });
 
-// GET & POST /api/auth/verify-email - Verify email address and activate user account
+// GET & POST /api/auth/verify-email - Verify 6-digit confirmation code (or activation link) and activate user account
 router.all('/verify-email', async (req: Request, res: Response) => {
   try {
     await ensureSaasControlPlane();
     await ensureEmailVerificationSchema();
-    const token = String(req.query.token || req.body?.token || req.query.verificationToken || '').trim();
+
+    const clientIp = extractClientIp(req);
+    const ipVerifyLimit = await checkVerifyCodeIpRateLimit(clientIp);
+    if (!ipVerifyLimit.allowed) {
+      res.setHeader('Retry-After', String(ipVerifyLimit.remainingSeconds));
+      return res.status(429).json({
+        error: ipVerifyLimit.error,
+        code: ipVerifyLimit.code,
+        remainingSeconds: ipVerifyLimit.remainingSeconds,
+        blockedByIp: true,
+      });
+    }
+
+    const token = String(
+      req.body?.code ||
+      req.body?.token ||
+      req.query.code ||
+      req.query.token ||
+      req.query.verificationToken ||
+      ''
+    ).trim();
+    const submittedEmail = String(req.body?.email || req.query?.email || '').trim().toLowerCase();
+
     if (!token) {
-      return res.status(400).json({ error: 'Verification token is required.' });
+      return res.status(400).json({ error: 'Verification code is required.' });
     }
 
-    const tokenRes = await pgClient.query(
-      `SELECT evt.id, evt.user_id, evt.tenant_id, evt.expires_at,
-              u.id as user_id, u.tenant_id, u.name, u.email, u.phone, u.avatar_url, u.role, u.status, u.theme_color,
-              t.name as store_name, t.onboarding_completed, t.subscription_status
-       FROM email_verification_tokens evt
-       JOIN users u ON u.id = evt.user_id
-       LEFT JOIN tenants t ON t.id = u.tenant_id
-       WHERE LOWER(BTRIM(evt.token)) = LOWER(BTRIM($1))
-       LIMIT 1`,
-      [token]
-    );
+    let row: any = null;
 
-    if (tokenRes.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid or expired verification token.' });
-    }
+    if (submittedEmail) {
+      const scopedRes = await pgClient.query(
+        `SELECT evt.id, evt.user_id, evt.tenant_id, evt.token, COALESCE(evt.attempts, 0) as attempts, evt.expires_at,
+                u.id as user_id, u.tenant_id, u.name, u.email, u.phone, u.avatar_url, u.role, u.status, u.theme_color,
+                t.name as store_name, t.onboarding_completed, t.subscription_status
+         FROM email_verification_tokens evt
+         JOIN users u ON u.id = evt.user_id
+         LEFT JOIN tenants t ON t.id = u.tenant_id
+         WHERE LOWER(BTRIM(u.email)) = LOWER(BTRIM($1))
+         ORDER BY evt.id DESC
+         LIMIT 1`,
+        [submittedEmail]
+      );
 
-    const row: any = tokenRes.rows[0];
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ error: 'This verification token has expired. Please request a new activation link.' });
+      if (scopedRes.rows.length === 0) {
+        await recordVerifyCodeIpFailure(clientIp).catch(() => {});
+        return res.status(400).json({ error: 'Invalid or expired verification code.' });
+      }
+
+      row = scopedRes.rows[0];
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        await pgClient.query('DELETE FROM email_verification_tokens WHERE id = $1', [row.id]).catch(() => {});
+        return res.status(400).json({ error: 'This verification code has expired. Please request a new confirmation email.' });
+      }
+
+      if (!timingSafeCodeMatch(String(row.token || ''), token)) {
+        const updateRes = await pgClient
+          .query<{ attempts: number }>(
+            'UPDATE email_verification_tokens SET attempts = COALESCE(attempts, 0) + 1 WHERE id = $1 RETURNING attempts',
+            [row.id]
+          )
+          .catch(() => ({ rows: [{ attempts: Number(row.attempts || 0) + 1 }] }));
+        const nextAttempts = Number(updateRes.rows?.[0]?.attempts ?? Number(row.attempts || 0) + 1);
+        const ipFail = await recordVerifyCodeIpFailure(clientIp).catch(() => ({ allowed: true, remainingSeconds: 0 }));
+
+        if (nextAttempts >= MAX_VERIFICATION_CODE_ATTEMPTS) {
+          await pgClient.query('DELETE FROM email_verification_tokens WHERE id = $1', [row.id]).catch(() => {});
+          return res.status(429).json({
+            error: 'Too many incorrect verification attempts. For security, this code has been invalidated—please request a new confirmation email.',
+            code: 'VERIFICATION_ATTEMPTS_EXCEEDED',
+          });
+        }
+
+        if (!ipFail.allowed) {
+          res.setHeader('Retry-After', String(ipFail.remainingSeconds));
+          return res.status(429).json({
+            error: (ipFail as any).error || 'Too many failed verification attempts. Please try again later.',
+            code: (ipFail as any).code || 'IP_RATE_LIMIT_ACTIVE',
+            remainingSeconds: ipFail.remainingSeconds,
+            blockedByIp: true,
+          });
+        }
+
+        return res.status(400).json({
+          error: 'Invalid verification code. Please check the 6-digit code in your email and try again.',
+        });
+      }
+    } else {
+      const tokenRes = await pgClient.query(
+        `SELECT evt.id, evt.user_id, evt.tenant_id, evt.expires_at,
+                u.id as user_id, u.tenant_id, u.name, u.email, u.phone, u.avatar_url, u.role, u.status, u.theme_color,
+                t.name as store_name, t.onboarding_completed, t.subscription_status
+         FROM email_verification_tokens evt
+         JOIN users u ON u.id = evt.user_id
+         LEFT JOIN tenants t ON t.id = u.tenant_id
+         WHERE LOWER(BTRIM(evt.token)) = LOWER(BTRIM($1))
+         LIMIT 1`,
+        [token]
+      );
+
+      if (tokenRes.rows.length === 0) {
+        await recordVerifyCodeIpFailure(clientIp).catch(() => {});
+        return res.status(400).json({ error: 'Invalid or expired verification code.' });
+      }
+
+      row = tokenRes.rows[0];
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        await pgClient.query('DELETE FROM email_verification_tokens WHERE id = $1', [row.id]).catch(() => {});
+        return res.status(400).json({ error: 'This verification code has expired. Please request a new confirmation email.' });
+      }
     }
 
     await pgClient.query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', ['APPROVED', row.user_id]);
@@ -600,24 +692,18 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
       });
     }
 
-    // Invalidate existing tokens
-    await pgClient.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [user.id]).catch(() => {});
-
-    // Generate fresh verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    await pgClient.query(
-      'INSERT INTO email_verification_tokens (tenant_id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
-      [user.tenant_id || 1, user.id, verificationToken, expiresAt]
-    );
+    // Invalidate prior codes & issue a fresh 6-digit numeric verification code
+    const { code: verificationCode, expiresAt } = await issueEmailVerificationCode({
+      tenantId: user.tenant_id || 1,
+      userId: user.id,
+    });
 
     const requestOrigin =
       (typeof req.body?.origin === 'string' && req.body.origin.trim().startsWith('http') ? req.body.origin.trim() : '') ||
       (typeof req.headers.origin === 'string' && req.headers.origin.startsWith('http') ? req.headers.origin : '') ||
       `${req.protocol}://${req.get('host')}`;
 
-    const activationLink = `${requestOrigin.replace(/\/+$/, '')}/verify-email?token=${verificationToken}&email=${encodeURIComponent(rawEmail)}&tenantId=${user.tenant_id || 1}`;
+    const activationLink = `${requestOrigin.replace(/\/+$/, '')}/verify-email?token=${encodeURIComponent(verificationCode)}&email=${encodeURIComponent(rawEmail)}&tenantId=${user.tenant_id || 1}`;
 
     let mailResult: any;
     try {
@@ -625,7 +711,7 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
         to: rawEmail,
         userName: user.name || 'Store Owner',
         storeName: user.store_name || 'SarbaazSoft Shoe POS',
-        activationToken: verificationToken,
+        activationToken: verificationCode,
         activationLink,
         expiresAt,
       });
@@ -656,9 +742,9 @@ router.all('/resend-verification', async (req: Request, res: Response) => {
         isInCooldown: limitResult.isInCooldown,
       },
       message: mailResult.sandbox
-        ? `Resend Sandbox Mode: A confirmation email was sent via sandbox to ${mailResult.sandboxRecipient || 'the configured test inbox'}. Please enter the verification token from that email.`
+        ? `Resend Sandbox Mode: A 6-digit confirmation code was sent via sandbox to ${mailResult.sandboxRecipient || 'the configured test inbox'}. Please enter that 6-digit code below.`
         : mailResult.delivered
-        ? `A new confirmation email has been sent to ${rawEmail}. Please check your Inbox or Spam/Junk folder and enter the verification token from the email.`
+        ? `A new 6-digit confirmation code has been sent to ${rawEmail}. Please check your Inbox or Spam/Junk folder and enter the code below.`
         : `We could not confirm email delivery right now. Please check your mail server configuration or try again once the resend timer finishes.`,
     });
   } catch (err: any) {

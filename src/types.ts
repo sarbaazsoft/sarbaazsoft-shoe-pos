@@ -395,12 +395,6 @@ export interface Sale {
   total_amount?: number;
   totalCartons?: number;
   total_cartons?: number;
-  transportName?: string;
-  transport_name?: string;
-  biltyNumber?: string;
-  bilty_number?: string;
-  bookingDestination?: string;
-  booking_destination?: string;
   previousBalance?: number;
   previous_balance?: number;
   paidAmount?: number;

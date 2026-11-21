@@ -1967,17 +1967,15 @@ aside {
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
   }
 
-  /* 9. Card / Cart / Cargo Number (.card-no / .cart-no / .carf-no) */
+  /* 9. Card / Cart Number (.card-no / .cart-no) */
   .card-no,
-  .cart-no,
-  .carf-no {
+  .cart-no {
     background-color: #f1f5f9 !important; /* Tailwind slate-100 */
     color: #334155;
     border-color: #cbd5e1;
   }
   .dark .card-no,
-  .dark .cart-no,
-  .dark .carf-no {
+  .dark .cart-no {
     background-color: #1e293b !important; /* Tailwind dark:slate-800 */
     color: #f1f5f9;
     border-color: #334155;
