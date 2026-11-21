@@ -3,6 +3,7 @@ import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { pgClient } from './index.ts';
 import { ensureAppSettingsSchema } from '../server/services/appSettingsService.ts';
+import { resetSchemaColumnSyncState, syncMissingSchemaColumns } from './schemaSync.ts';
 
 let saasControlPlaneInitialized = false;
 let saasControlPlanePromise: Promise<void> | null = null;
@@ -31,6 +32,7 @@ export function resetSaasControlPlaneState(): void {
   emailVerificationSchemaVerified = false;
   authRateLimitSchemaVerified = false;
   fcmTokensSchemaPromise = null;
+  resetSchemaColumnSyncState();
 }
 
 /**
@@ -717,6 +719,12 @@ export async function ensureDatabaseSchema(): Promise<void> {
         await pgClient.exec(ddl);
       }
 
+      await syncMissingSchemaColumns({
+        tableDdls: DATABASE_TABLE_DDL,
+        indexDdls: DATABASE_INDEX_DDL,
+        ensureEnums: ensureDatabaseEnumsSchema,
+      });
+
       for (const idxDdl of DATABASE_INDEX_DDL) {
         await pgClient.exec(idxDdl).catch(() => {});
       }
@@ -1109,6 +1117,11 @@ export async function ensureSaasControlPlane(): Promise<void> {
         fastCheck.rows[0]?.has_core_tables &&
         parseInt(fastCheck.rows[0]?.count || '0', 10) > 0
       ) {
+        await syncMissingSchemaColumns({
+          tableDdls: DATABASE_TABLE_DDL,
+          indexDdls: DATABASE_INDEX_DDL,
+          ensureEnums: ensureDatabaseEnumsSchema,
+        });
         await ensureAppSettingsSchema();
         await syncExpiredTenantSubscriptions();
         saasControlPlaneInitialized = true;
@@ -1311,6 +1324,12 @@ export async function seedDatabaseAndAppSettings(): Promise<{
 
   if (!coreCheck || !coreCheck.rows[0]?.has_app_settings || !coreCheck.rows[0]?.has_users) {
     await ensureDatabaseSchema();
+  } else {
+    await syncMissingSchemaColumns({
+      tableDdls: DATABASE_TABLE_DDL,
+      indexDdls: DATABASE_INDEX_DDL,
+      ensureEnums: ensureDatabaseEnumsSchema,
+    });
   }
 
   const seedSqlApplied = await applySeedSql();

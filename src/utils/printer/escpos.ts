@@ -1,5 +1,6 @@
 // ESC/POS Command Generator for 80mm & 58mm Thermal Receipt Printers
 import { formatStockPrice } from '../priceFormat.ts';
+import { PLATFORM_DOCUMENT_NAME } from '../documentTitle.ts';
 
 export interface EscPosOptions {
   paperWidth?: 80 | 58 | 50; // 80mm = ~48 chars per line, 58mm = ~32 chars, 50mm = ~30 chars per line
@@ -218,6 +219,7 @@ export function generateSaleEscPos(
   builder.align('center');
   builder.textLine(footerNote);
   builder.textLine('*** PLEASE KEEP RECEIPT FOR EXCHANGES ***');
+  builder.textLine(`Powered by : ${PLATFORM_DOCUMENT_NAME}`);
 
   // Cut Paper
   if (options.autoCut !== false) {

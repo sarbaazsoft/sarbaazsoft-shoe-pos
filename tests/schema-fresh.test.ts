@@ -449,3 +449,16 @@ test('auto-seed helper only executes in non-production mode when tables do not e
   assert.ok(serverSrc.includes('status.dbReady && !status.tablesExist'));
 });
 
+test('schemaSync extracts all column definitions including customers.customer_type for live PostgreSQL column healing', async () => {
+  const { extractColumnsFromCreateTableDdl } = await import('../src/db/schemaSync.ts');
+  const customersDdl = DATABASE_TABLE_DDL.find((ddl) => /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+customers\b/i.test(ddl));
+  assert.ok(customersDdl, 'customers DDL must exist in DATABASE_TABLE_DDL');
+  const parsed = extractColumnsFromCreateTableDdl(customersDdl);
+  assert.ok(parsed);
+  assert.equal(parsed.tableName, 'customers');
+  const customerTypeCol = parsed.columns.find((c) => c.name === 'customer_type');
+  assert.ok(customerTypeCol, 'customers DDL must include customer_type column');
+  assert.match(customerTypeCol.definition, /DEFAULT\s+'RETAILER'/i);
+  assert.ok(parsed.columns.some((c) => c.name === 'ntn_number'));
+});
+

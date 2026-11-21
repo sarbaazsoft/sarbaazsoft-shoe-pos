@@ -829,19 +829,6 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
       });
     }
 
-    await pgClient.query('COMMIT');
-
-    // Non-blocking post-commit consolidated low-stock dispatch (never slows down checkout)
-    if (lowStockBatchMap.size > 0) {
-      scheduleLowStockBatchDispatch({
-        tenantId,
-        saleId,
-        invoiceNumber,
-        cashierName: user.name || 'Counter Staff',
-        items: Array.from(lowStockBatchMap.values()),
-      });
-    }
-
     const fullSale = await pgClient.query(
       `SELECT s.*, u.name as cashier_name, c.name as customer_name, c.phone as customer_phone,
               c.shop_name as customer_shop_name, c.city as customer_city, c.market_name as customer_market_name,
@@ -865,6 +852,19 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     );
 
     const csRes = await pgClient.query('SELECT * FROM company_settings WHERE COALESCE(tenant_id, 1) = $1 LIMIT 1', [tenantId]);
+
+    await pgClient.query('COMMIT');
+
+    // Non-blocking post-commit consolidated low-stock dispatch (never slows down checkout)
+    if (lowStockBatchMap.size > 0) {
+      scheduleLowStockBatchDispatch({
+        tenantId,
+        saleId,
+        invoiceNumber,
+        cashierName: user.name || 'Counter Staff',
+        items: Array.from(lowStockBatchMap.values()),
+      });
+    }
 
     // Instant Real-Time Push Notification Trigger for Store Owners/Admins
     try {

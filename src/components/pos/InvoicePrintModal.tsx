@@ -3,6 +3,7 @@ import { Printer, X, FileText, Receipt, CheckCircle, Zap, MessageCircle, Send, C
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { executePrintReceipt, getSavedPrinterSettings } from '../../utils/printer/printerManager.ts';
 import { buildWhatsAppInvoiceText, buildSmsInvoiceText, buildWhatsAppLink, buildSmsLink } from '../../utils/receiptText.ts';
+import { PLATFORM_DOCUMENT_NAME } from '../../utils/documentTitle.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
 interface InvoicePrintModalProps {
@@ -232,6 +233,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
 
   const cleanInvoiceFooter = sanitizeInvoiceFooter(rawInvoiceFooter);
   const invoiceFooter = cleanInvoiceFooter;
+  const appNameCredit = `Powered by : ${PLATFORM_DOCUMENT_NAME}`;
   const showReceiptLogo = Boolean(
     companySettings?.show_receipt_logo ?? companySettings?.showReceiptLogo ?? false
   );
@@ -777,6 +779,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               {/* Footer */}
               <div className="pt-2 text-center space-y-1">
                 {invoiceFooter && <p className="text-[8px] text-gray-600 dark:text-slate-400 italic px-1">{invoiceFooter}</p>}
+                <p
+                  data-testid="invoice-app-credit-preview-thermal"
+                  className="pt-1.5 mt-1.5 border-t border-dashed border-gray-300 dark:border-slate-700/80 text-[7.5px] font-semibold tracking-wide text-gray-500 dark:text-slate-400"
+                >
+                  {appNameCredit}
+                </p>
               </div>
             </div>
           ) : (
@@ -1120,6 +1128,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* App Name Credit */}
+              <div
+                data-testid="invoice-app-credit-preview-a4"
+                className="mt-5 pt-2.5 border-t border-dashed border-gray-200 dark:border-slate-700/70 text-center text-[10px] font-semibold tracking-wide text-gray-500 dark:text-slate-400"
+              >
+                {appNameCredit}
+              </div>
             </div>
           )}
         </div>
@@ -1252,6 +1268,20 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
 
             <div style={{ textAlign: 'center', paddingTop: '6px', color: '#000000' }}>
               {invoiceFooter && <div style={{ fontSize: '8.5px', fontStyle: 'italic', color: '#333333' }}>{invoiceFooter}</div>}
+              <div
+                data-testid="invoice-app-credit-print-thermal"
+                style={{
+                  marginTop: '5px',
+                  paddingTop: '4px',
+                  borderTop: '1px dotted #999999',
+                  fontSize: '7.5px',
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
+                  color: '#333333',
+                }}
+              >
+                {appNameCredit}
+              </div>
             </div>
           </div>
         ) : (
@@ -1484,6 +1514,22 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                   <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'bold' }}>Authorized Signature</div>
                 </div>
               </div>
+            </div>
+
+            <div
+              data-testid="invoice-app-credit-print-a4"
+              style={{
+                marginTop: '16px',
+                paddingTop: '8px',
+                borderTop: '1px dashed #cccccc',
+                textAlign: 'center',
+                fontSize: '9.5px',
+                fontWeight: 600,
+                letterSpacing: '0.03em',
+                color: '#444444',
+              }}
+            >
+              {appNameCredit}
             </div>
           </div>
         )}
