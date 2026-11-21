@@ -26,6 +26,7 @@ import {
   getJwtSecret,
   isTokenRevoked,
   requireAuth,
+  requireSuperAdmin,
   type AuthenticatedRequest,
 } from '../auth.ts';
 import {
@@ -1478,16 +1479,14 @@ router.all(['/fcm-token/remove', '/fcm-token/delete'], async (req: Request, res:
   }
 });
 
-// POST /api/notifications/test-fcm and /api/notifications/test-push - Send live FCM test push alert
-router.post(['/test-fcm', '/test-push'], async (req: Request, res: Response) => {
+// POST /api/notifications/test-fcm and /api/notifications/test-push - Send live FCM test push alert (SuperAdmin only)
+router.post(['/test-fcm', '/test-push'], requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const identity = resolveRequestIdentity(req);
-    const targetTenantId = identity.role === 'SUPERADMIN' ? 0 : identity.tenantId;
     const customTitle = req.body?.title;
     const customMessage = req.body?.message;
     const eventId = typeof req.body?.eventId === 'string' ? req.body.eventId : undefined;
 
-    const result = await testFcmPush(targetTenantId, customTitle, customMessage, eventId ? { eventId } : undefined);
+    const result = await testFcmPush(0, customTitle, customMessage, eventId ? { eventId } : undefined);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || 'Failed to trigger test FCM alert' });

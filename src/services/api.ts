@@ -1425,6 +1425,7 @@ export const api = {
         method: 'POST',
         body: { token },
       }),
+    /** SuperAdmin-only: dispatch test FCM notification to SuperAdmin devices */
     testFcm: (data?: { title?: string; message?: string; eventId?: string }) =>
       apiFetch<{
         success: boolean;
@@ -1439,6 +1440,7 @@ export const api = {
         method: 'POST',
         body: data || {},
       }),
+    /** SuperAdmin-only: dispatch test push alert to SuperAdmin devices */
     testPush: (data?: { title?: string; message?: string; eventId?: string }) =>
       apiFetch<{
         success: boolean;

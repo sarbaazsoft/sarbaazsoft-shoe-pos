@@ -182,8 +182,10 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     }
   };
 
+  const isSuperAdminUser = getActiveUserRole() === 'SUPERADMIN';
+
   const handleTestPush = async () => {
-    if (isTestingPushRef.current) return;
+    if (!isSuperAdminUser || isTestingPushRef.current) return;
     isTestingPushRef.current = true;
     setIsTestingPush(true);
     setTestResult(null);
@@ -199,13 +201,12 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
       });
 
       if (res.success) {
-        const isSuperAdmin = getActiveUserRole() === 'SUPERADMIN';
         void triggerTestNotificationShadeFallback({
           eventId: res.eventId || eventId,
           title: testTitle,
           body: testMessage,
-          url: isSuperAdmin ? '/admin' : '/pos',
-          isAdmin: isSuperAdmin,
+          url: '/admin',
+          isAdmin: true,
           fcmSentCount: res.fcmSentCount,
         });
       }
@@ -584,16 +585,18 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleTestPush}
-            disabled={isTestingPush || !isBackendConfigured}
-            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-xs"
-            title={!isBackendConfigured ? 'Save Firebase credentials first to enable test push' : 'Send test FCM push notification'}
-          >
-            <Send className={`w-3.5 h-3.5 ${isTestingPush ? 'animate-spin' : ''}`} />
-            <span>{isTestingPush ? 'Dispatching...' : 'Test Push Alert (FCM)'}</span>
-          </button>
+          {isSuperAdminUser && (
+            <button
+              type="button"
+              onClick={handleTestPush}
+              disabled={isTestingPush || !isBackendConfigured}
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-xs"
+              title={!isBackendConfigured ? 'Save Firebase credentials first to enable test push' : 'Send test FCM push notification'}
+            >
+              <Send className={`w-3.5 h-3.5 ${isTestingPush ? 'animate-spin' : ''}`} />
+              <span>{isTestingPush ? 'Dispatching...' : 'Test Push Alert (FCM)'}</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
