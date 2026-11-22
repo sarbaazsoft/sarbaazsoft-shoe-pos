@@ -59,28 +59,8 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
     [isOpen]
   );
 
-  // Dark mode resolution: supports propTheme, global ThemeContext, localStorage, and DOM
-  const [internalTheme, setInternalTheme] = useState<'light' | 'dark'>(() => {
-    if (propTheme) return propTheme;
-    if (globalTheme?.theme) return globalTheme.theme;
-    try {
-      const landing = localStorage.getItem('pos_landing_theme');
-      if (landing === 'light' || landing === 'dark') return landing;
-      const app = localStorage.getItem('pos_theme');
-      if (app === 'light' || app === 'dark') return app;
-    } catch {}
-    return 'dark';
-  });
-
-  useEffect(() => {
-    if (propTheme) {
-      setInternalTheme(propTheme);
-    } else if (globalTheme?.theme) {
-      setInternalTheme(globalTheme.theme);
-    }
-  }, [propTheme, globalTheme?.theme]);
-
-  const isDark = internalTheme === 'dark';
+  // Dark mode resolution: supports propTheme and unified ThemeContext
+  const isDark = (propTheme ?? globalTheme?.theme ?? 'light') === 'dark';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

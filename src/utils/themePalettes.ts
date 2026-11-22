@@ -1061,6 +1061,94 @@ export function getStoredGuestThemePreferences(): ThemePreferencesSnapshot {
   }
 }
 
+export const LAST_AUTH_USER_ID_STORAGE_KEY = 'pos_last_auth_user_id';
+export const LOGGED_OUT_THEME_OVERRIDE_STORAGE_KEY = 'pos_theme_logged_out_override';
+
+export function getLastAuthUserId(): number | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage?.getItem(LAST_AUTH_USER_ID_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setLastAuthUserId(userId: number | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (userId !== null && Number.isSafeInteger(Number(userId)) && Number(userId) > 0) {
+      window.localStorage?.setItem(LAST_AUTH_USER_ID_STORAGE_KEY, String(Number(userId)));
+    } else {
+      window.localStorage?.removeItem(LAST_AUTH_USER_ID_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function getLoggedOutThemeOverride(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage?.getItem(LOGGED_OUT_THEME_OVERRIDE_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setLoggedOutThemeOverride(flag: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (flag) {
+      window.localStorage?.setItem(LOGGED_OUT_THEME_OVERRIDE_STORAGE_KEY, '1');
+    } else {
+      window.localStorage?.removeItem(LOGGED_OUT_THEME_OVERRIDE_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function getStoredActiveThemePreferences(): ThemePreferencesSnapshot {
+  const fallback: ThemePreferencesSnapshot = {
+    themeMode: 'light',
+    accentTheme: DEFAULT_ACCENT_THEME,
+    customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+    backdropStyle: DEFAULT_BACKDROP_STYLE,
+    backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+  };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const modeRaw =
+      window.localStorage?.getItem(THEME_MODE_STORAGE_KEY) ??
+      window.localStorage?.getItem(GUEST_THEME_MODE_STORAGE_KEY);
+    const accentRaw =
+      window.localStorage?.getItem(ACCENT_THEME_STORAGE_KEY) ??
+      window.localStorage?.getItem(GUEST_ACCENT_THEME_STORAGE_KEY);
+    const hexRaw =
+      window.localStorage?.getItem(CUSTOM_ACCENT_HEX_STORAGE_KEY) ??
+      window.localStorage?.getItem(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY);
+    const backdropStyleRaw =
+      window.localStorage?.getItem(BACKDROP_STYLE_STORAGE_KEY) ??
+      window.localStorage?.getItem(GUEST_BACKDROP_STYLE_STORAGE_KEY);
+    const backdropDarknessRaw =
+      window.localStorage?.getItem(BACKDROP_DARKNESS_STORAGE_KEY) ??
+      window.localStorage?.getItem(GUEST_BACKDROP_DARKNESS_STORAGE_KEY);
+
+    return {
+      themeMode: normalizeThemeMode(modeRaw, 'light'),
+      accentTheme: normalizeAccentThemeId(accentRaw) ?? DEFAULT_ACCENT_THEME,
+      customAccentHex: normalizeHexColor(hexRaw, DEFAULT_CUSTOM_ACCENT_HEX),
+      backdropStyle: normalizeBackdropStyle(backdropStyleRaw, DEFAULT_BACKDROP_STYLE),
+      backdropDarkness: normalizeBackdropDarkness(backdropDarknessRaw, DEFAULT_BACKDROP_DARKNESS),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export function persistGuestThemePreferences(prefs: ThemePreferencesSnapshot): void {
   if (typeof window === 'undefined') return;
   try {
@@ -1074,7 +1162,7 @@ export function persistGuestThemePreferences(prefs: ThemePreferencesSnapshot): v
     window.localStorage?.setItem(GUEST_CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
     window.localStorage?.setItem(GUEST_BACKDROP_STYLE_STORAGE_KEY, backdropStyle);
     window.localStorage?.setItem(GUEST_BACKDROP_DARKNESS_STORAGE_KEY, String(backdropDarkness));
-    // Keep pre-hydration keys in sync for guest reload without flash
+    // Keep pre-hydration & active independent keys in sync without flash
     window.localStorage?.setItem(THEME_MODE_STORAGE_KEY, mode);
     window.localStorage?.setItem(ACCENT_THEME_STORAGE_KEY, accent);
     window.localStorage?.setItem(CUSTOM_ACCENT_HEX_STORAGE_KEY, hex);
@@ -1083,6 +1171,10 @@ export function persistGuestThemePreferences(prefs: ThemePreferencesSnapshot): v
   } catch {
     // ignore storage errors
   }
+}
+
+export function persistIndependentThemePreferences(prefs: ThemePreferencesSnapshot): void {
+  persistGuestThemePreferences(prefs);
 }
 
 export function persistActiveHydrationMirror(prefs: ThemePreferencesSnapshot): void {
@@ -1102,3 +1194,112 @@ export function persistActiveHydrationMirror(prefs: ThemePreferencesSnapshot): v
     // ignore storage errors
   }
 }
+
+export interface ResolveAuthThemeTransitionInput {
+  user: { id?: unknown; themeColor?: unknown; theme_color?: unknown } | null;
+  currentCommitted: ThemePreferencesSnapshot;
+  lastAuthUserId: number | null;
+  loggedOutOverride: boolean;
+  readUserCache: (userId: number) => string | null;
+  defaultSnapshot?: ThemePreferencesSnapshot;
+}
+
+export interface ResolveAuthThemeTransitionOutput {
+  activeUserId: number | null;
+  nextPrefs: ThemePreferencesSnapshot;
+  nextLastAuthUserId: number | null;
+  nextLoggedOutOverride: boolean;
+  shouldPersistUserCache: boolean;
+  shouldSyncCurrentToDb: boolean;
+}
+
+export function resolveAuthThemeTransition({
+  user,
+  currentCommitted,
+  lastAuthUserId,
+  loggedOutOverride,
+  readUserCache,
+  defaultSnapshot,
+}: ResolveAuthThemeTransitionInput): ResolveAuthThemeTransitionOutput {
+  const fallback: ThemePreferencesSnapshot = defaultSnapshot ?? {
+    themeMode: 'light',
+    accentTheme: DEFAULT_ACCENT_THEME,
+    customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+    backdropStyle: DEFAULT_BACKDROP_STYLE,
+    backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+  };
+
+  if (!user || !user.id) {
+    return {
+      activeUserId: null,
+      nextPrefs: currentCommitted,
+      nextLastAuthUserId: lastAuthUserId,
+      nextLoggedOutOverride: loggedOutOverride,
+      shouldPersistUserCache: false,
+      shouldSyncCurrentToDb: false,
+    };
+  }
+
+  const uid = Number(user.id);
+  const dbRaw = user.themeColor ?? user.theme_color;
+  const hasDbTheme = typeof dbRaw === 'string' && dbRaw.trim().length > 0;
+  const cachedRaw = readUserCache(uid);
+  const hasCachedTheme = typeof cachedRaw === 'string' && cachedRaw.trim().length > 0;
+  const isDifferentUser = lastAuthUserId !== null && lastAuthUserId !== uid;
+  const isSameUser = lastAuthUserId !== null && lastAuthUserId === uid;
+
+  if (isSameUser && loggedOutOverride) {
+    return {
+      activeUserId: uid,
+      nextPrefs: currentCommitted,
+      nextLastAuthUserId: uid,
+      nextLoggedOutOverride: false,
+      shouldPersistUserCache: true,
+      shouldSyncCurrentToDb: true,
+    };
+  }
+
+  if (hasDbTheme) {
+    return {
+      activeUserId: uid,
+      nextPrefs: parseUserThemePreference(dbRaw, fallback),
+      nextLastAuthUserId: uid,
+      nextLoggedOutOverride: false,
+      shouldPersistUserCache: true,
+      shouldSyncCurrentToDb: false,
+    };
+  }
+
+  if (hasCachedTheme) {
+    return {
+      activeUserId: uid,
+      nextPrefs: parseUserThemePreference(cachedRaw, fallback),
+      nextLastAuthUserId: uid,
+      nextLoggedOutOverride: false,
+      shouldPersistUserCache: true,
+      shouldSyncCurrentToDb: false,
+    };
+  }
+
+  if (isDifferentUser) {
+    const chosen = loggedOutOverride ? currentCommitted : { ...fallback };
+    return {
+      activeUserId: uid,
+      nextPrefs: chosen,
+      nextLastAuthUserId: uid,
+      nextLoggedOutOverride: false,
+      shouldPersistUserCache: loggedOutOverride,
+      shouldSyncCurrentToDb: false,
+    };
+  }
+
+  return {
+    activeUserId: uid,
+    nextPrefs: currentCommitted,
+    nextLastAuthUserId: uid,
+    nextLoggedOutOverride: false,
+    shouldPersistUserCache: true,
+    shouldSyncCurrentToDb: false,
+  };
+}
+

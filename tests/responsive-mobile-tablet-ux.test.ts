@@ -176,3 +176,58 @@ test('SaaS landing Navbar maintains balanced margins, shortened mobile subtitle,
   assert.ok(navbarSrc.includes('<span className="sm:hidden truncate">{compactSubtitle}</span>'));
   assert.ok(navbarSrc.includes('<span className="hidden sm:inline truncate lg:max-w-[180px] xl:max-w-none">{subtitle}</span>'));
 });
+
+test('SaaS landing mobile-only (< sm) compact top bar and full-height Store/SuperAdmin-inspired sidebar wire all anchors, CTAs, and ThemeDropdown', () => {
+  const navbarSrc = readProjectFile('src/components/saas/Navbar.tsx');
+  const landingSrc = readProjectFile('src/components/saas/SaasLandingPage.tsx');
+  const themeSrc = readProjectFile('src/components/common/ThemeDropdown.tsx');
+
+  // Mobile breakpoint gating: compact bar & sidebar are strictly sm:hidden while tablet/desktop bar stays hidden sm:block
+  assert.ok(navbarSrc.includes('<div className="sm:hidden px-3 h-14 flex items-center justify-between gap-2">'));
+  assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-toggle"'));
+  assert.ok(navbarSrc.includes('id="landing-mobile-sidebar"'));
+  assert.ok(navbarSrc.includes('className="fixed inset-0 z-[60] sm:hidden flex no-print"'));
+  assert.ok(navbarSrc.includes('<div className="hidden sm:block">'));
+  assert.ok(navbarSrc.includes('window.innerWidth >= 640'));
+
+  // Reuses Store/SuperAdmin sidebar visual shell, dynamic viewport height, and 44px touch targets
+  assert.ok(navbarSrc.includes('sidebar-showroom-shell'));
+  assert.ok(navbarSrc.includes('<ShowroomBackground contained={true} intensity="portal" scope="sidebar" />'));
+  assert.ok(navbarSrc.includes('max-h-dvh'));
+  assert.ok(navbarSrc.includes('min-h-[44px]'));
+  assert.ok(navbarSrc.includes('createPortal(drawer, document.body)'));
+
+  // Organized landing section anchors exist in Navbar sidebar AND as matching section IDs in SaasLandingPage
+  for (const [key, anchor] of [
+    ['home', 'home'],
+    ['features', 'features'],
+    ['pricing', 'pricing'],
+    ['about', 'about'],
+    ['contact', 'contact'],
+  ]) {
+    assert.ok(
+      navbarSrc.includes(`href={\`#\${item.anchor}\`}`) &&
+        navbarSrc.includes(`anchor: '${anchor}'`) &&
+        navbarSrc.includes(`key: '${key}'`),
+      `Navbar mobile sidebar should link to #${anchor}`
+    );
+    assert.ok(
+      landingSrc.includes(`id="${anchor}"`),
+      `SaasLandingPage should define section target id="${anchor}"`
+    );
+  }
+
+  // Prominent Login and Register Free Trial buttons inside mobile sidebar + quick Login on mobile top bar
+  assert.ok(navbarSrc.includes('id="landing-mobile-topbar-login-btn"'));
+  assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-trial-btn"'));
+  assert.ok(navbarSrc.includes('Register Free Trial'));
+  assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-login-btn"'));
+
+  // Reuses existing ThemeDropdown opening upward inside mobile sidebar with visible label on mobile
+  assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-theme-dropdown"'));
+  assert.ok(navbarSrc.includes('dropdownDirection="up"'));
+  assert.ok(navbarSrc.includes('alwaysShowLabel={true}'));
+  assert.ok(themeSrc.includes("dropdownDirection = 'down'"));
+  assert.ok(themeSrc.includes("isUpward ? 'bottom-full mb-2' : 'top-full mt-2'"));
+});
+

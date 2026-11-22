@@ -8,8 +8,12 @@ export interface ThemeDropdownProps {
   id?: string;
   className?: string;
   triggerClassName?: string | ((open: boolean) => string);
+  menuClassName?: string;
   dropdownAlign?: 'left' | 'right';
+  dropdownDirection?: 'down' | 'up';
   showLabel?: boolean;
+  alwaysShowLabel?: boolean;
+  fullWidth?: boolean;
   isOpen?: boolean;
   font?: 'courgette' | 'roboto' | 'sans';
   onOpenChange?: (open: boolean) => void;
@@ -27,8 +31,12 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
   id = 'global-theme-dropdown-trigger',
   className = '',
   triggerClassName,
+  menuClassName = '',
   dropdownAlign = 'right',
+  dropdownDirection = 'down',
   showLabel = true,
+  alwaysShowLabel = false,
+  fullWidth = false,
   isOpen: controlledIsOpen,
   font,
   onOpenChange,
@@ -149,11 +157,13 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
     { mode: 'system', label: 'System', hint: theme === 'dark' ? 'Dark' : 'Light' },
   ];
 
+  const isUpward = dropdownDirection === 'up';
+
   return (
     <div
       ref={dropdownRef}
       style={courgetteStyle}
-      className={`relative inline-flex items-center ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${className}`}
+      className={`relative ${fullWidth ? 'flex w-full' : 'inline-flex'} items-center ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${className}`}
     >
       <button
         id={id}
@@ -195,7 +205,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
         {showLabel && (
           <span
             style={courgetteStyle}
-            className={`hidden sm:inline-block capitalize ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
+            className={`${alwaysShowLabel ? 'inline-block' : 'hidden sm:inline-block'} capitalize ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''} ${
               triggerClassName
                 ? ''
                 : `text-xs font-semibold ${open ? 'text-white' : 'text-slate-700 dark:text-purple-200'}`
@@ -215,17 +225,21 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
       <AnimatePresence>
         {open && (
           <motion.ul
-            initial={{ opacity: 0, scale: 0.95, y: -6 }}
+            initial={{ opacity: 0, scale: 0.95, y: isUpward ? 6 : -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            exit={{ opacity: 0, scale: 0.95, y: isUpward ? 6 : -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              transformOrigin: dropdownAlign === 'right' ? 'top right' : 'top left',
+              transformOrigin: `${isUpward ? 'bottom' : 'top'} ${dropdownAlign === 'right' ? 'right' : 'left'}`,
               ...(courgetteStyle || {}),
             }}
             className={`absolute ${
               dropdownAlign === 'right' ? 'right-0 left-auto' : 'left-0 right-auto'
-            } top-full mt-2 w-[min(17.5rem,calc(100vw-2rem))] sm:w-72 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white/95 dark:bg-[var(--brand-dark-surface,#120726)]/95 border border-slate-200/90 dark:border-purple-400/35 rounded-2xl shadow-xl shadow-slate-900/10 dark:shadow-[0_14px_34px_rgba(var(--primary-rgb,147,51,234),0.28)] p-2.5 z-50 backdrop-blur-xl list-none space-y-2.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+            } ${
+              isUpward ? 'bottom-full mb-2' : 'top-full mt-2'
+            } ${
+              menuClassName || 'w-[min(17.5rem,calc(100vw-2rem))] sm:w-72 max-w-[calc(100vw-2rem)]'
+            } max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-white/95 dark:bg-[var(--brand-dark-surface,#120726)]/95 border border-slate-200/90 dark:border-purple-400/35 rounded-2xl shadow-xl shadow-slate-900/10 dark:shadow-[0_14px_34px_rgba(var(--primary-rgb,147,51,234),0.28)] p-2.5 z-50 backdrop-blur-xl list-none space-y-2.5 ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
             role="menu"
             aria-orientation="vertical"
           >

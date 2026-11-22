@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { LogIn, ArrowRight, ChevronRight, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  LogIn,
+  ArrowRight,
+  ChevronRight,
+  Sparkles,
+  Sun,
+  Moon,
+  Monitor,
+  Home,
+  Tag,
+  Info,
+  Mail,
+  X,
+  Menu,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoeIcon, TinyShoeIcon } from '../common/ShoeIcon.tsx';
+import { ShowroomBackground } from '../common/ShowroomBackground.tsx';
 import { ThemeDropdown } from '../common/ThemeDropdown.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
+import { APP_VERSION } from '../../version.ts';
 
 export interface NavItem {
   key: string;
@@ -32,6 +49,34 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { key: 'pricing', label: 'Pricing', section: 'pricing' },
   { key: 'stores', label: 'Stores', section: 'stores' },
   { key: 'about', label: 'About', section: 'about' },
+];
+
+interface MobileSidebarSection {
+  header: string;
+  items: Array<{
+    key: 'home' | 'features' | 'pricing' | 'about' | 'contact';
+    label: string;
+    anchor: string;
+    icon: React.ElementType;
+  }>;
+}
+
+const MOBILE_SIDEBAR_SECTIONS: MobileSidebarSection[] = [
+  {
+    header: 'EXPLORE',
+    items: [
+      { key: 'home', label: 'Home', anchor: 'home', icon: Home },
+      { key: 'features', label: 'Features', anchor: 'features', icon: Sparkles },
+      { key: 'pricing', label: 'Pricing', anchor: 'pricing', icon: Tag },
+    ],
+  },
+  {
+    header: 'COMPANY',
+    items: [
+      { key: 'about', label: 'About', anchor: 'about', icon: Info },
+      { key: 'contact', label: 'Contact', anchor: 'contact', icon: Mail },
+    ],
+  },
 ];
 
 function resolveMobileSubtitle(fullSubtitle: string, explicitMobileSubtitle?: string): string {
@@ -73,48 +118,372 @@ export const Navbar: React.FC<NavbarProps> = ({
   landingTheme,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { theme, themeMode, setThemeMode, accentPalette } = useTheme();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { theme, themeMode, setThemeMode, accentPalette, backdropStyle } = useTheme();
   const compactSubtitle = resolveMobileSubtitle(subtitle, mobileSubtitle);
 
-  // Determine effective theme mode (light vs dark)
+  // Determine effective theme mode (light vs dark) and backdrop mode
   const isDark = (landingTheme ?? theme) === 'dark';
+  const isSolidBackdrop = backdropStyle === 'solid';
+  const isSolidLight = isSolidBackdrop && !isDark;
+  const navGlassAlpha = 0.5;
+  const headerGlassAlpha = 0.5;
 
-  // Close mobile/tablet drawer on desktop breakpoint resize (>= lg)
+  // Close tablet drawer on desktop (>= lg) or mobile (< sm) resize, and close mobile sidebar on >= sm
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1024) {
+      if (window.innerWidth >= 1024 || window.innerWidth < 640) {
         setMobileMenuOpen(false);
+      }
+      if (window.innerWidth >= 640) {
+        setMobileSidebarOpen(false);
       }
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Close mobile menu on Escape key press
+  // Close active drawer/sidebar on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && mobileMenuOpen) {
-        setMobileMenuOpen(false);
+      if (e.key === 'Escape') {
+        if (mobileSidebarOpen) setMobileSidebarOpen(false);
+        if (mobileMenuOpen) setMobileMenuOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mobileMenuOpen]);
+  }, [mobileMenuOpen, mobileSidebarOpen]);
 
-  // Lock body scroll when mobile drawer is open
+  // Lock body scroll when tablet drawer or mobile sidebar is open
   useEffect(() => {
-    if (mobileMenuOpen) {
+    if (mobileMenuOpen || mobileSidebarOpen) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
       document.body.style.overflow = 'hidden';
       return () => {
         document.body.style.overflow = originalStyle;
       };
     }
-  }, [mobileMenuOpen]);
+  }, [mobileMenuOpen, mobileSidebarOpen]);
 
   const handleNavClick = (section: string, key: string) => {
     setMobileMenuOpen(false);
+    setMobileSidebarOpen(false);
     onNavigate?.(section, key);
+  };
+
+  const handleMobileSidebarAnchorClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    anchor: string,
+    key: string
+  ) => {
+    e.preventDefault();
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+    }
+    setMobileSidebarOpen(false);
+    onNavigate?.(anchor, key);
+  };
+
+  const renderMobileSidebar = () => {
+    const drawer = (
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <div
+            id="landing-mobile-sidebar"
+            className="fixed inset-0 z-[60] sm:hidden flex no-print"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile Navigation Sidebar"
+          >
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileSidebarOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs cursor-pointer"
+              aria-hidden="true"
+            />
+
+            {/* Full-Height Store & SuperAdmin-Inspired Sidebar Drawer */}
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              className="relative w-72 max-w-[85vw] h-full max-h-dvh shadow-2xl z-10 overflow-hidden rounded-none border-r border-indigo-500/20"
+            >
+              <div
+                data-backdrop-style={backdropStyle}
+                className={`sidebar-showroom-shell relative w-full h-full max-h-dvh flex flex-col select-none shadow-lg rounded-none overflow-hidden transition-colors ${
+                  isSolidLight
+                    ? 'bg-white text-slate-900 border-r border-slate-200'
+                    : isSolidBackdrop
+                    ? 'bg-[#0A0E1A] text-slate-100 border-r border-[#1A263D]'
+                    : 'bg-[#080A2A] text-slate-100 border-r border-indigo-400/25'
+                }`}
+              >
+                <ShowroomBackground contained={true} intensity="portal" scope="sidebar" />
+
+                <div className="relative z-10 flex-1 min-h-0 flex flex-col">
+                  {/* TOP: Compact Brand Header aligned with Store & SuperAdmin sidebars (h-[3.6rem]) */}
+                  <div
+                    style={
+                      !isSolidBackdrop
+                        ? { backgroundColor: `rgba(8, 10, 42, ${headerGlassAlpha})` }
+                        : undefined
+                    }
+                    className={`h-[3.6rem] flex items-center justify-between gap-2 px-3.5 shrink-0 transition-colors ${
+                      isSolidLight
+                        ? 'border-b border-slate-200 bg-white'
+                        : isSolidBackdrop
+                        ? 'border-b border-[#1A263D] bg-[#0A0E1A]'
+                        : 'border-b border-indigo-400/20 backdrop-blur-md'
+                    }`}
+                  >
+                    <a
+                      href="#home"
+                      onClick={(e) => handleMobileSidebarAnchorClick(e, 'home', 'home')}
+                      className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border shrink-0 shadow-xs flex items-center justify-center overflow-hidden ${
+                          isSolidLight ? 'border-slate-200' : 'border-indigo-400/30'
+                        }`}
+                      >
+                        <ShoeIcon
+                          src="/pwa-192x192.png"
+                          alt={`${storeName} Logo`}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`text-xs font-bold truncate tracking-tight leading-tight ${
+                            isSolidLight ? 'text-slate-900' : 'text-white'
+                          }`}
+                        >
+                          {storeName}
+                        </div>
+                        <div
+                          className={`text-[10px] font-medium truncate mt-0.5 flex items-center gap-1 ${
+                            isSolidLight ? 'text-slate-500' : 'text-indigo-200/80'
+                          }`}
+                        >
+                          <TinyShoeIcon className="w-3 h-3 shrink-0 text-purple-400" />
+                          <span className="truncate">{compactSubtitle}</span>
+                        </div>
+                      </div>
+                    </a>
+
+                    <button
+                      id="landing-mobile-sidebar-close-btn"
+                      type="button"
+                      onClick={() => setMobileSidebarOpen(false)}
+                      className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition cursor-pointer shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                        isSolidLight
+                          ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                          : 'text-slate-300 hover:text-white hover:bg-white/10'
+                      }`}
+                      aria-label="Close Mobile Navigation"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* MIDDLE: Organized Anchor Links (Home, Features, Pricing, About, Contact) */}
+                  <nav
+                    aria-label="Mobile Landing Navigation"
+                    style={
+                      !isSolidBackdrop
+                        ? { backgroundColor: `rgba(8, 10, 42, ${navGlassAlpha})` }
+                        : undefined
+                    }
+                    className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden sidebar-scrollbar py-3 px-3 space-y-4 transition-colors ${
+                      isSolidLight
+                        ? 'bg-white'
+                        : isSolidBackdrop
+                        ? 'bg-[#0A0E1A]'
+                        : 'backdrop-blur-md'
+                    }`}
+                  >
+                    {MOBILE_SIDEBAR_SECTIONS.map((section) => (
+                      <div key={section.header} className="space-y-1">
+                        <div
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 ${
+                            isSolidLight
+                              ? 'text-slate-400'
+                              : 'text-indigo-200/80 [text-shadow:0_1px_6px_rgba(5,7,27,0.9)]'
+                          }`}
+                        >
+                          {section.header}
+                        </div>
+
+                        <div className="space-y-1">
+                          {section.items.map((item) => {
+                            const ItemIcon = item.icon;
+                            const isActive = activeNav === item.key;
+
+                            return (
+                              <a
+                                key={item.key}
+                                id={`landing-mobile-nav-${item.key}`}
+                                href={`#${item.anchor}`}
+                                onClick={(e) => handleMobileSidebarAnchorClick(e, item.anchor, item.key)}
+                                aria-current={isActive ? 'page' : undefined}
+                                className={`relative w-full flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-medium cursor-pointer group transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                                  isActive
+                                    ? 'text-white font-bold'
+                                    : isSolidLight
+                                    ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                                    : 'text-slate-100 hover:text-white hover:bg-white/10 [text-shadow:0_1px_6px_rgba(5,7,27,0.85)]'
+                                }`}
+                              >
+                                {isActive && (
+                                  <motion.div
+                                    layoutId="landingMobileActiveNavPill"
+                                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 border border-purple-400/45 shadow-md shadow-purple-600/25"
+                                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                  />
+                                )}
+
+                                <div className="relative z-10 flex items-center gap-3 truncate">
+                                  <ItemIcon
+                                    className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                                      isActive
+                                        ? 'text-white'
+                                        : isSolidLight
+                                        ? 'text-slate-500 group-hover:text-slate-900 group-hover:translate-x-0.5'
+                                        : 'text-indigo-200/90 group-hover:text-white group-hover:translate-x-0.5'
+                                    }`}
+                                  />
+                                  <span className="truncate">{item.label}</span>
+                                </div>
+
+                                <ChevronRight
+                                  className={`relative z-10 w-4 h-4 shrink-0 transition-opacity ${
+                                    isActive
+                                      ? 'text-white opacity-95'
+                                      : isSolidLight
+                                      ? 'text-slate-400 opacity-70 group-hover:opacity-100'
+                                      : 'text-indigo-200/70 opacity-60 group-hover:opacity-100'
+                                  }`}
+                                />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </nav>
+
+                  {/* BOTTOM: Prominent CTAs, Theme & Color Selector, App Version */}
+                  <div
+                    style={
+                      !isSolidBackdrop
+                        ? { backgroundColor: `rgba(8, 10, 42, ${navGlassAlpha})` }
+                        : undefined
+                    }
+                    className={`mt-auto shrink-0 p-3.5 pt-3 space-y-2.5 transition-colors ${
+                      isSolidLight
+                        ? 'border-t border-slate-200 bg-slate-50/95'
+                        : isSolidBackdrop
+                        ? 'border-t border-[#1A263D] bg-[#0A0E1A]'
+                        : 'border-t border-indigo-400/20 backdrop-blur-md'
+                    }`}
+                  >
+                    {/* Register Free Trial & Login Action Buttons */}
+                    <div className="space-y-2">
+                      {onStartFreeTrial && (
+                        <button
+                          id="landing-mobile-sidebar-trial-btn"
+                          type="button"
+                          onClick={() => {
+                            if (typeof document !== 'undefined') {
+                              document.body.style.overflow = '';
+                            }
+                            setMobileSidebarOpen(false);
+                            onStartFreeTrial();
+                          }}
+                          className="w-full min-h-[44px] px-3 py-2.5 text-xs font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white border border-purple-400/40 shadow-md shadow-purple-600/30 transition-all cursor-pointer active:scale-[0.98]"
+                        >
+                          <Sparkles className="w-4 h-4 text-purple-200 shrink-0" />
+                          <span>Register Free Trial</span>
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                        </button>
+                      )}
+
+                      {onLogin && (
+                        <button
+                          id="landing-mobile-sidebar-login-btn"
+                          type="button"
+                          onClick={() => {
+                            if (typeof document !== 'undefined') {
+                              document.body.style.overflow = '';
+                            }
+                            setMobileSidebarOpen(false);
+                            onLogin();
+                          }}
+                          className={`w-full min-h-[44px] px-3 py-2.5 text-xs font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] ${
+                            isSolidLight
+                              ? 'border-indigo-400 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-600'
+                              : 'border-indigo-400/70 bg-indigo-500/15 text-indigo-100 hover:bg-indigo-500/25 hover:text-white hover:border-purple-400'
+                          }`}
+                        >
+                          <LogIn className="w-4 h-4 shrink-0" />
+                          <span>Login</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Existing Theme & Color Selection Menu (opens cleanly upward inside sidebar) */}
+                    <div className="pt-0.5">
+                      <ThemeDropdown
+                        id="landing-mobile-sidebar-theme-dropdown"
+                        dropdownAlign="left"
+                        dropdownDirection="up"
+                        showLabel={true}
+                        alwaysShowLabel={true}
+                        fullWidth={true}
+                        menuClassName="w-full min-w-0 max-w-full"
+                        triggerClassName={(open) =>
+                          `w-full min-h-[44px] flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                            open
+                              ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25'
+                              : isSolidLight
+                              ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-800'
+                              : 'bg-white/10 hover:bg-white/16 border-indigo-400/25 text-slate-100'
+                          }`
+                        }
+                      />
+                    </div>
+
+                    {/* Footer Attribution matching Store & SuperAdmin sidebars */}
+                    <div
+                      className={`px-1 pt-1.5 border-t flex items-center justify-between text-[9.5px] ${
+                        isSolidLight
+                          ? 'border-slate-200 text-slate-500'
+                          : 'border-indigo-400/20 text-slate-300/80'
+                      }`}
+                    >
+                      <span>SarbaazSoft Shoe POS</span>
+                      <span className="font-mono">{APP_VERSION}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+
+    if (typeof document !== 'undefined' && document.body) {
+      return createPortal(drawer, document.body);
+    }
+    return drawer;
   };
 
   return (
@@ -126,6 +495,75 @@ export const Navbar: React.FC<NavbarProps> = ({
       }`}
       aria-label="Main Navigation"
     >
+      {/* ========================================================
+          MOBILE-ONLY (< sm): Compact Top Bar + Store/SuperAdmin-Style Sidebar
+         ======================================================== */}
+      <div className="sm:hidden px-3 h-14 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <button
+            type="button"
+            id="landing-mobile-sidebar-toggle"
+            onClick={() => setMobileSidebarOpen(true)}
+            className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all cursor-pointer border shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+              isDark
+                ? 'bg-slate-800/80 text-slate-200 hover:text-white border-slate-700/60'
+                : 'bg-slate-100 text-slate-800 hover:text-slate-900 border-slate-200'
+            }`}
+            aria-expanded={mobileSidebarOpen}
+            aria-controls="landing-mobile-sidebar"
+            aria-label="Open navigation sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <a
+            href="#home"
+            onClick={(e) => handleMobileSidebarAnchorClick(e, 'home', 'home')}
+            className="flex items-center gap-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg py-0.5 px-0.5 cursor-pointer min-w-0 flex-1"
+            aria-label={`${storeName} Home`}
+          >
+            <div className="w-8.5 h-8.5 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden">
+              <ShoeIcon
+                src="/pwa-192x192.png"
+                alt={`${storeName} Logo`}
+                className="w-full h-full object-cover rounded-xl"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-slate-900 dark:text-white text-[13px] min-[375px]:text-sm tracking-tight leading-tight truncate block">
+                {storeName}
+              </div>
+              <div className="text-[10.5px] text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1 min-w-0 mt-0.5">
+                <TinyShoeIcon className="w-3 h-3 shrink-0 text-purple-600 dark:text-purple-400" />
+                <span className="truncate">{compactSubtitle}</span>
+              </div>
+            </div>
+          </a>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onLogin && (
+            <button
+              id="landing-mobile-topbar-login-btn"
+              type="button"
+              onClick={onLogin}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl min-h-[44px] h-11 px-3 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap border-2 shadow-xs active:scale-[0.98] ${
+                isDark
+                  ? 'border-indigo-400/70 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 hover:text-white'
+                  : 'border-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5 shrink-0" />
+              <span>Login</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================
+          TABLET & DESKTOP (>= sm): Existing Header Preserved Unchanged
+         ======================================================== */}
+      <div className="hidden sm:block">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-[3.75rem] sm:min-h-[4rem] py-2 gap-2.5 sm:gap-4">
           
@@ -521,6 +959,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </>
         )}
       </AnimatePresence>
+      </div>
+      {renderMobileSidebar()}
     </header>
   );
 };

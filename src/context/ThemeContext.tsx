@@ -23,7 +23,9 @@ import {
   type ThemePreferencesSnapshot,
   applyAccentThemeToDOM,
   applyBackdropThemeToDOM,
-  getStoredGuestThemePreferences,
+  getLastAuthUserId,
+  getLoggedOutThemeOverride,
+  getStoredActiveThemePreferences,
   getUserThemeCacheKey,
   migrateLegacyGuestThemeIfNeeded,
   normalizeAccentThemeId,
@@ -32,10 +34,12 @@ import {
   normalizeHexColor,
   normalizeThemeMode,
   parseUserThemePreference,
-  persistActiveHydrationMirror,
-  persistGuestThemePreferences,
+  persistIndependentThemePreferences,
   resolveAccentPalette,
+  resolveAuthThemeTransition,
   serializeUserThemePreference,
+  setLastAuthUserId,
+  setLoggedOutThemeOverride,
 } from '../utils/themePalettes.ts';
 import {
   type ScreenImageSlot,
@@ -170,9 +174,12 @@ function resolveInitialCommittedPreferences(): {
   userId: number | null;
   prefs: ThemePreferencesSnapshot;
 } {
+  migrateLegacyGuestThemeIfNeeded();
+  const devicePrefs = getStoredActiveThemePreferences();
   const user = readInitialAuthUser();
   if (user && user.id) {
     const uid = Number(user.id);
+    setLastAuthUserId(uid);
     const rawUserTheme = user.themeColor ?? user.theme_color;
     if (typeof rawUserTheme === 'string' && rawUserTheme.trim()) {
       return {
@@ -189,15 +196,12 @@ function resolveInitialCommittedPreferences(): {
         };
       }
     } catch {}
-    return { userId: uid, prefs: { ...defaultPrefs } };
+    return { userId: uid, prefs: devicePrefs };
   }
-
-  migrateLegacyGuestThemeIfNeeded();
-  const guestPrefs = getStoredGuestThemePreferences();
 
   return {
     userId: null,
-    prefs: guestPrefs,
+    prefs: devicePrefs,
   };
 }
 
@@ -357,7 +361,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           }
         } catch {}
-        persistActiveHydrationMirror(authoritative);
+        persistIndependentThemePreferences(authoritative);
+        setLastAuthUserId(userId);
+        setLoggedOutThemeOverride(false);
         setAppearanceSaveError(null);
         return true;
       } catch (err: any) {
@@ -371,10 +377,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   /**
-   * Direct instant setter used by the header ThemeDropdown.
-   * - For Guests: persists straight to pos_guest_* localStorage.
+   * Direct instant setter used by the header ThemeDropdown and Landing toggle.
+   * - For Guests/Public: persists straight to independent browser appearance storage.
    * - For Authenticated Users: optimistically renders, persists to users.theme_color via DB,
-   *   and syncs localStorage cache ONLY after DB confirmation (reverting on DB failure).
+   *   and syncs independent & per-user cache ONLY after DB confirmation (reverting on DB failure).
    */
   const commitQuickPreferenceChange = useCallback(
     (updater: (prev: ThemePreferencesSnapshot) => ThemePreferencesSnapshot) => {
@@ -386,7 +392,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setCommittedPreferences(nextPrefs);
 
       if (!currentUid) {
-        persistGuestThemePreferences(nextPrefs);
+        persistIndependentThemePreferences(nextPrefs);
+        setLoggedOutThemeOverride(true);
         return;
       }
 
@@ -561,10 +568,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
               }
             } catch {}
-            persistActiveHydrationMirror(savedPrefs);
+            persistIndependentThemePreferences(savedPrefs);
+            setLastAuthUserId(uid);
+            setLoggedOutThemeOverride(false);
           } else {
             setCommittedPreferences(targetPrefs);
-            persistGuestThemePreferences(targetPrefs);
+            persistIndependentThemePreferences(targetPrefs);
+            setLoggedOutThemeOverride(true);
           }
           setPreviewPreferences(null);
         } else {
@@ -625,7 +635,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               }
             } catch {}
           }
-          persistActiveHydrationMirror(savedPrefs);
+          persistIndependentThemePreferences(savedPrefs);
+          if (uid) {
+            setLastAuthUserId(uid);
+          }
+          setLoggedOutThemeOverride(false);
           setPreviewPreferences(null);
         }
 
@@ -679,10 +693,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             try {
               window.localStorage?.setItem(getUserThemeCacheKey(uid), serializeUserThemePreference(resetTarget));
             } catch {}
-            persistActiveHydrationMirror(resetTarget);
+            persistIndependentThemePreferences(resetTarget);
+            setLastAuthUserId(uid);
+            setLoggedOutThemeOverride(false);
           } else {
             setCommittedPreferences(resetTarget);
-            persistGuestThemePreferences(resetTarget);
+            persistIndependentThemePreferences(resetTarget);
+            setLoggedOutThemeOverride(true);
           }
           setPreviewPreferences(null);
         } catch (err: any) {
@@ -699,43 +716,63 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [updatePreview]
   );
 
-  // Sync database preferences strictly on login / session refresh / account switch
+  // Sync user preferences on login / session refresh / account switch without losing independent prefs
   const syncUserThemeFromAuth = useCallback((user: any | null) => {
     requestEpochRef.current += 1;
     setAppearanceSaveError(null);
     setPreviewPreferences(null);
 
-    if (!user || !user.id) {
-      setActiveUserId(null);
-      const guestPrefs = getStoredGuestThemePreferences();
-      setCommittedPreferences(guestPrefs);
-      persistActiveHydrationMirror(guestPrefs);
-      return;
+    const transition = resolveAuthThemeTransition({
+      user,
+      currentCommitted: committedPrefsRef.current,
+      lastAuthUserId: getLastAuthUserId(),
+      loggedOutOverride: getLoggedOutThemeOverride(),
+      readUserCache: (uid) => {
+        try {
+          return window.localStorage?.getItem(getUserThemeCacheKey(uid)) ?? null;
+        } catch {
+          return null;
+        }
+      },
+      defaultSnapshot: defaultPrefs,
+    });
+
+    setActiveUserId(transition.activeUserId);
+    setCommittedPreferences(transition.nextPrefs);
+    persistIndependentThemePreferences(transition.nextPrefs);
+    setLastAuthUserId(transition.nextLastAuthUserId);
+    setLoggedOutThemeOverride(transition.nextLoggedOutOverride);
+
+    if (transition.activeUserId !== null) {
+      const uid = transition.activeUserId;
+      const serialized = serializeUserThemePreference(transition.nextPrefs);
+      if (transition.shouldPersistUserCache) {
+        try {
+          window.localStorage?.setItem(getUserThemeCacheKey(uid), serialized);
+          const rawStoredUser = window.localStorage?.getItem('pos_current_user');
+          if (rawStoredUser) {
+            const parsedUser = JSON.parse(rawStoredUser);
+            if (Number(parsedUser?.id) === uid) {
+              parsedUser.themeColor = serialized;
+              window.localStorage?.setItem('pos_current_user', JSON.stringify(parsedUser));
+            }
+          }
+        } catch {}
+      }
+      if (transition.shouldSyncCurrentToDb) {
+        try {
+          const token =
+            window.localStorage?.getItem('pos_auth_token') ||
+            window.localStorage?.getItem('shoe_pos_jwt_token');
+          if (token) {
+            void api.auth.saveTheme(serialized).catch(() => {});
+          }
+        } catch {}
+      }
     }
-
-    const uid = Number(user.id);
-    setActiveUserId(uid);
-
-    const dbRaw = user.themeColor ?? user.theme_color;
-    let resolvedPrefs: ThemePreferencesSnapshot;
-    if (typeof dbRaw === 'string' && dbRaw.trim()) {
-      resolvedPrefs = parseUserThemePreference(dbRaw, defaultPrefs);
-      try {
-        window.localStorage?.setItem(getUserThemeCacheKey(uid), serializeUserThemePreference(resolvedPrefs));
-      } catch {}
-    } else {
-      // Fresh DB user with empty theme_color starts cleanly with app defaults (never inheriting previous user/guest)
-      resolvedPrefs = { ...defaultPrefs };
-      try {
-        window.localStorage?.removeItem(getUserThemeCacheKey(uid));
-      } catch {}
-    }
-
-    setCommittedPreferences(resolvedPrefs);
-    persistActiveHydrationMirror(resolvedPrefs);
   }, []);
 
-  // Restore independent guest preferences immediately on logout
+  // Preserve current appearance preferences independently on logout / session cleanup
   const restoreGuestThemeOnLogout = useCallback(() => {
     requestEpochRef.current += 1;
     setActiveUserId(null);
@@ -743,9 +780,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPreviewBackdropImage(null);
     setAppearanceSaveError(null);
 
-    const guestPrefs = getStoredGuestThemePreferences();
-    setCommittedPreferences(guestPrefs);
-    persistActiveHydrationMirror(guestPrefs);
+    const preservedPrefs = committedPrefsRef.current;
+    setCommittedPreferences(preservedPrefs);
+    persistIndependentThemePreferences(preservedPrefs);
+    setLoggedOutThemeOverride(false);
   }, []);
 
   const refreshScreenImages = useCallback(async () => {

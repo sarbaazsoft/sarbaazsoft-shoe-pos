@@ -30,10 +30,13 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/admin/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Prevent flash during bootstrap with solid white background -->
+    <!-- Prevent flash during bootstrap with solid white/dark background -->
     <style>
       html, body {
         background-color: #FFFFFF;
+      }
+      html.dark, html.dark body {
+        background-color: #0A0E1A;
       }
     </style>
 
@@ -41,7 +44,7 @@
     <script>
       (function () {
         try {
-          const stored = localStorage.getItem('pos_theme');
+          const stored = localStorage.getItem('pos_theme') || localStorage.getItem('pos_guest_theme');
           let isDark = false;
           if (stored === 'dark') {
             isDark = true;
@@ -89,12 +92,12 @@
             slate: 'indigo',
             stone: 'indigo'
           };
-          const rawStoredAccent = localStorage.getItem('pos_accent_theme');
+          const rawStoredAccent = localStorage.getItem('pos_accent_theme') || localStorage.getItem('pos_guest_accent_theme');
           const mappedAccent = rawStoredAccent && accentAliases[rawStoredAccent] ? accentAliases[rawStoredAccent] : rawStoredAccent;
           let activeAccent = 'purple';
           let activeHex = accentMetaColors.purple;
           if (mappedAccent === 'custom') {
-            const storedCustomHex = localStorage.getItem('pos_custom_accent_hex');
+            const storedCustomHex = localStorage.getItem('pos_custom_accent_hex') || localStorage.getItem('pos_guest_custom_accent_hex');
             if (storedCustomHex && /^#[0-9A-F]{6}$/i.test(storedCustomHex)) {
               activeAccent = 'custom';
               activeHex = storedCustomHex.toUpperCase();
@@ -108,9 +111,16 @@
           if (metaTheme) {
             metaTheme.setAttribute('content', activeHex);
           }
-          const rawBackdropStyle = localStorage.getItem('pos_backdrop_style');
+          const rawBackdropStyle = localStorage.getItem('pos_backdrop_style') || localStorage.getItem('pos_guest_backdrop_style');
           const backdropStyle = rawBackdropStyle === 'showroom' ? 'showroom' : 'solid';
-          const rawDarkness = Number(localStorage.getItem('pos_backdrop_darkness'));
+          const rawDarknessPrimary = localStorage.getItem('pos_backdrop_darkness');
+          const rawDarknessFallback = localStorage.getItem('pos_guest_backdrop_darkness');
+          const rawDarknessStr = rawDarknessPrimary !== null && rawDarknessPrimary.trim() !== ''
+            ? rawDarknessPrimary
+            : rawDarknessFallback;
+          const rawDarkness = rawDarknessStr !== null && rawDarknessStr.trim() !== ''
+            ? Number(rawDarknessStr)
+            : NaN;
           const backdropDarkness = Number.isFinite(rawDarkness)
             ? Math.max(0, Math.min(100, Math.round(rawDarkness)))
             : 55;

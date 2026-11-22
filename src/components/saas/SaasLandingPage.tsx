@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, WifiOff, Layers, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight, Bell, Smartphone } from 'lucide-react';
+import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, WifiOff, Layers, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight, Bell, Smartphone, Mail, Phone } from 'lucide-react';
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
 import { api } from '../../services/api';
 import { useSaasDirectoryQuery } from '../../hooks/useLiveData';
@@ -491,7 +491,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   onSelectStore,
   layoutMeta: layoutMetaOverride,
 }) => {
-  const [activeNav, setActiveNav] = useState<'home' | 'features' | 'stores' | 'pricing' | 'about'>('home');
+  const [activeNav, setActiveNav] = useState<'home' | 'features' | 'stores' | 'pricing' | 'about' | 'contact'>('home');
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
   const [platformOwnerEmail, setPlatformOwnerEmail] = useState<string>('');
@@ -509,17 +509,8 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     setCtaBackdropFailed(false);
   }, [effectiveBackdropImage]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('pos_landing_theme', theme);
-    } catch {}
-  }, [theme]);
-
   const toggleLandingTheme = () => {
     const nextMode = theme === 'dark' ? 'light' : 'dark';
-    try {
-      localStorage.setItem('pos_landing_theme', nextMode);
-    } catch {}
     try {
       setThemeMode(nextMode);
     } catch {}
@@ -673,25 +664,75 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   };
 
 
-  const scrollToSection = (id: string, navKey: 'home' | 'features' | 'stores' | 'pricing' | 'about') => {
+  const scrollToSection = (id: string, navKey: 'home' | 'features' | 'stores' | 'pricing' | 'about' | 'contact') => {
     setActiveNav(navKey);
+    const cleanId = id.replace(/^#/, '');
     const searchParams = new URLSearchParams(window.location.search);
     const currentTid = searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId;
-    const hash = id === 'top' ? '' : `#${id}`;
+    const isTopTarget = cleanId === 'top' || cleanId === 'home';
+    const hash = isTopTarget ? '' : `#${cleanId}`;
     if (currentTid) {
       window.history.replaceState({}, '', `/?tenantId=${encodeURIComponent(currentTid)}${hash}`);
     } else if (hash) {
       window.history.replaceState({}, '', `/${hash}`);
+    } else {
+      window.history.replaceState({}, '', '/');
     }
-    if (id === 'top') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+
+    const executeScroll = () => {
+      if (isTopTarget) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const el = document.getElementById(cleanId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => executeScroll());
+    } else {
+      executeScroll();
     }
   };
+
+  // Track visible landing section smoothly for desktop underline and mobile sidebar active pill
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const trackedSections: Array<{ id: string; key: 'home' | 'features' | 'stores' | 'pricing' | 'about' | 'contact' }> = [
+      { id: 'home', key: 'home' },
+      { id: 'features', key: 'features' },
+      { id: 'stores', key: 'stores' },
+      { id: 'pricing', key: 'pricing' },
+      { id: 'about', key: 'about' },
+      { id: 'contact', key: 'contact' },
+    ];
+
+    const handleScroll = () => {
+      if (window.scrollY < 100) {
+        setActiveNav('home');
+        return;
+      }
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;
+      if (nearBottom) {
+        setActiveNav('contact');
+        return;
+      }
+      let currentKey: 'home' | 'features' | 'stores' | 'pricing' | 'about' | 'contact' = 'home';
+      for (const item of trackedSections) {
+        const el = document.getElementById(item.id);
+        if (el && el.getBoundingClientRect().top <= 160) {
+          currentKey = item.key;
+        }
+      }
+      setActiveNav(currentKey);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const featureItems = [
     {
@@ -876,9 +917,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         ) : null
       }
       footer={
-        <footer id="global-public-footer" className="border-t border-white/10 lt:border-slate-200 bg-[#080A2A] lt:bg-[#F1F3FF] px-4 sm:px-8 py-3.5 text-xs text-slate-300 lt:text-slate-600">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
-            <div className="flex items-center gap-2 justify-center sm:justify-start">
+        <footer id="global-public-footer" className="border-t border-white/10 lt:border-slate-200 bg-[#080A2A] lt:bg-[#F1F3FF] px-4 sm:px-8 py-4 text-xs text-slate-300 lt:text-slate-600">
+          <div id="contact" className="scroll-mt-16 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4 text-center sm:text-left">
+            <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
               <strong
                 id="sarbaazsoft-credit-text"
                 className="font-bold text-white lt:text-slate-900 tracking-wide"
@@ -888,6 +929,37 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
               <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-white/10 lt:bg-slate-200 text-indigo-300 lt:text-indigo-700 border border-white/10 lt:border-slate-300">
                 {APP_VERSION}
               </span>
+              {(platformOwnerEmail || platformOwnerPhone) ? (
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-[11px] text-slate-300 lt:text-slate-600 sm:ml-2 sm:pl-3 sm:border-l sm:border-white/15 lt:sm:border-slate-300">
+                  {platformOwnerEmail && (
+                    <a
+                      href={`mailto:${platformOwnerEmail}`}
+                      className="inline-flex items-center gap-1 hover:text-white lt:hover:text-slate-900 transition-colors underline-offset-2 hover:underline"
+                    >
+                      <Mail className="w-3 h-3 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
+                      <span>{platformOwnerEmail}</span>
+                    </a>
+                  )}
+                  {platformOwnerPhone && (
+                    <a
+                      href={`tel:${platformOwnerPhone.replace(/\s+/g, '')}`}
+                      className="inline-flex items-center gap-1 hover:text-white lt:hover:text-slate-900 transition-colors underline-offset-2 hover:underline"
+                    >
+                      <Phone className="w-3 h-3 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
+                      <span>{platformOwnerPhone}</span>
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openGetStartedWithPlan('TRIAL')}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-300 lt:text-indigo-700 hover:text-white lt:hover:text-slate-900 sm:ml-2 sm:pl-3 sm:border-l sm:border-white/15 lt:sm:border-slate-300 transition-colors cursor-pointer"
+                >
+                  <Mail className="w-3 h-3 shrink-0" aria-hidden="true" />
+                  <span>Contact Support</span>
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 lt:text-slate-500">
               <span>&copy; {new Date().getFullYear()} SarbaazSoft Shoe POS. All rights reserved.</span>
@@ -907,7 +979,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     >
 
       {/* 2. HERO */}
-      <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0B0C38_0%,#080A2C_60%,#070A24_100%)] lt:bg-[linear-gradient(180deg,#EEF0FF_0%,#F7F8FF_100%)]">
+      <section id="home" className="relative overflow-hidden scroll-mt-14 sm:scroll-mt-16 bg-[linear-gradient(180deg,#0B0C38_0%,#080A2C_60%,#070A24_100%)] lt:bg-[linear-gradient(180deg,#EEF0FF_0%,#F7F8FF_100%)]">
         <div className="pointer-events-none absolute -top-24 right-[-6%] h-[460px] w-[460px] rounded-full bg-[radial-gradient(circle,rgba(var(--primary-rgb,147,51,234),0.5),rgba(var(--brand-companion-rgb,79,70,229),0.1)_60%,transparent_70%)] lt:opacity-40 blur-2xl" aria-hidden="true" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16 sm:pt-10 sm:pb-20 lg:pt-14 lg:pb-28">
           <div className="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-12 sm:gap-14 lg:gap-6 items-center">
@@ -968,7 +1040,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 3. FEATURES & OPERATIONAL BENEFITS */}
-      <section id="features" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
+      <section id="features" className="scroll-mt-14 sm:scroll-mt-16 bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           <div className="lg:col-span-5">
             <div
@@ -1085,7 +1157,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 4. TRUST + STATS */}
-      <section id="stores" ref={statsSectionRef} className="bg-gradient-to-b from-[#0B0D38] lt:from-[#EEF0FF] to-[#080A2A] lt:to-[#F7F8FF] py-12 sm:py-16 lg:py-20">
+      <section id="stores" ref={statsSectionRef} className="scroll-mt-14 sm:scroll-mt-16 bg-gradient-to-b from-[#0B0D38] lt:from-[#EEF0FF] to-[#080A2A] lt:to-[#F7F8FF] py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="flex flex-col items-center">
             <div
@@ -1230,7 +1302,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       </section>
 
       {/* 5. PRICING */}
-      <section id="pricing" className="bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
+      <section id="pricing" className="scroll-mt-14 sm:scroll-mt-16 bg-[#080A2A] lt:bg-[#F1F3FF] py-12 sm:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div
@@ -1296,7 +1368,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       {/* 6. ABOUT / CTA BANNER */}
       <section
         id="about"
-        className="relative overflow-hidden border-y border-indigo-400/20 lt:border-indigo-300/60 bg-[#080A2A] py-10 sm:py-12"
+        className="relative overflow-hidden scroll-mt-14 sm:scroll-mt-16 border-y border-indigo-400/20 lt:border-indigo-300/60 bg-[#080A2A] py-10 sm:py-12"
       >
         {/* Full-width darkened showroom background */}
         <div className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">

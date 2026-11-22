@@ -21,10 +21,16 @@ import {
   ACCENT_THEME_STORAGE_KEY,
   BACKDROP_DARKNESS_STORAGE_KEY,
   BACKDROP_STYLE_STORAGE_KEY,
+  CUSTOM_ACCENT_HEX_STORAGE_KEY,
+  LAST_AUTH_USER_ID_STORAGE_KEY,
+  LOGGED_OUT_THEME_OVERRIDE_STORAGE_KEY,
   applyAccentThemeToDOM,
   applyBackdropThemeToDOM,
   buildCustomAccentPalette,
   getAccessibleTextColor,
+  getLastAuthUserId,
+  getLoggedOutThemeOverride,
+  getStoredActiveThemePreferences,
   getStoredGuestThemePreferences,
   getUserThemeCacheKey,
   getWcagContrastRatio,
@@ -36,8 +42,14 @@ import {
   parseUserThemePreference,
   persistActiveHydrationMirror,
   persistGuestThemePreferences,
+  persistIndependentThemePreferences,
+  resolveAuthThemeTransition,
   serializeUserThemePreference,
+  setLastAuthUserId,
+  setLoggedOutThemeOverride,
+  type ThemePreferencesSnapshot,
 } from '../src/utils/themePalettes.ts';
+import { clearAllSessionState } from '../src/services/api.ts';
 import {
   PREDEFINED_SCREEN_IMAGE_LIBRARY,
   UNIFIED_BACKDROP_META,
@@ -888,7 +900,204 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
     indexHtmlSrc.includes("const backdropStyle = rawBackdropStyle === 'showroom' ? 'showroom' : 'solid';"),
     'index.html pre-hydration should default sidebar backdrop style to solid'
   );
+  assert.ok(
+    indexHtmlSrc.includes("localStorage.getItem('pos_theme') || localStorage.getItem('pos_guest_theme')"),
+    'index.html pre-hydration should fall back to pos_guest_theme when pos_theme is absent'
+  );
+  assert.ok(
+    indexHtmlSrc.includes('html.dark, html.dark body'),
+    'index.html should style html.dark background to avoid reload flash'
+  );
+
+  // Unified appearance architecture without duplicate pos_landing_theme state
+  assert.ok(themeContextSrc.includes('persistIndependentThemePreferences'));
+  assert.ok(themeContextSrc.includes('resolveAuthThemeTransition'));
+  assert.ok(themeContextSrc.includes('getStoredActiveThemePreferences'));
+  assert.ok(themeContextSrc.includes('const preservedPrefs = committedPrefsRef.current;'));
+  assert.equal(
+    readProjectFile('src/components/saas/SaasLandingPage.tsx').includes('pos_landing_theme'),
+    false,
+    'SaasLandingPage should rely on ThemeContext instead of duplicate pos_landing_theme storage'
+  );
+  assert.equal(
+    readProjectFile('src/components/saas/FreeTrialOnboardingModal.tsx').includes('pos_landing_theme'),
+    false,
+    'FreeTrialOnboardingModal should rely on ThemeContext instead of duplicate pos_landing_theme storage'
+  );
 
   // 8 core presets still preserved intact
   assert.equal(ACCENT_THEME_LIST.length, 8);
+});
+
+test('Independent theme storage, auth/user transitions, and clearAllSessionState preserve preferences across logout and tenant resets', () => {
+  const storage = new Map<string, string>();
+  const localStorageMock = {
+    get length() {
+      return storage.size;
+    },
+    key: (index: number) => Array.from(storage.keys())[index] ?? null,
+    getItem: (k: string) => storage.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      storage.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      storage.delete(k);
+    },
+  };
+  const sessionStorageMock = {
+    clear: () => {},
+  };
+
+  const originalWin = (globalThis as { window?: unknown }).window;
+  const originalLocalStorage = (globalThis as { localStorage?: unknown }).localStorage;
+  const originalSessionStorage = (globalThis as { sessionStorage?: unknown }).sessionStorage;
+
+  (globalThis as { window?: unknown }).window = { localStorage: localStorageMock };
+  (globalThis as { localStorage?: unknown }).localStorage = localStorageMock;
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = sessionStorageMock;
+
+  try {
+    const tealDarkPrefs: ThemePreferencesSnapshot = {
+      themeMode: 'dark',
+      accentTheme: 'teal',
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: 'showroom',
+      backdropDarkness: 35,
+    };
+
+    // Persist independently to both active & guest keys
+    persistIndependentThemePreferences(tealDarkPrefs);
+    setLastAuthUserId(7);
+    setLoggedOutThemeOverride(false);
+    storage.set(getUserThemeCacheKey(7), serializeUserThemePreference(tealDarkPrefs));
+    storage.set('pos_auth_token', 'jwt-token');
+    storage.set('shoe_pos_jwt_token', 'jwt-token');
+    storage.set('pos_current_user', JSON.stringify({ id: 7, role: 'OWNER', tenantId: 12 }));
+    storage.set('shoe_pos_active_tenant_id', '12');
+
+    assert.deepEqual(getStoredActiveThemePreferences(), tealDarkPrefs);
+    assert.equal(getLastAuthUserId(), 7);
+    assert.equal(storage.get(LAST_AUTH_USER_ID_STORAGE_KEY), '7');
+    assert.equal(getLoggedOutThemeOverride(), false);
+    assert.equal(storage.get(LOGGED_OUT_THEME_OVERRIDE_STORAGE_KEY) ?? null, null);
+
+    // Fallback from pos_guest_* when primary pos_* keys are missing
+    storage.delete(THEME_MODE_STORAGE_KEY);
+    storage.delete(ACCENT_THEME_STORAGE_KEY);
+    storage.delete(CUSTOM_ACCENT_HEX_STORAGE_KEY);
+    storage.delete(BACKDROP_STYLE_STORAGE_KEY);
+    storage.delete(BACKDROP_DARKNESS_STORAGE_KEY);
+    assert.deepEqual(getStoredActiveThemePreferences(), tealDarkPrefs);
+
+    // Re-persist primary keys, then run clearAllSessionState (simulating logout / 401 / session cleanup / tenant reset)
+    persistIndependentThemePreferences(tealDarkPrefs);
+    clearAllSessionState();
+
+    assert.equal(storage.get('pos_auth_token') ?? null, null);
+    assert.equal(storage.get('pos_current_user') ?? null, null);
+    assert.equal(storage.get('shoe_pos_active_tenant_id') ?? null, null);
+    assert.deepEqual(getStoredActiveThemePreferences(), tealDarkPrefs);
+    assert.deepEqual(getStoredGuestThemePreferences(), tealDarkPrefs);
+    assert.equal(getLastAuthUserId(), 7);
+    assert.equal(storage.get(getUserThemeCacheKey(7)), serializeUserThemePreference(tealDarkPrefs));
+
+    // Transition 1: Logout keeps committed preferences and lastAuthUserId
+    const onLogout = resolveAuthThemeTransition({
+      user: null,
+      currentCommitted: tealDarkPrefs,
+      lastAuthUserId: 7,
+      loggedOutOverride: false,
+      readUserCache: (uid) => storage.get(getUserThemeCacheKey(uid)) ?? null,
+    });
+    assert.equal(onLogout.activeUserId, null);
+    assert.deepEqual(onLogout.nextPrefs, tealDarkPrefs);
+    assert.equal(onLogout.nextLastAuthUserId, 7);
+
+    // Transition 2: Different user (id=8) with own DB theme switches cleanly
+    const onUser8Login = resolveAuthThemeTransition({
+      user: { id: 8, themeColor: 'light|orange|solid|65' },
+      currentCommitted: tealDarkPrefs,
+      lastAuthUserId: 7,
+      loggedOutOverride: false,
+      readUserCache: (uid) => storage.get(getUserThemeCacheKey(uid)) ?? null,
+    });
+    assert.equal(onUser8Login.activeUserId, 8);
+    assert.deepEqual(onUser8Login.nextPrefs, {
+      themeMode: 'light',
+      accentTheme: 'orange',
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: 'solid',
+      backdropDarkness: 65,
+    });
+    assert.equal(onUser8Login.nextLastAuthUserId, 8);
+    assert.equal(onUser8Login.shouldPersistUserCache, true);
+
+    // Transition 3: Original user (id=7) logs back in -> restores User 7's theme
+    const onUser7Relogin = resolveAuthThemeTransition({
+      user: { id: 7, themeColor: serializeUserThemePreference(tealDarkPrefs) },
+      currentCommitted: onUser8Login.nextPrefs,
+      lastAuthUserId: 8,
+      loggedOutOverride: false,
+      readUserCache: (uid) => storage.get(getUserThemeCacheKey(uid)) ?? null,
+    });
+    assert.equal(onUser7Relogin.activeUserId, 7);
+    assert.deepEqual(onUser7Relogin.nextPrefs, tealDarkPrefs);
+    assert.equal(onUser7Relogin.nextLastAuthUserId, 7);
+
+    // Transition 4: Same user (id=7) explicitly updates appearance while logged out, then logs back in
+    const customLoggedOutPrefs: ThemePreferencesSnapshot = {
+      themeMode: 'dark',
+      accentTheme: 'custom',
+      customAccentHex: '#F43F5E',
+      backdropStyle: 'solid',
+      backdropDarkness: 75,
+    };
+    const onSameUserAfterExplicitEdit = resolveAuthThemeTransition({
+      user: { id: 7, themeColor: serializeUserThemePreference(tealDarkPrefs) },
+      currentCommitted: customLoggedOutPrefs,
+      lastAuthUserId: 7,
+      loggedOutOverride: true,
+      readUserCache: (uid) => storage.get(getUserThemeCacheKey(uid)) ?? null,
+    });
+    assert.equal(onSameUserAfterExplicitEdit.activeUserId, 7);
+    assert.deepEqual(onSameUserAfterExplicitEdit.nextPrefs, customLoggedOutPrefs);
+    assert.equal(onSameUserAfterExplicitEdit.nextLoggedOutOverride, false);
+    assert.equal(onSameUserAfterExplicitEdit.shouldSyncCurrentToDb, true);
+
+    // Transition 5: Guest/free-trial registration (lastAuthUserId === null) with empty DB & cache preserves visitor selection
+    const onGuestTrialRegistration = resolveAuthThemeTransition({
+      user: { id: 99, themeColor: '' },
+      currentCommitted: customLoggedOutPrefs,
+      lastAuthUserId: null,
+      loggedOutOverride: true,
+      readUserCache: () => null,
+    });
+    assert.equal(onGuestTrialRegistration.activeUserId, 99);
+    assert.deepEqual(onGuestTrialRegistration.nextPrefs, customLoggedOutPrefs);
+    assert.equal(onGuestTrialRegistration.nextLastAuthUserId, 99);
+
+    // Transition 6: Different unconfigured user without loggedOutOverride falls back to defaults instead of inheriting previous user's theme
+    const onDifferentUnconfiguredUser = resolveAuthThemeTransition({
+      user: { id: 100, themeColor: '' },
+      currentCommitted: tealDarkPrefs,
+      lastAuthUserId: 7,
+      loggedOutOverride: false,
+      readUserCache: () => null,
+    });
+    assert.equal(onDifferentUnconfiguredUser.activeUserId, 100);
+    assert.deepEqual(onDifferentUnconfiguredUser.nextPrefs, {
+      themeMode: 'light',
+      accentTheme: DEFAULT_ACCENT_THEME,
+      customAccentHex: DEFAULT_CUSTOM_ACCENT_HEX,
+      backdropStyle: DEFAULT_BACKDROP_STYLE,
+      backdropDarkness: DEFAULT_BACKDROP_DARKNESS,
+    });
+  } finally {
+    if (originalWin === undefined) delete (globalThis as { window?: unknown }).window;
+    else (globalThis as { window?: unknown }).window = originalWin;
+    if (originalLocalStorage === undefined) delete (globalThis as { localStorage?: unknown }).localStorage;
+    else (globalThis as { localStorage?: unknown }).localStorage = originalLocalStorage;
+    if (originalSessionStorage === undefined) delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+    else (globalThis as { sessionStorage?: unknown }).sessionStorage = originalSessionStorage;
+  }
 });
