@@ -998,7 +998,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 Retail &amp; Wholesale Footwear POS &middot; Offline-First &amp; WebUSB Ready
               </div>
               <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.12] text-white lt:text-slate-900 text-balance">
-                Running every shoe counter &amp; stockroom{' '}
+                Running every Shoe stores{' '}
                 <AnimatedHeroHighlight />
               </h1>
               <p className="mt-6 max-w-lg text-[15px] sm:text-base leading-relaxed text-slate-200 lt:text-slate-700">

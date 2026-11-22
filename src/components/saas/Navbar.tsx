@@ -542,21 +542,28 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {onLogin && (
-            <button
-              id="landing-mobile-topbar-login-btn"
-              type="button"
-              onClick={onLogin}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-xl min-h-[44px] h-11 px-3 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap border-2 shadow-xs active:scale-[0.98] ${
-                isDark
-                  ? 'border-indigo-400/70 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 hover:text-white'
-                  : 'border-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800'
-              }`}
-            >
-              <LogIn className="w-3.5 h-3.5 shrink-0" />
-              <span>Login</span>
-            </button>
-          )}
+          <div
+            className="relative font-courgette font-courgate theme-dropdown-courgette"
+            style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
+          >
+            <ThemeDropdown
+              id="landing-mobile-navbar-theme-dropdown"
+              dropdownAlign="right"
+              dropdownDirection="down"
+              showLabel={true}
+              font="courgette"
+              className="font-courgette font-courgate theme-dropdown-courgette"
+              triggerClassName={(open) =>
+                `h-11 min-w-[44px] flex items-center justify-center gap-1.5 px-2.5 rounded-xl border text-xs font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] ${
+                  open
+                    ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25 ring-2 ring-purple-400/40'
+                    : isDark
+                    ? 'border-slate-700/80 bg-slate-800/50 hover:bg-slate-800 text-slate-100 hover:text-white hover:border-purple-500/50'
+                    : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900 hover:border-purple-300'
+                }`
+              }
+            />
+          </div>
         </div>
       </div>
 

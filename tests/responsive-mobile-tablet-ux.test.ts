@@ -217,8 +217,9 @@ test('SaaS landing mobile-only (< sm) compact top bar and full-height Store/Supe
     );
   }
 
-  // Prominent Login and Register Free Trial buttons inside mobile sidebar + quick Login on mobile top bar
-  assert.ok(navbarSrc.includes('id="landing-mobile-topbar-login-btn"'));
+  // Mobile top header swaps Login for ThemeDropdown, while Login and Register Free Trial stay prominent inside mobile sidebar
+  assert.equal(navbarSrc.includes('id="landing-mobile-topbar-login-btn"'), false);
+  assert.ok(navbarSrc.includes('id="landing-mobile-navbar-theme-dropdown"'));
   assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-trial-btn"'));
   assert.ok(navbarSrc.includes('Register Free Trial'));
   assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-login-btn"'));

@@ -671,8 +671,8 @@ describe('Multi-Color Brand Gradient Palettes', () => {
   it('renders rotating landing hero highlight headline using primary theme colors, zero-shift sizing, and reduced-motion CSS', () => {
     const landingSrc = readFileSync('src/components/saas/SaasLandingPage.tsx', 'utf8');
     assert.ok(
-      landingSrc.includes('Running every shoe counter &amp; stockroom'),
-      'Hero H1 must read "Running every shoe counter &amp; stockroom"'
+      landingSrc.includes('Running every Shoe stores'),
+      'Hero H1 must read "Running every Shoe stores"'
     );
     assert.ok(landingSrc.includes('<AnimatedHeroHighlight />'), 'Hero H1 must render AnimatedHeroHighlight');
     assert.ok(landingSrc.includes('hero-highlight-gradient'), 'Hero highlight should apply theme gradient styling');
