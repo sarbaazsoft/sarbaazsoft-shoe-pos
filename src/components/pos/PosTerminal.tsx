@@ -1836,7 +1836,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 </AnimatePresence>
               </div>
 
-              {/* Mode Switcher & Mute Button */}
+              {/* Mode Switcher */}
               <div className={`items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap order-2 sm:order-1 ${isMobileScannerExpanded ? 'hidden sm:flex' : 'flex'}`}>
                 <div className="inline-flex items-center p-1 bg-slate-200/70 dark:bg-slate-950/80 rounded-xl border border-slate-300/70 dark:border-slate-800 transition-colors">
                   <button
@@ -1897,36 +1897,9 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                     <span className="sm:hidden">Search</span>
                   </button>
                 </div>
-
-                {/* Mute Sound Toggle Button */}
-                <button
-                  type="button"
-                  id="pos-mute-sound-btn"
-                  onClick={handleToggleMute}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[36px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                    isMuted
-                      ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300/80 dark:border-rose-800/80 shadow-2xs hover:bg-rose-100 dark:hover:bg-rose-900/50'
-                      : 'bg-white dark:bg-slate-950/80 text-slate-700 dark:text-slate-300 border-slate-300/70 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 shadow-2xs'
-                  }`}
-                  title={isMuted ? 'Terminal audio cues muted (Click to unmute)' : 'Terminal audio cues active (Click to mute)'}
-                  aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-                  aria-pressed={isMuted}
-                >
-                  {isMuted ? (
-                    <>
-                      <VolumeX className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
-                      <span className="hidden sm:inline">Muted</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400 shrink-0" />
-                      <span className="hidden sm:inline">Mute Sound</span>
-                    </>
-                  )}
-                </button>
               </div>
 
-              {/* Direct Shoe Exchange / Return & Continuous Scan / Hardware Status */}
+              {/* Direct Shoe Exchange / Return, Offline Status, Continuous Scan & Sound On/Off */}
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 basis-full sm:basis-auto order-3 sm:order-2">
                 <button
                   type="button"
@@ -1984,6 +1957,33 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 >
                   <span className={`w-2 h-2 rounded-full ${continuousScan ? 'bg-emerald-500 animate-pulse dark:shadow-[0_0_8px_rgba(16,185,129,0.7)]' : 'bg-slate-400'}`}></span>
                   <span>Continuous Scan: {continuousScan ? 'Active' : 'Off'}</span>
+                </button>
+
+                {/* POS Terminal Sound On/Off Toggle (Shared across retail & wholesale stores) */}
+                <button
+                  type="button"
+                  id="pos-mute-sound-btn"
+                  onClick={handleToggleMute}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[36px] sm:min-h-0 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs ${
+                    isMuted
+                      ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300/80 dark:border-rose-800/80 hover:bg-rose-100 dark:hover:bg-rose-900/50'
+                      : 'bg-white dark:bg-slate-950/80 text-slate-700 dark:text-slate-300 border-slate-300/70 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  }`}
+                  title={isMuted ? 'Terminal audio cues are OFF (Click to turn Sound On)' : 'Terminal audio cues are ON (Click to turn Sound Off)'}
+                  aria-label={isMuted ? 'Sound Off - Click to turn Sound On' : 'Sound On - Click to turn Sound Off'}
+                  aria-pressed={!isMuted}
+                >
+                  {isMuted ? (
+                    <>
+                      <VolumeX className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                      <span>Sound: Off</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400 shrink-0" />
+                      <span>Sound: On</span>
+                    </>
+                  )}
                 </button>
 
                 {inputMode === 'SCANNER' ? (

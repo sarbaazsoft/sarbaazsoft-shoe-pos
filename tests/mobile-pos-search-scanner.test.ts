@@ -87,4 +87,11 @@ test('PosTerminal barcode scanner implements compact icon-to-relative-full-width
   assert.ok(src.includes("import { flushSync } from 'react-dom';"));
   assert.ok(src.includes('className="flex flex-wrap items-center gap-1.5 sm:gap-2 basis-full sm:basis-auto order-3 sm:order-2"'));
   assert.ok(src.includes('className="absolute left-0 right-0 top-full z-40 mt-2 max-h-64 overflow-y-auto'));
+
+  // Sound On/Off toggle sits inside persistent order-3 toolbar with clear Sound: On / Sound: Off labels on all viewports
+  const order3Idx = src.indexOf('className="flex flex-wrap items-center gap-1.5 sm:gap-2 basis-full sm:basis-auto order-3 sm:order-2"');
+  const soundBtnIdx = src.indexOf('id="pos-mute-sound-btn"');
+  assert.ok(order3Idx !== -1 && soundBtnIdx > order3Idx);
+  assert.ok(src.includes('<span>Sound: On</span>'));
+  assert.ok(src.includes('<span>Sound: Off</span>'));
 });
