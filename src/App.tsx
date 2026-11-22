@@ -1969,7 +1969,13 @@ export default function App() {
             <SettingsView
               currentUser={currentUser}
               companySettings={settingsCompanySettings}
-              initialTab={effectiveUserRole === 'CASHIER' ? 'printers' : settingsInitialTab}
+              initialTab={
+                effectiveUserRole === 'CASHIER'
+                  ? settingsInitialTab === 'appearance'
+                    ? 'appearance'
+                    : 'printers'
+                  : settingsInitialTab
+              }
               onSettingsUpdated={handleSettingsUpdated}
               onOpenInstallWizard={handleOpenInstallWizard}
             />

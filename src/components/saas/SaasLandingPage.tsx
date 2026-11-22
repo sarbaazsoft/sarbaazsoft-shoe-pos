@@ -55,6 +55,106 @@ const AnimatedCounter: React.FC<{
   return <>{prefix}{value.toLocaleString('en-US')}{suffix}</>;
 };
 
+const HERO_HIGHLIGHT_WORDS = [
+  'smarter',
+  'faster',
+  'sharper',
+  'effortless',
+  'safer',
+  'stronger',
+] as const;
+
+const HERO_HIGHLIGHT_INTERVAL_MS = 2400;
+
+function useRotatingHeroWord(
+  words: readonly string[],
+  intervalMs: number = HERO_HIGHLIGHT_INTERVAL_MS
+) {
+  const [state, setState] = useState<{ index: number; prevIndex: number | null }>({
+    index: 0,
+    prevIndex: null,
+  });
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    setPrefersReducedMotion(mq.matches);
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener?.(onChange);
+    return () => mq.removeListener?.(onChange);
+  }, []);
+
+  useEffect(() => {
+    if (words.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setState((curr) => ({
+        index: (curr.index + 1) % words.length,
+        prevIndex: prefersReducedMotion ? null : curr.index,
+      }));
+    }, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [words.length, intervalMs, prefersReducedMotion]);
+
+  return {
+    activeWord: words[state.index] ?? words[0],
+    previousWord:
+      !prefersReducedMotion && state.prevIndex !== null ? words[state.prevIndex] : null,
+    activeIndex: state.index,
+    prefersReducedMotion,
+  };
+}
+
+const AnimatedHeroHighlight: React.FC = () => {
+  const { activeWord, previousWord, activeIndex, prefersReducedMotion } = useRotatingHeroWord(
+    HERO_HIGHLIGHT_WORDS,
+    HERO_HIGHLIGHT_INTERVAL_MS
+  );
+
+  return (
+    <span
+      id="hero-animated-highlight"
+      className="font-courgette font-normal tracking-normal inline-grid align-bottom overflow-hidden py-[0.12em] -my-[0.12em] px-[0.06em] -mx-[0.06em] text-primary-400 lt:text-primary"
+      style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
+    >
+      {HERO_HIGHLIGHT_WORDS.map((word) => (
+        <span
+          key={`sizer-${word}`}
+          aria-hidden="true"
+          className="col-start-1 row-start-1 invisible select-none pointer-events-none whitespace-nowrap"
+        >
+          {word}
+        </span>
+      ))}
+      {previousWord && (
+        <span
+          key={`exit-${activeIndex}`}
+          aria-hidden="true"
+          className="col-start-1 row-start-1 whitespace-nowrap pointer-events-none select-none hero-word-exit"
+        >
+          {previousWord}
+        </span>
+      )}
+      <span
+        key={prefersReducedMotion ? 'reduced-active' : `enter-${activeIndex}`}
+        data-active-word={activeWord}
+        className={`col-start-1 row-start-1 whitespace-nowrap ${
+          previousWord && !prefersReducedMotion ? 'hero-word-enter' : ''
+        }`}
+      >
+        {activeWord}
+      </span>
+    </span>
+  );
+};
+
 const SneakerGlyph: React.FC<{ className?: string }> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 120 70" className={className} aria-hidden="true">
     <path d="M8 50c0-6 4-10 10-12l22-8c6-2 11-8 15-15 2-3 6-3 8 0 4 6 10 10 17 12l22 6c7 2 12 8 12 15 0 4-3 7-7 7H15c-4 0-7-2-7-5z" fill="#F4F3FF" />
@@ -819,10 +919,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 <Zap className="w-3.5 h-3.5 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
                 Retail &amp; Wholesale Footwear POS &middot; Offline-First &amp; WebUSB Ready
               </div>
-              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.06] text-white lt:text-slate-900">
-                Run every shoe<br />
-                counter <span className="font-courgette font-normal tracking-normal text-purple-400 lt:text-purple-600" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>smarter</span> &amp;<br />
-                <span className="font-courgette font-normal tracking-normal bg-gradient-to-r from-purple-400 lt:from-purple-600 to-indigo-300 lt:to-indigo-500 bg-clip-text text-transparent" style={{ fontFamily: "'Courgette', cursive, sans-serif" }}>faster</span>
+              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.1] text-white lt:text-slate-900 text-balance">
+                Run every shoe counter{' '}
+                <AnimatedHeroHighlight />
               </h1>
               <p className="mt-6 max-w-lg text-[15px] sm:text-base leading-relaxed text-slate-200 lt:text-slate-700">
                 SarbaazSoft Shoe POS brings high-speed barcode checkout, carton-and-pair stock control, customer &amp; supplier khata ledgers, direct thermal receipt &amp; label printing, real-time push &amp; email alerts, and resilient offline billing—installable across Android, Apple iOS, and Windows.

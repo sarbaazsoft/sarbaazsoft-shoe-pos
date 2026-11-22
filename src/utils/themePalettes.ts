@@ -458,7 +458,7 @@ export const GUEST_BACKDROP_DARKNESS_STORAGE_KEY = 'pos_guest_backdrop_darkness'
 export const DEFAULT_THEME_MODE: ThemeModePreference = 'system';
 export const DEFAULT_ACCENT_THEME: AccentThemeId = 'purple';
 export const DEFAULT_CUSTOM_ACCENT_HEX = '#2563EB';
-export const DEFAULT_BACKDROP_STYLE: BackdropStyle = 'showroom';
+export const DEFAULT_BACKDROP_STYLE: BackdropStyle = 'solid';
 export const DEFAULT_BACKDROP_DARKNESS = 55;
 
 export function getUserThemeCacheKey(userId: number | string): string {
@@ -861,7 +861,7 @@ export function applyBackdropThemeToDOM(
 /**
  * Serializes theme mode + accent palette + custom hex + backdrop preference into a compact string
  * suitable for `users.theme_color` database column.
- * Default backdrop values (`showroom` + `55`) omit extra tokens to preserve canonical strings.
+ * Default backdrop values (`solid` + `55`) omit extra tokens to preserve canonical strings.
  */
 export function serializeUserThemePreference(prefs: Partial<ThemePreferencesSnapshot>): string {
   const mode = normalizeThemeMode(prefs.themeMode, DEFAULT_THEME_MODE);

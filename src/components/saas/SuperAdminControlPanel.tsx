@@ -3050,7 +3050,20 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-purple-600 dark:text-purple-400' : ''}`} />
             </button>
 
-            <ThemeDropdown />
+            <ThemeDropdown
+              onOpenAppearanceSettings={() => {
+                setShowUserDropdown(false);
+                setShowNotifDropdown(false);
+                setShowToolsDropdown(false);
+                setSuperAdminSettingsTab('appearance');
+                window.dispatchEvent(
+                  new CustomEvent('pos:navigate-settings-tab', {
+                    detail: { tab: 'appearance' },
+                  })
+                );
+                setActiveTab('settings');
+              }}
+            />
 
             {/* User Avatar + Name + Dropdown Chevron (Aligned with store user identification dropdown) */}
             <div ref={userMenuRef} className="relative">

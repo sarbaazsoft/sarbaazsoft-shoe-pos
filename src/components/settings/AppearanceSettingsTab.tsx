@@ -129,7 +129,6 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     setLocalErrorMsg(null);
     clearAppearanceSaveError();
     updatePreview({
-      backdropStyle: 'showroom',
       backdropDarkness: normalizeBackdropDarkness(darkness),
     });
   };
@@ -527,6 +526,43 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
+                id="appearance-backdrop-solid"
+                type="button"
+                onClick={() => handleBackdropStylePreview('solid')}
+                aria-pressed={backdropStyle === 'solid'}
+                className={`min-h-[68px] p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  backdropStyle === 'solid'
+                    ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 ring-2 ring-purple-500/25 shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-900/40 hover:border-purple-400/60'
+                }`}
+              >
+                <div
+                  className={`w-11 h-11 rounded-lg border shrink-0 flex items-center justify-center ${
+                    theme === 'dark'
+                      ? 'bg-[#0A0E1A] border-slate-700 text-slate-300'
+                      : 'bg-white border-slate-300 text-slate-700'
+                  }`}
+                >
+                  <Contrast className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      Solid Sidebar
+                    </span>
+                    {backdropStyle === 'solid' && (
+                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    Default · White in Light · Dark in Dark
+                  </div>
+                </div>
+              </button>
+
+              <button
                 id="appearance-backdrop-showroom"
                 type="button"
                 onClick={() => handleBackdropStylePreview('showroom')}
@@ -559,43 +595,6 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
                   </div>
                   <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                     Balanced 50% opacity (unchangeable)
-                  </div>
-                </div>
-              </button>
-
-              <button
-                id="appearance-backdrop-solid"
-                type="button"
-                onClick={() => handleBackdropStylePreview('solid')}
-                aria-pressed={backdropStyle === 'solid'}
-                className={`min-h-[68px] p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
-                  backdropStyle === 'solid'
-                    ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 ring-2 ring-purple-500/25 shadow-xs'
-                    : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-900/40 hover:border-purple-400/60'
-                }`}
-              >
-                <div
-                  className={`w-11 h-11 rounded-lg border shrink-0 flex items-center justify-center ${
-                    theme === 'dark'
-                      ? 'bg-[#0A0E1A] border-slate-700 text-slate-300'
-                      : 'bg-white border-slate-300 text-slate-700'
-                  }`}
-                >
-                  <Contrast className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                      Solid Sidebar
-                    </span>
-                    {backdropStyle === 'solid' && (
-                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
-                        <Check className="w-2.5 h-2.5 stroke-[3]" />
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                    White in Light · Default Dark in Dark
                   </div>
                 </div>
               </button>

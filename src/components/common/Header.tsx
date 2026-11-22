@@ -1728,6 +1728,21 @@ export const Header: React.FC<HeaderProps> = ({
                 setShowNotifications(false);
               }
             }}
+            onOpenAppearanceSettings={
+              onTabChange
+                ? () => {
+                    setShowThemeDropdown(false);
+                    setShowUserDropdown(false);
+                    setShowNotifications(false);
+                    window.dispatchEvent(
+                      new CustomEvent('pos:navigate-settings-tab', {
+                        detail: { tab: 'appearance' },
+                      })
+                    );
+                    onTabChange('settings');
+                  }
+                : undefined
+            }
           />
 
           {/* User Avatar + Name + Dropdown Chevron */}

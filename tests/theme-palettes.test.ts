@@ -362,6 +362,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       accent: AccentThemeId;
       isOpen: boolean;
       systemDark?: boolean;
+      onOpenAppearanceSettings?: () => void;
     }): string => {
       const storage = new Map<string, string>([
         [THEME_MODE_STORAGE_KEY, opts.mode],
@@ -394,7 +395,10 @@ describe('Multi-Color Brand Gradient Palettes', () => {
           React.createElement(
             ThemeProvider,
             null,
-            React.createElement(ThemeDropdown, { isOpen: opts.isOpen })
+            React.createElement(ThemeDropdown, {
+              isOpen: opts.isOpen,
+              onOpenAppearanceSettings: opts.onOpenAppearanceSettings,
+            })
           )
         );
       } finally {
@@ -482,7 +486,28 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       );
     }
 
-    // 4. Verify all headers mount ThemeDropdown (SaaS Landing, Public Auth/Loading, SuperAdmin, Store)
+    // 4. Advanced Appearance bottom link renders only when onOpenAppearanceSettings is provided
+    assert.equal(
+      systemOpen.includes('id="theme-advanced-appearance-link"'),
+      false,
+      'Public/unauthenticated ThemeDropdown without onOpenAppearanceSettings must omit Advanced Appearance link'
+    );
+    const openWithSettingsLink = renderDropdown({
+      mode: 'dark',
+      accent: 'purple',
+      isOpen: true,
+      onOpenAppearanceSettings: () => {},
+    });
+    assert.ok(
+      openWithSettingsLink.includes('id="theme-advanced-appearance-link"'),
+      'Open ThemeDropdown with onOpenAppearanceSettings must render #theme-advanced-appearance-link'
+    );
+    assert.ok(
+      openWithSettingsLink.includes('Advanced Appearance'),
+      'Advanced Appearance link should display the "Advanced Appearance" label'
+    );
+
+    // 5. Verify all headers mount ThemeDropdown and authenticated panels wire SettingsView Appearance navigation
     for (const headerFile of [
       'src/components/saas/Navbar.tsx',
       'src/components/common/PublicHeader.tsx',
@@ -492,6 +517,30 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       const headerSrc = readFileSync(headerFile, 'utf8');
       assert.ok(headerSrc.includes('<ThemeDropdown'), `${headerFile} must mount ThemeDropdown`);
     }
+
+    const storeHeaderSrc = readFileSync('src/components/common/Header.tsx', 'utf8');
+    assert.ok(
+      storeHeaderSrc.includes('onOpenAppearanceSettings={') &&
+        storeHeaderSrc.includes("pos:navigate-settings-tab") &&
+        storeHeaderSrc.includes("tab: 'appearance'") &&
+        storeHeaderSrc.includes("onTabChange('settings')"),
+      'Store Header should wire onOpenAppearanceSettings to open SettingsView on the appearance tab'
+    );
+
+    const superAdminSrc = readFileSync('src/components/saas/SuperAdminControlPanel.tsx', 'utf8');
+    assert.ok(
+      superAdminSrc.includes('onOpenAppearanceSettings={') &&
+        superAdminSrc.includes("setSuperAdminSettingsTab('appearance')") &&
+        superAdminSrc.includes("pos:navigate-settings-tab") &&
+        superAdminSrc.includes("setActiveTab('settings')"),
+      'SuperAdminControlPanel should wire onOpenAppearanceSettings to open SettingsView on the appearance tab'
+    );
+
+    const appSrc = readFileSync('src/App.tsx', 'utf8');
+    assert.ok(
+      /settingsInitialTab === 'appearance'\s*\?\s*'appearance'\s*:\s*'printers'/.test(appSrc),
+      'App.tsx should allow Cashier initialTab="appearance" when navigating from ThemeDropdown'
+    );
   });
 
   it('uses active primary theme CSS variable tokens instead of hardcoded amber/orange in offline alert modals', () => {
@@ -618,5 +667,46 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       '@media print CSS must force solid white paper background and black text even when Dark Mode is active'
     );
   });
-});
 
+  it('renders rotating landing hero highlight headline using primary theme colors, zero-shift sizing, and reduced-motion CSS', () => {
+    const landingSrc = readFileSync('src/components/saas/SaasLandingPage.tsx', 'utf8');
+    assert.ok(landingSrc.includes('Run every shoe counter'), 'Hero H1 must read "Run every shoe counter"');
+    assert.ok(landingSrc.includes('<AnimatedHeroHighlight />'), 'Hero H1 must render AnimatedHeroHighlight');
+
+    const expectedWords = ['smarter', 'faster', 'sharper', 'effortless', 'safer', 'stronger'];
+    const wordListMatch = landingSrc.match(/const HERO_HIGHLIGHT_WORDS = \[([\s\S]*?)\] as const;/);
+    assert.ok(wordListMatch, 'HERO_HIGHLIGHT_WORDS constant should exist');
+    const extractedWords = Array.from(wordListMatch[1].matchAll(/'([^']+)'/g)).map((m) => m[1]);
+    assert.deepEqual(extractedWords, expectedWords);
+
+    const intervalMatch = landingSrc.match(/const HERO_HIGHLIGHT_INTERVAL_MS = (\d+);/);
+    assert.ok(intervalMatch, 'HERO_HIGHLIGHT_INTERVAL_MS constant should exist');
+    const intervalMs = Number(intervalMatch[1]);
+    assert.ok(
+      intervalMs >= 2200 && intervalMs <= 2500,
+      `Rotation interval (${intervalMs}ms) must be between 2200ms and 2500ms`
+    );
+
+    assert.ok(
+      landingSrc.includes('text-primary-400 lt:text-primary'),
+      'Animated highlight should adapt to active primary theme color across Light, Dark, and System modes'
+    );
+    assert.ok(
+      landingSrc.includes('inline-grid') &&
+        landingSrc.includes('col-start-1 row-start-1 invisible select-none pointer-events-none whitespace-nowrap'),
+      'Animated highlight should reserve width/height for all words to prevent layout shift'
+    );
+    assert.ok(
+      landingSrc.includes('(prefers-reduced-motion: reduce)'),
+      'Rotating hero hook should respect prefers-reduced-motion'
+    );
+
+    const cssSource = readFileSync('src/index.css', 'utf8');
+    assert.ok(cssSource.includes('@keyframes heroWordEnter'), 'index.css should define heroWordEnter keyframes');
+    assert.ok(cssSource.includes('@keyframes heroWordExit'), 'index.css should define heroWordExit keyframes');
+    assert.ok(
+      cssSource.includes('.hero-word-enter,') && cssSource.includes('.hero-word-exit'),
+      'index.css should disable hero word sliding animations under prefers-reduced-motion: reduce'
+    );
+  });
+});

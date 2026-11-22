@@ -4384,3 +4384,47 @@ html.dark .saas-panel .app-stat-card.app-stat-card:hover {
   }
 }
 
+/* Landing Hero Rotating Highlight Word Animation */
+@keyframes heroWordEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 62%, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes heroWordExit {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -62%, 0);
+  }
+}
+
+.hero-word-enter {
+  animation: heroWordEnter 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.hero-word-exit {
+  animation: heroWordExit 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-word-enter,
+  .hero-word-exit {
+    animation: none !important;
+    transform: none !important;
+    will-change: auto;
+  }
+  .hero-word-exit {
+    display: none !important;
+  }
+}

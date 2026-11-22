@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sun, Moon, Monitor, ChevronDown, Check, Palette, Pipette } from 'lucide-react';
+import { Sun, Moon, Monitor, ChevronDown, Check, Palette, Pipette, SlidersHorizontal, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme, type ThemeMode } from '../../context/ThemeContext.tsx';
 import { ACCENT_THEME_LIST, buildCustomAccentPalette, type AccentThemeId } from '../../utils/themePalettes.ts';
@@ -15,6 +15,7 @@ export interface ThemeDropdownProps {
   onOpenChange?: (open: boolean) => void;
   onThemeSelect?: (mode: ThemeMode) => void;
   onAccentSelect?: (accent: AccentThemeId) => void;
+  onOpenAppearanceSettings?: () => void;
 }
 
 /**
@@ -33,6 +34,7 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
   onOpenChange,
   onThemeSelect,
   onAccentSelect,
+  onOpenAppearanceSettings,
 }) => {
   const {
     theme,
@@ -405,6 +407,37 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 </span>
               </div>
             </li>
+
+            {onOpenAppearanceSettings && (
+              <li
+                role="none"
+                className="pt-2 border-t border-slate-200/80 dark:border-white/10"
+              >
+                <button
+                  id="theme-advanced-appearance-link"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenAppearanceSettings();
+                  }}
+                  style={courgetteStyle}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 sm:py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer bg-slate-50/90 hover:bg-slate-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] border border-slate-200/70 dark:border-white/10 text-slate-700 dark:text-purple-100 group ${isCourgette ? 'font-courgette font-courgate theme-dropdown-courgette' : ''}`}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <SlidersHorizontal
+                      className="w-3.5 h-3.5 shrink-0 transition-transform duration-200 group-hover:scale-110"
+                      style={{ color: primaryIconColor }}
+                    />
+                    <span className="truncate">Advanced Appearance</span>
+                  </span>
+                  <ArrowRight
+                    className="w-3.5 h-3.5 shrink-0 opacity-70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
+                    style={{ color: primaryIconColor }}
+                  />
+                </button>
+              </li>
+            )}
           </motion.ul>
         )}
       </AnimatePresence>

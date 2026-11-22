@@ -79,6 +79,7 @@ async function startTestServer() {
 }
 
 test('serializeUserThemePreference & parseUserThemePreference handle structured, JSON, and legacy formats safely', () => {
+  assert.equal(DEFAULT_BACKDROP_STYLE, 'solid');
   assert.equal(
     serializeUserThemePreference({ themeMode: 'dark', accentTheme: 'teal', customAccentHex: '#2563EB' }),
     'dark|teal'
@@ -95,7 +96,17 @@ test('serializeUserThemePreference & parseUserThemePreference handle structured,
       backdropStyle: 'solid',
       backdropDarkness: 55,
     }),
-    'light|purple|solid|55'
+    'light|purple'
+  );
+  assert.equal(
+    serializeUserThemePreference({
+      themeMode: 'light',
+      accentTheme: 'purple',
+      customAccentHex: '#2563EB',
+      backdropStyle: 'showroom',
+      backdropDarkness: 55,
+    }),
+    'light|purple|showroom|55'
   );
   assert.equal(
     serializeUserThemePreference({
@@ -871,6 +882,12 @@ test('Frontend architecture wires SettingsView, unified backdrop across all rout
   );
   const skeletonsSrc = readProjectFile('src/components/common/RouteSkeletons.tsx');
   assert.ok(skeletonsSrc.includes('bg-[#F8FAFC] dark:bg-[#0A0E1A] min-h-dvh'));
+
+  const indexHtmlSrc = readProjectFile('index.html');
+  assert.ok(
+    indexHtmlSrc.includes("const backdropStyle = rawBackdropStyle === 'showroom' ? 'showroom' : 'solid';"),
+    'index.html pre-hydration should default sidebar backdrop style to solid'
+  );
 
   // 8 core presets still preserved intact
   assert.equal(ACCENT_THEME_LIST.length, 8);
