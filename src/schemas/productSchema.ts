@@ -294,4 +294,209 @@ export function calculateMinSaleQuantity(
   return halfAllowed ? (pairsPerCtn / 2) : pairsPerCtn;
 }
 
+const STOCK_DECIMAL_SCALE = 10000;
+const STRICT_NUMBER_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
 
+function toScaledDecimal(value: unknown): {
+  ok: boolean;
+  value: number;
+  scaled: number;
+} {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return { ok: false, value: NaN, scaled: NaN };
+    const scaled = Math.round(value * STOCK_DECIMAL_SCALE);
+    const snapped = scaled / STOCK_DECIMAL_SCALE;
+    if (Math.abs(value - snapped) > 1e-9) {
+      return { ok: false, value: NaN, scaled: NaN };
+    }
+    return { ok: true, value: Object.is(snapped, -0) ? 0 : snapped, scaled: scaled === 0 ? 0 : scaled };
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || !STRICT_NUMBER_PATTERN.test(trimmed)) {
+      return { ok: false, value: NaN, scaled: NaN };
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      return { ok: false, value: NaN, scaled: NaN };
+    }
+    const scaled = Math.round(parsed * STOCK_DECIMAL_SCALE);
+    const snapped = scaled / STOCK_DECIMAL_SCALE;
+    if (Math.abs(parsed - snapped) > 1e-9) {
+      return { ok: false, value: NaN, scaled: NaN };
+    }
+    return { ok: true, value: Object.is(snapped, -0) ? 0 : snapped, scaled: scaled === 0 ? 0 : scaled };
+  }
+
+  return { ok: false, value: NaN, scaled: NaN };
+}
+
+function formatCleanStockNumber(val: number): string {
+  const scaled = Math.round(val * STOCK_DECIMAL_SCALE) / STOCK_DECIMAL_SCALE;
+  return Number.isInteger(scaled) ? String(scaled) : String(scaled);
+}
+
+/**
+ * Precision-safe conversion from pairs to cartons without IEEE-754 floating-point drift.
+ */
+export function calculateCartonsFromPairs(pairs: number, pairsPerCarton: number = 12): number {
+  const parsedPairs = toScaledDecimal(pairs);
+  const parsedPpc = toScaledDecimal(pairsPerCarton);
+  if (!parsedPairs.ok || !parsedPpc.ok || parsedPpc.scaled <= 0) return 0;
+  return Math.round((parsedPairs.scaled / parsedPpc.scaled) * STOCK_DECIMAL_SCALE) / STOCK_DECIMAL_SCALE;
+}
+
+/**
+ * Precision-safe conversion from cartons to pairs without IEEE-754 floating-point drift.
+ */
+export function convertCartonsToPairs(cartons: number, pairsPerCarton: number = 12): number {
+  const parsedCartons = toScaledDecimal(cartons);
+  const parsedPpc = toScaledDecimal(pairsPerCarton);
+  if (!parsedCartons.ok || !parsedPpc.ok || parsedPpc.scaled <= 0) return 0;
+  return Math.round((parsedCartons.scaled * parsedPpc.scaled) / STOCK_DECIMAL_SCALE) / STOCK_DECIMAL_SCALE;
+}
+
+/**
+ * Returns the minimum allowed pair increment for wholesale stock entry/updates:
+ * - If half carton (0.5) is allowed: pairs_per_carton / 2
+ * - Otherwise (full carton only): pairs_per_carton
+ */
+export function getWholesaleStockStep(
+  product?: { pairsPerCarton?: number; pairs_per_carton?: number; allowHalfCarton?: boolean; allow_half_carton?: boolean } | null,
+  storeSetting?: { allowHalfCarton?: boolean; allow_half_carton?: boolean } | null
+): number {
+  const rawPpc = toScaledDecimal(product?.pairsPerCarton ?? product?.pairs_per_carton ?? 12);
+  const ppcScaled = rawPpc.ok && rawPpc.scaled > 0 ? rawPpc.scaled : 12 * STOCK_DECIMAL_SCALE;
+  const allowHalf = isHalfCartonAllowed(product, storeSetting);
+  const stepScaled = allowHalf ? Math.round(ppcScaled / 2) : ppcScaled;
+  return stepScaled / STOCK_DECIMAL_SCALE;
+}
+
+export interface WholesaleStockValidationInput {
+  quantity: unknown;
+  pairsPerCarton?: number | string | null;
+  allowHalfCarton: boolean;
+  isWholesaleStore: boolean;
+}
+
+export interface WholesaleStockValidationResult {
+  valid: boolean;
+  normalizedQuantity: number | null;
+  pairsPerCarton: number;
+  allowedIncrement: number;
+  cartons: number | null;
+  error?: string;
+}
+
+/**
+ * Validates B2B (Wholesale) stock quantity against `pairs_per_carton` divisibility rules.
+ * - Strictly skipped for B2C (Retail) stores so retail workflows remain unaffected.
+ * - When fractional cartons are NOT allowed: accepts only quantities divisible by `pairs_per_carton`.
+ * - When "0.5" carton IS allowed: accepts only quantities divisible by `pairs_per_carton / 2`.
+ * - Uses scaled integer arithmetic to avoid floating-point precision issues.
+ */
+export function validateWholesaleStockQuantity(
+  input: WholesaleStockValidationInput
+): WholesaleStockValidationResult {
+  const rawPpc = toScaledDecimal(input.pairsPerCarton ?? 12);
+  const ppcScaled = rawPpc.ok && rawPpc.scaled > 0 ? rawPpc.scaled : 12 * STOCK_DECIMAL_SCALE;
+  const pairsPerCarton = ppcScaled / STOCK_DECIMAL_SCALE;
+
+  if (!input.isWholesaleStore) {
+    const parsed = toScaledDecimal(input.quantity ?? 0);
+    if (!parsed.ok || parsed.scaled < 0) {
+      return {
+        valid: false,
+        normalizedQuantity: null,
+        pairsPerCarton,
+        allowedIncrement: 1,
+        cartons: null,
+        error: 'Stock quantity must be 0 or more.',
+      };
+    }
+    const retailQty = Math.trunc(parsed.value);
+    return {
+      valid: true,
+      normalizedQuantity: retailQty,
+      pairsPerCarton,
+      allowedIncrement: 1,
+      cartons: null,
+    };
+  }
+
+  const allowHalf = Boolean(input.allowHalfCarton);
+  const stepScaled = allowHalf ? Math.round(ppcScaled / 2) : ppcScaled;
+  const allowedIncrement = stepScaled / STOCK_DECIMAL_SCALE;
+  const stepStr = formatCleanStockNumber(allowedIncrement);
+  const ppcStr = formatCleanStockNumber(pairsPerCarton);
+  const ex1 = formatCleanStockNumber(allowedIncrement);
+  const ex2 = formatCleanStockNumber((stepScaled * 2) / STOCK_DECIMAL_SCALE);
+  const ex3 = formatCleanStockNumber((stepScaled * 3) / STOCK_DECIMAL_SCALE);
+  const ruleContext = allowHalf
+    ? `0.5 carton of ${ppcStr} pairs/carton`
+    : `full carton of ${ppcStr} pairs/carton`;
+
+  if (
+    input.quantity === undefined ||
+    input.quantity === null ||
+    (typeof input.quantity === 'string' && input.quantity.trim() === '')
+  ) {
+    return {
+      valid: false,
+      normalizedQuantity: null,
+      pairsPerCarton,
+      allowedIncrement,
+      cartons: null,
+      error: `Stock quantity is required. Enter a multiple of ${stepStr} pairs (${ruleContext}).`,
+    };
+  }
+
+  const parsed = toScaledDecimal(input.quantity);
+  if (!parsed.ok) {
+    return {
+      valid: false,
+      normalizedQuantity: null,
+      pairsPerCarton,
+      allowedIncrement,
+      cartons: null,
+      error: `Invalid stock quantity. Enter a valid quantity divisible by ${stepStr} pairs (${ruleContext}, e.g. ${ex1}, ${ex2}, ${ex3}).`,
+    };
+  }
+
+  if (parsed.scaled < 0) {
+    return {
+      valid: false,
+      normalizedQuantity: null,
+      pairsPerCarton,
+      allowedIncrement,
+      cartons: null,
+      error: `Stock quantity cannot be negative. Enter a multiple of ${stepStr} pairs (${ruleContext}).`,
+    };
+  }
+
+  if (parsed.scaled % stepScaled !== 0) {
+    const qtyDisplay = formatCleanStockNumber(parsed.value);
+    const halfRuleText = allowHalf
+      ? `Half cartons (0.5) are allowed, so stock must be divisible by ${stepStr} pairs`
+      : `Half cartons (0.5) are not allowed, so stock must be divisible by ${stepStr} pairs`;
+    return {
+      valid: false,
+      normalizedQuantity: null,
+      pairsPerCarton,
+      allowedIncrement,
+      cartons: null,
+      error: `Invalid stock quantity (${qtyDisplay} pairs). ${halfRuleText} (${ruleContext}, e.g. ${ex1}, ${ex2}, ${ex3}).`,
+    };
+  }
+
+  const cartons = Math.round((parsed.scaled / ppcScaled) * STOCK_DECIMAL_SCALE) / STOCK_DECIMAL_SCALE;
+
+  return {
+    valid: true,
+    normalizedQuantity: parsed.value,
+    pairsPerCarton,
+    allowedIncrement,
+    cartons,
+  };
+}

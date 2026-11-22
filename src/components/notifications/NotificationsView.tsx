@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { motion } from 'motion/react';
 import {
   Bell,
   CheckCircle2,
@@ -38,6 +39,8 @@ import {
   type NotificationActionDescriptor,
 } from '../../utils/notificationActions.ts';
 import { NotificationHeaderTitle } from './NotificationHeaderTitle.tsx';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
+import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 
 interface NotificationsViewProps {
   currentUser?: any;
@@ -253,6 +256,15 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const currentUserRole = String(currentUser?.role || currentUser?.originalRole || '').toUpperCase();
   const isSuperAdmin = currentUserRole === 'SUPERADMIN';
   const [activeTab, setActiveTab] = useState<TabCategory>('all');
+  const normalizedTab = activeTab === 'notices' ? 'announcements' : activeTab;
+  const tabDirection = useTabDirection(
+    normalizedTab,
+    ['all', 'announcements', 'operational', 'sales', 'returns', 'urgent'] as const
+  );
+  const { containerRef: notifTabContainerRef } = useScrollActiveTab<HTMLDivElement>(normalizedTab, {
+    padding: 16,
+    behavior: 'smooth',
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -764,7 +776,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {/* FILTER & SEARCH TOOLBAR */}
       <div className="p-3.5 rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)]/80 border border-slate-200/90 dark:border-purple-900/40 shadow-xs space-y-3">
         {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+        <div
+          ref={notifTabContainerRef}
+          className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar"
+        >
           {(
             [
               { key: 'all', label: 'All Items', count: stats.totalNotices + stats.totalOperational },
@@ -780,28 +795,39 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               <button
                 key={tab.key}
                 type="button"
+                data-active={isTabActive}
+                data-tab={tab.key}
                 onClick={() => {
                   setActiveTab(tab.key);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-xl font-semibold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`relative px-3 py-1.5 rounded-xl font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
                   isTabActive
-                    ? 'bg-purple-600 text-white shadow-xs'
+                    ? 'text-white'
                     : 'bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 text-slate-600 dark:text-purple-200 hover:text-purple-700 dark:hover:text-white'
                 }`}
               >
-                <span>{tab.label}</span>
-                {'count' in tab && tab.count !== undefined && (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                      isTabActive
-                        ? 'bg-purple-800 text-purple-100'
-                        : 'bg-slate-200 dark:bg-purple-900/60 text-slate-700 dark:text-purple-300'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
+                {isTabActive && (
+                  <motion.span
+                    layoutId="notificationsFilterActivePill"
+                    className="absolute inset-0 rounded-xl bg-purple-600 shadow-xs"
+                    transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                  />
                 )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <span>{tab.label}</span>
+                  {'count' in tab && tab.count !== undefined && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                        isTabActive
+                          ? 'bg-purple-800 text-purple-100'
+                          : 'bg-slate-200 dark:bg-purple-900/60 text-slate-700 dark:text-purple-300'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}
@@ -876,7 +902,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       </div>
 
       {/* NOTIFICATION CARDS LIST */}
-      <div className="space-y-2.5">
+      <AnimatedTabPanel activeKey={normalizedTab} direction={tabDirection} className="space-y-2.5">
         {allNotificationsQuery.isPending ? (
           <div className="py-16 text-center space-y-3">
             <RefreshCw className="w-7 h-7 mx-auto animate-spin text-purple-600" />
@@ -921,7 +947,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             />
           ))
         )}
-      </div>
+      </AnimatedTabPanel>
 
       {/* ANNOUNCEMENT DETAIL MODAL (/announcements/:id) */}
       {(selectedAnnouncement || pendingAnnouncementId) && (

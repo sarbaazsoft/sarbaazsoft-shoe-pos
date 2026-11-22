@@ -111,6 +111,21 @@ class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundary
   }
 }
 
+const KEEP_ALIVE_TAB_ORDER = [
+  'dashboard',
+  'pos',
+  'inventory',
+  'ledger',
+  'purchases',
+  'suppliers',
+  'returns',
+  'customers',
+  'reports',
+  'notifications',
+  'settings',
+  'assistant',
+] as const;
+
 export interface KeepAliveRouteHostProps {
   currentTab: string;
   userRole?: string | null;
@@ -140,6 +155,41 @@ export const KeepAliveRouteHost: React.FC<KeepAliveRouteHostProps> = ({
   const prevScopeKeyRef = useRef<string>(scopeKey);
   const prevActiveTabRef = useRef<string>(activeTab);
   const scrollPositionsRef = useRef<Record<string, number>>({});
+  const transitionTrackerRef = useRef<{
+    scopeKey: string;
+    lastTab: string;
+    direction: 1 | -1;
+    hasSwitched: boolean;
+  }>({
+    scopeKey,
+    lastTab: activeTab,
+    direction: 1,
+    hasSwitched: false,
+  });
+
+  if (transitionTrackerRef.current.scopeKey !== scopeKey) {
+    transitionTrackerRef.current = {
+      scopeKey,
+      lastTab: activeTab,
+      direction: 1,
+      hasSwitched: false,
+    };
+  } else if (transitionTrackerRef.current.lastTab !== activeTab) {
+    const prevIdx = KEEP_ALIVE_TAB_ORDER.indexOf(
+      transitionTrackerRef.current.lastTab as (typeof KEEP_ALIVE_TAB_ORDER)[number]
+    );
+    const nextIdx = KEEP_ALIVE_TAB_ORDER.indexOf(
+      activeTab as (typeof KEEP_ALIVE_TAB_ORDER)[number]
+    );
+    const direction: 1 | -1 =
+      prevIdx !== -1 && nextIdx !== -1 && nextIdx < prevIdx ? -1 : 1;
+    transitionTrackerRef.current = {
+      scopeKey,
+      lastTab: activeTab,
+      direction,
+      hasSwitched: true,
+    };
+  }
 
   // Reset visited cache and saved scroll offsets cleanly whenever tenant/user/role/business scope changes
   useEffect(() => {
@@ -202,6 +252,12 @@ export const KeepAliveRouteHost: React.FC<KeepAliveRouteHostProps> = ({
     return undefined;
   }, [activeTab, scrollContainerRef]);
 
+  const enterAnimationClass = transitionTrackerRef.current.hasSwitched
+    ? transitionTrackerRef.current.direction >= 0
+      ? 'keepalive-tab-enter-forward'
+      : 'keepalive-tab-enter-backward'
+    : '';
+
   return (
     <>
       {cacheState.mountedTabs.map((tab) => {
@@ -211,7 +267,7 @@ export const KeepAliveRouteHost: React.FC<KeepAliveRouteHostProps> = ({
             key={`${scopeKey}:${tab}`}
             data-keepalive-tab={tab}
             aria-hidden={!isActive}
-            className={isActive ? 'w-full' : 'hidden'}
+            className={isActive ? `w-full ${enterAnimationClass}`.trim() : 'hidden'}
           >
             <RouteLifecycleProvider isActive={isActive} tabId={tab}>
               <TabErrorBoundary tabId={tab}>

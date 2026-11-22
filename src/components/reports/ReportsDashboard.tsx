@@ -11,6 +11,7 @@ import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
 import { useDashboardReportQuery, useLiveFetch } from '../../hooks/useLiveData.ts';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 interface ReportsDashboardProps {
   currentUser: any;
@@ -26,6 +27,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   const { isActive } = useRouteActivity();
   const hasLoadedOnceRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const tabDirection = useTabDirection(activeTab, ['overview', 'sales_ledger', 'profit_loss', 'stock_alerts'] as const);
   const reportsContainerRef = useRef<HTMLDivElement | null>(null);
 
   const { containerRef: reportsTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
@@ -733,6 +735,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         </div>
       </motion.div>
 
+      <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
       {/* TAB CONTENT: 1. EXECUTIVE OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
@@ -1427,6 +1430,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           </div>
         </motion.div>
       )}
+      </AnimatedTabPanel>
 
       {/* Invoice Print Modal / Skeleton Loader for Deep-Linked & Past Receipts */}
       {isLoadingReceiptModal && !selectedSaleForPrint && (

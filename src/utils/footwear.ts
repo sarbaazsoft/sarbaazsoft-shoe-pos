@@ -298,7 +298,14 @@ export function buildArticleInfo(
   };
 }
 
-export { isHalfCartonAllowed, calculateMinSaleQuantity } from '../schemas/productSchema.ts';
+export {
+  isHalfCartonAllowed,
+  calculateMinSaleQuantity,
+  calculateCartonsFromPairs,
+  convertCartonsToPairs,
+  getWholesaleStockStep,
+  validateWholesaleStockQuantity,
+} from '../schemas/productSchema.ts';
 
 
 

@@ -1923,7 +1923,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         else if (col === 'invoice_footer') invoice_footer = String(v || '');
         else if (col === 'pricing_mode') pricing_mode = String(v || 'FIXED');
         else if (col === 'business_type') business_type = String(v || 'RETAIL');
-        else if (col === 'allow_half_carton') allow_half_carton = Boolean(v);
+        else if (col === 'allow_half_carton') allow_half_carton = typeof v === 'string' ? v.trim().toLowerCase() === 'true' : Boolean(v);
         else if (col === 'low_stock_threshold') low_stock_threshold = Math.max(1, Number(v || 5));
         else if (col === 'notification_preferences') {
           try {

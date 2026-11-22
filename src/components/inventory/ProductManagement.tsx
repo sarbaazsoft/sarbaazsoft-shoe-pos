@@ -15,6 +15,11 @@ import { useTheme } from '../../context/ThemeContext.tsx';
 import { BrandLogo } from '../common/BrandLogo.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { STANDARD_FOOTWEAR_CATEGORIES, isHalfCartonAllowed } from '../../utils/footwear.ts';
+import {
+  calculateCartonsFromPairs,
+  getWholesaleStockStep,
+  validateWholesaleStockQuantity,
+} from '../../schemas/productSchema.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { DirectoryCrudSkeleton } from '../common/RouteSkeletons.tsx';
@@ -163,10 +168,26 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   };
 
   const handleSaveInlineStock = async (p: any) => {
-    const parsed = parseInt(inlineStockValue, 10);
-    if (isNaN(parsed) || parsed < 0) {
-      setInlineStockError('Must be 0 or more');
-      return;
+    let parsed: number;
+    if (isWholesaleStore) {
+      const stockCheck = validateWholesaleStockQuantity({
+        quantity: inlineStockValue,
+        pairsPerCarton: p.pairsPerCarton ?? p.pairs_per_carton ?? 12,
+        allowHalfCarton: isHalfCartonAllowed(p, companySettings),
+        isWholesaleStore: true,
+      });
+      if (!stockCheck.valid || stockCheck.normalizedQuantity === null) {
+        setInlineStockError(stockCheck.error || 'Invalid wholesale stock quantity.');
+        return;
+      }
+      parsed = stockCheck.normalizedQuantity;
+    } else {
+      const retailParsed = parseInt(inlineStockValue, 10);
+      if (isNaN(retailParsed) || retailParsed < 0) {
+        setInlineStockError('Must be 0 or more');
+        return;
+      }
+      parsed = retailParsed;
     }
 
     if (parsed === Number(p.totalStock)) {
@@ -870,7 +891,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             ref={inlineInputRef}
                             type="number"
                             min={0}
-                            step={1}
+                            step={isWholesaleStore ? getWholesaleStockStep(p, companySettings) : 1}
                             value={inlineStockValue}
                             disabled={savingStockId === p.id}
                             onChange={(e) => {
@@ -914,8 +935,12 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                           </button>
                         </div>
                         {inlineStockError ? (
-                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold px-1 text-center">
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold px-1 text-center whitespace-normal max-w-[220px] leading-snug">
                             {inlineStockError}
+                          </span>
+                        ) : isWholesaleStore ? (
+                          <span className="text-[10px] text-purple-700 dark:text-purple-300 font-mono font-semibold text-center">
+                            Step: {getWholesaleStockStep(p, companySettings)} prs · {calculateCartonsFromPairs(Number.isFinite(Number(inlineStockValue)) && inlineStockValue !== '' ? Number(inlineStockValue) : 0, Number(p.pairsPerCarton || 12))} Lots
                           </span>
                         ) : (
                           <span className="hidden lg:inline text-[9px] text-slate-400 dark:text-slate-500 font-medium">
@@ -950,7 +975,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                         )}
                         {isWholesaleStore && (
                           <span className="text-[10px] font-mono text-slate-400">
-                            {Math.floor(p.totalStock / (p.pairsPerCarton || 12))} Lots
+                            {calculateCartonsFromPairs(Number(p.totalStock || 0), Number(p.pairsPerCarton || 12))} Lots
                           </span>
                         )}
                       </div>
@@ -1272,7 +1297,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                                 ref={inlineInputRef}
                                 type="number"
                                 min={0}
-                                step={1}
+                                step={isWholesaleStore ? getWholesaleStockStep(p, companySettings) : 1}
                                 value={inlineStockValue}
                                 disabled={savingStockId === p.id}
                                 onChange={(e) => {
@@ -1317,12 +1342,12 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                             </div>
 
                             {inlineStockError ? (
-                              <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold px-1">
+                              <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold px-1 text-center whitespace-normal max-w-[240px] leading-snug">
                                 {inlineStockError}
                               </span>
                             ) : isWholesaleStore ? (
-                              <span className="text-[10px] text-purple-700 dark:text-purple-300 font-mono font-semibold">
-                                ={Math.floor((parseInt(inlineStockValue, 10) || 0) / (p.pairsPerCarton || 12))} lots ({p.pairsPerCarton || 12} prs/ctn)
+                              <span className="text-[10px] text-purple-700 dark:text-purple-300 font-mono font-semibold text-center">
+                                ={calculateCartonsFromPairs(Number.isFinite(Number(inlineStockValue)) && inlineStockValue !== '' ? Number(inlineStockValue) : 0, Number(p.pairsPerCarton || 12))} lots ({p.pairsPerCarton || 12} prs/ctn · step {getWholesaleStockStep(p, companySettings)})
                               </span>
                             ) : (
                               <span className="hidden lg:inline text-[9px] text-slate-400 dark:text-slate-500 font-medium">
@@ -1364,7 +1389,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                               </span>
                             )}
                             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                              ({Math.floor(p.totalStock / (p.pairsPerCarton || 12))} Lots)
+                              ({calculateCartonsFromPairs(Number(p.totalStock || 0), Number(p.pairsPerCarton || 12))} Lots)
                             </span>
                             {isLowStock && !isOutOfStock && (
                               <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
@@ -1594,6 +1619,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           <Suspense fallback={null}>
             <StockAdjustModal
               product={adjustingProduct}
+              companySettings={companySettings}
               onClose={() => setAdjustingProduct(null)}
               onSuccess={() => {
                 emitDataSync(['products', 'inventory'], { source: 'product-management' });

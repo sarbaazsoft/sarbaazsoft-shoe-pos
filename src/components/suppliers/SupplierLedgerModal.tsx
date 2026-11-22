@@ -5,6 +5,7 @@ import { api } from '../../services/api.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { SupplierPaymentModal } from './SupplierPaymentModal.tsx';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 interface SupplierLedgerModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
   onPaymentRecorded,
 }) => {
   const [activeTab, setActiveTab] = useState<'statement' | 'payments' | 'purchases' | 'returns'>('statement');
+  const tabDirection = useTabDirection(activeTab, ['statement', 'payments', 'purchases', 'returns'] as const);
   const { containerRef: supplierTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
     padding: 16,
     behavior: 'smooth',
@@ -289,7 +291,9 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
               <div className="p-4 rounded-xl bg-rose-50 text-rose-700 text-xs">
                 {error}
               </div>
-            ) : activeTab === 'statement' ? (
+            ) : (
+              <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
+                {activeTab === 'statement' ? (
               /* All Transactions Chronological Statement */
               <div className="overflow-x-auto border border-slate-200 dark:border-purple-900/40 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse">
@@ -549,6 +553,8 @@ export const SupplierLedgerModal: React.FC<SupplierLedgerModalProps> = ({
                   </div>
                 )}
               </div>
+                )}
+              </AnimatedTabPanel>
             )}
           </div>
 

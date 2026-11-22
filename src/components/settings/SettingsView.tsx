@@ -20,6 +20,7 @@ const StoreNotificationPreferencesCard = lazyWithRetry(() => import('./StoreNoti
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { CenteredLoadingSpinner, SettingsTabSkeleton } from '../common/RouteSkeletons.tsx';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 import {
   isWebPushSupported,
   getDetailedPushPermissionStatus,
@@ -242,6 +243,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
     return 'store';
   });
+  const settingsTabDirection = useTabDirection(
+    activeTab,
+    ['store', 'users', 'app_settings', 'notifications', 'appearance', 'backup', 'install', 'printers'] as const
+  );
 
   const handleSelectTab = (tab: SettingsTabId) => {
     if (isSuperAdmin) {
@@ -867,7 +872,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     DISABLE_HMR: 'false',
   });
   const [servicesIntegrationsTab, setServicesIntegrationsTab] = useState<'email' | 'fcm'>('email');
+  const servicesTabDirection = useTabDirection(servicesIntegrationsTab, ['email', 'fcm'] as const);
   const [emailProviderTab, setEmailProviderTab] = useState<'resend' | 'gmail'>('resend');
+  const emailProviderTabDirection = useTabDirection(emailProviderTab, ['resend', 'gmail'] as const);
   const [, setAppSettingsGrouped] = useState<Record<string, any[]>>({});
   const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(false);
   const [isSavingAppSettings, setIsSavingAppSettings] = useState(false);
@@ -1851,6 +1858,7 @@ setFormErrors(errors);
         <div className="tab-end-spacer shrink-0 w-8 sm:w-10 h-1 pointer-events-none self-stretch" aria-hidden="true" role="presentation" />
       </motion.div>
 
+      <AnimatedTabPanel activeKey={activeTab} direction={settingsTabDirection}>
       {/* TAB 1: STORE & INVOICE SETTINGS (Store Admin Only) */}
       {isStoreAdmin && activeTab === 'store' && (
         <form onSubmit={handleSaveSettings} className="space-y-5">
@@ -3309,33 +3317,53 @@ setFormErrors(errors);
                 <button
                   type="button"
                   onClick={() => setServicesIntegrationsTab('email')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  className={`relative px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
                     servicesIntegrationsTab === 'email'
-                      ? 'bg-white dark:bg-purple-900/60 text-purple-700 dark:text-white shadow-xs'
+                      ? 'text-purple-700 dark:text-white'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>Email Settings</span>
+                  {servicesIntegrationsTab === 'email' && (
+                    <motion.span
+                      layoutId="settingsServicesIntegrationsPill"
+                      className="absolute inset-0 rounded-lg bg-white dark:bg-purple-900/60 shadow-xs"
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Email Settings</span>
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setServicesIntegrationsTab('fcm')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  className={`relative px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer ${
                     servicesIntegrationsTab === 'fcm'
-                      ? 'bg-white dark:bg-purple-900/60 text-purple-700 dark:text-white shadow-xs'
+                      ? 'text-purple-700 dark:text-white'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Flame className="w-3.5 h-3.5 text-amber-500" />
-                  <span>FCM Notification Settings</span>
+                  {servicesIntegrationsTab === 'fcm' && (
+                    <motion.span
+                      layoutId="settingsServicesIntegrationsPill"
+                      className="absolute inset-0 rounded-lg bg-white dark:bg-purple-900/60 shadow-xs"
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Flame className="w-3.5 h-3.5 text-amber-500" />
+                    <span>FCM Notification Settings</span>
+                  </span>
                 </button>
               </div>
             </div>
 
+            <AnimatedTabPanel activeKey={servicesIntegrationsTab} direction={servicesTabDirection}>
             {/* TAB 1: EMAIL SETTINGS */}
-            <div className={servicesIntegrationsTab === 'email' ? 'block space-y-5' : 'hidden'}>
+            {servicesIntegrationsTab === 'email' && (
+            <div className="space-y-5">
               {/* Active Provider Selector */}
               <div className="p-4 bg-gradient-to-r from-slate-50 via-purple-50/30 to-slate-50 dark:from-slate-900/80 dark:via-purple-950/20 dark:to-slate-900/80 rounded-2xl border border-slate-200 dark:border-purple-900/50 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -3439,10 +3467,10 @@ setFormErrors(errors);
                   <button
                     type="button"
                     onClick={() => setEmailProviderTab('resend')}
-                    className={`pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`tab-underline-link relative pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       emailProviderTab === 'resend'
-                        ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-                        : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                        ? 'active text-blue-600 dark:text-blue-400'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     <Server className="w-3.5 h-3.5" />
@@ -3452,15 +3480,22 @@ setFormErrors(errors);
                         ACTIVE
                       </span>
                     )}
+                    {emailProviderTab === 'resend' && (
+                      <motion.div
+                        layoutId="settingsEmailProviderUnderline"
+                        className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 pointer-events-none z-10"
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                      />
+                    )}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setEmailProviderTab('gmail')}
-                    className={`pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`tab-underline-link relative pb-2.5 px-3.5 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       emailProviderTab === 'gmail'
-                        ? 'border-rose-600 text-rose-600 dark:text-rose-400 dark:border-rose-400'
-                        : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                        ? 'active text-rose-600 dark:text-rose-400'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     <Mail className="w-3.5 h-3.5" />
@@ -3470,10 +3505,18 @@ setFormErrors(errors);
                         ACTIVE
                       </span>
                     )}
+                    {emailProviderTab === 'gmail' && (
+                      <motion.div
+                        layoutId="settingsEmailProviderUnderline"
+                        className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 pointer-events-none z-10"
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                      />
+                    )}
                   </button>
                 </div>
               </div>
 
+              <AnimatedTabPanel activeKey={emailProviderTab} direction={emailProviderTabDirection}>
               {/* RESEND CONFIGURATION */}
               {emailProviderTab === 'resend' && (
                 <div className="space-y-4 pt-1">
@@ -3679,6 +3722,7 @@ setFormErrors(errors);
                   </div>
                 </div>
               )}
+              </AnimatedTabPanel>
 
               {/* REQUIRE_EMAIL_VERIFICATION_FOR_FREE_TRIAL TOGGLE */}
               <div className="p-4 bg-purple-50/60 dark:bg-purple-950/20 rounded-2xl border border-purple-200 dark:border-purple-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -3897,6 +3941,7 @@ setFormErrors(errors);
                 )}
               </div>
             </div>
+            )}
 
             {/* TAB 2: FCM NOTIFICATION SETTINGS */}
             {servicesIntegrationsTab === 'fcm' && (
@@ -3909,6 +3954,7 @@ setFormErrors(errors);
                 />
               </Suspense>
             )}
+            </AnimatedTabPanel>
           </div>
 
           {/* CATEGORY 4: SUPERADMIN NATIVE PUSH NOTIFICATION EVENT TRIGGERS */}
@@ -4933,6 +4979,7 @@ setFormErrors(errors);
           <AppearanceSettingsTab currentUser={currentUser} />
         </Suspense>
       )}
+      </AnimatedTabPanel>
 
       {/* Renew Subscription Modal (Auto-displayed when status is EXPIRED or triggered via Renew Subscription button) */}
       {isRenewModalOpen && (

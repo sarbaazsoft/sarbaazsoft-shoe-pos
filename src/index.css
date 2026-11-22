@@ -4446,6 +4446,99 @@ html:not(.dark) .hero-highlight-gradient,
   filter: drop-shadow(0 2px 10px rgba(var(--primary-rgb, 147, 51, 234), 0.14));
 }
 
+@keyframes heroUnderlineSwipeIn {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes heroUnderlineSwipeOut {
+  0% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes heroUnderlineSheen {
+  0% {
+    opacity: 0;
+    transform: translate3d(-120%, 0, 0);
+  }
+  20% {
+    opacity: 0.95;
+  }
+  80% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(260%, 0, 0);
+  }
+}
+
+.hero-underline-bar {
+  overflow: hidden;
+  transform-origin: left center;
+  background-image: linear-gradient(
+    90deg,
+    var(--primary-400, #c084fc) 0%,
+    var(--primary-300, #d8b4fe) 48%,
+    var(--companion-300, #a5b4fc) 100%
+  );
+  box-shadow: 0 2px 12px rgba(var(--primary-rgb, 147, 51, 234), 0.5);
+  animation: heroUnderlineSwipeIn 560ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  will-change: transform, opacity;
+}
+
+.hero-underline-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  animation: heroUnderlineSheen 620ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
+  will-change: transform, opacity;
+}
+
+.hero-underline-bar--exit {
+  transform-origin: right center;
+  animation: heroUnderlineSwipeOut 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.hero-underline-bar--exit::after {
+  display: none;
+}
+
+html:not(.dark) .hero-underline-bar,
+[data-landing-theme="light"] .hero-underline-bar {
+  background-image: linear-gradient(
+    90deg,
+    var(--primary-700, #7e22ce) 0%,
+    var(--primary-600, #9333ea) 50%,
+    var(--companion-600, #4f46e5) 100%
+  );
+  box-shadow: 0 2px 10px rgba(var(--primary-rgb, 147, 51, 234), 0.24);
+}
+
 .hero-area-width-track {
   transition: width 360ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: width;
@@ -4459,6 +4552,16 @@ html:not(.dark) .hero-highlight-gradient,
     filter: none !important;
     will-change: auto;
   }
+  .hero-underline-bar {
+    animation: none !important;
+    transform: scaleX(1) !important;
+    opacity: 1 !important;
+    will-change: auto;
+  }
+  .hero-underline-bar::after {
+    display: none !important;
+    animation: none !important;
+  }
   .hero-area-width-track {
     transition: none !important;
     will-change: auto;
@@ -4467,3 +4570,46 @@ html:not(.dark) .hero-highlight-gradient,
     display: none !important;
   }
 }
+
+/* ============================================================================
+   KEEP-ALIVE TOP-LEVEL ROUTE TAB TRANSITIONS (GPU-Composited: transform + opacity)
+   Triggered cleanly when switching kept-alive sidebar tabs without unmounting
+   ============================================================================ */
+@keyframes keepaliveTabEnterForward {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes keepaliveTabEnterBackward {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.keepalive-tab-enter-forward {
+  animation: keepaliveTabEnterForward 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.keepalive-tab-enter-backward {
+  animation: keepaliveTabEnterBackward 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keepalive-tab-enter-forward,
+  .keepalive-tab-enter-backward {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+

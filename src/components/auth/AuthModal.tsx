@@ -16,6 +16,7 @@ import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
 import { FreeTrialOnboardingModal } from '../saas/FreeTrialOnboardingModal.tsx';
 import { useResendCooldown } from '../../hooks/useResendCooldown.ts';
 import { ResendSecurityNotice } from './ResendSecurityNotice.tsx';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 interface AuthModalProps {
   onSuccess: (user: any) => void;
@@ -39,6 +40,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [tab, setTab] = useState<'login' | 'forgot' | 'reset'>('login');
+  const authTabDirection = useTabDirection(tab, ['login', 'forgot', 'reset'] as const);
   const [showFreeTrialModal, setShowFreeTrialModal] = useState(false);
 
   // Form states with email retrieval from localStorage
@@ -575,6 +577,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               )}
 
+              <AnimatedTabPanel activeKey={tab} direction={authTabDirection}>
               {/* TAB 1: LOGIN FORM */}
               {tab === 'login' && (
                 <form onSubmit={handleLogin} className="space-y-4">
@@ -987,6 +990,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
                 </div>
               )}
+              </AnimatedTabPanel>
             </div>
           </motion.div>
         </div>

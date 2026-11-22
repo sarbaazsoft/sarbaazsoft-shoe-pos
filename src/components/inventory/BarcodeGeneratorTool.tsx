@@ -9,6 +9,7 @@ import { generateCode128Barcode } from '../../utils/barcode.ts';
 import { playAudioFeedback } from '../../utils/audio.ts';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 export type LabelFormatType = 'roll_50x30' | 'roll_60x40' | 'a4_sheet';
 
@@ -41,6 +42,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
   const [activeTab, setActiveTab] = useState<'catalog' | 'custom'>(
     initialSelectedProduct ? 'catalog' : 'catalog'
   );
+  const tabDirection = useTabDirection(activeTab, ['catalog', 'custom'] as const);
   const { containerRef: barcodeTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
     padding: 16,
     behavior: 'smooth',
@@ -499,6 +501,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
         <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
           {/* LEFT COLUMN: SELECTION & GENERATOR CONTROLS (7 COLS) */}
           <div className="lg:col-span-7 p-3.5 sm:p-5 flex flex-col min-h-0 overflow-y-auto space-y-3.5 sm:space-y-4">
+            <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
             {activeTab === 'catalog' ? (
               /* TAB 1: CATALOG INVENTORY MULTI-SELECT */
               <div className="space-y-3">
@@ -863,6 +866,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                 </div>
               </div>
             )}
+            </AnimatedTabPanel>
 
             {/* PHYSICAL HARDWARE SCANNER TEST VERIFICATION BOX */}
             <div className="p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-2 select-none">

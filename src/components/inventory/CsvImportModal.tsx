@@ -33,6 +33,16 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const effectiveSettings = liveSettings || companySettings || {};
+  const isWholesaleStore =
+    String(effectiveSettings?.business_type || effectiveSettings?.businessType || '').toUpperCase() === 'WHOLESALE';
+  const storeAllowsHalfCarton =
+    effectiveSettings?.allow_half_carton === true || effectiveSettings?.allowHalfCarton === true;
+  const showWholesaleHalfCol = isWholesaleStore && storeAllowsHalfCarton;
+  const displaySchemaKeys = isWholesaleStore
+    ? showWholesaleHalfCol
+      ? [...PRODUCT_CSV_SCHEMA_KEYS, 'allow_half_carton']
+      : PRODUCT_CSV_SCHEMA_KEYS
+    : PRODUCT_CSV_SCHEMA_KEYS.filter((k) => k !== 'pairs_per_carton');
   const currencySymbol =
     effectiveSettings?.currency_symbol || effectiveSettings?.currencySymbol || 'Rs.';
 
@@ -162,6 +172,9 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         max_price: r.max_price,
         total_stock: r.total_stock,
         pairs_per_carton: r.pairs_per_carton,
+        ...(showWholesaleHalfCol && r.allow_half_carton !== undefined
+          ? { allow_half_carton: r.allow_half_carton }
+          : {}),
         primary_image_url: r.primary_image_url,
         description: r.description,
         duplicateAction: r.duplicateAction || duplicateStrategy,
@@ -301,7 +314,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-lg">
                 Supports exact <code className="font-mono text-slate-700 dark:text-purple-300">products</code> table columns:{' '}
                 <span className="font-mono text-[10px]">
-                  {PRODUCT_CSV_SCHEMA_KEYS.join(', ')}
+                  {displaySchemaKeys.join(', ')}
                 </span>
               </p>
             </div>
@@ -448,6 +461,9 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                           min_price / max_price
                         </th>
                         <th className="py-2.5 px-3 text-center">total_stock</th>
+                        {showWholesaleHalfCol && (
+                          <th className="py-2.5 px-3 text-center">allow_half_carton</th>
+                        )}
                         <th className="py-2.5 px-3 text-center">Action</th>
                       </tr>
                     </thead>
@@ -585,8 +601,29 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                                 </span>
                                 {renderAutoBadge(r, 'total_stock')}
                               </div>
+                              {isWholesaleStore && (
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                  {r.pairs_per_carton || 12} prs/ctn
+                                </div>
+                              )}
+                              {renderFieldError(r, 'pairs_per_carton')}
                               {renderFieldError(r, 'total_stock')}
                             </td>
+
+                            {showWholesaleHalfCol && (
+                              <td className="py-2.5 px-3 text-center font-mono">
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    r.allow_half_carton !== false
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                  }`}
+                                >
+                                  {r.allow_half_carton !== false ? 'true (0.5 ctn)' : 'false (full)'}
+                                </span>
+                                {renderFieldError(r, 'allow_half_carton')}
+                              </td>
+                            )}
 
                             {/* Remove row */}
                             <td className="py-2.5 px-3 text-center">

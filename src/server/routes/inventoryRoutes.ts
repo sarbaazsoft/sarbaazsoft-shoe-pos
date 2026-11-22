@@ -31,13 +31,16 @@ router.post('/adjust', requireAuth, requireAdmin, async (req: AuthenticatedReque
     if (!productId) {
       return res.status(400).json({ error: 'Product ID is required.' });
     }
-    if (newStock === undefined || isNaN(Number(newStock)) || Number(newStock) < 0) {
+    if (newStock === undefined || newStock === null || String(newStock).trim() === '') {
+      return res.status(400).json({ error: 'Valid non-negative new stock count is required.' });
+    }
+    const targetStock = Number(newStock);
+    if (!Number.isFinite(targetStock) || targetStock < 0) {
       return res.status(400).json({ error: 'Valid non-negative new stock count is required.' });
     }
     const rawNotes = notes || reason;
     const finalNotes = (typeof rawNotes === 'string' && rawNotes.trim()) ? rawNotes.trim() : 'Inline inventory quantity update';
 
-    const targetStock = parseInt(newStock, 10);
     const result = await tenantDb.inventory.adjustStock({
       productId: Number(productId),
       newStock: targetStock,
@@ -68,8 +71,11 @@ router.patch('/inline-stock', requireAuth, requireAdmin, async (req: Authenticat
     if (!productId) {
       return res.status(400).json({ error: 'Product ID is required.' });
     }
-    const parsedStock = parseInt(String(newStock), 10);
-    if (isNaN(parsedStock) || parsedStock < 0) {
+    if (newStock === undefined || newStock === null || String(newStock).trim() === '') {
+      return res.status(400).json({ error: 'Stock quantity must be a non-negative number.' });
+    }
+    const parsedStock = Number(newStock);
+    if (!Number.isFinite(parsedStock) || parsedStock < 0) {
       return res.status(400).json({ error: 'Stock quantity must be a non-negative number.' });
     }
 

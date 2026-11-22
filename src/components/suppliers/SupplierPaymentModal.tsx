@@ -105,7 +105,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
         amount: numAmount,
         paymentDate,
         paymentMethod,
-        referenceNumber: referenceNumber.trim(),
+        referenceNumber: paymentMethod === 'CASH' ? '' : referenceNumber.trim(),
         notes: toTitleCaseTrimmed(notes),
         purchaseId: purchaseId || undefined,
       });
@@ -288,7 +288,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               </div>
 
               {/* Date and Reference Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className={`grid grid-cols-1 ${paymentMethod !== 'CASH' ? 'sm:grid-cols-2' : ''} gap-3`}>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Payment Date
@@ -304,21 +304,23 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Ref / Cheque # (Optional)
-                  </label>
-                  <div className="relative">
-                    <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="e.g. CHQ-8902, TXN-4910"
-                      value={referenceNumber}
-                      onChange={(e) => setReferenceNumber(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300 dark:border-purple-800/60 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                    />
+                {paymentMethod !== 'CASH' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Ref / Cheque # (Optional)
+                    </label>
+                    <div className="relative">
+                      <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="e.g. CHQ-8902, TXN-4910"
+                        value={referenceNumber}
+                        onChange={(e) => setReferenceNumber(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300 dark:border-purple-800/60 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Notes / Memo */}

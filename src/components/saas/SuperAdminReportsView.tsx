@@ -4,6 +4,7 @@ import { TrendingUp, DollarSign, ShoppingBag, Award, Receipt, RotateCw, Search, 
 import { StatCard, triggerStatRecount } from '../common/StatCard';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel';
 import type { SuperAdminStoreRow, SuperAdminReportProduct, SuperAdminReportBreakdown, SuperAdminRecentTransaction, TenantPlanBreakdown, ExpiringTenantAlert } from '../../types';
 
 interface SuperAdminReportsViewProps {
@@ -32,6 +33,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
   onOpenStore,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<ReportSubTab>('overview');
+  const tabDirection = useTabDirection(activeSubTab, ['overview', 'store_leaderboard', 'top_products', 'sales_ledger'] as const);
   const [storeScope, setStoreScope] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
@@ -796,6 +798,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
         </div>
       </motion.div>
 
+      <AnimatedTabPanel activeKey={activeSubTab} direction={tabDirection}>
       {/* TAB 1: OVERVIEW (Aligned with Store ReportsDashboard Overview 2-Column + Bottom Card) */}
       {activeSubTab === 'overview' && (
         <div className="space-y-4">
@@ -1664,6 +1667,7 @@ export const SuperAdminReportsView: React.FC<SuperAdminReportsViewProps> = ({
           )}
         </div>
       )}
+      </AnimatedTabPanel>
     </div>
   );
 };

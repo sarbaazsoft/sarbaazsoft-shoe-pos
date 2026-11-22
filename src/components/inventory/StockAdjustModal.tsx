@@ -3,31 +3,81 @@ import { motion } from 'motion/react';
 import { X, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { toTitleCaseLive, toTitleCaseTrimmed } from '../../utils/textFormat.ts';
+import {
+  calculateCartonsFromPairs,
+  getWholesaleStockStep,
+  isHalfCartonAllowed,
+  validateWholesaleStockQuantity,
+} from '../../schemas/productSchema.ts';
 
 interface StockAdjustModalProps {
   product: any;
+  companySettings?: any;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
   product,
+  companySettings,
   onClose,
   onSuccess,
 }) => {
-  const [newTotalStock, setNewTotalStock] = useState<number>(product.totalStock);
+  const [newTotalStockInput, setNewTotalStockInput] = useState<string>(String(product.totalStock ?? 0));
   const [reason, setReason] = useState('Stock audit discrepancy');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const diff = newTotalStock - product.totalStock;
+  const isWholesaleStore =
+    String(companySettings?.businessType || companySettings?.business_type || '').toUpperCase() === 'WHOLESALE';
+  const rawPpc = Number(product?.pairsPerCarton ?? product?.pairs_per_carton);
+  const pairsPerCarton = Number.isFinite(rawPpc) && rawPpc > 0 ? rawPpc : 12;
+  const allowHalfCarton = isHalfCartonAllowed(product, companySettings);
+  const wholesaleStep = getWholesaleStockStep({ pairsPerCarton, allowHalfCarton }, companySettings);
+
+  const wholesaleValidation = isWholesaleStore
+    ? validateWholesaleStockQuantity({
+        quantity: newTotalStockInput,
+        pairsPerCarton,
+        allowHalfCarton,
+        isWholesaleStore: true,
+      })
+    : null;
+
+  const currentStock = Number(product.totalStock ?? 0);
+  const effectiveNewStock = isWholesaleStore
+    ? wholesaleValidation?.valid && wholesaleValidation.normalizedQuantity !== null
+      ? wholesaleValidation.normalizedQuantity
+      : Number.isFinite(Number(newTotalStockInput)) && newTotalStockInput.trim() !== ''
+      ? Number(newTotalStockInput)
+      : currentStock
+    : parseInt(newTotalStockInput, 10) || 0;
+
+  const diff = isWholesaleStore
+    ? Math.round((effectiveNewStock - currentStock) * 10000) / 10000
+    : effectiveNewStock - currentStock;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reason.trim()) {
       return setError('Reason is mandatory for inventory audit trail.');
     }
-    if (diff === 0) {
+
+    let targetStock = effectiveNewStock;
+    if (isWholesaleStore) {
+      const check = validateWholesaleStockQuantity({
+        quantity: newTotalStockInput,
+        pairsPerCarton,
+        allowHalfCarton,
+        isWholesaleStore: true,
+      });
+      if (!check.valid || check.normalizedQuantity === null) {
+        return setError(check.error || 'Invalid wholesale stock quantity.');
+      }
+      targetStock = check.normalizedQuantity;
+    }
+
+    if (targetStock === currentStock) {
       return setError('New stock matches current stock. No change needed.');
     }
 
@@ -36,7 +86,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
     try {
       await api.inventory.adjust({
         productId: product.id,
-        newStock: newTotalStock,
+        newStock: targetStock,
         reason: toTitleCaseTrimmed(reason),
       });
       onSuccess();
@@ -47,6 +97,9 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  const showLiveWholesaleError =
+    isWholesaleStore && newTotalStockInput.trim() !== '' && wholesaleValidation && !wholesaleValidation.valid;
 
   return (
     <motion.div
@@ -81,8 +134,8 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
           {error && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-400 rounded-xl flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-400 rounded-xl flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
@@ -98,8 +151,13 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
             <div className="p-3 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl">
               <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Current Stock</span>
               <div className="text-xl font-bold font-mono text-slate-800 dark:text-slate-200 mt-1">
-                {product.totalStock} pairs
+                {currentStock} pairs
               </div>
+              {isWholesaleStore && (
+                <div className="text-[10px] font-mono text-indigo-600 dark:text-indigo-300 mt-0.5">
+                  {calculateCartonsFromPairs(currentStock, pairsPerCarton)} cartons
+                </div>
+              )}
             </div>
 
             <div className="p-3 bg-blue-50/50 dark:bg-blue-950/40 border border-blue-200 dark:border-cyan-500/30 rounded-xl">
@@ -111,19 +169,81 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
               >
                 {diff > 0 ? `+${diff}` : diff}
               </div>
+              {isWholesaleStore && wholesaleValidation?.valid && (
+                <div className="text-[10px] font-mono text-blue-700 dark:text-cyan-300 mt-0.5">
+                  New: {wholesaleValidation.cartons} cartons
+                </div>
+              )}
             </div>
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">New Total Count *</label>
-            <input
-              type="number"
-              min="0"
-              required
-              value={newTotalStock}
-              onChange={(e) => setNewTotalStock(parseInt(e.target.value, 10) || 0)}
-              className="app-input w-full px-3 py-2 text-sm font-bold font-mono text-center"
-            />
+            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">New Total Count (Pairs) *</label>
+            {isWholesaleStore ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      const base = Number.isFinite(Number(newTotalStockInput)) && newTotalStockInput.trim() !== '' ? Number(newTotalStockInput) : currentStock;
+                      const next = Math.max(0, Math.round((base - wholesaleStep) * 10000) / 10000);
+                      setNewTotalStockInput(String(next));
+                    }}
+                    className="w-9 h-9 rounded-lg border border-indigo-200 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900 font-bold text-indigo-800 dark:text-indigo-200 text-sm cursor-pointer transition"
+                    title={`Decrease by ${wholesaleStep} pairs`}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    step={wholesaleStep}
+                    required
+                    value={newTotalStockInput}
+                    onChange={(e) => {
+                      setError(null);
+                      setNewTotalStockInput(e.target.value);
+                    }}
+                    className={`app-input flex-1 px-3 py-2 text-sm font-bold font-mono text-center ${
+                      showLiveWholesaleError ? 'border-rose-500 focus:border-rose-500' : ''
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      const base = Number.isFinite(Number(newTotalStockInput)) && newTotalStockInput.trim() !== '' ? Number(newTotalStockInput) : currentStock;
+                      const next = Math.round((base + wholesaleStep) * 10000) / 10000;
+                      setNewTotalStockInput(String(next));
+                    }}
+                    className="w-9 h-9 rounded-lg border border-indigo-200 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900 font-bold text-indigo-800 dark:text-indigo-200 text-sm cursor-pointer transition"
+                    title={`Increase by ${wholesaleStep} pairs`}
+                  >
+                    +
+                  </button>
+                </div>
+                {showLiveWholesaleError ? (
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                    {wholesaleValidation.error}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium">
+                    Allowed increment: <span className="font-mono font-bold">{wholesaleStep} pairs</span> (
+                    {allowHalfCarton ? '0.5 carton' : 'full carton'} of {pairsPerCarton} pairs/ctn)
+                  </p>
+                )}
+              </div>
+            ) : (
+              <input
+                type="number"
+                min="0"
+                required
+                value={newTotalStockInput}
+                onChange={(e) => setNewTotalStockInput(e.target.value)}
+                className="app-input w-full px-3 py-2 text-sm font-bold font-mono text-center"
+              />
+            )}
           </div>
 
           <div>
@@ -153,7 +273,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || Boolean(showLiveWholesaleError)}
               className="btn-primary px-5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-0 text-xs font-bold rounded-xl flex items-center space-x-2 text-white cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Recording...' : 'Commit Adjustment'}</span>

@@ -121,7 +121,7 @@ const AnimatedHeroHighlight: React.FC = () => {
   return (
     <span
       id="hero-animated-highlight"
-      className="relative font-courgette font-normal tracking-normal inline-grid align-bottom overflow-hidden pt-[0.06em] pb-[0.18em] -my-[0.06em] px-[0.08em] -mx-[0.08em] text-primary-400 lt:text-primary"
+      className="relative font-courgette font-normal tracking-normal inline-grid align-bottom overflow-hidden pt-[0.06em] pb-[0.22em] -mt-[0.06em] -mb-[0.14em] px-[0.08em] -mx-[0.08em] text-primary-400 lt:text-primary"
       style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
     >
       {HERO_HIGHLIGHT_WORDS.map((word) => (
@@ -137,9 +137,15 @@ const AnimatedHeroHighlight: React.FC = () => {
         <span
           key={`exit-${activeIndex}`}
           aria-hidden="true"
-          className="col-start-1 row-start-1 whitespace-nowrap pointer-events-none select-none hero-highlight-gradient hero-word-exit"
+          className="col-start-1 row-start-1 justify-self-start whitespace-nowrap pointer-events-none select-none hero-word-exit"
         >
-          {previousWord}
+          <span className="relative inline-block">
+            <span className="hero-highlight-gradient">{previousWord}</span>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none select-none absolute -bottom-[0.05em] left-0 right-0 h-[3px] sm:h-[4px] rounded-full hero-underline-bar hero-underline-bar--exit"
+            />
+          </span>
         </span>
       )}
       <span
@@ -153,7 +159,7 @@ const AnimatedHeroHighlight: React.FC = () => {
           <span className="hero-highlight-gradient">{activeWord}</span>
           <span
             aria-hidden="true"
-            className="pointer-events-none select-none absolute -bottom-[0.06em] left-0 right-0 h-[3px] sm:h-[3.5px] rounded-full hero-underline-bar"
+            className="pointer-events-none select-none absolute -bottom-[0.05em] left-0 right-0 h-[3px] sm:h-[4px] rounded-full hero-underline-bar"
           />
         </span>
       </span>

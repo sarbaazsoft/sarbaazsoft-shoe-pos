@@ -9,7 +9,13 @@ import { generateCode128Barcode, analyzeBarcode } from '../../utils/barcode.ts';
 import { parseBrandPrefix, parseCategoryPrefix, generateSuggestedArticle, STANDARD_FOOTWEAR_CATEGORIES, normalizeFootwearCategory } from '../../utils/footwear.ts';
 import { BarcodeSvg } from '../common/BarcodeSvg.tsx';
 import { cleanStockPriceInput, formatStockPrice } from '../../utils/priceFormat.ts';
-import { validateAndNormalizeProductPricing, PricingMode } from '../../schemas/productSchema.ts';
+import {
+  validateAndNormalizeProductPricing,
+  PricingMode,
+  calculateCartonsFromPairs,
+  getWholesaleStockStep,
+  validateWholesaleStockQuantity,
+} from '../../schemas/productSchema.ts';
 import { BrandLogo } from '../common/BrandLogo.tsx';
 import { toTitleCaseLive, toTitleCaseTrimmed } from '../../utils/textFormat.ts';
 import type { ProductFormValues } from '../../types.ts';
@@ -128,7 +134,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [lotSize, setLotSize] = useState<12 | 16>(() =>
     Number(product?.pairsPerCarton ?? product?.pairs_per_carton) === 16 ? 16 : 12
   );
-  const [totalStock, setTotalStock] = useState<number | ''>(() => {
+  const [totalStock, setTotalStock] = useState<number | string>(() => {
     if (product?.totalStock !== undefined) return product.totalStock;
     if (isWholesaleStore) {
       const raw =
@@ -179,7 +185,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const handleLotSizeChange = (newSize: 12 | 16) => {
     const previousLotSize = lotSize;
     setLotSize(newSize);
-    if (totalStock === '' || totalStock === 0 || totalStock === previousLotSize) {
+    if (totalStock === '' || Number(totalStock) === 0 || Number(totalStock) === previousLotSize) {
       setTotalStock(newSize);
     }
   };
@@ -187,7 +193,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const handlePairsPerCartonChange = (newPairs: number) => {
     const safePairs = newPairs === 16 ? 16 : 12;
     setPairsPerCarton(safePairs);
-    if (!product || totalStock === 6 || totalStock === 8 || totalStock === 12 || totalStock === 16) {
+    setErrorMessage(null);
+    const numStock = Number(totalStock);
+    if (!product || numStock === 6 || numStock === 8 || numStock === 12 || numStock === 16) {
       setTotalStock(isFractionalAllowed ? (safePairs / 2) : safePairs);
     }
   };
@@ -615,19 +623,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setErrorMessage('Please enter or select a Shoe Category.');
       return false;
     }
-    if (totalStock === '' || Number(totalStock) < 0) {
-      setErrorMessage('Total initial stock quantity must be 0 or greater.');
-      return false;
-    }
     if (isWholesaleStore) {
       if (pairsPerCarton !== 12 && pairsPerCarton !== 16) {
         setErrorMessage('Minimum pairs for wholesale lot size must be 12 or 16 pairs.');
         return false;
       }
-      if (!isFractionalAllowed && typeof totalStock === 'number' && totalStock > 0 && totalStock % pairsPerCarton !== 0) {
-        setErrorMessage(`Fractional / half cartons (0.5) are restricted for this product. Stock must be in full carton multiples (${pairsPerCarton} pairs per carton).`);
+      const stockCheck = validateWholesaleStockQuantity({
+        quantity: totalStock,
+        pairsPerCarton,
+        allowHalfCarton: isFractionalAllowed,
+        isWholesaleStore: true,
+      });
+      if (!stockCheck.valid) {
+        setErrorMessage(stockCheck.error || 'Invalid wholesale stock quantity.');
         return false;
       }
+    } else if (totalStock === '' || Number(totalStock) < 0) {
+      setErrorMessage('Total initial stock quantity must be 0 or greater.');
+      return false;
     }
     return true;
   };
@@ -851,6 +864,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       }
 
       const finalPairsPerCarton = isWholesaleStore ? (pairsPerCarton === 16 ? 16 : 12) : lotSize;
+      let finalTotalStock = 0;
+      if (isWholesaleStore) {
+        const wholesaleStockCheck = validateWholesaleStockQuantity({
+          quantity: totalStock,
+          pairsPerCarton: finalPairsPerCarton,
+          allowHalfCarton,
+          isWholesaleStore: true,
+        });
+        if (!wholesaleStockCheck.valid || wholesaleStockCheck.normalizedQuantity === null) {
+          setCurrentStep(1);
+          setErrorMessage(wholesaleStockCheck.error || 'Invalid wholesale stock quantity.');
+          setIsSubmitting(false);
+          return;
+        }
+        finalTotalStock = wholesaleStockCheck.normalizedQuantity;
+      } else {
+        finalTotalStock = totalStock === '' ? 0 : Math.round(Number(totalStock));
+      }
 
       // Consolidated Product Pricing Payload:
       const payload: ProductFormValues = {
@@ -868,7 +899,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         pairsPerCarton: finalPairsPerCarton,
         allowHalfCarton: isWholesaleStore ? allowHalfCarton : true,
         allow_half_carton: isWholesaleStore ? allowHalfCarton : true,
-        totalStock: totalStock === '' ? 0 : Math.round(Number(totalStock)),
+        totalStock: finalTotalStock,
       };
 
       let savedProduct: any = null;
@@ -1235,48 +1266,96 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <label className="block font-bold text-indigo-950 dark:text-white text-xs">
                       Total Available Stock Quantity (Pairs) <span className="text-red-500 dark:text-pink-400">*</span>
                     </label>
-                    <div className="flex items-center space-x-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const step = isFractionalAllowed ? (pairsPerCarton / 2) : pairsPerCarton;
-                          setTotalStock((prev) => Math.max(0, (typeof prev === 'number' ? prev : 0) - step));
-                        }}
-                        className="w-8 h-8 rounded-lg border border-indigo-200 dark:border-indigo-400/40 bg-white dark:bg-white/10 hover:bg-indigo-100 dark:hover:bg-white/20 flex items-center justify-center font-bold text-indigo-950 dark:text-white text-sm transition active:scale-95 shadow-2xs cursor-pointer"
-                        title={isFractionalAllowed ? `Decrease 0.5 Carton (${pairsPerCarton / 2} pairs)` : `Decrease 1 Carton (${pairsPerCarton} pairs)`}
-                      >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        min="0"
-                        step={isFractionalAllowed ? pairsPerCarton / 2 : pairsPerCarton}
-                        required
-                        value={totalStock}
-                        onChange={(e) => setTotalStock(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-                        placeholder="0"
-                        className="flex-1 py-1.5 px-3 bg-white dark:bg-slate-950/80 border border-indigo-200 dark:border-indigo-400/40 rounded-lg font-mono font-bold text-center text-sm text-indigo-950 dark:text-white placeholder-indigo-300 dark:placeholder-white/40 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-400/30 shadow-2xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const step = isFractionalAllowed ? (pairsPerCarton / 2) : pairsPerCarton;
-                          setTotalStock((prev) => (typeof prev === 'number' ? prev : 0) + step);
-                        }}
-                        className="w-8 h-8 rounded-lg border border-indigo-200 dark:border-indigo-400/40 bg-white dark:bg-white/10 hover:bg-indigo-100 dark:hover:bg-white/20 flex items-center justify-center font-bold text-indigo-950 dark:text-white text-sm transition active:scale-95 shadow-2xs cursor-pointer"
-                        title={isFractionalAllowed ? `Increase 0.5 Carton (+${pairsPerCarton / 2} pairs)` : `Increase 1 Carton (+${pairsPerCarton} pairs)`}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTotalStock((prev) => (typeof prev === 'number' ? prev : 0) + pairsPerCarton)}
-                        className="h-8 px-2.5 rounded-lg border border-indigo-200 dark:border-indigo-400/40 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 flex items-center justify-center font-bold text-indigo-700 dark:text-indigo-300 text-xs transition active:scale-95 shadow-2xs cursor-pointer"
-                        title={`Increase 1 Full Carton (+${pairsPerCarton} pairs)`}
-                      >
-                        +1 Ctn
-                      </button>
-                    </div>
+                    {(() => {
+                      const wholesaleStep = getWholesaleStockStep({
+                        pairsPerCarton,
+                        allowHalfCarton: isFractionalAllowed,
+                      });
+                      const currentNumeric =
+                        totalStock !== '' && Number.isFinite(Number(totalStock)) ? Number(totalStock) : 0;
+                      const liveValidation = validateWholesaleStockQuantity({
+                        quantity: totalStock,
+                        pairsPerCarton,
+                        allowHalfCarton: isFractionalAllowed,
+                        isWholesaleStore: true,
+                      });
+                      const showLiveError = totalStock !== '' && !liveValidation.valid;
+
+                      return (
+                        <>
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setErrorMessage(null);
+                                const nextVal = Math.max(0, Math.round((currentNumeric - wholesaleStep) * 10000) / 10000);
+                                setTotalStock(nextVal);
+                              }}
+                              className="w-8 h-8 rounded-lg border border-indigo-200 dark:border-indigo-400/40 bg-white dark:bg-white/10 hover:bg-indigo-100 dark:hover:bg-white/20 flex items-center justify-center font-bold text-indigo-950 dark:text-white text-sm transition active:scale-95 shadow-2xs cursor-pointer"
+                              title={isFractionalAllowed ? `Decrease 0.5 Carton (${wholesaleStep} pairs)` : `Decrease 1 Carton (${wholesaleStep} pairs)`}
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              step={wholesaleStep}
+                              required
+                              value={totalStock}
+                              onChange={(e) => {
+                                setErrorMessage(null);
+                                setTotalStock(e.target.value);
+                              }}
+                              placeholder="0"
+                              className={`flex-1 py-1.5 px-3 bg-white dark:bg-slate-950/80 border rounded-lg font-mono font-bold text-center text-sm text-indigo-950 dark:text-white placeholder-indigo-300 dark:placeholder-white/40 outline-none focus:ring-2 shadow-2xs ${
+                                showLiveError
+                                  ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-200 dark:border-rose-500 dark:focus:ring-rose-500/30'
+                                  : 'border-indigo-200 dark:border-indigo-400/40 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-200 dark:focus:ring-indigo-400/30'
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setErrorMessage(null);
+                                const nextVal = Math.round((currentNumeric + wholesaleStep) * 10000) / 10000;
+                                setTotalStock(nextVal);
+                              }}
+                              className="w-8 h-8 rounded-lg border border-indigo-200 dark:border-indigo-400/40 bg-white dark:bg-white/10 hover:bg-indigo-100 dark:hover:bg-white/20 flex items-center justify-center font-bold text-indigo-950 dark:text-white text-sm transition active:scale-95 shadow-2xs cursor-pointer"
+                              title={isFractionalAllowed ? `Increase 0.5 Carton (+${wholesaleStep} pairs)` : `Increase 1 Carton (+${wholesaleStep} pairs)`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setErrorMessage(null);
+                                setTotalStock(Math.round((currentNumeric + pairsPerCarton) * 10000) / 10000);
+                              }}
+                              className="h-8 px-2.5 rounded-lg border border-indigo-200 dark:border-indigo-400/40 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 flex items-center justify-center font-bold text-indigo-700 dark:text-indigo-300 text-xs transition active:scale-95 shadow-2xs cursor-pointer"
+                              title={`Increase 1 Full Carton (+${pairsPerCarton} pairs)`}
+                            >
+                              +1 Ctn
+                            </button>
+                          </div>
+
+                          {showLiveError ? (
+                            <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-start gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                              <span>{liveValidation.error}</span>
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-indigo-900/80 dark:text-indigo-200/90">
+                              <span>
+                                Allowed increment: <strong className="font-mono">{wholesaleStep} pairs</strong> ({isFractionalAllowed ? '0.5 carton' : 'full carton'} of {pairsPerCarton} pairs/ctn)
+                              </span>
+                              <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                                = {calculateCartonsFromPairs(currentNumeric, pairsPerCarton)} Cartons
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {/* Carton Pack / Minimum Pairs to Sell for Wholesale (12 or 16 pairs per carton) */}
                     <div className="pt-2 border-t border-indigo-200/60 dark:border-white/10 space-y-2">
@@ -1332,7 +1411,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                           {[0.5, 1, 2, 5, 10].map((cartons) => {
                             const pairs = pairsPerCarton * cartons;
-                            const isSelected = totalStock === pairs;
+                            const isSelected = totalStock !== '' && Number(totalStock) === pairs;
                             const cartonLabel = cartons === 1 ? 'Carton' : 'Cartons';
                             const isHalfChip = cartons === 0.5;
                             const isHalfDisabled = isHalfChip && !isFractionalAllowed;
@@ -1353,6 +1432,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                     setErrorMessage("To select 0.5 carton, please enable 'Allow Half Carton (0.5)' inside the chip.");
                                     return;
                                   }
+                                  setErrorMessage(null);
                                   setTotalStock(pairs);
                                 }}
                                 className={`group relative min-h-[78px] rounded-xl border p-2.5 text-left transition-all duration-150 select-none ${
@@ -1391,7 +1471,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                           e.stopPropagation();
                                           const nextVal = e.target.checked;
                                           setAllowHalfCarton(nextVal);
-                                          if (!nextVal && totalStock === pairsPerCarton * 0.5) {
+                                          setErrorMessage(null);
+                                          if (!nextVal && Number(totalStock) === pairsPerCarton * 0.5) {
                                             setTotalStock(pairsPerCarton);
                                           }
                                         }}
@@ -1699,7 +1780,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           <div className="p-2 bg-white/80 dark:bg-slate-950/70 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
                             <span className="text-[10px] text-slate-500 block">Total Batch Stock</span>
                             <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
-                              {currencySymbol} {formatStockPrice(maxPrice * (typeof totalStock === 'number' ? totalStock : 0))}
+                              {currencySymbol} {formatStockPrice((Number(maxPrice) || 0) * (Number.isFinite(Number(totalStock)) ? Number(totalStock) : 0))}
                             </span>
                           </div>
                         </div>
@@ -2315,7 +2396,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070B14] border border-gray-100 dark:border-slate-800">
                       <span className="text-[10px] text-gray-400 dark:text-slate-500 block">Total Stock</span>
                       <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 truncate block">
-                        {totalStock === '' ? 0 : totalStock} Pairs ({Math.floor((typeof totalStock === 'number' ? totalStock : 0) / pairsPerCarton)} Lots)
+                        {totalStock === '' ? 0 : totalStock} Pairs ({calculateCartonsFromPairs(Number.isFinite(Number(totalStock)) ? Number(totalStock) : 0, pairsPerCarton)} Lots)
                       </span>
                     </div>
                   </div>

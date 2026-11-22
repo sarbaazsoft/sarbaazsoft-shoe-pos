@@ -338,8 +338,13 @@ export interface Supplier {
   phone?: string;
   email?: string;
   balance?: number | string;
+  opening_balance?: number | string;
+  net_payable_balance?: number | string;
+  total_purchases?: number;
+  total_purchased_amount?: number | string;
   totalPurchases?: number;
   totalPurchasedAmount?: number;
+  last_purchase_date?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

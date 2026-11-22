@@ -4,6 +4,10 @@ import {
   resolveLowStockThreshold,
   shouldResetLowStockAlert,
 } from '../server/services/lowStockNotificationService.ts';
+import {
+  isHalfCartonAllowed,
+  validateWholesaleStockQuantity,
+} from '../schemas/productSchema.ts';
 
 /**
  * Strict Server-Side Tenant Extractor:
@@ -491,10 +495,14 @@ export class TenantScopedDb {
           name: string;
           article: string;
           total_stock: number;
+          pairs_per_carton: number;
+          allow_half_carton: boolean | null;
           low_stock_threshold: number;
           is_low_stock_alert_sent: boolean;
         }>(
           `SELECT id, name, article, total_stock,
+                  COALESCE(pairs_per_carton, 12) AS pairs_per_carton,
+                  allow_half_carton,
                   COALESCE(low_stock_threshold, 5) AS low_stock_threshold,
                   COALESCE(is_low_stock_alert_sent, false) AS is_low_stock_alert_sent
            FROM products WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
@@ -505,9 +513,41 @@ export class TenantScopedDb {
         }
 
         const prod = prodRes.rows[0];
+        const settingsRes = await pgClient.query<{
+          business_type?: string;
+          allow_half_carton?: boolean;
+        }>(
+          'SELECT business_type, allow_half_carton FROM company_settings WHERE COALESCE(tenant_id, 1) = $1 LIMIT 1',
+          [this.tenantId]
+        );
+        const settingsRow = settingsRes.rows[0];
+        const isWholesale = String(settingsRow?.business_type || 'RETAIL').toUpperCase() === 'WHOLESALE';
+
+        let targetStock: number;
+        if (isWholesale) {
+          const halfAllowed = isHalfCartonAllowed(
+            { allow_half_carton: prod.allow_half_carton !== undefined && prod.allow_half_carton !== null ? Boolean(prod.allow_half_carton) : undefined },
+            settingsRow
+              ? { allow_half_carton: settingsRow.allow_half_carton !== undefined ? Boolean(settingsRow.allow_half_carton) : true }
+              : undefined
+          );
+          const stockValidation = validateWholesaleStockQuantity({
+            quantity: params.newStock,
+            pairsPerCarton: prod.pairs_per_carton,
+            allowHalfCarton: halfAllowed,
+            isWholesaleStore: true,
+          });
+          if (!stockValidation.valid || stockValidation.normalizedQuantity === null) {
+            throw new Error(stockValidation.error || 'Invalid wholesale stock quantity.');
+          }
+          targetStock = stockValidation.normalizedQuantity;
+        } else {
+          targetStock = Math.trunc(params.newStock);
+        }
+
         const prevStock = prod.total_stock;
-        const qtyChange = params.newStock - prevStock;
-        const nextAlertSent = shouldResetLowStockAlert(params.newStock, prod.low_stock_threshold)
+        const qtyChange = targetStock - prevStock;
+        const nextAlertSent = shouldResetLowStockAlert(targetStock, prod.low_stock_threshold)
           ? false
           : Boolean(prod.is_low_stock_alert_sent);
 
@@ -516,28 +556,28 @@ export class TenantScopedDb {
           return {
             product: prod,
             prevStock,
-            newStock: params.newStock,
+            newStock: targetStock,
             qtyChange: 0,
           };
         }
 
         await pgClient.query(
           `UPDATE products SET total_stock = $1, is_low_stock_alert_sent = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4`,
-          [params.newStock, nextAlertSent, prod.id, this.tenantId]
+          [targetStock, nextAlertSent, prod.id, this.tenantId]
         );
 
         await pgClient.query(
           `INSERT INTO stock_movements (
             tenant_id, product_id, qty_change, prev_stock, new_stock, movement_type, reference_id, user_id, notes
           ) VALUES ($1, $2, $3, $4, $5, 'ADJUSTMENT', 'MANUAL-ADJUST', $6, $7)`,
-          [this.tenantId, prod.id, qtyChange, prevStock, params.newStock, params.userId, params.notes.trim()]
+          [this.tenantId, prod.id, qtyChange, prevStock, targetStock, params.userId, params.notes.trim()]
         );
 
         await pgClient.query('COMMIT');
         return {
           product: prod,
           prevStock,
-          newStock: params.newStock,
+          newStock: targetStock,
           qtyChange,
         };
       } catch (err) {

@@ -306,7 +306,7 @@ router.post('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, re
           actualPaid,
           purchaseDate || new Date().toISOString().split('T')[0],
           chosenPaymentMethod,
-          (paymentReference || '').trim(),
+          chosenPaymentMethod === 'CASH' ? '' : (paymentReference || '').trim(),
           (paymentNotes || `Paid upon purchase order ${purchaseNumber}`).trim(),
           req.user!.id,
         ]

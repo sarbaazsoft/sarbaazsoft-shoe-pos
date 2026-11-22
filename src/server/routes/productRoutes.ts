@@ -7,7 +7,12 @@ import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { generateCode128Barcode, analyzeBarcode } from '../../utils/barcode.ts';
 import { parseCategoryPrefix, generateSuggestedArticle, buildArticleInfo, normalizeFootwearCategory } from '../../utils/footwear.ts';
-import { validateAndNormalizeProductPricing, validateProductBrand } from '../../schemas/productSchema.ts';
+import {
+  validateAndNormalizeProductPricing,
+  validateProductBrand,
+  isHalfCartonAllowed,
+  validateWholesaleStockQuantity,
+} from '../../schemas/productSchema.ts';
 import { resolveLowStockThreshold, shouldResetLowStockAlert } from '../services/lowStockNotificationService.ts';
 
 const router = Router();
@@ -18,6 +23,17 @@ function normalizePairsPerCarton(value: unknown): number | null {
   if (parsed === 12 || parsed === 6) return 12;
   if (parsed === 16 || parsed === 8) return 16;
   return null;
+}
+
+function parseBooleanFlag(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === 'true' || trimmed === '1' || trimmed === 'yes') return true;
+    if (trimmed === 'false' || trimmed === '0' || trimmed === 'no') return false;
+  }
+  if (typeof value === 'number') return value !== 0;
+  return undefined;
 }
 
 // Helper to get next per-store product number (1..99999):
@@ -785,10 +801,34 @@ router.post('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, re
       });
     }
 
-    const physicalStock = parseInt(String(totalStock ?? initialStock ?? 0), 10) || 0;
-
     const rawAllowHalf = req.body.allowHalfCarton ?? req.body.allow_half_carton;
-    const finalAllowHalfCarton = rawAllowHalf !== undefined ? Boolean(rawAllowHalf) : true;
+    const parsedAllowHalf = rawAllowHalf !== undefined && rawAllowHalf !== null ? parseBooleanFlag(rawAllowHalf) : undefined;
+    const finalAllowHalfCarton = parsedAllowHalf !== undefined ? parsedAllowHalf : (settings.allowHalfCarton !== false);
+
+    let physicalStock: number;
+    if (settings.businessType === 'WHOLESALE') {
+      const rawStockInput =
+        req.body.totalStock !== undefined
+          ? req.body.totalStock
+          : req.body.total_stock !== undefined
+          ? req.body.total_stock
+          : initialStock !== undefined
+          ? initialStock
+          : 0;
+      const stockValidation = validateWholesaleStockQuantity({
+        quantity: rawStockInput,
+        pairsPerCarton: finalPairsPerCarton,
+        allowHalfCarton: finalAllowHalfCarton,
+        isWholesaleStore: true,
+      });
+      if (!stockValidation.valid || stockValidation.normalizedQuantity === null) {
+        return res.status(400).json({ error: stockValidation.error || 'Invalid wholesale stock quantity.' });
+      }
+      physicalStock = stockValidation.normalizedQuantity;
+    } else {
+      physicalStock = parseInt(String(totalStock ?? initialStock ?? 0), 10) || 0;
+    }
+
     const rawThreshold = req.body.lowStockThreshold ?? req.body.low_stock_threshold;
     const finalLowStockThreshold = resolveLowStockThreshold(rawThreshold, settings.lowStockThreshold || 5);
 
@@ -963,8 +1003,6 @@ router.put('/:id', requireAuth, requireAdmin, async (req: AuthenticatedRequest, 
       }
     }
 
-    const updatedStock = totalStock !== undefined ? parseInt(String(totalStock), 10) : current.total_stock;
-
     const rawCost = costPrice ?? cost_price ?? current.cost_price ?? 0;
     const rawMax = maxPrice ?? max_price ?? maxSalePrice ?? max_sale_price ?? sellingPrice ?? selling_price ?? salePrice ?? sale_price ?? current.max_price ?? 0;
     const rawMin = minPrice ?? min_price ?? minSalePrice ?? min_sale_price ?? current.min_price ?? rawMax;
@@ -1003,7 +1041,31 @@ router.put('/:id', requireAuth, requireAdmin, async (req: AuthenticatedRequest, 
     const finalPairsPerCarton = normalizedPairsPerCarton ?? (currentPairsPerCarton === 16 ? 16 : 12);
 
     const rawAllowHalf = req.body.allowHalfCarton ?? req.body.allow_half_carton;
-    const finalAllowHalfCarton = rawAllowHalf !== undefined ? Boolean(rawAllowHalf) : (current.allow_half_carton !== false);
+    const parsedAllowHalf = rawAllowHalf !== undefined && rawAllowHalf !== null ? parseBooleanFlag(rawAllowHalf) : undefined;
+    const finalAllowHalfCarton = parsedAllowHalf !== undefined
+      ? parsedAllowHalf
+      : (current.allow_half_carton !== undefined && current.allow_half_carton !== null
+          ? Boolean(current.allow_half_carton)
+          : (settings.allowHalfCarton !== false));
+
+    const hasStockUpdate = req.body.totalStock !== undefined || req.body.total_stock !== undefined;
+    let updatedStock: number;
+    if (settings.businessType === 'WHOLESALE' && hasStockUpdate) {
+      const rawStockInput = req.body.totalStock !== undefined ? req.body.totalStock : req.body.total_stock;
+      const stockValidation = validateWholesaleStockQuantity({
+        quantity: rawStockInput,
+        pairsPerCarton: finalPairsPerCarton,
+        allowHalfCarton: finalAllowHalfCarton,
+        isWholesaleStore: true,
+      });
+      if (!stockValidation.valid || stockValidation.normalizedQuantity === null) {
+        return res.status(400).json({ error: stockValidation.error || 'Invalid wholesale stock quantity.' });
+      }
+      updatedStock = stockValidation.normalizedQuantity;
+    } else {
+      updatedStock = totalStock !== undefined ? parseInt(String(totalStock), 10) : current.total_stock;
+    }
+
     const rawThreshold = req.body.lowStockThreshold ?? req.body.low_stock_threshold;
     const finalLowStockThreshold =
       rawThreshold !== undefined && rawThreshold !== null && rawThreshold !== ''
@@ -1208,10 +1270,55 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
           maxPrice: finalMaxPrice,
         } = validation.data;
 
-        const importedStock = Math.max(
-          0,
-          parseInt(String(rawItem.total_stock ?? rawItem.totalStock ?? 0), 10) || 0
-        );
+        const rowPairsPerCarton =
+          normalizePairsPerCarton(rawItem.pairs_per_carton ?? rawItem.pairsPerCarton) ??
+          (existingProduct ? (Number(existingProduct.pairs_per_carton) === 16 ? 16 : 12) : 12);
+        const storeAllowsHalfCarton =
+          settings.allowHalfCarton === true || settings.allow_half_carton === true;
+        const rawRowAllowHalf = storeAllowsHalfCarton
+          ? (rawItem.allow_half_carton ?? rawItem.allowHalfCarton)
+          : undefined;
+        const parsedRowAllowHalf =
+          rawRowAllowHalf !== undefined && rawRowAllowHalf !== null && String(rawRowAllowHalf).trim() !== ''
+            ? parseBooleanFlag(rawRowAllowHalf)
+            : undefined;
+        const rowAllowHalfCarton = storeAllowsHalfCarton
+          ? parsedRowAllowHalf !== undefined
+            ? parsedRowAllowHalf
+            : isHalfCartonAllowed(
+                existingProduct
+                  ? {
+                      allow_half_carton:
+                        existingProduct.allow_half_carton !== undefined && existingProduct.allow_half_carton !== null
+                          ? Boolean(existingProduct.allow_half_carton)
+                          : undefined,
+                    }
+                  : null,
+                settings
+              )
+          : false;
+
+        let importedStock: number;
+        if (settings.businessType === 'WHOLESALE' && !(existingProduct && rowStrategy === 'SKIP')) {
+          const rawStockInput = rawItem.total_stock ?? rawItem.totalStock ?? 0;
+          const stockValidation = validateWholesaleStockQuantity({
+            quantity: rawStockInput,
+            pairsPerCarton: rowPairsPerCarton,
+            allowHalfCarton: rowAllowHalfCarton,
+            isWholesaleStore: true,
+          });
+          if (!stockValidation.valid || stockValidation.normalizedQuantity === null) {
+            throw new Error(
+              `Row (${rawArticle || rawBarcode || 'Product'}): ${stockValidation.error || 'Invalid wholesale stock quantity.'}`
+            );
+          }
+          importedStock = stockValidation.normalizedQuantity;
+        } else {
+          importedStock = Math.max(
+            0,
+            parseInt(String(rawItem.total_stock ?? rawItem.totalStock ?? 0), 10) || 0
+          );
+        }
 
         const rawImageUrl = String(rawItem.primary_image_url ?? rawItem.primaryImageUrl ?? '').trim();
         const rawDesc = String(rawItem.description ?? '').trim();
@@ -1301,9 +1408,11 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
                 description = $10,
                 low_stock_threshold = $11,
                 is_low_stock_alert_sent = $12,
+                pairs_per_carton = $13,
+                allow_half_carton = $14,
                 active = true,
                 updated_at = NOW()
-              WHERE id = $13 AND COALESCE(tenant_id, 1) = $14`,
+              WHERE id = $15 AND COALESCE(tenant_id, 1) = $16`,
               [
                 finalName,
                 finalBrand,
@@ -1317,6 +1426,8 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
                 rawDesc,
                 nextThreshold,
                 nextAlertSent,
+                rowPairsPerCarton,
+                rowAllowHalfCarton,
                 existingProduct.id,
                 tenantId,
               ]
@@ -1406,7 +1517,7 @@ router.post('/bulk-import', requireAuth, requireAdmin, async (req: Authenticated
             importedPairsPerCarton,
             importedStock,
             importedLowStockThreshold,
-            true,
+            rowAllowHalfCarton,
           ]
         );
 

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { X, Edit2, Phone, Receipt, DollarSign, ShoppingBag, RefreshCw, BookOpen, PlusCircle, CheckCircle2, AlertCircle, Building, Banknote } from 'lucide-react';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 import { api } from '../../services/api.ts';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
+import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 
 interface CustomerDetailsModalProps {
   customer: any;
@@ -21,6 +24,11 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   onPaymentRecorded,
 }) => {
   const [activeTab, setActiveTab] = useState<'ledger' | 'sales'>('ledger');
+  const tabDirection = useTabDirection(activeTab, ['ledger', 'sales'] as const);
+  const { containerRef: customerTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
+    padding: 16,
+    behavior: 'smooth',
+  });
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'ONLINE'>('CASH');
@@ -341,34 +349,57 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
           </div>
 
           {/* TAB SELECTOR: Khata Ledger vs Sales Invoices */}
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pt-2 overflow-x-auto no-scrollbar">
+          <div
+            ref={customerTabContainerRef}
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pt-2 overflow-x-auto no-scrollbar scrollbar-none tab-scrollbar-hidden"
+          >
             <button
               type="button"
+              data-active={activeTab === 'ledger'}
+              data-tab="ledger"
               onClick={() => setActiveTab('ledger')}
-              className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`tab-underline-link relative pb-2.5 px-3 text-xs font-bold flex items-center gap-1.5 transition-colors duration-300 cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'ledger'
-                  ? 'border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-300'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'active text-purple-600 dark:text-purple-300'
+                  : 'text-slate-500 hover:text-purple-600 dark:text-slate-400 dark:hover:text-purple-300'
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Khata Ledger Audit History ({ledger.length})</span>
+              {activeTab === 'ledger' && (
+                <motion.div
+                  layoutId="customerDetailsActiveUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                />
+              )}
             </button>
 
             <button
               type="button"
+              data-active={activeTab === 'sales'}
+              data-tab="sales"
               onClick={() => setActiveTab('sales')}
-              className={`pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`tab-underline-link relative pb-2.5 px-3 text-xs font-bold flex items-center gap-1.5 transition-colors duration-300 cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'sales'
-                  ? 'border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-300'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'active text-purple-600 dark:text-purple-300'
+                  : 'text-slate-500 hover:text-purple-600 dark:text-slate-400 dark:hover:text-purple-300'
               }`}
             >
               <Receipt className="w-3.5 h-3.5" />
               <span>Invoices History ({sales.length})</span>
+              {activeTab === 'sales' && (
+                <motion.div
+                  layoutId="customerDetailsActiveUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                />
+              )}
             </button>
           </div>
 
+          <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
           {/* TAB 1: KHATA LEDGER AUDIT HISTORY */}
           {activeTab === 'ledger' && (
             <div className="space-y-2.5">
@@ -541,6 +572,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
               )}
             </div>
           )}
+          </AnimatedTabPanel>
         </div>
 
         {/* Modal Footer */}

@@ -1162,12 +1162,8 @@ export const api = {
     create: (data: any) => apiFetch('/suppliers', { method: 'POST', body: data }),
     recordPayment: (id: number, data: any) =>
       apiFetch(`/suppliers/${id}/payments`, { method: 'POST', body: data }),
-    deletePayment: (idOrSupplierId: number, maybePaymentId?: number) => {
-      if (maybePaymentId !== undefined) {
-        return apiFetch(`/suppliers/${idOrSupplierId}/payments/${maybePaymentId}`, { method: 'DELETE' });
-      }
-      return apiFetch(`/suppliers/payments/${idOrSupplierId}`, { method: 'DELETE' });
-    },
+    deletePayment: (paymentId: number) =>
+      apiFetch(`/suppliers/payments/${paymentId}`, { method: 'DELETE' }),
     update: (id: number, data: any) => apiFetch(`/suppliers/${id}`, { method: 'PUT', body: data }),
     delete: (id: number) => apiFetch(`/suppliers/${id}`, { method: 'DELETE' }),
   },

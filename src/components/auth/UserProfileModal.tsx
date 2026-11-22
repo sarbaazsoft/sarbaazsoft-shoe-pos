@@ -11,6 +11,7 @@ import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsToolt
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -92,6 +93,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   );
 
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+  const tabDirection = useTabDirection(activeTab, ['profile', 'password'] as const);
   const { containerRef: profileTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
     padding: 16,
     behavior: 'smooth',
@@ -380,6 +382,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto">
+          <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
           {activeTab === 'profile' && (
             <form onSubmit={handleUpdateProfile} className="space-y-5">
               {profileSuccess && (
@@ -831,6 +834,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
             </form>
           )}
+          </AnimatedTabPanel>
         </div>
       </div>
 

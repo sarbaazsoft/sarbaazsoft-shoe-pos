@@ -6,6 +6,7 @@ import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { ShoeIcon } from './ShoeIcon.tsx';
 import { APP_VERSION } from '../../version.ts';
 import { resolvePwaBranding } from '../../utils/pwaBranding.ts';
+import { AnimatedTabPanel, useTabDirection } from './AnimatedTabPanel.tsx';
 
 interface InstallAppModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ type PlatformTab = 'android' | 'apple' | 'desktop';
 export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClose, isAdmin = false, role }) => {
   const { isInstallable, isInstalled, isIOS, isAndroid, install } = usePWAInstall();
   const [activeTab, setActiveTab] = useState<PlatformTab>('android');
+  const tabDirection = useTabDirection(activeTab, ['android', 'apple', 'desktop'] as const);
   const branding = resolvePwaBranding({
     role: role || (isAdmin ? 'SUPERADMIN' : 'ADMIN'),
     isSuperAdmin: isAdmin,
@@ -202,9 +204,10 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
           <div className="tab-end-spacer shrink-0 w-8 sm:w-10 h-1 pointer-events-none self-stretch" aria-hidden="true" role="presentation" />
         </div>
 
+        <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
         {/* TAB 1: ANDROID SUPPORT */}
         {activeTab === 'android' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
+          <div className="space-y-4">
             <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/40 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
@@ -370,7 +373,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
 
         {/* TAB 2: APPLE iOS / iPadOS SUPPORT */}
         {activeTab === 'apple' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
+          <div className="space-y-4">
             <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200/70 dark:border-indigo-800/40 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
@@ -440,7 +443,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
 
         {/* TAB 3: WINDOWS & DESKTOP SUPPORT */}
         {activeTab === 'desktop' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
+          <div className="space-y-4">
             {/* Browser PWA Installation */}
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070B14] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between">
@@ -603,6 +606,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             </div>
           </div>
         )}
+        </AnimatedTabPanel>
 
         {/* Feature Checkpoints */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">

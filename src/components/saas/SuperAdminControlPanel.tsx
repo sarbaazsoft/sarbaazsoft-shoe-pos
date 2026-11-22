@@ -58,6 +58,7 @@ const SettingsView = lazyWithRetry(
   (m) => m.SettingsView,
   '/src/components/settings/SettingsView.tsx'
 );
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel';
 import { NotificationStatusModal, type NotificationModalData } from '../notifications/NotificationStatusModal';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { getStandardDocumentTitle } from '../../utils/documentTitle';
@@ -167,6 +168,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   // Login / Reset form state when not authenticated as SUPERADMIN
   const [authTab, setAuthTab] = useState<'login' | 'forgot' | 'reset'>('login');
+  const authTabDirection = useTabDirection(authTab, ['login', 'forgot', 'reset'] as const);
   // Remembered SuperAdmin email (email only; separate from store-login memory).
   const account = useRememberedAccount('platform');
   const [email, setEmail] = useState(() => getRememberedEmail('platform') ?? '');
@@ -193,6 +195,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
   // Dashboard Layout & Sidebar State (aligned with Store Sidebar & Header)
   const [activeTab, setActiveTab] = useState<SuperAdminTab>('dashboard');
+  const normalizedWorkspaceTab = activeTab === 'requests' ? 'trials' : activeTab;
+  const workspaceTabDirection = useTabDirection(
+    normalizedWorkspaceTab,
+    ['dashboard', 'stores', 'trials', 'reports', 'notifications', 'settings'] as const
+  );
 
   const superAdminTabLabels: Record<SuperAdminTab, string> = {
     dashboard: 'Dashboard',
@@ -1604,6 +1611,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   </div>
                 )}
 
+                <AnimatedTabPanel activeKey={authTab} direction={authTabDirection}>
                 {/* TAB 1: LOGIN FORM */}
                 {authTab === 'login' && (
                   <form onSubmit={handleSuperAdminLogin} className="space-y-4">
@@ -1896,6 +1904,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   />
                   </div>
                 )}
+                </AnimatedTabPanel>
               </div>
             </motion.div>
         </div>
@@ -3243,40 +3252,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         ref={superAdminWorkspaceRef}
         className="p-3 sm:p-6 lg:p-7 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full select-none"
       >
-            {/* DASHBOARD HEADER ROW (Shown on Dashboard tab; Stores, Requests & Reports use Product-route Top Banner Card) */}
-            {activeTab === 'dashboard' && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                    Dashboard
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                    Welcome back, {currentUser?.name || 'Platform SuperAdmin'}! Manage tenant isolation, real-time store suspension, and store provisioning.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                  <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1628] border border-slate-200/90 dark:border-[#1A263D] text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
-                    <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>{formattedDate}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={loadOverview}
-                    disabled={loading}
-                    title="Refresh metrics & recount stats"
-                    className="btn-outline-landing p-1.5 rounded-xl bg-white hover:text-purple-600 border border-slate-200/90 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 text-slate-500 cursor-pointer transition active:scale-95 disabled:opacity-50"
-                  >
-                    <RefreshCw
-                      className={`w-3.5 h-3.5 ${
-                        loading ? 'animate-spin text-purple-600 dark:text-purple-300' : 'text-slate-500 dark:text-purple-300'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Error Alert Banner */}
             {error && (
               <div className="p-3 sm:p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex flex-wrap items-center justify-between gap-2 shadow-xs">
@@ -3370,6 +3345,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
             )}
 
+            <AnimatedTabPanel activeKey={normalizedWorkspaceTab} direction={workspaceTabDirection}>
             {/* EXECUTIVE DASHBOARD VIEW: 5 KPI CARDS + GRAPHICAL STATISTICS (MATCHING STORE DASHBOARD) */}
             {activeTab === 'dashboard' && (() => {
               // Dual-spline Sales & Transactions SVG chart geometry (aligned with Store DashboardOverview.tsx)
@@ -3694,6 +3670,38 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
               return (
                 <div className="space-y-4 sm:space-y-6">
+                  {/* DASHBOARD HEADER ROW (Shown on Dashboard tab; Stores, Requests & Reports use Product-route Top Banner Card) */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                        Dashboard
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                        Welcome back, {currentUser?.name || 'Platform SuperAdmin'}! Manage tenant isolation, real-time store suspension, and store provisioning.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                      <div className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-xl bg-white dark:bg-[#0E1628] border border-slate-200/90 dark:border-[#1A263D] text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
+                        <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        <span>{formattedDate}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={loadOverview}
+                        disabled={loading}
+                        title="Refresh metrics & recount stats"
+                        className="btn-outline-landing p-1.5 rounded-xl bg-white hover:text-purple-600 border border-slate-200/90 shadow-2xs dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 text-slate-500 cursor-pointer transition active:scale-95 disabled:opacity-50"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 ${
+                            loading ? 'animate-spin text-purple-600 dark:text-purple-300' : 'text-slate-500 dark:text-purple-300'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
                   {/* ROW 1: 5 KPI METRIC CARDS WITH ANIMATED COUNTER */}
                   <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4">
                     <StatCard
@@ -5637,7 +5645,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
             {/* SECTION 6: CUSTOM NOTIFICATIONS & BROADCAST SYSTEM */}
             {activeTab === 'notifications' && (
-              <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Top Banner Card */}
                 <div className="p-3.5 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/25 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-start gap-3 sm:gap-3.5">
@@ -6158,6 +6166,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 )}
               </div>
             )}
+            </AnimatedTabPanel>
       </div>
       )}
 

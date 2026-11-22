@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Search, Building2, UserCheck, UserPlus, Phone, Mail, X, Check, Calendar, CornerDownLeft, ArrowUp, ArrowDown, Sparkles, AlertCircle, Wallet, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
-import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
+import { toTitleCaseLive, toTitleCaseTrimmed, formatPhoneNumber, isValidPhoneNumber } from '../../utils/textFormat.ts';
+import {
+  supplierOpeningBalanceSchema,
+  type SupplierOpeningBalanceType,
+} from '../../schemas/openingBalanceSchema.ts';
 import type { Supplier } from '../../types.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
 
@@ -108,7 +112,8 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
   const [quickAddInModal, setQuickAddInModal] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newSupplierPhone, setNewSupplierPhone] = useState('');
-  const [newSupplierEmail, setNewSupplierEmail] = useState('');
+  const [newOpeningBalance, setNewOpeningBalance] = useState('');
+  const [newOpeningBalanceType, setNewOpeningBalanceType] = useState<SupplierOpeningBalanceType>('PAYABLE');
   const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -359,7 +364,8 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
       setNewSupplierName('');
       setNewSupplierPhone('');
     }
-    setNewSupplierEmail('');
+    setNewOpeningBalance('');
+    setNewOpeningBalanceType('PAYABLE');
     if (inModal) {
       setQuickAddInModal(true);
     } else {
@@ -385,24 +391,36 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
       return;
     }
 
+    const parsedBalance = supplierOpeningBalanceSchema.safeParse({
+      openingBalance: newOpeningBalance,
+      openingBalanceType: newOpeningBalanceType,
+    });
+    if (!parsedBalance.success) {
+      setCreateError(parsedBalance.error.issues[0]?.message || 'Invalid opening balance.');
+      return;
+    }
+    const { openingBalance, openingBalanceType } = parsedBalance.data;
+
     setIsCreatingSupplier(true);
     try {
       const res = await api.suppliers.create({
         name: toTitleCaseTrimmed(newSupplierName),
         phone: newSupplierPhone.trim(),
-        email: toLowerTrimmed(newSupplierEmail),
+        ...(openingBalance > 0 ? { openingBalance, openingBalanceType } : {}),
       });
       const created: Supplier = {
         ...res.supplier,
-        total_purchases: 0,
-        total_purchased_amount: 0,
-        net_payable_balance: 0,
+        total_purchases: res.supplier?.total_purchases ?? 0,
+        total_purchased_amount: res.supplier?.total_purchased_amount ?? 0,
+        opening_balance: res.supplier?.opening_balance ?? 0,
+        net_payable_balance: res.supplier?.net_payable_balance ?? 0,
       };
       onSupplierCreated(created);
       onSelectSupplier(created.id, created.name);
       setNewSupplierName('');
       setNewSupplierPhone('');
-      setNewSupplierEmail('');
+      setNewOpeningBalance('');
+      setNewOpeningBalanceType('PAYABLE');
       setIsQuickAddOpen(false);
       setQuickAddInModal(false);
       setIsModalOpen(false);
@@ -538,6 +556,143 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
     return placeholder || 'Search Supplier / Vendor (Type name, phone, #ID...)';
   }, [selectedSupplier, allowCustomSupplier, supplierName, placeholder]);
 
+  const renderQuickAddFields = (compact: boolean) =>
+    compact ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input
+          type="text"
+          placeholder="Supplier / Vendor Name *"
+          value={newSupplierName}
+          onChange={(e) => setNewSupplierName(toTitleCaseLive(e.target.value))}
+          className="capitalize app-input w-full px-3 py-2 text-xs"
+          autoFocus
+        />
+        <div className="relative">
+          <input
+            type="tel"
+            placeholder="Mobile / Phone (optional)"
+            value={newSupplierPhone}
+            onChange={(e) => setNewSupplierPhone(formatPhoneNumber(e.target.value))}
+            className={`app-input w-full px-3 py-2 text-xs font-mono transition ${
+              newSupplierPhone && isValidPhoneNumber(newSupplierPhone)
+                ? 'phone-border-valid bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-100 pr-8'
+                : ''
+            }`}
+          />
+          {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
+            <div className="phone-success-icon absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none animate-in fade-in zoom-in duration-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            </div>
+          )}
+        </div>
+        <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <div className="relative">
+            <Wallet className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              placeholder={`Opening Balance (${currencySymbol}) - optional`}
+              value={newOpeningBalance}
+              onChange={(e) => setNewOpeningBalance(e.target.value)}
+              className="app-input w-full pl-8 pr-3 py-2 text-xs font-mono"
+            />
+          </div>
+          <select
+            value={newOpeningBalanceType}
+            onChange={(e) => setNewOpeningBalanceType(e.target.value as SupplierOpeningBalanceType)}
+            className="app-input px-3 py-2 text-xs cursor-pointer"
+            aria-label="Opening balance type"
+          >
+            <option value="PAYABLE">Payable (we owe)</option>
+            <option value="ADVANCE">Advance (prepaid)</option>
+          </select>
+        </div>
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+            Supplier / Vendor Name <span className="text-rose-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={newSupplierName}
+            onChange={(e) => setNewSupplierName(toTitleCaseLive(e.target.value))}
+            placeholder="e.g. Metro Footwear Wholesale Co."
+            autoFocus
+            className="capitalize w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 font-medium text-xs"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">
+              Phone / Mobile Number (Optional)
+            </label>
+            {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
+                <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
+                <span>Valid</span>
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <input
+              type="tel"
+              value={newSupplierPhone}
+              onChange={(e) => setNewSupplierPhone(formatPhoneNumber(e.target.value))}
+              placeholder="e.g. +92 300 1234567"
+              className={`w-full px-3.5 py-2.5 rounded-xl font-mono font-medium text-xs outline-none transition ${
+                newSupplierPhone && isValidPhoneNumber(newSupplierPhone)
+                  ? 'phone-border-valid bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-100 pr-9'
+                  : 'bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500'
+              }`}
+            />
+            {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
+              <div className="phone-success-icon absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none animate-in fade-in zoom-in duration-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+            Opening Balance ({currencySymbol})
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <div className="relative">
+              <Wallet className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={newOpeningBalance}
+                onChange={(e) => setNewOpeningBalance(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 font-mono font-medium text-xs"
+              />
+            </div>
+            <select
+              value={newOpeningBalanceType}
+              onChange={(e) => setNewOpeningBalanceType(e.target.value as SupplierOpeningBalanceType)}
+              className="px-3.5 py-2.5 bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 text-xs cursor-pointer"
+              aria-label="Opening balance type"
+            >
+              <option value="PAYABLE">Payable (we owe supplier)</option>
+              <option value="ADVANCE">Advance (paid in advance)</option>
+            </select>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            Starting balance carried over from before using the system. Leave empty for none.
+          </p>
+        </div>
+      </div>
+    );
+
   return (
     <div ref={containerRef} className="relative">
       {/* Inline Quick-Add Form when toggled */}
@@ -575,41 +730,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
               <span>{createError}</span>
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <input
-              type="text"
-              placeholder="Supplier / Vendor Name *"
-              value={newSupplierName}
-              onChange={(e) => setNewSupplierName(toTitleCaseLive(e.target.value))}
-              className="capitalize app-input w-full px-3 py-2 text-xs"
-              autoFocus
-            />
-            <div className="relative">
-              <input
-                type="tel"
-                placeholder="Mobile / Phone (optional)"
-                value={newSupplierPhone}
-                onChange={(e) => setNewSupplierPhone(formatPhoneNumber(e.target.value))}
-                className={`app-input w-full px-3 py-2 text-xs font-mono transition ${
-                  newSupplierPhone && isValidPhoneNumber(newSupplierPhone)
-                    ? 'phone-border-valid bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-100 pr-8'
-                    : ''
-                }`}
-              />
-              {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
-                <div className="phone-success-icon absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none animate-in fade-in zoom-in duration-200">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                </div>
-              )}
-            </div>
-            <input
-              type="email"
-              placeholder="Email Address (optional)"
-              value={newSupplierEmail}
-              onChange={(e) => setNewSupplierEmail(e.target.value)}
-              className="app-input w-full px-3 py-2 text-xs"
-            />
-          </div>
+          {renderQuickAddFields(true)}
           <button
             type="button"
             onClick={handleCreateNewSupplier}
@@ -957,66 +1078,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-                      Supplier / Vendor Name <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newSupplierName}
-                      onChange={(e) => setNewSupplierName(toTitleCaseLive(e.target.value))}
-                      placeholder="e.g. Metro Footwear Wholesale Co."
-                      autoFocus
-                      className="capitalize w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 font-medium text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">
-                        Phone / Mobile Number (Optional)
-                      </label>
-                      {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
-                          <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
-                          <span>Valid</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="tel"
-                        value={newSupplierPhone}
-                        onChange={(e) => setNewSupplierPhone(formatPhoneNumber(e.target.value))}
-                        placeholder="e.g. +92 300 1234567"
-                        className={`w-full px-3.5 py-2.5 rounded-xl font-mono font-medium text-xs outline-none transition ${
-                          newSupplierPhone && isValidPhoneNumber(newSupplierPhone)
-                            ? 'phone-border-valid bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-100 pr-9'
-                            : 'bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500'
-                        }`}
-                      />
-                      {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
-                        <div className="phone-success-icon absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none animate-in fade-in zoom-in duration-200">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-                      Email Address (Optional)
-                    </label>
-                    <input
-                      type="email"
-                      value={newSupplierEmail}
-                      onChange={(e) => setNewSupplierEmail(e.target.value)}
-                      placeholder="e.g. orders@metrofootwear.com"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-white border border-slate-200 dark:border-purple-800/60 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 font-medium text-xs"
-                    />
-                  </div>
-                </div>
+                {renderQuickAddFields(false)}
 
                 <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-purple-800/60">
                   <button

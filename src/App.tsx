@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
+import { MotionConfig } from 'motion/react';
 import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, getAuthToken, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
 import { lazyWithRetry } from './utils/lazyWithRetry.ts';
 import { Header } from './components/common/Header.tsx';
@@ -2072,6 +2073,7 @@ export default function App() {
   const showAuthModal = saasMode === 'AUTH' || (saasMode === 'LANDING' && isLoginModalOpen);
 
   return (
+    <MotionConfig reducedMotion="user">
     <NotificationProvider currentUser={currentUser}>
       <div className="min-h-[100dvh] w-full flex flex-col bg-slate-100 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
       {saasMode === 'INSTALLER' && (
@@ -2456,5 +2458,6 @@ export default function App() {
       )}
       </div>
     </NotificationProvider>
+    </MotionConfig>
   );
 }

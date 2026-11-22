@@ -408,7 +408,9 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
                   setSuppliers((prev) => [newSup, ...prev]);
                   setSelectedSupplierId(newSup.id);
                   setSupplierName(newSup.name);
-                  setSupplierBalance(0);
+                  setSupplierBalance(
+                    parseFloat(String(newSup.net_payable_balance ?? newSup.opening_balance ?? 0)) || 0
+                  );
                 }}
                 currencySymbol={currencySymbol}
                 placeholder="Search Supplier to Debit (Type name, phone, #ID...)"

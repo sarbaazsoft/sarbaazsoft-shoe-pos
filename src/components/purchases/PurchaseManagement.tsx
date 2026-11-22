@@ -11,7 +11,7 @@ import { SupplierPaymentModal } from '../suppliers/SupplierPaymentModal.tsx';
 import { SupplierPicker } from './SupplierPicker.tsx';
 import { StatCard, triggerStatRecount } from '../common/StatCard.tsx';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
-import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils/textFormat.ts';
+import { toTitleCaseLive, toTitleCaseTrimmed } from '../../utils/textFormat.ts';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
@@ -23,6 +23,7 @@ import {
   useSuppliersQuery,
 } from '../../hooks/useLiveData.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
+import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 interface PurchaseManagementProps {
   currentUser: any;
@@ -64,6 +65,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
   // Tab View: Purchases (Inward) vs Supplier Returns & Debit Notes (Defective Items)
   const [activeTab, setActiveTab] = useState<'purchases' | 'returns'>('purchases');
+  const tabDirection = useTabDirection(activeTab, ['purchases', 'returns'] as const);
   const { containerRef: purchaseTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
     padding: 16,
     behavior: 'smooth',
@@ -85,17 +87,8 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   const [supplierInvoice, setSupplierInvoice] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Supplier Table Modal (Select Supplier from Table)
-  const [isSupplierTableModalOpen, setIsSupplierTableModalOpen] = useState(false);
-  const [supplierSearchInModal, setSupplierSearchInModal] = useState('');
+  // Supplier Picker modal activity flag (pauses global barcode scanner shortcuts)
   const [isSupplierPickerModalOpen, setIsSupplierPickerModalOpen] = useState(false);
-
-  // Quick Add Supplier Modal
-  const [isQuickSupplierModalOpen, setIsQuickSupplierModalOpen] = useState(false);
-  const [quickSupplierName, setQuickSupplierName] = useState('');
-  const [quickSupplierPhone, setQuickSupplierPhone] = useState('');
-  const [quickSupplierEmail, setQuickSupplierEmail] = useState('');
-  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
 
   // Products & Product Selection
   const [productQuery, setProductQuery] = useState('');
@@ -170,7 +163,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
   // Global key navigation & auto-focus for barcode scanning inside the purchase modal (only while route is active)
   useEffect(() => {
-    if (!isActive || !isModalOpen || isProductCatalogModalOpen || isSupplierTableModalOpen || isSupplierPickerModalOpen) {
+    if (!isActive || !isModalOpen || isProductCatalogModalOpen || isSupplierPickerModalOpen) {
       return;
     }
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -194,7 +187,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isActive, isModalOpen, isProductCatalogModalOpen, isSupplierTableModalOpen, isSupplierPickerModalOpen]);
+  }, [isActive, isModalOpen, isProductCatalogModalOpen, isSupplierPickerModalOpen]);
 
   const consumePendingPurchaseIntent = () => {
     const pendingPurchaseStr = sessionStorage.getItem('pending_purchase_product');
@@ -369,12 +362,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
   const loadSuppliers = async () => {
     await suppliersQuery.refetch();
-  };
-
-  const handleSelectSupplierFromTable = (sup: any) => {
-    setSelectedSupplierId(sup.id);
-    setSupplierName(sup.name);
-    setIsSupplierTableModalOpen(false);
   };
 
   // Filter products by Barcode or Article name (Universal: all products available)
@@ -658,7 +645,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
         notes: toTitleCaseTrimmed(notes),
         paidAmount: !isNaN(numPaid) && numPaid > 0 ? numPaid : 0,
         paymentMethod: initialPaymentMethod,
-        paymentReference: initialPaymentRef.trim(),
+        paymentReference: initialPaymentMethod === 'CASH' ? '' : initialPaymentRef.trim(),
         items: items.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
@@ -714,37 +701,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
     setIsPaymentModalOpen(true);
   };
 
-  const handleQuickSaveSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickSupplierName.trim()) return;
-
-    setIsSavingSupplier(true);
-    try {
-      const res = await api.suppliers.create({
-        name: toTitleCaseTrimmed(quickSupplierName),
-        phone: quickSupplierPhone.trim(),
-        email: toLowerTrimmed(quickSupplierEmail),
-      });
-
-      // Reload suppliers list and immediately select the new supplier
-      await loadSuppliers();
-      emitDataSync(['suppliers', 'purchases'], { source: 'purchase-management' });
-      if (res?.supplier?.id) {
-        setSelectedSupplierId(res.supplier.id);
-        setSupplierName(res.supplier.name);
-      }
-
-      setIsQuickSupplierModalOpen(false);
-      setQuickSupplierName('');
-      setQuickSupplierPhone('');
-      setQuickSupplierEmail('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to add supplier');
-    } finally {
-      setIsSavingSupplier(false);
-    }
-  };
-
   const handleViewPurchaseDetails = async (id: number) => {
     setViewPurchaseModalOpen(true);
     setIsLoadingPurchaseDetails(true);
@@ -759,17 +715,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
   };
 
   const selectedSupplierObj = suppliers.find((s) => s.id === selectedSupplierId);
-
-  // Filter for Supplier Table Modal
-  const modalFilteredSuppliers = suppliers.filter((s) => {
-    if (!supplierSearchInModal.trim()) return true;
-    const q = supplierSearchInModal.toLowerCase().trim();
-    return (
-      s.name.toLowerCase().includes(q) ||
-      (s.phone && s.phone.toLowerCase().includes(q)) ||
-      (s.email && s.email.toLowerCase().includes(q))
-    );
-  });
 
   // Filter for Product Catalog Modal
   const modalFilteredProducts = products.filter((p) => {
@@ -1095,6 +1040,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
         className="app-card overflow-hidden transition-colors dark:border-purple-800/60"
       >
 
+        <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
         {/* TAB 1: PURCHASES TABLE & MOBILE CARDS */}
         {activeTab === 'purchases' ? (
           <>
@@ -1512,6 +1458,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
           </div>
           </>
         )}
+        </AnimatedTabPanel>
       </motion.div>
 
       {/* RECORD NEW PURCHASE MODAL */}
@@ -1732,6 +1679,23 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                                   <span>{selectedSupplierObj.email}</span>
                                 </a>
                               )}
+                              {(() => {
+                                const bal = parseFloat(String(selectedSupplierObj.net_payable_balance ?? selectedSupplierObj.balance ?? 0)) || 0;
+                                if (bal === 0) return null;
+                                return (
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-md font-mono font-bold border ${
+                                      bal > 0
+                                        ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/60'
+                                        : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/60'
+                                    }`}
+                                  >
+                                    {bal > 0
+                                      ? `Payable: ${currencySymbol} ${formatStockPrice(bal)}`
+                                      : `Advance: ${currencySymbol} ${formatStockPrice(Math.abs(bal))}`}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -2540,7 +2504,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end pt-1">
-                      <div className="sm:col-span-5">
+                      <div className={initialPaymentMethod !== 'CASH' ? 'sm:col-span-5' : 'sm:col-span-7'}>
                         <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                           Amount Paid Now ({currencySymbol})
                         </label>
@@ -2555,7 +2519,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         />
                       </div>
 
-                      <div className="sm:col-span-3">
+                      <div className={initialPaymentMethod !== 'CASH' ? 'sm:col-span-3' : 'sm:col-span-5'}>
                         <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                           Payment Mode
                         </label>
@@ -2571,18 +2535,20 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                         </select>
                       </div>
 
-                      <div className="sm:col-span-4">
-                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Reference / Cheque #
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Chq #0921 or Trx ID"
-                          value={initialPaymentRef}
-                          onChange={(e) => setInitialPaymentRef(e.target.value)}
-                          className="w-full px-3 py-2 bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-purple-800/60 rounded-xl font-mono text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30 shadow-2xs"
-                        />
-                      </div>
+                      {initialPaymentMethod !== 'CASH' && (
+                        <div className="sm:col-span-4">
+                          <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Ref / Cheque # (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Chq #0921 or Trx ID"
+                            value={initialPaymentRef}
+                            onChange={(e) => setInitialPaymentRef(e.target.value)}
+                            className="w-full px-3 py-2 bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-purple-800/60 rounded-xl font-mono text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30 shadow-2xs"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Calculated Balance Preview */}
@@ -2687,146 +2653,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
         </div>
       )}
 
-      {/* SUPPLIER TABLE MODAL (SELECT SUPPLIER DIRECTLY FROM TABLE) */}
-      {isSupplierTableModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90dvh] sm:max-h-[88dvh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-              <div className="flex items-center space-x-2.5">
-                <span className="p-2.5 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
-                  <Building2 className="w-5 h-5" />
-                </span>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">Supplier Directory &amp; Selection Table</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs">{suppliers.length} Registered Vendors Available</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsSupplierTableModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 sm:p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Search & Filter */}
-            <div className="p-4 border-b border-slate-200 dark:border-purple-800/80 bg-white dark:bg-[#0E1628] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="relative flex-1 w-full">
-                <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Filter suppliers by name, phone, or email..."
-                  value={supplierSearchInModal}
-                  onChange={(e) => setSupplierSearchInModal(e.target.value)}
-                  className="w-full pl-[2.125rem] pr-8 py-2 bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/80 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 dark:focus:border-purple-500 font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-xs shadow-2xs"
-                />
-                {supplierSearchInModal && (
-                  <button
-                    type="button"
-                    onClick={() => setSupplierSearchInModal('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 p-1 cursor-pointer"
-                    title="Clear search"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSupplierTableModalOpen(false);
-                  setIsQuickSupplierModalOpen(true);
-                }}
-                className="btn-primary px-3 py-2 text-xs flex items-center gap-1.5 cursor-pointer shrink-0 font-bold"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Register New Supplier</span>
-              </button>
-            </div>
-
-            {/* Table Content */}
-            <div className="flex-1 overflow-auto p-3 sm:p-4 text-xs">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 text-slate-700 dark:text-white font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-purple-800/80 sticky top-0 z-10">
-                  <tr>
-                    <th className="py-2.5 px-3">Supplier / Vendor</th>
-                    <th className="py-2.5 px-3">Phone</th>
-                    <th className="py-2.5 px-3">Email</th>
-                    <th className="py-2.5 px-3 text-center">Past Orders</th>
-                    <th className="py-2.5 px-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-purple-900/30">
-                  {modalFilteredSuppliers.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400 dark:text-slate-500 italic">
-                        No suppliers match your search filter.
-                      </td>
-                    </tr>
-                  ) : (
-                    modalFilteredSuppliers.map((sup) => {
-                      const isSelected = selectedSupplierId === sup.id;
-                      const orderCount = parseInt(sup.total_purchases || sup.totalPurchases || 0, 10);
-
-                      return (
-                        <tr
-                          key={sup.id}
-                          className={`table-row-hover transition ${
-                            isSelected ? 'bg-blue-50/60 dark:bg-purple-950/40 font-bold' : ''
-                          }`}
-                        >
-                          <td className="py-3 px-3">
-                            <div className="font-bold text-slate-900 dark:text-white text-xs flex items-center space-x-1.5">
-                              <span>{sup.name}</span>
-                              {isSelected && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 border border-blue-200 dark:border-purple-800/60">
-                                  Current
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 font-mono text-slate-800 dark:text-slate-200">
-                            {sup.phone || <span className="text-slate-400 dark:text-slate-600">-</span>}
-                          </td>
-                          <td className="py-3 px-3 font-mono text-slate-600 dark:text-slate-400">
-                            {sup.email || <span className="text-slate-400 dark:text-slate-600">-</span>}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-purple-950/50 rounded text-slate-700 dark:text-purple-200 font-semibold font-mono border border-slate-200 dark:border-purple-900/50">
-                              {orderCount}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectSupplierFromTable(sup)}
-                              className="btn-primary px-3 py-1.5 text-xs font-semibold cursor-pointer"
-                            >
-                              Select Supplier
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="px-6 py-3 border-t border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsSupplierTableModalOpen(false)}
-                className="btn-secondary px-4 py-1.5 text-xs font-semibold cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* CATALOG PRODUCTS TABLE MODAL (BROWSE FULL CATALOG AND SELECT ARTICLE) */}
       {isProductCatalogModalOpen && (
@@ -3019,84 +2845,6 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
         </div>
       )}
 
-      {/* QUICK ADD SUPPLIER INLINE MODAL */}
-      {isQuickSupplierModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 dark:border-purple-800/80">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
-              <div className="flex items-center space-x-2 font-bold text-sm text-slate-900 dark:text-white">
-                <span className="p-2 bg-blue-50 dark:bg-purple-950/60 text-blue-600 dark:text-purple-300 rounded-xl border border-blue-100 dark:border-purple-800/60 shadow-2xs">
-                  <Building2 className="w-4 h-4" />
-                </span>
-                <span>Register New Supplier</span>
-              </div>
-              <button
-                onClick={() => setIsQuickSupplierModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-purple-900/30 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleQuickSaveSupplier} className="p-4 sm:p-5 space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Supplier Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Metro Footwear Wholesale Co."
-                  value={quickSupplierName}
-                  onChange={(e) => setQuickSupplierName(toTitleCaseLive(e.target.value))}
-                  className="capitalize w-full px-3 py-2 bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 dark:focus:border-purple-500 font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 shadow-2xs"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
-                  <input
-                    type="text"
-                    placeholder="+92 300 1234567"
-                    value={quickSupplierPhone}
-                    onChange={(e) => setQuickSupplierPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 dark:focus:border-purple-500 font-mono text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 shadow-2xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    placeholder="sales@vendor.com"
-                    value={quickSupplierEmail}
-                    onChange={(e) => setQuickSupplierEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0B1120] border border-slate-200 dark:border-purple-800/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 dark:focus:border-purple-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 shadow-2xs"
-                  />
-                </div>
-              </div>
-
-              <div className="px-4 sm:px-5 py-3.5 -mx-4 sm:-mx-5 -mb-4 sm:-mb-5 mt-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/90 dark:via-indigo-950/85 dark:to-slate-900 border-t border-slate-200 dark:border-purple-800/80 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsQuickSupplierModalOpen(false)}
-                  className="btn-secondary px-4 py-1.5 text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingSupplier}
-                  className="btn-primary px-4 py-1.5 text-xs font-bold cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingSupplier ? 'Saving...' : 'Save & Select Supplier'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* VIEW PAST PURCHASE DETAILS MODAL */}
       {viewPurchaseModalOpen && (

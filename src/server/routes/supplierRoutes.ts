@@ -381,6 +381,9 @@ router.post('/:id/payments', requireAuth, requireAdmin, async (req: Authenticate
       }
     }
 
+    const chosenPaymentMethod = String(paymentMethod || 'CASH').toUpperCase();
+    const cleanedRef = chosenPaymentMethod === 'CASH' ? '' : String(referenceNumber || '').trim();
+
     const payResult = await pgClient.query(
       `INSERT INTO supplier_payments (
          tenant_id, payment_number, supplier_id, supplier_name, purchase_id, amount, payment_date, payment_method, reference_number, notes, created_by
@@ -394,8 +397,8 @@ router.post('/:id/payments', requireAuth, requireAdmin, async (req: Authenticate
         linkedPurchaseId,
         paymentAmount,
         effectiveDate,
-        paymentMethod.toUpperCase(),
-        (referenceNumber || '').trim(),
+        chosenPaymentMethod,
+        cleanedRef,
         (notes || '').trim(),
         req.user!.id,
       ]
