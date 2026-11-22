@@ -121,7 +121,7 @@ const AnimatedHeroHighlight: React.FC = () => {
   return (
     <span
       id="hero-animated-highlight"
-      className="font-courgette font-normal tracking-normal inline-grid align-bottom overflow-hidden py-[0.12em] -my-[0.12em] px-[0.06em] -mx-[0.06em] text-primary-400 lt:text-primary"
+      className="relative font-courgette font-normal tracking-normal inline-grid align-bottom overflow-hidden pt-[0.06em] pb-[0.18em] -my-[0.06em] px-[0.08em] -mx-[0.08em] text-primary-400 lt:text-primary"
       style={{ fontFamily: "'Courgette', cursive, sans-serif" }}
     >
       {HERO_HIGHLIGHT_WORDS.map((word) => (
@@ -137,7 +137,7 @@ const AnimatedHeroHighlight: React.FC = () => {
         <span
           key={`exit-${activeIndex}`}
           aria-hidden="true"
-          className="col-start-1 row-start-1 whitespace-nowrap pointer-events-none select-none hero-word-exit"
+          className="col-start-1 row-start-1 whitespace-nowrap pointer-events-none select-none hero-highlight-gradient hero-word-exit"
         >
           {previousWord}
         </span>
@@ -145,11 +145,17 @@ const AnimatedHeroHighlight: React.FC = () => {
       <span
         key={prefersReducedMotion ? 'reduced-active' : `enter-${activeIndex}`}
         data-active-word={activeWord}
-        className={`col-start-1 row-start-1 whitespace-nowrap ${
+        className={`col-start-1 row-start-1 justify-self-start whitespace-nowrap ${
           previousWord && !prefersReducedMotion ? 'hero-word-enter' : ''
         }`}
       >
-        {activeWord}
+        <span className="relative inline-block">
+          <span className="hero-highlight-gradient">{activeWord}</span>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none select-none absolute -bottom-[0.06em] left-0 right-0 h-[3px] sm:h-[3.5px] rounded-full hero-underline-bar"
+          />
+        </span>
       </span>
     </span>
   );
@@ -991,8 +997,8 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 <Zap className="w-3.5 h-3.5 shrink-0 text-purple-300 lt:text-purple-600" aria-hidden="true" />
                 Retail &amp; Wholesale Footwear POS &middot; Offline-First &amp; WebUSB Ready
               </div>
-              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.1] text-white lt:text-slate-900 text-balance">
-                Run every shoe counter{' '}
+              <h1 className="mt-5 text-[32px] sm:text-5xl lg:text-[54px] font-extrabold tracking-tight leading-[1.12] text-white lt:text-slate-900 text-balance">
+                Running every shoe counter &amp; stockroom{' '}
                 <AnimatedHeroHighlight />
               </h1>
               <p className="mt-6 max-w-lg text-[15px] sm:text-base leading-relaxed text-slate-200 lt:text-slate-700">

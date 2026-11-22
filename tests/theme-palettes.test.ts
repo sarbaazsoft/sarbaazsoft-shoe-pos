@@ -670,8 +670,13 @@ describe('Multi-Color Brand Gradient Palettes', () => {
 
   it('renders rotating landing hero highlight headline using primary theme colors, zero-shift sizing, and reduced-motion CSS', () => {
     const landingSrc = readFileSync('src/components/saas/SaasLandingPage.tsx', 'utf8');
-    assert.ok(landingSrc.includes('Run every shoe counter'), 'Hero H1 must read "Run every shoe counter"');
+    assert.ok(
+      landingSrc.includes('Running every shoe counter &amp; stockroom'),
+      'Hero H1 must read "Running every shoe counter &amp; stockroom"'
+    );
     assert.ok(landingSrc.includes('<AnimatedHeroHighlight />'), 'Hero H1 must render AnimatedHeroHighlight');
+    assert.ok(landingSrc.includes('hero-highlight-gradient'), 'Hero highlight should apply theme gradient styling');
+    assert.ok(landingSrc.includes('hero-underline-bar'), 'Hero highlight should include animated underline bar');
 
     const expectedWords = ['smarter', 'faster', 'sharper', 'effortless', 'safer', 'stronger'];
     const wordListMatch = landingSrc.match(/const HERO_HIGHLIGHT_WORDS = \[([\s\S]*?)\] as const;/);
@@ -704,6 +709,7 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     const cssSource = readFileSync('src/index.css', 'utf8');
     assert.ok(cssSource.includes('@keyframes heroWordEnter'), 'index.css should define heroWordEnter keyframes');
     assert.ok(cssSource.includes('@keyframes heroWordExit'), 'index.css should define heroWordExit keyframes');
+    assert.ok(cssSource.includes('@keyframes heroUnderlineSweep'), 'index.css should define heroUnderlineSweep keyframes');
     assert.ok(
       cssSource.includes('.hero-word-enter,') && cssSource.includes('.hero-word-exit'),
       'index.css should disable hero word sliding animations under prefers-reduced-motion: reduce'
