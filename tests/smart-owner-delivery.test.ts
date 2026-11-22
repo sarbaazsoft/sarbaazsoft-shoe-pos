@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import express from 'express';
-import jwt from 'jsonwebtoken';
 
 import {
   disconnectOwnerSseClients,
@@ -379,7 +378,7 @@ test('Owner Presence Service: Multi-tab isolation, heartbeat TTL expiration, SSE
   resetServerNotificationDedupeCache();
 });
 
-test('HTTP Integration: Unauthenticated SSE blocked from Owner alerts, and /presence/offline + /auth/logout immediately transition Owner Offline', async () => {
+test('HTTP Integration: Deprecated /stream & /presence/* routes return 404, and /auth/logout immediately transitions Owner Offline', async () => {
   resetOwnerPresenceForTests();
   resetRevokedTokensForTests();
   resetServerNotificationDedupeCache();
@@ -407,42 +406,13 @@ test('HTTP Integration: Unauthenticated SSE blocked from Owner alerts, and /pres
   });
 
   try {
-    // 1. Unauthenticated SSE connection claiming role=ADMIN must NOT mark Owner online
-    const unauthReq = await new Promise<{ req: http.ClientRequest; res: http.IncomingMessage }>((resolve) => {
-      const req = http.get(`${baseUrl}/api/notifications/stream?__tenantId=${tenantId}&role=ADMIN&userId=${userId}`, (res) => {
-        resolve({ req, res });
-      });
-    });
-    assert.equal(isStoreOwnerOnline(tenantId), false, 'Unauthenticated SSE MUST NOT mark Owner online');
-    unauthReq.req.destroy();
+    // 1. Removed legacy SSE and presence HTTP routes return 404
+    const streamResp = await fetch(`${baseUrl}/api/notifications/stream?__token=${encodeURIComponent(ownerToken)}`);
+    assert.equal(streamResp.status, 404);
+    const offlineResp = await fetch(`${baseUrl}/api/notifications/presence/offline`, { method: 'POST' });
+    assert.equal(offlineResp.status, 404);
 
-    // 2. Authenticated SSE stream with valid JWT DOES mark Owner Online
-    const authStream = await new Promise<{ req: http.ClientRequest; res: http.IncomingMessage }>((resolve) => {
-      const req = http.get(
-        `${baseUrl}/api/notifications/stream?__token=${encodeURIComponent(ownerToken)}&sessionId=http-tab-1`,
-        (res) => {
-          res.once('data', () => resolve({ req, res }));
-        }
-      );
-    });
-    assert.equal(hasActiveAuthenticatedOwnerSse(tenantId), true);
-    assert.equal(isStoreOwnerOnline(tenantId), true);
-
-    // 3. POST /api/notifications/presence/offline via sendBeacon-style text/plain immediately marks Owner Offline and closes SSE
-    const offlineResp = await fetch(
-      `${baseUrl}/api/notifications/presence/offline?__token=${encodeURIComponent(ownerToken)}&sessionId=http-tab-1`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ sessionId: 'http-tab-1' }),
-      }
-    );
-    assert.equal(offlineResp.status, 200);
-    assert.equal(isStoreOwnerOnline(tenantId), false);
-    assert.equal(hasActiveAuthenticatedOwnerSse(tenantId), false);
-    authStream.req.destroy();
-
-    // 4. Logout route (/api/auth/logout) revokes JWT, marks Owner offline, and disconnects owner SSE clients
+    // 2. Logout route (/api/auth/logout) revokes JWT, marks Owner offline, and disconnects owner SSE clients
     recordOwnerHeartbeat({ tenantId, userId, role: 'ADMIN', sessionId: 'logout-tab' });
     const mockLogoutSse = createMockSseRes();
     registerSseClient(tenantId, userId, 'ADMIN', mockLogoutSse as any, {
@@ -463,18 +433,6 @@ test('HTTP Integration: Unauthenticated SSE blocked from Owner alerts, and /pres
     assert.equal(isTokenRevoked(ownerToken), true);
     assert.equal(isStoreOwnerOnline(tenantId), false);
     assert.equal(hasActiveAuthenticatedOwnerSse(tenantId), false);
-
-    // 5. Revoked token trying to reconnect SSE must stay authenticated=false (offline)
-    const revokedStream = await new Promise<{ req: http.ClientRequest; res: http.IncomingMessage }>((resolve) => {
-      const req = http.get(
-        `${baseUrl}/api/notifications/stream?__token=${encodeURIComponent(ownerToken)}&sessionId=revoked-tab`,
-        (res) => {
-          res.once('data', () => resolve({ req, res }));
-        }
-      );
-    });
-    assert.equal(isStoreOwnerOnline(tenantId), false, 'Revoked token SSE must NOT mark Owner online');
-    revokedStream.req.destroy();
   } finally {
     disconnectOwnerSseClients(tenantId);
     resetOwnerPresenceForTests();
@@ -705,7 +663,7 @@ test('Smart SuperAdmin Delivery: SuperAdmin Online receives SSE + FCM push and N
   }
 });
 
-test('HTTP Integration: Unauthenticated SuperAdmin SSE blocked, and /presence/offline + /auth/logout transition SuperAdmin Offline', async () => {
+test('HTTP Integration: Deprecated SuperAdmin /stream & /presence/offline return 404, and /auth/logout transitions SuperAdmin Offline', async () => {
   resetOwnerPresenceForTests();
   resetRevokedTokensForTests();
   resetServerNotificationDedupeCache();
@@ -732,42 +690,13 @@ test('HTTP Integration: Unauthenticated SuperAdmin SSE blocked, and /presence/of
   });
 
   try {
-    // 1. Unauthenticated SSE claiming role=SUPERADMIN must NOT mark SuperAdmin online
-    const unauthReq = await new Promise<{ req: http.ClientRequest; res: http.IncomingMessage }>((resolve) => {
-      const req = http.get(`${baseUrl}/api/notifications/stream?__tenantId=0&role=SUPERADMIN&userId=1`, (res) => {
-        resolve({ req, res });
-      });
-    });
-    assert.equal(isSuperAdminOnline(), false, 'Unauthenticated SSE MUST NOT mark SuperAdmin online');
-    unauthReq.req.destroy();
+    // 1. Removed legacy SSE and presence HTTP routes return 404
+    const streamResp = await fetch(`${baseUrl}/api/notifications/stream?__token=${encodeURIComponent(saToken)}`);
+    assert.equal(streamResp.status, 404);
+    const offlineResp = await fetch(`${baseUrl}/api/notifications/presence/offline`, { method: 'POST' });
+    assert.equal(offlineResp.status, 404);
 
-    // 2. Authenticated SuperAdmin SSE stream marks SuperAdmin Online with tenantId=0
-    const authStream = await new Promise<{ req: http.ClientRequest; res: http.IncomingMessage }>((resolve) => {
-      const req = http.get(
-        `${baseUrl}/api/notifications/stream?__token=${encodeURIComponent(saToken)}&sessionId=sa-http-1`,
-        (res) => {
-          res.once('data', () => resolve({ req, res }));
-        }
-      );
-    });
-    assert.equal(hasActiveAuthenticatedSuperAdminSse(), true);
-    assert.equal(isSuperAdminOnline(), true);
-
-    // 3. POST /api/notifications/presence/offline transitions SuperAdmin Offline immediately
-    const offlineResp = await fetch(
-      `${baseUrl}/api/notifications/presence/offline?__token=${encodeURIComponent(saToken)}&sessionId=sa-http-1`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ sessionId: 'sa-http-1' }),
-      }
-    );
-    assert.equal(offlineResp.status, 200);
-    assert.equal(isSuperAdminOnline(), false);
-    assert.equal(hasActiveAuthenticatedSuperAdminSse(), false);
-    authStream.req.destroy();
-
-    // 4. POST /api/auth/logout with SUPERADMIN token revokes token & marks SuperAdmin offline
+    // 2. POST /api/auth/logout with SUPERADMIN token revokes token & marks SuperAdmin offline
     recordSuperAdminHeartbeat({ userId: saUserId, role: 'SUPERADMIN', sessionId: 'sa-logout-tab' });
     const mockLogoutSaSse = createMockSseRes();
     registerSseClient(0, saUserId, 'SUPERADMIN', mockLogoutSaSse as any, {

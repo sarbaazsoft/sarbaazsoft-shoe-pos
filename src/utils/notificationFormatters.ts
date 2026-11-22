@@ -85,13 +85,6 @@ export function cleanOptionalText(val?: string | null): string | null {
   return trimmed;
 }
 
-export function cleanNotificationInvoiceNo(invoiceNo?: string | null): string {
-  const cleanedRaw = cleanOptionalText(invoiceNo);
-  if (!cleanedRaw) return 'N/A';
-  const cleaned = cleanedRaw.replace(/^#+/, '').trim();
-  return cleaned || 'N/A';
-}
-
 export function formatNotificationAmount(amount?: number | string | null): string {
   const num = Number(amount ?? 0);
   if (!Number.isFinite(num)) return '0';

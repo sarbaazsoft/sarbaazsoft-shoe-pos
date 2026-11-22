@@ -561,12 +561,6 @@ export function resetSoftPushPromptDismissal(): void {
   } catch {}
 }
 
-export function openPushSoftPrePrompt(): void {
-  if (typeof window === 'undefined') return;
-  resetSoftPushPromptDismissal();
-  window.dispatchEvent(new CustomEvent('pos:open-push-soft-prompt'));
-}
-
 const permissionWatchCallbacks = new Set<(snapshot: PushPermissionSnapshot) => void>();
 let sharedWatcherAttached = false;
 let sharedPermStatusObj: PermissionStatus | null = null;

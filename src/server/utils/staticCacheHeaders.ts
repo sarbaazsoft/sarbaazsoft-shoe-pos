@@ -31,17 +31,9 @@ export function isContentHashedAsset(filePath: string): boolean {
 }
 
 export function resolveApiCacheHeaders(
-  reqPath: string,
+  _reqPath: string,
   _isProduction: boolean = true
 ): Record<string, string> {
-  const cleanPath = reqPath.split('?')[0].toLowerCase();
-
-  if (cleanPath === '/notifications/stream') {
-    return {
-      'Cache-Control': 'no-cache, no-transform',
-    };
-  }
-
   return { ...NO_STORE_HEADERS };
 }
 

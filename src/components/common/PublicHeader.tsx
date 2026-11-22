@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, ShieldAlert, Loader2, Cloud, RefreshCw, CheckCheck, Shield } from 'lucide-react';
+import { Sparkles, ShieldAlert, Loader2, Cloud, RefreshCw, CheckCheck } from 'lucide-react';
 import { ThemeDropdown } from './ThemeDropdown.tsx';
 import { ShoeIcon, TinyShoeIcon } from './ShoeIcon.tsx';
 

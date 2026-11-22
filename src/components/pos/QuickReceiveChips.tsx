@@ -7,7 +7,6 @@ export interface QuickReceiveChip {
   label?: string;
 }
 
-export const PKR_BANKNOTE_DENOMINATIONS = [10, 20, 50, 100, 500, 1000, 5000] as const;
 export const PKR_TOP_NOTE = 5000;
 
 /**

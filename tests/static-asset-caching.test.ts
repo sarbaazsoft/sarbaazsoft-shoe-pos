@@ -63,7 +63,7 @@ test('staticCacheHeaders unconditionally enforces no-store across APIs and stati
     assert.equal(headers['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
   }
 
-  // 3. API headers disable HTTP/proxy caching across both dev and prod while preserving SSE framing
+  // 3. API headers disable HTTP/proxy caching across both dev and prod
   for (const isProd of [false, true]) {
     const apiHeaders = resolveApiCacheHeaders('/products', isProd);
     assert.equal(apiHeaders['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -71,9 +71,6 @@ test('staticCacheHeaders unconditionally enforces no-store across APIs and stati
     assert.equal(apiHeaders['Expires'], '0');
     assert.equal(apiHeaders['Surrogate-Control'], 'no-store');
   }
-
-  const sseHeaders = resolveApiCacheHeaders('/notifications/stream', true);
-  assert.equal(sseHeaders['Cache-Control'], 'no-cache, no-transform');
 });
 
 test('resolveServiceWorkerFilePath prefers dist/ in production and public/ in development', () => {

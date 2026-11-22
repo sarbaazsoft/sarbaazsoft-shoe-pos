@@ -15,7 +15,7 @@ import {
   subscribeTenantChange,
 } from '../services/api.ts';
 import { subscribeDataSync, type DataSyncTopic } from '../utils/dataSyncBus.ts';
-import type { AllNotificationsResponse, GroupedNotificationsResponse } from '../types.ts';
+import type { AllNotificationsResponse } from '../types.ts';
 
 export interface MutationSyncPlan {
   topics: DataSyncTopic[];
@@ -432,26 +432,6 @@ export function useSaasDirectoryQuery(
   );
 }
 
-
-export function useGroupedNotificationsQuery(
-  limit: number = 10,
-  options?: {
-    enabled?: boolean;
-    refetchInterval?: number | false;
-  }
-) {
-  const tenantId = getActiveTenantId();
-  return useLiveFetch<GroupedNotificationsResponse>(
-    (signal) => api.notifications.grouped(limit, { signal }),
-    `notifications:grouped:${limit}`,
-    {
-      enabled: options?.enabled ?? true,
-      refetchInterval: options?.refetchInterval ?? false,
-      syncTopics: ['notifications'],
-      scopeKey: String(tenantId ?? 'public'),
-    }
-  );
-}
 
 export function useAllNotificationsQuery(
   params: {

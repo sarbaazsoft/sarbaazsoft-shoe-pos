@@ -11,7 +11,7 @@ import { ClickableMessage } from './ClickableMessage.tsx';
 import { api, isAbortError } from '../../services/api.ts';
 import { useNotifications } from '../../context/NotificationContext.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
-import { PlatformNotification, PlatformNotificationType } from '../../types.ts';
+import { PlatformNotificationType } from '../../types.ts';
 import { getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { getAllCachedProductsOffline } from '../../utils/offlineDb.ts';
 import {
@@ -356,7 +356,6 @@ export const Header: React.FC<HeaderProps> = ({
     setDropdownOpen,
     markAsRead,
     markAllAsRead,
-    dismissActivity,
     dismissNotice,
     dismissAll,
   } = useNotifications();
@@ -450,16 +449,6 @@ export const Header: React.FC<HeaderProps> = ({
     if (!currentUser) return;
     await refreshGrouped({ noticesOnly: false });
   }, [currentUser, refreshGrouped]);
-
-  const handleDismissActivity = async (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    try {
-      await dismissActivity(id);
-      emitDataSync(['notifications'], { source: 'header' });
-    } catch (err) {
-      console.warn('Failed to dismiss activity:', err);
-    }
-  };
 
   const handleDismissAnnouncement = async (id: number, e?: React.MouseEvent) => {
     e?.stopPropagation();

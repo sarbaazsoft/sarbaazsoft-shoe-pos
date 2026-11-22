@@ -145,7 +145,7 @@ test('SettingsView exposes Device Push Enable/Disable to ADMIN & SUPERADMIN, and
   assert.match(fcmSettingsSrc, /\{isSuperAdminUser && \(\s*<button[\s\S]*?Test Push Alert \(FCM\)/);
 });
 
-test('API endpoints /api/notifications/test-push and /api/notifications/test-fcm reject unauthenticated, ADMIN, and CASHIER callers and allow SUPERADMIN only', async () => {
+test('API endpoint /api/notifications/test-push rejects unauthenticated, ADMIN, and CASHIER callers and allows SUPERADMIN only', async () => {
   await ensureSaasControlPlane();
   const { server, baseUrl } = await startNotificationTestServer();
 
@@ -209,7 +209,7 @@ test('API endpoints /api/notifications/test-push and /api/notifications/test-fcm
       status: 'APPROVED',
     });
 
-    for (const endpoint of ['/api/notifications/test-push', '/api/notifications/test-fcm']) {
+    for (const endpoint of ['/api/notifications/test-push']) {
       const unauthRes = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

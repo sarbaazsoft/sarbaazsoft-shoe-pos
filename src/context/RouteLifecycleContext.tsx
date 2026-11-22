@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { subscribeDataSync, type DataSyncEvent, type DataSyncTopic } from '../utils/dataSyncBus.ts';
 
 export const DEFAULT_MAX_KEEP_ALIVE_TABS = 8;
@@ -75,13 +75,11 @@ export function updateKeepAliveState(
 
 interface RouteLifecycleContextValue {
   isActive: boolean;
-  activationCount: number;
   tabId: string;
 }
 
 const RouteLifecycleContext = createContext<RouteLifecycleContextValue>({
   isActive: true,
-  activationCount: 1,
   tabId: '',
 });
 
@@ -96,19 +94,9 @@ export const RouteLifecycleProvider: React.FC<RouteLifecycleProviderProps> = ({
   tabId,
   children,
 }) => {
-  const [activationCount, setActivationCount] = useState<number>(() => (isActive ? 1 : 0));
-  const wasActiveRef = useRef<boolean>(isActive);
-
-  useEffect(() => {
-    if (isActive && !wasActiveRef.current) {
-      setActivationCount((c) => c + 1);
-    }
-    wasActiveRef.current = isActive;
-  }, [isActive]);
-
   const value = React.useMemo(
-    () => ({ isActive, activationCount, tabId }),
-    [isActive, activationCount, tabId]
+    () => ({ isActive, tabId }),
+    [isActive, tabId]
   );
 
   return (

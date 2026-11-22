@@ -180,7 +180,7 @@ test('dispatchPosEmailAlert queries users with valid user_status_enum (APPROVED)
 
   const capturedQueries: string[] = [];
   const origQuery = pgClient.query.bind(pgClient);
-  (pgClient as any).query = async (sql: string, params?: any[]) => {
+  (pgClient as any).query = async (sql: string, _params?: any[]) => {
     capturedQueries.push(String(sql));
     if (String(sql).includes('FROM users')) {
       assert.doesNotMatch(String(sql), /'ACTIVE'/i);

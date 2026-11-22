@@ -10,8 +10,6 @@ interface NotificationContextValue {
   notices: PlatformNotification[];
   readNotifIds: string[];
   isLoading: boolean;
-  hasLoadedNotices: boolean;
-  hasLoadedHistory: boolean;
   isBellPulsing: boolean;
   refreshGrouped: (options?: { noticesOnly?: boolean }) => Promise<void>;
   loadHistoryOnDemand: () => Promise<void>;
@@ -45,8 +43,6 @@ export const NotificationProvider: React.FC<{
   const [notices, setNotices] = useState<PlatformNotification[]>([]);
   const [readNotifIds, setReadNotifIds] = useState<string[]>(readPersistedReadIds);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasLoadedNotices, setHasLoadedNotices] = useState(false);
-  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   const [isBellPulsing, setIsBellPulsing] = useState(false);
 
   const activeTenantId = getActiveTenantId();
@@ -100,10 +96,8 @@ export const NotificationProvider: React.FC<{
         .then((res) => {
           if (scopeKeyRef.current !== targetScope) return;
           setNotices(Array.isArray(res?.notices) ? res.notices : []);
-          setHasLoadedNotices(true);
           if (!noticesOnly) {
             setNotifications(Array.isArray(res?.notifications) ? res.notifications.slice(0, 5) : []);
-            setHasLoadedHistory(true);
             hasLoadedHistoryRef.current = true;
             historyDirtyRef.current = false;
           }
@@ -151,8 +145,6 @@ export const NotificationProvider: React.FC<{
   useEffect(() => {
     setNotifications([]);
     setNotices([]);
-    setHasLoadedNotices(false);
-    setHasLoadedHistory(false);
     hasLoadedHistoryRef.current = false;
     historyDirtyRef.current = true;
 
@@ -168,8 +160,6 @@ export const NotificationProvider: React.FC<{
     const unsubscribeClear = subscribeSessionClear(() => {
       setNotifications([]);
       setNotices([]);
-      setHasLoadedNotices(false);
-      setHasLoadedHistory(false);
       hasLoadedHistoryRef.current = false;
       historyDirtyRef.current = true;
     });
@@ -352,8 +342,6 @@ export const NotificationProvider: React.FC<{
       notices,
       readNotifIds,
       isLoading,
-      hasLoadedNotices,
-      hasLoadedHistory,
       isBellPulsing,
       refreshGrouped,
       loadHistoryOnDemand,
@@ -370,8 +358,6 @@ export const NotificationProvider: React.FC<{
       notices,
       readNotifIds,
       isLoading,
-      hasLoadedNotices,
-      hasLoadedHistory,
       isBellPulsing,
       refreshGrouped,
       loadHistoryOnDemand,

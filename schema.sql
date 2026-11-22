@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
   tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token TEXT NOT NULL UNIQUE,
+  attempts INTEGER NOT NULL DEFAULT 0,
   expires_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

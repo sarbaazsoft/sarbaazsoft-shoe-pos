@@ -59,9 +59,6 @@ const rootDir = path.resolve('.');
 export const app = express();
 app.set('etag', false);
 app.use((req, res, next) => {
-  if (req.path === '/api/notifications/stream') {
-    return next();
-  }
   delete req.headers['if-none-match'];
   delete req.headers['if-modified-since'];
 
@@ -127,8 +124,7 @@ const PORT = resolvePort();
 app.use('/api', (req, res, next) => {
   if (
     req.path === '/pwa/manifest.webmanifest' ||
-    req.path === '/pwa/manifest.json' ||
-    req.path.startsWith('/tenants/manifest')
+    req.path === '/pwa/manifest.json'
   ) {
     return next();
   }
@@ -191,7 +187,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-Auth-Token, X-Tenant-Id, X-Simulated-Host, X-Requested-With'
+      'Content-Type, Authorization, X-Auth-Token, X-Tenant-Id, X-Requested-With'
     );
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader(

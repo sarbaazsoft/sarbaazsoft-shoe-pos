@@ -294,8 +294,7 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
   app.use('/api', (req, res, next) => {
     if (
       req.path === '/pwa/manifest.webmanifest' ||
-      req.path === '/pwa/manifest.json' ||
-      req.path.startsWith('/tenants/manifest')
+      req.path === '/pwa/manifest.json'
     ) {
       return next();
     }
@@ -383,13 +382,7 @@ test('backend manifest routes serve strict role-based manifests and ignore dynam
     if (tenantRow.rows.length > 0) {
       const tid = tenantRow.rows[0].id;
       const tRes = await fetch(`${baseUrl}/api/tenants/manifest?tenantId=${tid}`);
-      assert.equal(tRes.status, 200);
-      assert.ok((tRes.headers.get('content-type') || '').includes('application/manifest+json'));
-      const tJson = (await tRes.json()) as Record<string, unknown> & { name: string; short_name: string; start_url: string };
-      assert.equal(tJson.name, 'SarbaazSoft ShoePOS');
-      assert.equal(tJson.short_name, 'ShoePOS');
-      assert.equal(tJson.start_url, `/?tenantId=${tid}`);
-      assertCleanManifestShape(tJson);
+      assert.equal(tRes.status, 404);
     }
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));

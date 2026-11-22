@@ -274,13 +274,6 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     : null;
 
   const isWholesaleTransaction = isWholesaleStore || isWholesaleCustomer;
-  // Dynamic minimum sale quantity & half-carton permission
-  // Determination: Half-cartons are allowed if either the store setting is enabled
-  // (company_setting.allow_half_carton == true) OR the specific product override is enabled
-  // (product.allow_half_carton == true).
-  const storeAllowsHalfCarton =
-    companySettings?.allowHalfCarton === true ||
-    companySettings?.allow_half_carton === true;
   const selectPaymentMethod = (method: 'CASH' | 'ONLINE' | 'KHATA' | 'SPLIT' | 'BANK_TRANSFER') => {
     setPaymentMethod(method);
     if (method !== 'BANK_TRANSFER' && method !== 'ONLINE' && method !== 'SPLIT') setTransactionId('');

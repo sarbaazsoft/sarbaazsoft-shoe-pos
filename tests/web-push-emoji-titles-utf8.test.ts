@@ -207,13 +207,7 @@ test('Subscription & Trial lifecycle notifications store UTF-8 emoji titles clea
   });
 
   try {
-    // 3. Verify SSE endpoint sends explicit UTF-8 charset header
-    const sseRes = await fetch(`${baseUrl}/api/notifications/stream?token=${encodeURIComponent(paidAdminToken)}&tenantId=${paidTenantId}`);
-    assert.equal(sseRes.status, 200);
-    assert.match(sseRes.headers.get('content-type') || '', /text\/event-stream;\s*charset=utf-8/i);
-    await sseRes.body?.cancel().catch(() => {});
-
-    // 4. Paid Store submits Renewal Request -> SuperAdmin receives "New Renewal Request 🔔"
+    // 3. Paid Store submits Renewal Request -> SuperAdmin receives "New Renewal Request 🔔"
     const renewalReqRes = await fetch(`${baseUrl}/api/settings/renew-subscription`, {
       method: 'POST',
       headers: {

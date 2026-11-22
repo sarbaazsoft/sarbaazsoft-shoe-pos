@@ -262,6 +262,17 @@ test('API & DB integration: settings low_stock_threshold, product CRUD without l
       { method: 'POST', path: '/api/settings/test-gmail' },
       { method: 'PUT', path: '/api/settings/alert-providers' },
       { method: 'GET', path: '/api/notifications/vapid-public-key' },
+      { method: 'POST', path: '/api/auth/forgot-password' },
+      { method: 'POST', path: '/api/notifications/fcm-token/delete' },
+      { method: 'POST', path: '/api/superadmin/notifications/1/revoke' },
+      { method: 'POST', path: '/api/superadmin/notifications/1/delete' },
+      { method: 'POST', path: '/api/notifications/test-fcm' },
+      { method: 'GET', path: '/api/tenants/manifest?tenantId=1' },
+      { method: 'GET', path: '/api/notifications/stream' },
+      { method: 'POST', path: '/api/notifications/presence/heartbeat' },
+      { method: 'POST', path: '/api/notifications/presence/offline' },
+      { method: 'GET', path: '/api/notifications/presence/status' },
+      { method: 'POST', path: '/api/notifications/platform/dismiss-all' },
     ];
 
     for (const ep of removedEndpoints) {

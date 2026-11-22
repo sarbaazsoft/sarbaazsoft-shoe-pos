@@ -18,7 +18,6 @@ VALUES
 
   -- 2. Email Provider & Templates
   ('ACTIVE_EMAIL_PROVIDER', 'gmail', 'email', 'Active transactional email provider (resend or gmail)', false, NOW()),
-  ('ACTIVE_ALERT_PROVIDER', 'gmail', 'system', 'Active alert delivery provider', false, NOW()),
   ('GMAIL_USER', 'sarbaazsoft@gmail.com', 'email', 'Gmail sender address for SMTP', false, NOW()),
   ('GMAIL_FROM_NAME', 'SarbaazSoft Shoe POS', 'email', 'Display sender name for Gmail SMTP emails', false, NOW()),
   ('GMAIL_APP_PASSWORD', '', 'email', 'Google App Password for Gmail SMTP (configure in SuperAdmin App Config)', true, NOW()),

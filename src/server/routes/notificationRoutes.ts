@@ -1,19 +1,12 @@
-import express, { Router } from 'express';
+import { Router } from 'express';
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import {
-  registerSseClient,
   saveFcmToken,
   removeFcmToken,
   getFcmStats,
   testFcmPush,
   normalizeVapidPublicKey,
-  disconnectOwnerSseClients,
-  hasActiveAuthenticatedOwnerSse,
-  isStoreOwnerOnline,
-  disconnectSuperAdminSseClients,
-  hasActiveAuthenticatedSuperAdminSse,
-  isSuperAdminOnline,
 } from '../pushNotificationService.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
 import {
@@ -31,15 +24,7 @@ import {
 } from '../auth.ts';
 import {
   isOwnerRole,
-  recordOwnerHeartbeat,
-  markOwnerSessionOffline,
-  shrinkOwnerSessionGraceWindow,
-  hasFreshOwnerHeartbeat,
   isSuperAdminRole,
-  recordSuperAdminHeartbeat,
-  markSuperAdminSessionOffline,
-  shrinkSuperAdminSessionGraceWindow,
-  hasFreshSuperAdminHeartbeat,
 } from '../services/ownerPresenceService.ts';
 import { pgClient } from '../../db/index.ts';
 import { ensureNotificationsSchema, ensurePlatformNotificationsSchema } from '../../db/schemaInit.ts';
@@ -349,28 +334,12 @@ function mapSaleNotificationRow(
 
 const router = Router();
 
-function extractRequestSessionId(req: Request, parsedBody?: any): string {
-  const raw =
-    req.headers['x-session-id'] ||
-    req.query.sessionId ||
-    req.query.__sessionId ||
-    parsedBody?.sessionId ||
-    (req.body && typeof req.body === 'object' ? req.body.sessionId : undefined);
-  const clean = String(raw || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9._:-]/g, '');
-  return clean ? clean.slice(0, 64) : 'default';
-}
-
 function resolveRequestIdentity(req: Request): {
   tenantId: number;
   userId: number;
   role: string;
   authenticated: boolean;
-  sessionId: string;
 } {
-  const sessionId = extractRequestSessionId(req);
-
   // 1. Check req.user attached by authMiddleware
   const reqUser = (req as any).user;
   if (reqUser) {
@@ -381,7 +350,6 @@ function resolveRequestIdentity(req: Request): {
       userId: Number(reqUser.id || reqUser.userId || 0),
       role,
       authenticated: true,
-      sessionId,
     };
   }
 
@@ -397,29 +365,11 @@ function resolveRequestIdentity(req: Request): {
         userId: Number(decoded?.id || decoded?.userId || 0),
         role,
         authenticated: true,
-        sessionId,
       };
     } catch {}
   }
 
-  // 3. Check query param __token (used by EventSource SSE streams)
-  const queryToken = typeof req.query.__token === 'string' ? req.query.__token : '';
-  if (queryToken && !isTokenRevoked(queryToken)) {
-    try {
-      const decoded = jwt.verify(queryToken, getJwtSecret()) as any;
-      const role = String(decoded?.role || 'ADMIN').toUpperCase();
-      const tid = Number(decoded?.tenantId || 0);
-      return {
-        tenantId: isSuperAdminRole(role) ? 0 : (Number.isInteger(tid) && tid > 0 ? tid : 1),
-        userId: Number(decoded?.id || decoded?.userId || 0),
-        role,
-        authenticated: true,
-        sessionId,
-      };
-    } catch {}
-  }
-
-  // 4. Unauthenticated fallback (cannot mark owner online or receive owner SSE streams)
+  // 3. Unauthenticated fallback
   const rawRole = req.query.role || req.query.__role || req.headers['x-user-role'];
   const explicitRole = typeof rawRole === 'string' && ['ADMIN', 'CASHIER', 'SUPERADMIN', 'OWNER'].includes(rawRole.toUpperCase())
     ? rawRole.toUpperCase()
@@ -440,7 +390,6 @@ function resolveRequestIdentity(req: Request): {
     userId: Number.isInteger(rawUserId) ? rawUserId : 0,
     role: explicitRole || 'ADMIN',
     authenticated: false,
-    sessionId,
   };
 }
 
@@ -1367,30 +1316,6 @@ router.post('/platform/:id/dismiss', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/notifications/platform/dismiss-all - Mark all announcements as read for this store
-router.post('/platform/dismiss-all', async (req: Request, res: Response) => {
-  try {
-    await ensurePlatformNotificationsSchema();
-    const { tenantId, userId } = resolveRequestIdentity(req);
-    const cleanTenantId = tenantId || 1;
-
-    await pgClient.query(
-      `INSERT INTO platform_notification_reads (notification_id, tenant_id, user_id, read_at)
-       SELECT pn.id, $1, $2, NOW()
-       FROM platform_notifications pn
-       WHERE (pn.tenant_id IS NULL OR pn.tenant_id = $1)
-         AND (pn.expires_at IS NULL OR pn.expires_at > NOW())
-         AND COALESCE(pn.target_role, 'ALL') != 'SUPERADMIN'
-       ON CONFLICT (notification_id, tenant_id, user_id) DO UPDATE SET read_at = NOW()`,
-      [cleanTenantId, userId]
-    );
-
-    res.json({ success: true, message: 'All notifications dismissed.' });
-  } catch (err: any) {
-    res.status(500).json({ error: 'Failed to dismiss all notifications: ' + err.message });
-  }
-});
-
 // ============================================================================
 // FIREBASE CLOUD MESSAGING (FCM) ENDPOINTS
 // ============================================================================
@@ -1466,7 +1391,7 @@ router.post('/fcm-token', async (req: Request, res: Response) => {
 });
 
 // POST & DELETE /api/notifications/fcm-token/remove - Unregister a device FCM token
-router.all(['/fcm-token/remove', '/fcm-token/delete'], async (req: Request, res: Response) => {
+router.all('/fcm-token/remove', async (req: Request, res: Response) => {
   try {
     const token = req.body?.token || req.query?.token;
     if (!token) {
@@ -1479,8 +1404,8 @@ router.all(['/fcm-token/remove', '/fcm-token/delete'], async (req: Request, res:
   }
 });
 
-// POST /api/notifications/test-fcm and /api/notifications/test-push - Send live FCM test push alert (SuperAdmin only)
-router.post(['/test-fcm', '/test-push'], requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+// POST /api/notifications/test-push - Send live FCM test push alert (SuperAdmin only)
+router.post('/test-push', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customTitle = req.body?.title;
     const customMessage = req.body?.message;
@@ -1567,156 +1492,5 @@ router.all('/preferences', requireAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
-
-// POST /api/notifications/presence/heartbeat - Record authenticated owner/superadmin online presence
-router.post('/presence/heartbeat', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const user = req.user!;
-  const sessionId = extractRequestSessionId(req);
-  let recorded = false;
-  let online = false;
-
-  if (isSuperAdminRole(user.role)) {
-    recorded = recordSuperAdminHeartbeat({
-      userId: user.id,
-      role: user.role,
-      sessionId,
-    });
-    online = isSuperAdminOnline();
-  } else if (isOwnerRole(user.role)) {
-    recorded = recordOwnerHeartbeat({
-      tenantId: user.tenantId,
-      userId: user.id,
-      role: user.role,
-      sessionId,
-    });
-    online = isStoreOwnerOnline(user.tenantId);
-  }
-
-  res.json({
-    ok: true,
-    recorded,
-    online,
-    role: user.role,
-    sessionId,
-  });
-});
-
-// POST /api/notifications/presence/offline - Mark owner/superadmin session offline (supports navigator.sendBeacon)
-router.post('/presence/offline', express.text({ type: 'text/plain' }), (req: Request, res: Response) => {
-  let parsedBody: any = req.body && typeof req.body === 'object' ? req.body : {};
-  if (typeof req.body === 'string' && req.body.trim()) {
-    try {
-      parsedBody = JSON.parse(req.body);
-    } catch {}
-  }
-
-  const rawToken =
-    extractTokenFromRequest(req) ||
-    (typeof req.query.__token === 'string' ? req.query.__token : '') ||
-    (typeof parsedBody?.token === 'string' ? parsedBody.token : '');
-
-  if (rawToken) {
-    try {
-      const decoded = jwt.verify(rawToken, getJwtSecret()) as any;
-      const tenantId = Number(decoded?.tenantId || 0);
-      const userId = Number(decoded?.id || decoded?.userId || 0);
-      const role = String(decoded?.role || '').toUpperCase();
-      const rawSession =
-        req.headers['x-session-id'] ||
-        req.query.sessionId ||
-        req.query.__sessionId ||
-        parsedBody?.sessionId;
-      const sessionId = rawSession ? String(rawSession).trim() : undefined;
-
-      if (userId > 0 && isSuperAdminRole(role)) {
-        markSuperAdminSessionOffline({ userId, sessionId });
-        disconnectSuperAdminSseClients(userId, sessionId);
-      } else if (tenantId > 0 && userId > 0 && isOwnerRole(role)) {
-        markOwnerSessionOffline({ tenantId, userId, sessionId });
-        disconnectOwnerSseClients(tenantId, userId, sessionId);
-      }
-    } catch {}
-  }
-
-  res.status(200).json({ ok: true });
-});
-
-// GET /api/notifications/presence/status - Check current store owner / superadmin online status
-router.get('/presence/status', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  if (isSuperAdminRole(req.user?.role)) {
-    return res.json({
-      superAdminOnline: isSuperAdminOnline(),
-      hasSse: hasActiveAuthenticatedSuperAdminSse(),
-      hasHeartbeat: hasFreshSuperAdminHeartbeat(),
-    });
-  }
-  const tenantId = Number(req.user?.tenantId || 0);
-  return res.json({
-    ownerOnline: isStoreOwnerOnline(tenantId),
-    hasSse: hasActiveAuthenticatedOwnerSse(tenantId),
-    hasHeartbeat: hasFreshOwnerHeartbeat(tenantId),
-  });
-});
-
-// GET /api/notifications/stream - Server-Sent Events (SSE) real-time stream with role isolation
-router.get('/stream', (req: Request, res: Response) => {
-  const { tenantId, userId, role, authenticated, sessionId } = resolveRequestIdentity(req);
-
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-
-  // Immediately acknowledge connection with role metadata
-  res.write(
-    `event: connected\ndata: ${JSON.stringify({
-      type: 'CONNECTED',
-      tenantId,
-      role,
-      authenticated,
-      sessionId,
-      timestamp: new Date().toISOString(),
-    })}\n\n`
-  );
-
-  const unregister = registerSseClient(tenantId, userId, role, res, {
-    authenticated,
-    sessionId,
-  });
-
-  const isAuthenticatedOwnerStream = authenticated && isOwnerRole(role) && userId > 0 && tenantId > 0;
-  const isAuthenticatedSuperAdminStream = authenticated && isSuperAdminRole(role) && userId > 0;
-
-  if (isAuthenticatedOwnerStream) {
-    recordOwnerHeartbeat({ tenantId, userId, role, sessionId });
-  } else if (isAuthenticatedSuperAdminStream) {
-    recordSuperAdminHeartbeat({ userId, role, sessionId });
-  }
-
-  // Heartbeat to keep connection open across reverse proxies and firewalls
-  const heartbeatInterval = setInterval(() => {
-    try {
-      res.write(': keepalive\n\n');
-      if (isAuthenticatedOwnerStream) {
-        recordOwnerHeartbeat({ tenantId, userId, role, sessionId });
-      } else if (isAuthenticatedSuperAdminStream) {
-        recordSuperAdminHeartbeat({ userId, role, sessionId });
-      }
-    } catch {
-      clearInterval(heartbeatInterval);
-      unregister();
-    }
-  }, 25000);
-
-  req.on('close', () => {
-    clearInterval(heartbeatInterval);
-    unregister();
-    if (isAuthenticatedOwnerStream) {
-      shrinkOwnerSessionGraceWindow({ tenantId, userId, sessionId });
-    } else if (isAuthenticatedSuperAdminStream) {
-      shrinkSuperAdminSessionGraceWindow({ userId, sessionId });
-    }
-  });
-});
 
 export default router;

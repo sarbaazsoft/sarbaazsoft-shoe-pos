@@ -28,7 +28,6 @@ import { useTheme, type ThemeMode } from '../../context/ThemeContext.tsx';
 import {
   ACCENT_THEME_LIST,
   CURATED_APPEARANCE_PALETTES,
-  DEFAULT_ACCENT_THEME,
   getWcagContrastRatio,
   isValidHexColor,
   normalizeBackdropDarkness,
@@ -63,7 +62,6 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     backdropDarkness,
     isAuthenticatedSession,
     isPreviewActive,
-    hasUnsavedColorPreview,
     hasUnsavedImagePreview,
     isSavingAppearance,
     appearanceSaveError,

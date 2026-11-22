@@ -1063,8 +1063,3 @@ export async function unregisterFcmDeviceToken(): Promise<boolean> {
   }
   return true;
 }
-
-export function getStoredFcmToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('pos_fcm_token');
-}

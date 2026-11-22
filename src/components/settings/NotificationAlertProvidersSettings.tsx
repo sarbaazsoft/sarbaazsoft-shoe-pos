@@ -194,7 +194,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
       const eventId = `test-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const testTitle = 'Firebase Push Test';
       const testMessage = 'FCM push delivery confirmed. Real-time alerts are operational.';
-      const res = await api.notifications.testFcm({
+      const res = await api.notifications.testPush({
         title: testTitle,
         message: testMessage,
         eventId,

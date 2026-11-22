@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, CheckCircle2, AlertTriangle, AlertCircle, X, Shield, RefreshCw, ExternalLink } from 'lucide-react';
+import { Bell, CheckCircle2, AlertTriangle, AlertCircle, X, Shield, RefreshCw } from 'lucide-react';
 
 export interface NotificationModalData {
   isOpen: boolean;

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { pgClient } from '../../db/index.ts';
-import { requireAuth, requireAdmin, forbidCashier } from '../auth.ts';
+import { requireAuth, requireAdmin } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
@@ -35,7 +35,7 @@ async function generatePurchaseNumber(tenantId: number): Promise<string> {
 // Uses shared generateSupplierPaymentNumber from ledgerService.ts
 
 // List Purchases (Forbidden for Cashiers)
-router.get('/', requireAuth, forbidCashier, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = extractStrictTenantId(req);
     const { search, supplierId } = req.query;
@@ -75,7 +75,7 @@ router.get('/', requireAuth, forbidCashier, requireAdmin, async (req: Authentica
 });
 
 // Single Purchase with items (Forbidden for Cashiers)
-router.get('/:id', requireAuth, forbidCashier, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', requireAuth, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = extractStrictTenantId(req);
     const id = parseInt(req.params.id, 10);
@@ -126,7 +126,7 @@ router.get('/:id', requireAuth, forbidCashier, requireAdmin, async (req: Authent
 });
 
 // Create Purchase (Atomic Stock Increment + Ledger Recording - Forbidden for Cashiers)
-router.post('/', requireAuth, forbidCashier, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requireAuth, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const tenantId = extractStrictTenantId(req);
   const {
     supplierId,
@@ -357,12 +357,12 @@ router.post('/', requireAuth, forbidCashier, requireAdmin, async (req: Authentic
 });
 
 // Update Purchase (Forbidden for Cashiers)
-router.put('/:id', requireAuth, forbidCashier, requireAdmin, async (_req, res: Response) => {
+router.put('/:id', requireAuth, requireAdmin, async (_req, res: Response) => {
   return res.status(403).json({ error: 'Direct modification of historical purchases is restricted.' });
 });
 
 // Delete Purchase (Forbidden for Cashiers)
-router.delete('/:id', requireAuth, forbidCashier, requireAdmin, async (_req, res: Response) => {
+router.delete('/:id', requireAuth, requireAdmin, async (_req, res: Response) => {
   return res.status(403).json({ error: 'Deleting historical purchase records is restricted.' });
 });
 

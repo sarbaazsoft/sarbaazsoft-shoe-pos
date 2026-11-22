@@ -209,24 +209,6 @@ export function clearStoredUnauthTenantId() {
   } catch {}
 }
 
-/**
- * Builds an unauthenticated-scoped URL preserving the current tenantId if present
- */
-export function buildUnauthScopedUrl(targetUrl: string, currentTenantId?: string | number | null): string {
-  const tid = currentTenantId || getStoredUnauthTenantId();
-  if (!tid) return targetUrl;
-
-  const [baseAndQuery, hash] = targetUrl.split('#');
-  const [base, rawQuery] = baseAndQuery.split('?');
-  const sp = new URLSearchParams(rawQuery || '');
-  if (!sp.has('tenantId')) {
-    sp.set('tenantId', String(tid));
-  }
-  const queryString = sp.toString() ? `?${sp.toString()}` : '';
-  const hashString = hash ? `#${hash}` : '';
-  return `${base || '/'}${queryString}${hashString}`;
-}
-
 function PortalRouteFallback({ label = 'Loading...' }: { label?: string }) {
   return (
     <div

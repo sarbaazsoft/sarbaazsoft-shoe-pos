@@ -11,7 +11,7 @@ export interface ShoeIconProps extends Omit<React.ImgHTMLAttributes<HTMLImageEle
 }
 
 /**
- * ShoeIcon / StoreIcon
+ * ShoeIcon
  * Standardized store icon component rendering the official professional PWA icon
  * (/icon.svg and /pwa-192x192.png) across all headers, navigation bars, modals,
  * and login screens. Supports optional custom store branding logo with graceful fallback.
@@ -80,5 +80,4 @@ export const TinyShoeIcon: React.FC<{ className?: string }> = ({
   </svg>
 );
 
-export const StoreIcon = ShoeIcon;
 export default ShoeIcon;

@@ -363,17 +363,6 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
   }
 }
 
-export function forbidCashier(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required. Please login.' });
-  }
-  const role = (req.user.role || '').toLowerCase();
-  if (role === 'cashier') {
-    return res.status(423).json({ error: 'Access forbidden: Cashier role is not authorized for this operation.' });
-  }
-  next();
-}
-
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required. Please login.' });
@@ -399,38 +388,6 @@ export function requireSuperAdmin(req: AuthenticatedRequest, res: Response, next
       code: 'FORBIDDEN_PLATFORM_OWNER_REQUIRED',
     });
   }
-  next();
-}
-
-/**
- * Route Middleware Safeguard:
- * Explicitly protects trial/dashboard route groups and sensitive store operations.
- * Ensures unverified users are blocked with 423/403 if they attempt to navigate to protected routes directly.
- */
-export function requireVerifiedUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'Authentication required. Please sign in.',
-      code: 'AUTH_REQUIRED',
-    });
-  }
-
-  // SuperAdmin bypasses email verification
-  if (req.user.role === 'SUPERADMIN') {
-    return next();
-  }
-
-  if (req.user.status !== 'APPROVED') {
-    return res.status(423).json({
-      error: 'Email verification required. Please verify your email before accessing the store dashboard.',
-      code: 'EMAIL_VERIFICATION_REQUIRED',
-      requiresVerification: true,
-      email: req.user.email,
-      tenantId: req.user.tenantId,
-      redirectUrl: `/verify-email?email=${encodeURIComponent(req.user.email)}&tenantId=${req.user.tenantId}`,
-    });
-  }
-
   next();
 }
 

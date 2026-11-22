@@ -59,8 +59,6 @@ export function buildUnifiedScreenImagesMap(imageUrl: string): ScreenImagesMap {
   };
 }
 
-export const EMPTY_SCREEN_IMAGES: ScreenImagesMap = buildUnifiedScreenImagesMap('');
-
 export interface PredefinedLibraryImage {
   id: string;
   title: string;
@@ -564,10 +562,6 @@ export function readCachedBackdropImage(): string {
   } catch {
     return '';
   }
-}
-
-export function readCachedScreenImages(): ScreenImagesMap {
-  return buildUnifiedScreenImagesMap(readCachedBackdropImage());
 }
 
 export function writeCachedScreenImages(images: ScreenImagesMap | string): void {

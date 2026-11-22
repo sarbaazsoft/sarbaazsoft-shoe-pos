@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { useNotifications } from '../../context/NotificationContext.tsx';
-import type { PlatformNotification, PlatformNotificationType } from '../../types.ts';
+import type { PlatformNotificationType } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 import { navigateToNotificationUrl } from '../../utils/notificationActions.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
@@ -249,39 +249,6 @@ export const PosNotificationBanner: React.FC<PosNotificationBannerProps> = ({
       } catch (err) {
         console.warn('Could not sync notice dismissal with server:', err);
       }
-    }
-  };
-
-  // Dismiss all active notices
-  const handleDismissAll = async (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setIsWelcomeDismissed(true);
-    try {
-      localStorage.setItem(welcomeDismissedKey, 'true');
-      localStorage.setItem('pos_welcome_banner_dismissed', 'true');
-      localStorage.setItem('pos_welcome_partner_dismissed', 'true');
-    } catch {}
-    window.dispatchEvent(new CustomEvent('welcome:dismissed'));
-    api.notifications.dismissWelcome().catch(() => {});
-
-    const allIds = activeNotices.map((n) => n.id);
-    setDismissedIds((prev) => {
-      const next = new Set(prev);
-      allIds.forEach((id) => {
-        next.add(id);
-        next.add(String(id));
-        removeNoticeLocally(id);
-      });
-      try {
-        localStorage.setItem(dismissedStorageKey, JSON.stringify(Array.from(next)));
-      } catch {}
-      return next;
-    });
-
-    try {
-      await api.notifications.dismissAllAnnouncements();
-    } catch (err) {
-      console.warn('Could not dismiss all announcements on server:', err);
     }
   };
 

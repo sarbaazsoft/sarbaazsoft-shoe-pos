@@ -16,14 +16,13 @@ import {
   ChevronRight,
   Store,
   Globe,
-  Check,
   X,
   Calendar,
   Layers,
   Sparkles,
   Truck,
 } from 'lucide-react';
-import { api, getActiveTenantId } from '../../services/api.ts';
+import { api } from '../../services/api.ts';
 import type { AllNotificationsResponse, HistoricalNotificationItem } from '../../types.ts';
 import { ClickableMessage } from '../common/ClickableMessage.tsx';
 const NotificationAlertProvidersSettings = lazy(() =>

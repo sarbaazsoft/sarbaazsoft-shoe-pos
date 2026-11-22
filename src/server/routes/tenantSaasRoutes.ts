@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { pgClient } from '../../db/index.ts';
-import { ensureSaasControlPlane, ensureDatabaseSchema, ensurePlatformNotificationsSchema, ensureTenantStoreUsers, ensureEmailVerificationSchema, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions, clearSubscriptionAlertsOnRenewal } from '../../db/schemaInit.ts';
+import { ensureSaasControlPlane, ensureDatabaseSchema, ensurePlatformNotificationsSchema, ensureTenantStoreUsers, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions, clearSubscriptionAlertsOnRenewal } from '../../db/schemaInit.ts';
 import { requireAuth, requireAdmin, requireSuperAdmin, generateToken, type AuthenticatedRequest, type AuthUser } from '../auth.ts';
 import {
   notifyPlatformAnnouncement,
@@ -16,7 +15,6 @@ import { recordInitialAuthSend } from '../services/authResendRateLimitService.ts
 import { issueEmailVerificationCode } from '../services/emailVerificationService.ts';
 import { resolveTenantContext, isTenantOnlineInMiddleware, getTenantMiddlewareLastSeen, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
-import { buildPwaManifest } from '../../utils/pwaBranding.ts';
 
 const router = Router();
 
@@ -39,43 +37,7 @@ export function extractRequestOrigin(req: Request): string {
 }
 
 /**
- * 1. STORE PWA MANIFEST (`/api/tenants/manifest?tenantId=...`)
- * Serves a store-scoped start_url while strictly enforcing role-based
- * SarbaazSoft Shoe POS branding without dynamic tenant names.
- */
-router.get(['/tenants/manifest', '/tenants/manifest.json', '/tenants/manifest.webmanifest'], async (req: Request, res: Response) => {
-  try {
-    await ensureSaasControlPlane();
-    const tenantId = Number(req.query.tenantId ?? req.headers['x-tenant-id']);
-    if (!Number.isSafeInteger(tenantId) || tenantId <= 0) return res.status(400).json({ error: 'A valid tenantId is required.' });
-
-    const tenantRes = await pgClient.query<{ id: number }>(
-      `SELECT id FROM tenants WHERE id = $1 LIMIT 1`,
-      [tenantId]
-    );
-
-    if (tenantRes.rows.length === 0) {
-      return res.status(404).json({
-        error: `Tenant manifest not found for tenant ${tenantId}.`,
-      });
-    }
-
-    const tenant = tenantRes.rows[0];
-    const manifest = buildPwaManifest('PUBLIC', {
-      id: `/?tenantId=${tenant.id}`,
-      startUrl: `/?tenantId=${tenant.id}`,
-    });
-
-    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.status(200).send(JSON.stringify(manifest));
-  } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to generate tenant manifest: ' + err.message });
-  }
-});
-
-/**
- * 2. RESOLVE CURRENT SAAS ROUTE & TENANT STATUS (`/api/saas/resolve`)
+ * 1. RESOLVE CURRENT SAAS ROUTE & TENANT STATUS (`/api/saas/resolve`)
  * Used by the SPA to inspect the selected tenant status,
  * and returns the directory of deployed tenants for quick multi-tenant preview switching.
  */
@@ -129,7 +91,7 @@ router.get('/saas/resolve', async (req: Request, res: Response) => {
           currency: t.currency,
           onboardingCompleted: Boolean(t.onboarding_completed),
           appPath: `/?tenantId=${t.id}`,
-          manifestUrl: `/api/tenants/manifest?tenantId=${t.id}`,
+          manifestUrl: '/manifest.webmanifest',
         };
       }),
     });
@@ -785,7 +747,7 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
         supplierCount: parseInt(s.supplier_count || '0', 10),
         unitsSold: parseInt(s.units_sold || '0', 10),
         inventoryValue: parseFloat(s.inventory_value || '0'),
-        manifestUrl: `/api/tenants/manifest?tenantId=${s.id}`,
+        manifestUrl: '/manifest.webmanifest',
         appUrl: `/?tenantId=${s.id}`,
         installUrl: `/?tenantId=${s.id}`,
       };
@@ -1573,7 +1535,7 @@ async function provisionNewTenantStore(params: {
     onboardingCompleted: onboardingCompleted,
     onboardingUrl: `/onboarding?tenantId=${newTenant.id}`,
     loginUrl: `/?tenantId=${newTenant.id}`,
-    manifestUrl: `/api/tenants/manifest?tenantId=${newTenant.id}`,
+    manifestUrl: '/manifest.webmanifest',
   };
 }
 
@@ -2410,7 +2372,7 @@ router.post('/tenants/onboarding', requireAuth, requireAdmin, async (req: Reques
           onboardingCompleted: true,
         } : null,
         settings: existingSettingsRes.rows[0] || null,
-        manifestUrl: `/api/tenants/manifest?tenantId=${tenant.id}`,
+        manifestUrl: '/manifest.webmanifest',
         redirectUrl: `/?tenantId=${tenant.id}`,
       });
     }
@@ -2770,7 +2732,7 @@ router.post('/tenants/onboarding', requireAuth, requireAdmin, async (req: Reques
           }
         : null,
       settings: updatedSettingsRes.rows[0] || null,
-      manifestUrl: `/api/tenants/manifest?tenantId=${tenant.id}`,
+      manifestUrl: '/manifest.webmanifest',
       redirectUrl: `/?tenantId=${tenant.id}`,
     });
   } catch (err: any) {
@@ -2994,22 +2956,6 @@ router.get('/superadmin/notifications', requireAuth, requireSuperAdmin, async (_
 
 // DELETE /api/superadmin/notifications/:id - Revoke / delete a dispatched notification
 router.delete('/superadmin/notifications/:id', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    await ensurePlatformNotificationsSchema();
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'Invalid notification ID' });
-    }
-    await pgClient.query('DELETE FROM platform_notification_reads WHERE notification_id = $1', [id]).catch(() => {});
-    await pgClient.query('DELETE FROM platform_notifications WHERE id = $1', [id]);
-    return res.json({ success: true, message: 'Notification revoked successfully.' });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to revoke notification: ' + err.message });
-  }
-});
-
-// POST /api/superadmin/notifications/:id/revoke (and /delete) - POST alias for notification revocation
-router.post(['/superadmin/notifications/:id/revoke', '/superadmin/notifications/:id/delete'], requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     await ensurePlatformNotificationsSchema();
     const id = parseInt(req.params.id, 10);

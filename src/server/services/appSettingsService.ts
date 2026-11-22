@@ -404,10 +404,10 @@ export async function ensureAppSettingsSchema(options?: { force?: boolean }): Pr
           AND value NOT ILIKE 'https://%'
       `).catch(() => {});
 
-      // Remove legacy Telegram, VAPID, and SW_KILL_SWITCH keys from app_settings
+      // Remove legacy Telegram, VAPID, SW_KILL_SWITCH, and ACTIVE_ALERT_PROVIDER keys from app_settings
       await pgClient.query(`
         DELETE FROM public.app_settings 
-        WHERE key IN ('TELEGRAM_BOT_TOKEN', 'TELEGRAM_SUPERADMIN_CHAT_ID', 'TELEGRAM_ALERTS_ENABLED', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT', 'SW_KILL_SWITCH')
+        WHERE key IN ('TELEGRAM_BOT_TOKEN', 'TELEGRAM_SUPERADMIN_CHAT_ID', 'TELEGRAM_ALERTS_ENABLED', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT', 'SW_KILL_SWITCH', 'ACTIVE_ALERT_PROVIDER')
       `).catch(() => {});
 
       // Seed all default settings if not already present (strictly from APP_SETTINGS_DEFAULTS, never from process.env)

@@ -286,20 +286,6 @@ export async function tenantRoutingMiddleware(
   }
 
   try {
-    // Skip static assets
-    if (
-      req.path.startsWith('/assets/') ||
-      req.path.startsWith('/node_modules/') ||
-      req.path.startsWith('/src/') ||
-      req.path.startsWith('/@') ||
-      req.path.endsWith('.png') ||
-      req.path.endsWith('.svg') ||
-      req.path.endsWith('.ico') ||
-      req.path.endsWith('.jpg')
-    ) {
-      return next();
-    }
-
     const resolution = await resolveTenantContext(req);
     (req as any).tenantResolution = resolution;
 

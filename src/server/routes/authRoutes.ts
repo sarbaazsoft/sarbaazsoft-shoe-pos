@@ -5,9 +5,8 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { pgClient } from '../../db/index.ts';
 import { ensureSaasControlPlane, ensureEmailVerificationSchema } from '../../db/schemaInit.ts';
-import { generateToken, requireAuth, requireAdmin, extractTokenFromRequest, revokeToken, clearAuthCookies } from '../auth.ts';
+import { generateToken, requireAuth, extractTokenFromRequest, revokeToken, clearAuthCookies } from '../auth.ts';
 import type { AuthenticatedRequest, AuthUser } from '../auth.ts';
-import { extractStrictTenantId } from '../../db/tenantDb.ts';
 import { recordTenantMiddlewarePresence, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
 import { sendPasswordResetEmail, sendTrialActivationEmail } from '../utils/email.ts';
 import { isOwnerRole, markOwnerSessionOffline, isSuperAdminRole, markSuperAdminSessionOffline } from '../services/ownerPresenceService.ts';
@@ -31,73 +30,6 @@ import {
 } from '../services/emailVerificationService.ts';
 
 const router = Router();
-
-// Resolve selected store by tenantId.
-async function resolveTargetTenant(req: Request): Promise<{
-  id: number;
-  name: string;
-  status: string;
-  subscription_type?: string;
-  subscription_plan?: string;
-  subscription_start_date?: string;
-  subscription_end_date?: string;
-  subscription_status?: string;
-  owner_name?: string;
-  owner_email?: string;
-  owner_phone?: string;
-} | null> {
-  await ensureSaasControlPlane();
-  const rawTid =
-    req.query?.tenantId ??
-    req.query?.tenant_id ??
-    req.query?.storeId ??
-    req.query?.store_id ??
-    req.body?.tenantId ??
-    req.body?.tenant_id ??
-    req.body?.storeId ??
-    req.body?.store_id ??
-    req.headers['x-tenant-id'] ??
-    (req as any).tenantResolution?.tenant?.id;
-  const explicitTenantId = Number(rawTid);
-  const hasExplicitTenantId = Number.isInteger(explicitTenantId) && explicitTenantId > 0;
-
-  if (hasExplicitTenantId) {
-    const byIdRes = await pgClient.query<any>(
-      `SELECT t.id, t.name, t.status, t.subscription_type, t.subscription_plan,
-              t.subscription_start_date, t.subscription_end_date, t.subscription_status,
-              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone
-       FROM tenants t
-       LEFT JOIN LATERAL (
-         SELECT name, email, phone
-         FROM users
-         WHERE tenant_id = t.id AND role = 'ADMIN'
-         ORDER BY id ASC
-         LIMIT 1
-       ) u ON true
-       WHERE t.id = $1
-       LIMIT 1`,
-      [explicitTenantId]
-    );
-    return byIdRes.rows[0] || null;
-  }
-
-  const defRes = await pgClient.query<any>(
-    `SELECT t.id, t.name, t.status, t.subscription_type, t.subscription_plan,
-            t.subscription_start_date, t.subscription_end_date, t.subscription_status,
-            u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone
-     FROM tenants t
-     LEFT JOIN LATERAL (
-       SELECT name, email, phone
-       FROM users
-       WHERE tenant_id = t.id AND role = 'ADMIN'
-       ORDER BY id ASC
-       LIMIT 1
-     ) u ON true
-     ORDER BY t.id ASC
-     LIMIT 1`
-  );
-  return defRes.rows[0] || null;
-}
 
 /** Shared login handler; tenantId selects a store when credentials are store-specific. */
 async function handleStoreOrPlatformLogin(req: Request, res: Response) {
@@ -1266,7 +1198,6 @@ const handleSendPasswordResetLink = async (req: Request, res: Response) => {
 };
 
 router.post('/send-reset-link', handleSendPasswordResetLink);
-router.post('/forgot-password', handleSendPasswordResetLink);
 
 // Verify Reset Token from URL Link (GET /api/auth/verify-reset-token?token=...)
 router.get('/verify-reset-token', async (req: Request, res: Response) => {
