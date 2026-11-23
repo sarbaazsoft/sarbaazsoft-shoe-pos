@@ -656,6 +656,9 @@ export interface PosActionNotification {
   totalAmount?: number;
   refundAmount?: number;
   netDifference?: number;
+  totalPairs?: number;
+  returnedPairs?: number;
+  paymentMethod?: string;
   customerName?: string;
   supplierName?: string;
   cashierName?: string;
@@ -674,6 +677,116 @@ export interface PosActionNotification {
   triggeredBy?: string;
   targetRole?: 'ALL' | 'ADMIN' | 'CASHIER';
   targetRoles?: ('ADMIN' | 'CASHIER')[];
+}
+
+function cleanPushText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (lower === 'null' || lower === 'undefined' || lower === 'n/a') return null;
+  return trimmed;
+}
+
+function parsePairsFromText(text?: string | null): number | null {
+  if (!text) return null;
+  const str = String(text);
+  const netMatch = str.match(/Net Sold:\s*(\d+(?:\.\d+)?)\s*pairs?/i);
+  if (netMatch) return Number(netMatch[1]);
+  const totalSoldMatch = str.match(/Total Sold:\s*(\d+(?:\.\d+)?)\s*pairs?/i);
+  if (totalSoldMatch) return Number(totalSoldMatch[1]);
+  const pairsMatch = str.match(/\b(\d+(?:\.\d+)?)\s*pairs?\b/i);
+  if (pairsMatch) return Number(pairsMatch[1]);
+  const itemMatches = Array.from(str.matchAll(/(\d+(?:\.\d+)?)\s*x\s+/gi));
+  if (itemMatches.length > 0) {
+    return itemMatches.reduce((acc, m) => acc + (Number(m[1]) || 0), 0);
+  }
+  return null;
+}
+
+export function enrichPosPushNotificationPayload(payload: PosActionNotification): PosActionNotification & {
+  resolvedCustomerName: string;
+  resolvedCashierName: string;
+  resolvedTotalPairs: number | undefined;
+  resolvedReturnedPairs: number | undefined;
+} {
+  const actionType = String(payload.type || '').toUpperCase();
+  const isTransactionAlert = actionType !== 'STOCK';
+  const resolvedCustomerName =
+    cleanPushText(payload.customerName) ||
+    cleanPushText(payload.supplierName) ||
+    'Walk-in Customer';
+  const resolvedCashierName =
+    cleanPushText(payload.cashierName) ||
+    cleanPushText(payload.triggeredBy) ||
+    'Counter Staff';
+
+  let resolvedTotalPairs: number | undefined =
+    typeof payload.totalPairs === 'number' && Number.isFinite(payload.totalPairs) && payload.totalPairs >= 0
+      ? payload.totalPairs
+      : undefined;
+
+  if (resolvedTotalPairs === undefined) {
+    const parsedFromMessage = parsePairsFromText(payload.message);
+    const parsedFromSummary = parsePairsFromText(payload.itemsSummary);
+    const parsedFromNew = parsePairsFromText(payload.exchangeDetails?.newItems);
+    const parsedFromOld = parsePairsFromText(payload.exchangeDetails?.oldItems);
+    const candidate = parsedFromMessage ?? parsedFromSummary ?? parsedFromNew ?? parsedFromOld;
+    if (candidate !== null && Number.isFinite(candidate) && candidate >= 0) {
+      resolvedTotalPairs = candidate;
+    }
+  }
+
+  let resolvedReturnedPairs: number | undefined =
+    typeof payload.returnedPairs === 'number' && Number.isFinite(payload.returnedPairs) && payload.returnedPairs >= 0
+      ? payload.returnedPairs
+      : undefined;
+
+  if (resolvedReturnedPairs === undefined && payload.message) {
+    const retMatch = String(payload.message).match(/Returned:\s*(\d+(?:\.\d+)?)\s*pairs?/i);
+    if (retMatch) {
+      resolvedReturnedPairs = Number(retMatch[1]);
+    }
+  }
+
+  let message = String(payload.message || '').trim();
+  if (isTransactionAlert) {
+    const hasPairsInMessage = /\b\d+(?:\.\d+)?\s*(?:pairs?|cartons?|boxes?|dozens?)\b/i.test(message);
+    const hasCustomerInMessage =
+      message.toLowerCase().includes(resolvedCustomerName.toLowerCase()) ||
+      /\b(?:sold to|customer|returned by|exchanged by|purchased from)\s*:?\s*\S+/i.test(message);
+    const hasCashierInMessage =
+      message.toLowerCase().includes(resolvedCashierName.toLowerCase()) ||
+      /\b(?:processed by|cashier)\s*:/i.test(message);
+
+    const missingLines: string[] = [];
+    if (!hasPairsInMessage) {
+      const displayPairs = resolvedTotalPairs ?? 0;
+      missingLines.push(`Total Pairs: ${displayPairs} ${displayPairs === 1 ? 'pair' : 'pairs'}`);
+    }
+    if (!hasCustomerInMessage) {
+      missingLines.push(`Customer: ${resolvedCustomerName}`);
+    }
+    if (!hasCashierInMessage) {
+      missingLines.push(`Processed by: ${resolvedCashierName}`);
+    }
+    if (missingLines.length > 0) {
+      message = message ? `${message}\n${missingLines.join('\n')}` : missingLines.join('\n');
+    }
+  }
+
+  return {
+    ...payload,
+    message,
+    customerName: resolvedCustomerName,
+    cashierName: resolvedCashierName,
+    totalPairs: resolvedTotalPairs,
+    returnedPairs: resolvedReturnedPairs,
+    resolvedCustomerName,
+    resolvedCashierName,
+    resolvedTotalPairs,
+    resolvedReturnedPairs,
+  };
 }
 
 export interface BroadcastSseOptions {
@@ -785,8 +898,17 @@ export async function notifyPosAction(
     return;
   }
 
+  const normalizedPushPayload = enrichPosPushNotificationPayload(payload);
+  const {
+    resolvedCustomerName,
+    resolvedCashierName,
+    resolvedTotalPairs,
+    resolvedReturnedPairs,
+    ...cleanPayload
+  } = normalizedPushPayload;
+
   const enrichedPayload: PosActionNotification & { eventId: string; tag: string } = {
-    ...payload,
+    ...cleanPayload,
     eventId: eventTag,
     tag: eventTag,
     targetRole: payload.targetRole || 'ALL',
@@ -891,9 +1013,16 @@ export async function notifyPosAction(
           tag: eventTag,
           invoiceId: String(enrichedPayload.invoiceNumber || enrichedPayload.saleId || enrichedPayload.orderId || ''),
           invoiceNumber: enrichedPayload.invoiceNumber || '',
+          returnNumber: enrichedPayload.returnNumber || '',
+          exchangeNumber: enrichedPayload.exchangeNumber || '',
           saleId: String(enrichedPayload.saleId || enrichedPayload.orderId || ''),
           orderId: String(enrichedPayload.orderId || ''),
           totalAmount: String(enrichedPayload.totalAmount || ''),
+          totalPairs: resolvedTotalPairs !== undefined ? String(resolvedTotalPairs) : '',
+          returnedPairs: resolvedReturnedPairs !== undefined ? String(resolvedReturnedPairs) : '',
+          customerName: resolvedCustomerName,
+          cashierName: resolvedCashierName,
+          itemsSummary: enrichedPayload.itemsSummary || '',
           targetRole: String(enrichedPayload.targetRole || 'ALL'),
           timestamp: enrichedPayload.timestamp,
         },

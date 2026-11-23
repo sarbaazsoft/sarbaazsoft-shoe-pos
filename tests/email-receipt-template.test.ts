@@ -72,9 +72,14 @@ test('Retail Sale email embeds 50mm thermal receipt preview in middle with exact
   assert.match(result.html, /Al-Madina Footwear/);
   assert.match(result.html, /SALE COMPLETED/);
   assert.match(result.html, /Processed By:/);
+  assert.match(result.html, /Total Pairs:/);
+  assert.match(result.html, /2 Pairs/);
   assert.match(result.html, /Talhah/);
   assert.match(result.html, /Ayesha Khan/);
   assert.match(result.html, /This is an automated real-time transaction alert from your Point of Sale system\./);
+  assert.match(result.text, /Total Pairs:\s*2 Pairs/);
+  assert.match(result.text, /Customer:\s*Ayesha Khan/);
+  assert.match(result.text, /Processed By \(Cashier\):\s*Talhah/);
 
   // Middle thermal receipt preview details
   assert.match(result.html, /50mm Thermal Receipt/);
@@ -205,6 +210,11 @@ test('Wholesale A4 email embeds complete A4 commercial invoice preview with cart
   assert.match(result.html, /Balance Carried Forward \(Khata\):/);
   assert.match(result.html, /Dealer Stamp &amp; Sign/);
   assert.match(result.html, /Authorized Signature/);
+  assert.match(result.html, /Total Pairs:/);
+  assert.match(result.html, /18 Pairs \(4 Returned\)/);
+  assert.match(result.text, /Total Pairs:\s*18 Pairs \(4 Returned\)/);
+  assert.match(result.text, /Customer:\s*Bilal Traders Footwear \(Bilal Ahmed\)/);
+  assert.match(result.text, /Processed By \(Cashier\):\s*Usman/);
 });
 
 test('Standalone Return and Exchange fallbacks sanitize HTML and render complete receipt preview without DB row', () => {
@@ -249,10 +259,13 @@ test('Standalone Return and Exchange fallbacks sanitize HTML and render complete
   assert.match(returnHtml.html, /RETURN COMPLETED/);
   assert.match(returnHtml.html, /RET-000025/);
   assert.match(returnHtml.html, /TOTAL REFUND:/);
+  assert.match(returnHtml.html, /1 Pair Returned/);
   assert.match(returnHtml.html, /Size mismatch/);
   assert.doesNotMatch(returnHtml.html, /<script>alert\(1\)<\/script>/);
   assert.doesNotMatch(returnHtml.html, /<img src=x/);
   assert.match(returnHtml.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(returnHtml.text, /Total Pairs:\s*1 Pair Returned/);
+  assert.match(returnHtml.text, /Processed By \(Cashier\):\s*Ali/);
 
   const exchangeHtml = buildTransactionReceiptEmailHtml({
     payload: {
@@ -286,6 +299,78 @@ test('Standalone Return and Exchange fallbacks sanitize HTML and render complete
   assert.match(exchangeHtml.html, /Loafers Brown/);
   assert.match(exchangeHtml.html, /Exchange Credit:/);
   assert.match(exchangeHtml.html, /-Rs\. 2500/);
+  assert.match(exchangeHtml.html, /1 Pair/);
+  assert.match(exchangeHtml.text, /Total Pairs:\s*1 Pair/);
+  assert.match(exchangeHtml.text, /Customer:\s*Zain/);
+  assert.match(exchangeHtml.text, /Processed By \(Cashier\):\s*Talhah/);
+
+  // Wholesale Standalone Return includes Total Pairs summary strip and sparse no-DB sale includes Total Pairs, Walk-in Customer, Counter Staff
+  const wholesaleReturn = buildTransactionReceiptEmailHtml({
+    payload: {
+      type: 'RETURN',
+      title: 'Return Completed',
+      message: '#RET-000077',
+      invoiceNumber: '',
+      returnNumber: 'RET-000077',
+      refundAmount: 24000,
+      totalPairs: 12,
+      returnedPairs: 12,
+      customerName: 'National Footwear',
+      cashierName: 'Imran',
+      deepLinkUrl: '/?tab=returns',
+      timestamp: '2026-11-17T16:00:00.000Z',
+    },
+    companySettings: {
+      company_name: 'Star Wholesale',
+      business_type: 'WHOLESALE',
+    },
+    sale: {
+      return_number: 'RET-000077',
+      sale_date: '2026-11-17',
+      total_amount: 24000,
+      payment_method: 'CASH',
+      cashier_name: 'Imran',
+      customer_name: 'National Footwear',
+      customer_type: 'WHOLESALER',
+      returned_items: [
+        {
+          product_name: 'Bulk Mocassin',
+          quantity: 12,
+          unit_refund_price: 2000,
+          subtotal: 24000,
+        },
+      ],
+    },
+  });
+  assert.match(wholesaleReturn.html, /Total Footwear Pairs Returned:/);
+  assert.match(wholesaleReturn.html, /12 Pairs/);
+  assert.match(wholesaleReturn.text, /Total Pairs:\s*12 Pairs Returned/);
+  assert.match(wholesaleReturn.text, /Customer:\s*National Footwear/);
+  assert.match(wholesaleReturn.text, /Processed By \(Cashier\):\s*Imran/);
+
+  const sparseSaleNoDb = buildTransactionReceiptEmailHtml({
+    payload: {
+      type: 'SALE',
+      title: 'Sale Completed',
+      message: 'Inv #INV-000888',
+      invoiceNumber: 'INV-000888',
+      totalAmount: 4000,
+      totalPairs: 4,
+      deepLinkUrl: '/?tab=reports',
+      timestamp: '2026-11-17T16:30:00.000Z',
+    },
+    companySettings: {
+      company_name: 'Corner Shoe Mart',
+      business_type: 'RETAIL',
+    },
+    sale: null,
+  });
+  assert.match(sparseSaleNoDb.html, /4 Pairs/);
+  assert.match(sparseSaleNoDb.html, /Walk-in Customer/);
+  assert.match(sparseSaleNoDb.html, /Counter Staff/);
+  assert.match(sparseSaleNoDb.text, /Total Pairs:\s*4 Pairs/);
+  assert.match(sparseSaleNoDb.text, /Customer:\s*Walk-in Customer/);
+  assert.match(sparseSaleNoDb.text, /Processed By \(Cashier\):\s*Counter Staff/);
 });
 
 test('dispatchPosEmailAlert gracefully handles DB hydration queries when no recipients or empty invoice rows are returned', async () => {

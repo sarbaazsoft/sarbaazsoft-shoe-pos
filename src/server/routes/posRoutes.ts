@@ -864,7 +864,10 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
     try {
       const isExchangeAction = validatedReturnItems.length > 0;
       const cashierDisplayName = cleanOptionalText(user.name) || 'Counter Staff';
-      const customerDisplayName = cleanOptionalText(fullSale.rows[0]?.customer_name) || 'Walk-in Customer';
+      const customerDisplayName =
+        cleanOptionalText(fullSale.rows[0]?.customer_name) ||
+        cleanOptionalText(req.body.customerName) ||
+        'Walk-in Customer';
       const soldQuantity = validatedItems.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
       const returnedQuantity = validatedReturnItems.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
       const actualSaleAmount = Math.max(0, Math.round((calculatedSubtotal - calculatedTotalDiscount) * 100) / 100);
@@ -893,6 +896,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
             orderId: saleId,
             saleId,
             totalAmount: actualSaleAmount,
+            totalPairs: soldQuantity,
+            returnedPairs: 0,
+            paymentMethod,
             customerName: customerDisplayName,
             cashierName: cashierDisplayName,
             cashierId: user.id,
@@ -908,13 +914,14 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           const newItemsStr = validatedItems.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
 
           if (isStandaloneExchangeMode) {
+            const exchangePairs = returnedQuantity || soldQuantity;
             const formattedExchange = formatExchangeNotification({
               exchangeNo: exchangeNumber,
               returnNo: generatedReturnNumber,
               invoiceNo: invoiceNumber,
               amount: netDifference,
               paymentMethod,
-              totalQuantity: returnedQuantity || soldQuantity,
+              totalQuantity: exchangePairs,
               unit,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
@@ -931,6 +938,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               saleId,
               totalAmount: actualSaleAmount,
               netDifference,
+              totalPairs: soldQuantity > 0 ? soldQuantity : returnedQuantity,
+              returnedPairs: returnedQuantity,
+              paymentMethod,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
               cashierId: user.id,
@@ -971,6 +981,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               saleId,
               totalAmount: netDifference,
               netDifference,
+              totalPairs: soldQuantity > 0 ? soldQuantity : returnedQuantity,
+              returnedPairs: returnedQuantity,
+              paymentMethod,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
               cashierId: user.id,
@@ -1009,6 +1022,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
               saleId,
               totalAmount: netDifference,
               netDifference,
+              totalPairs: soldQuantity,
+              returnedPairs: returnedQuantity,
+              paymentMethod,
               customerName: customerDisplayName,
               cashierName: cashierDisplayName,
               cashierId: user.id,
@@ -1053,6 +1069,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           saleId,
           totalAmount: totalAmountDue,
           netDifference,
+          totalPairs: soldQuantity > 0 ? soldQuantity : returnedQuantity,
+          returnedPairs: returnedQuantity,
+          paymentMethod,
           customerName: customerDisplayName,
           cashierName: cashierDisplayName,
           cashierId: user.id,
@@ -1089,6 +1108,9 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
           orderId: saleId,
           saleId,
           totalAmount: totalAmountDue,
+          totalPairs: soldQuantity,
+          returnedPairs: 0,
+          paymentMethod,
           customerName: customerDisplayName,
           cashierName: cashierDisplayName,
           cashierId: user.id,

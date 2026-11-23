@@ -469,6 +469,9 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           returnId,
           refundAmount: totalRefundAmount,
           totalAmount: Number(sale.total_amount || 0),
+          totalPairs: origTotalSold,
+          returnedPairs: cumulativeReturned,
+          paymentMethod,
           customerName,
           cashierName: cashierDisplayName,
           cashierId: req.user!.id,
@@ -482,13 +485,15 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         }).catch((err) => console.warn('Push notification delivery notice:', err));
       } else {
         const returnedQuantity = validatedItems.reduce((sum, v) => sum + Number(v.quantity || 0), 0);
+        const indepCustomerName = resolvedCustomerName || 'Walk-in Customer';
+        const indepPaymentMethod = resolvedPaymentMethod || 'Cash';
         const formattedReturn = formatReturnNotification({
           returnNo: returnNumber,
           amount: totalRefundAmount,
-          paymentMethod: resolvedPaymentMethod,
+          paymentMethod: indepPaymentMethod,
           totalQuantity: returnedQuantity,
           unit,
-          customerName: resolvedCustomerName,
+          customerName: indepCustomerName,
           cashierName: cashierDisplayName,
         });
 
@@ -502,7 +507,10 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           returnId,
           refundAmount: totalRefundAmount,
           totalAmount: totalRefundAmount,
-          customerName: resolvedCustomerName || undefined,
+          totalPairs: returnedQuantity,
+          returnedPairs: returnedQuantity,
+          paymentMethod: indepPaymentMethod,
+          customerName: indepCustomerName,
           cashierName: cashierDisplayName,
           cashierId: req.user!.id,
           itemsSummary: formattedReturn.itemsSummary,

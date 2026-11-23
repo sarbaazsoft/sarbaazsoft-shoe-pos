@@ -274,7 +274,35 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
     if (!onMessageUnsubscribe) {
       onMessageUnsubscribe = onMessage(messaging, (payload) => {
         const title = payload.notification?.title || payload.data?.title || 'POS Notification';
-        const body = payload.notification?.body || payload.data?.body || 'New operational activity';
+        const rawBody = payload.notification?.body || payload.data?.body || 'New operational activity';
+        const actionType = String(payload.data?.type || '').toUpperCase();
+        const isPosTx = ['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE'].includes(actionType);
+        const dataCustomer = String(payload.data?.customerName || '').trim() || 'Walk-in Customer';
+        const dataCashier = String(payload.data?.cashierName || '').trim() || 'Counter Staff';
+        const dataPairs = Number(payload.data?.totalPairs);
+        let body = rawBody;
+        if (isPosTx) {
+          const extraLines: string[] = [];
+          const hasPairs = /\b\d+(?:\.\d+)?\s*(?:pairs?|cartons?|boxes?|dozens?)\b/i.test(rawBody);
+          const hasCustomer =
+            rawBody.toLowerCase().includes(dataCustomer.toLowerCase()) ||
+            /\b(?:sold to|customer|returned by|exchanged by)\s*:?\s*\S+/i.test(rawBody);
+          const hasCashier =
+            rawBody.toLowerCase().includes(dataCashier.toLowerCase()) ||
+            /\b(?:processed by|cashier)\s*:/i.test(rawBody);
+          if (!hasPairs && payload.data?.totalPairs !== undefined && payload.data?.totalPairs !== '' && Number.isFinite(dataPairs)) {
+            extraLines.push(`Total Pairs: ${dataPairs} ${dataPairs === 1 ? 'pair' : 'pairs'}`);
+          }
+          if (!hasCustomer) {
+            extraLines.push(`Customer: ${dataCustomer}`);
+          }
+          if (!hasCashier) {
+            extraLines.push(`Processed by: ${dataCashier}`);
+          }
+          if (extraLines.length > 0) {
+            body = rawBody ? `${rawBody}\n${extraLines.join('\n')}` : extraLines.join('\n');
+          }
+        }
         const deepLinkUrl = payload.data?.url || '/pos';
         const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || payload.data?.isAdmin === 'true';
         const icon = payload.notification?.icon || payload.data?.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
@@ -326,6 +354,9 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
                 saleId: payload.data?.saleId || undefined,
                 announcementId: payload.data?.announcementId || undefined,
                 totalAmount: payload.data?.totalAmount ? Number(payload.data.totalAmount) : undefined,
+                totalPairs: Number.isFinite(dataPairs) && payload.data?.totalPairs !== '' ? dataPairs : undefined,
+                customerName: payload.data?.customerName || undefined,
+                cashierName: payload.data?.cashierName || undefined,
                 targetRole: payload.data?.targetRole || undefined,
                 deepLinkUrl,
                 actionUrl: deepLinkUrl,

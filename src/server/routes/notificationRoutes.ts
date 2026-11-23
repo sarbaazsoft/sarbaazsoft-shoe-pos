@@ -629,8 +629,8 @@ router.get('/grouped', async (req: Request, res: Response) => {
             amount: Number(row.total_refund_amount || 0),
             paymentMethod: row.payment_method,
             totalQuantity: Number(row.total_quantity || 0),
-            customerName: row.customer_name,
-            cashierName: row.cashier_name,
+            customerName: cleanOptionalText(row.customer_name) || 'Walk-in Customer',
+            cashierName: cleanOptionalText(row.cashier_name) || 'Counter Staff',
           });
           return {
             id: `return-${row.id}`,
@@ -962,8 +962,8 @@ router.get('/all', async (req: Request, res: Response) => {
             amount: Number(row.total_refund_amount || 0),
             paymentMethod: row.payment_method,
             totalQuantity: Number(row.total_quantity || 0),
-            customerName: row.customer_name,
-            cashierName: row.cashier_name,
+            customerName: cleanOptionalText(row.customer_name) || 'Walk-in Customer',
+            cashierName: cleanOptionalText(row.cashier_name) || 'Counter Staff',
           });
           return {
             id: `return-${row.id}`,

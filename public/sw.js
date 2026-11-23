@@ -562,6 +562,45 @@ async function showSingleShadeNotification(title, options = {}) {
 // internal compat listeners cannot auto-display duplicate notifications or
 // hijack notification clicks in desktop/mobile browsers.
 // -------------------------------------------------------------------------
+function formatPosAlertBodyWithRequiredFields(rawBody, payloadData) {
+  const baseBody = String(rawBody || '').trim();
+  const dataObj = payloadData || {};
+  const actionType = String(dataObj.type || '').toUpperCase();
+  const isPosTransaction = ['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE'].includes(actionType);
+  if (!isPosTransaction) {
+    return baseBody || 'New Point of Sale notification received.';
+  }
+
+  const customer = String(dataObj.customerName || '').trim() || 'Walk-in Customer';
+  const cashier = String(dataObj.cashierName || '').trim() || 'Counter Staff';
+  const parsedPairs = Number(dataObj.totalPairs);
+  const hasExplicitPairs = dataObj.totalPairs !== undefined && dataObj.totalPairs !== '' && Number.isFinite(parsedPairs);
+
+  const hasPairs = /\b\d+(?:\.\d+)?\s*(?:pairs?|cartons?|boxes?|dozens?)\b/i.test(baseBody);
+  const hasCustomer =
+    baseBody.toLowerCase().includes(customer.toLowerCase()) ||
+    /\b(?:sold to|customer|returned by|exchanged by)\s*:?\s*\S+/i.test(baseBody);
+  const hasCashier =
+    baseBody.toLowerCase().includes(cashier.toLowerCase()) ||
+    /\b(?:processed by|cashier)\s*:/i.test(baseBody);
+
+  const extraLines = [];
+  if (!hasPairs && hasExplicitPairs) {
+    extraLines.push(`Total Pairs: ${parsedPairs} ${parsedPairs === 1 ? 'pair' : 'pairs'}`);
+  }
+  if (!hasCustomer) {
+    extraLines.push(`Customer: ${customer}`);
+  }
+  if (!hasCashier) {
+    extraLines.push(`Processed by: ${cashier}`);
+  }
+
+  if (extraLines.length === 0) {
+    return baseBody || 'New Point of Sale notification received.';
+  }
+  return baseBody ? `${baseBody}\n${extraLines.join('\n')}` : extraLines.join('\n');
+}
+
 self.addEventListener('push', (event) => {
   if (typeof event.stopImmediatePropagation === 'function') {
     event.stopImmediatePropagation();
@@ -584,12 +623,14 @@ self.addEventListener('push', (event) => {
   const notification = (data && data.notification) || data || {};
   const payloadData = (data && data.data) || {};
   const title = notification.title || payloadData.title || data.title || 'SarbaazSoft Shoe POS Alert';
-  const rawBody =
+  const rawBody = formatPosAlertBodyWithRequiredFields(
     notification.body ||
-    payloadData.body ||
-    data.body ||
-    data.message ||
-    'New Point of Sale notification received.';
+      payloadData.body ||
+      data.body ||
+      data.message ||
+      'New Point of Sale notification received.',
+    payloadData
+  );
   const rawTargetUrl = payloadData.url || payloadData.deepLinkUrl || data.url || '/?tab=reports';
   const tag =
     payloadData.tag ||
@@ -626,12 +667,7 @@ self.addEventListener('push', (event) => {
   });
 
   const options = {
-    body:
-      notification.body ||
-      payloadData.body ||
-      data.body ||
-      data.message ||
-      'New Point of Sale notification received.',
+    body: rawBody,
     icon: notification.icon || data.icon || payloadData.icon || defaultIcon,
     badge,
     tag,
@@ -864,11 +900,13 @@ function initFirebaseInWorker() {
         const messaging = firebase.messaging();
         messaging.onBackgroundMessage((payload) => {
           const title = payload.notification?.title || payload.data?.title || 'SarbaazSoft Shoe POS Alert';
-          const body =
+          const body = formatPosAlertBodyWithRequiredFields(
             payload.notification?.body ||
-            payload.data?.body ||
-            payload.data?.message ||
-            'New store transaction activity received.';
+              payload.data?.body ||
+              payload.data?.message ||
+              'New store transaction activity received.',
+            payload.data
+          );
           const url = payload.data?.url || payload.data?.deepLinkUrl || '/?tab=reports';
           const isAdminTarget = String(url).startsWith('/admin') || payload.data?.isAdmin === 'true';
           const defaultIcon = isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png';

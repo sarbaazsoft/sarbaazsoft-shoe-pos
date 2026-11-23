@@ -102,6 +102,7 @@ export interface TransactionReceiptEmailOutput {
   isWholesaleTransaction: boolean;
   layoutMode: 'thermal_50mm' | 'a4';
   html: string;
+  text: string;
 }
 
 export function escapeHtml(str: unknown): string {
@@ -212,7 +213,26 @@ function buildFallbackItemsFromPayload(
   totalAmountDue: number
 ): TransactionReceiptItem[] {
   const summary = String(payload.exchangeDetails?.newItems || payload.itemsSummary || '').trim();
-  if (!summary) return [];
+  const explicitTotalPairs =
+    typeof payload.totalPairs === 'number' && Number.isFinite(payload.totalPairs) && payload.totalPairs > 0
+      ? payload.totalPairs
+      : null;
+
+  if (!summary) {
+    if (explicitTotalPairs !== null) {
+      const unitPrice = totalAmountDue > 0 ? Math.round(totalAmountDue / explicitTotalPairs) : 0;
+      return [
+        {
+          article: 'Footwear Item(s)',
+          product_name: 'Footwear Item(s)',
+          quantity: explicitTotalPairs,
+          unit_price: unitPrice,
+          subtotal: totalAmountDue,
+        },
+      ];
+    }
+    return [];
+  }
 
   // Handle "2x Article A, 1x Article B" if provided cleanly
   const segments = summary
@@ -237,10 +257,35 @@ function buildFallbackItemsFromPayload(
     }
   }
 
+  if (segments.length === 1) {
+    const pairSegMatch = segments[0].match(/^(\d+)\s*pairs?$/i);
+    if (pairSegMatch || explicitTotalPairs !== null) {
+      const qty = pairSegMatch
+        ? Math.max(1, parseInt(pairSegMatch[1], 10) || 1)
+        : explicitTotalPairs!;
+      const label = pairSegMatch ? 'Footwear Item(s)' : segments[0];
+      const unitPrice = totalAmountDue > 0 ? Math.round(totalAmountDue / qty) : 0;
+      return [
+        {
+          article: label,
+          product_name: label,
+          quantity: qty,
+          unit_price: unitPrice,
+          subtotal: totalAmountDue,
+        },
+      ];
+    }
+  }
+
   return segments.map((seg, idx) => {
     const m = seg.match(/^(\d+)\s*x\s+(.+)$/i);
-    const qty = m ? Math.max(1, parseInt(m[1], 10) || 1) : 1;
-    const label = m ? m[2].trim() : seg;
+    const pairMatch = seg.match(/^(\d+)\s*pairs?$/i);
+    const qty = m
+      ? Math.max(1, parseInt(m[1], 10) || 1)
+      : pairMatch
+      ? Math.max(1, parseInt(pairMatch[1], 10) || 1)
+      : 1;
+    const label = m ? m[2].trim() : pairMatch ? 'Footwear Item(s)' : seg;
     return {
       article: label,
       product_name: label,
@@ -297,6 +342,7 @@ function renderThermal50mmPreviewHtml(params: {
   saleDate: string;
   cashierName: string;
   customerName: string;
+  totalPairsLabel: string;
   paymentMethodLabel: string;
   items: TransactionReceiptItem[];
   returnedItems: TransactionReturnedItem[];
@@ -328,6 +374,7 @@ function renderThermal50mmPreviewHtml(params: {
     saleDate,
     cashierName,
     customerName,
+    totalPairsLabel,
     paymentMethodLabel,
     items,
     returnedItems,
@@ -552,18 +599,18 @@ function renderThermal50mmPreviewHtml(params: {
               </tr>
               <tr>
                 <td>Cashier:</td>
-                <td align="right">${escapeHtml(cashierName)}</td>
+                <td align="right">${escapeHtml(cashierName || 'Counter Staff')}</td>
               </tr>
-              ${
-                customerName
-                  ? `
-                <tr>
-                  <td>Customer:</td>
-                  <td align="right" style="font-weight: 700; color: #000000;">${escapeHtml(customerName)}</td>
-                </tr>
-              `
-                  : ''
-              }
+              <tr>
+                <td>Customer:</td>
+                <td align="right" style="font-weight: 700; color: #000000;">${escapeHtml(
+                  customerName || 'Walk-in Customer'
+                )}</td>
+              </tr>
+              <tr>
+                <td>Total Pairs:</td>
+                <td align="right" style="font-weight: 700; color: #000000;">${escapeHtml(totalPairsLabel)}</td>
+              </tr>
               <tr>
                 <td>Payment:</td>
                 <td align="right" style="font-weight: 700; color: #111827;">${escapeHtml(paymentMethodLabel)}</td>
@@ -1072,6 +1119,21 @@ function renderWholesaleA4PreviewHtml(params: {
               </tr>
             </table>
           `
+              : returnedItems.length > 0
+              ? `
+            <!-- Wholesale Return Summary Strip -->
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="8" style="margin-top: 10px; background-color: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; font-size: 10.5px;">
+              <tr>
+                <td style="font-weight: 700; color: #1e1b4b;">Wholesale Return Summary:</td>
+                <td align="right" style="font-family: 'Courier New', Courier, monospace; font-weight: 700; color: #312e81;">
+                  Total Footwear Pairs Returned: <strong style="color: #000000; text-decoration: underline;">${returnedItems.reduce(
+                    (acc, r) => acc + (Number(r.quantity) || 0),
+                    0
+                  )} Pairs</strong>
+                </td>
+              </tr>
+            </table>
+          `
               : ''
           }
 
@@ -1291,6 +1353,48 @@ export function buildTransactionReceiptEmailHtml(
       halfCartonItemsCount += 1;
     }
   });
+  const returnedPairsCountFromItems = returnedItems.reduce(
+    (acc, r) => acc + (Number(r.quantity) || 0),
+    0
+  );
+  const explicitPayloadTotalPairs =
+    typeof payload.totalPairs === 'number' && Number.isFinite(payload.totalPairs) && payload.totalPairs >= 0
+      ? payload.totalPairs
+      : null;
+  const explicitPayloadReturnedPairs =
+    typeof payload.returnedPairs === 'number' && Number.isFinite(payload.returnedPairs) && payload.returnedPairs >= 0
+      ? payload.returnedPairs
+      : null;
+  const msgPairsMatch = String(payload.message || payload.itemsSummary || '').match(
+    /\b(\d+(?:\.\d+)?)\s*pairs?\b/i
+  );
+  const fallbackParsedPairs = msgPairsMatch ? Number(msgPairsMatch[1]) : 0;
+
+  const returnedPairsCount =
+    returnedPairsCountFromItems > 0
+      ? returnedPairsCountFromItems
+      : explicitPayloadReturnedPairs !== null
+      ? explicitPayloadReturnedPairs
+      : isStandaloneReturn
+      ? explicitPayloadTotalPairs ?? fallbackParsedPairs
+      : 0;
+
+  if (totalPairsDispatched === 0 && !isStandaloneReturn) {
+    totalPairsDispatched = explicitPayloadTotalPairs ?? (fallbackParsedPairs > 0 ? fallbackParsedPairs : returnedPairsCount);
+  }
+
+  const effectiveTotalPairs = isStandaloneReturn
+    ? returnedPairsCount
+    : totalPairsDispatched > 0
+    ? totalPairsDispatched
+    : returnedPairsCount;
+
+  const totalPairsLabel = isStandaloneReturn
+    ? `${returnedPairsCount} ${returnedPairsCount === 1 ? 'Pair' : 'Pairs'} Returned`
+    : returnedPairsCount > 0 && !isExchange && !isSaleExchange
+    ? `${totalPairsDispatched} ${totalPairsDispatched === 1 ? 'Pair' : 'Pairs'} (${returnedPairsCount} Returned)`
+    : `${effectiveTotalPairs} ${effectiveTotalPairs === 1 ? 'Pair' : 'Pairs'}`;
+
   const totalCartons = Number(sale?.total_cartons || calculatedTotalCartons || 0);
   const displayTotalCartons =
     totalCartons > 0
@@ -1408,6 +1512,7 @@ export function buildTransactionReceiptEmailHtml(
         saleDate,
         cashierName,
         customerName,
+        totalPairsLabel,
         paymentMethodLabel,
         items,
         returnedItems,
@@ -1503,7 +1608,7 @@ export function buildTransactionReceiptEmailHtml(
           </tr>
         </table>
 
-        <!-- Processed-By & Customer Strip -->
+        <!-- Processed-By, Customer & Total Pairs Strip -->
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12.5px;">
           <tr>
             <td style="padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #64748b; width: 34%;">Processed By:</td>
@@ -1512,6 +1617,10 @@ export function buildTransactionReceiptEmailHtml(
           <tr>
             <td style="padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Customer:</td>
             <td style="padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #0f172a;">${escapeHtml(customerSummaryDisplay)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Total Pairs:</td>
+            <td style="padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #0f172a;">${escapeHtml(totalPairsLabel)}</td>
           </tr>
           <tr>
             <td style="padding: 9px 12px; color: #64748b;">Payment &amp; Format:</td>
@@ -1555,6 +1664,17 @@ export function buildTransactionReceiptEmailHtml(
 </body>
 </html>`.trim();
 
+  const text = [
+    `${storeName} — ${actionTitle}`,
+    `${isStandaloneReturn ? 'Return' : isExchange ? 'Exchange' : 'Invoice'}: #${refNum}`,
+    `Date: ${dateFormatted}`,
+    `Total Pairs: ${totalPairsLabel}`,
+    `Customer: ${customerSummaryDisplay}`,
+    `Processed By (Cashier): ${cashierName}`,
+    `Payment: ${paymentMethodLabel}`,
+    `${heroLabel}: ${currencySymbol} ${formattedHeroAmount}`,
+  ].join('\n');
+
   return {
     subject: `[${storeName}] ${actionTitle}`,
     actionTitle,
@@ -1562,5 +1682,6 @@ export function buildTransactionReceiptEmailHtml(
     isWholesaleTransaction,
     layoutMode,
     html,
+    text,
   };
 }

@@ -267,6 +267,7 @@ export async function dispatchPosEmailAlert(
       to: recipientList,
       subject: emailRender.subject,
       html: emailRender.html,
+      text: emailRender.text,
     });
 
     if (sendRes.delivered) {
