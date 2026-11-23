@@ -426,7 +426,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setMobileSidebarOpen(false);
                             onLogin();
                           }}
-                          className={`w-full min-h-[44px] px-3 py-2.5 text-xs font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] ${
+                          className={`w-full min-h-[44px] px-3 py-2.5 text-xs font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] ${
                             isSolidLight
                               ? 'border-indigo-400 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-600'
                               : 'border-indigo-400/70 bg-indigo-500/15 text-indigo-100 hover:bg-indigo-500/25 hover:text-white hover:border-purple-400'
@@ -726,7 +726,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onLogin}
-                  className={`inline-flex items-center justify-center gap-1.5 xl:gap-2 rounded-xl h-9.5 px-3 xl:px-4 text-xs xl:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap border-2 shadow-sm hover:shadow-md active:scale-[0.98] font-courgette ${
+                  className={`inline-flex items-center justify-center gap-1.5 xl:gap-2 rounded-xl h-9.5 px-3 xl:px-4 text-xs xl:text-sm font-semibold tracking-normal transition-all cursor-pointer whitespace-nowrap border shadow-sm hover:shadow-md active:scale-[0.98] font-courgette ${
                     isDark
                       ? 'border-indigo-400/70 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white hover:border-purple-400 shadow-indigo-950/30 hover:shadow-purple-500/20'
                       : 'border-indigo-400 bg-indigo-50/75 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 hover:border-indigo-600 shadow-indigo-900/10 hover:shadow-indigo-900/15'
@@ -858,7 +858,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setMobileMenuOpen(false);
                       onLogin();
                     }}
-                    className={`w-full h-11 text-sm font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] font-courgette ${
+                    className={`w-full h-11 text-sm font-semibold tracking-normal flex items-center justify-center gap-2 rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] font-courgette ${
                       isDark
                         ? 'border-indigo-400/70 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 hover:text-white hover:border-purple-400 shadow-indigo-950/30'
                         : 'border-indigo-400 bg-indigo-50/75 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 hover:border-indigo-600 shadow-indigo-900/10'

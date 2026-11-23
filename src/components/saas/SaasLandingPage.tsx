@@ -842,7 +842,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   const primaryBtn =
     'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 active:from-purple-800 active:to-indigo-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white font-semibold border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_18px_rgba(var(--primary-rgb,147,51,234),0.35)] transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
   const outlineBtn =
-    'inline-flex items-center justify-center gap-2 rounded-xl border-2 border-indigo-400/75 hover:border-purple-400 lt:border-indigo-400 lt:hover:border-indigo-600 bg-indigo-500/10 hover:bg-indigo-500/20 lt:bg-indigo-50/75 lt:hover:bg-indigo-100/80 text-indigo-200 hover:text-white lt:text-indigo-700 lt:hover:text-indigo-800 font-semibold shadow-md shadow-indigo-950/35 hover:shadow-lg hover:shadow-purple-500/25 lt:shadow-md lt:shadow-indigo-900/10 lt:hover:shadow-indigo-900/15 transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
+    'inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-400/75 hover:border-purple-400 lt:border-indigo-400 lt:hover:border-indigo-600 bg-indigo-500/10 hover:bg-indigo-500/20 lt:bg-indigo-50/75 lt:hover:bg-indigo-100/80 text-indigo-200 hover:text-white lt:text-indigo-700 lt:hover:text-indigo-800 font-semibold shadow-md shadow-indigo-950/35 hover:shadow-lg hover:shadow-purple-500/25 lt:shadow-md lt:shadow-indigo-900/10 lt:hover:shadow-indigo-900/15 transition-all cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 active:scale-[0.98]';
 
   const handleStoreCreated = (tenantId: number, loginUrl: string, user?: any, token?: string) => {
     const createdStoreName = user?.storeName || 'New Registered Store';
@@ -1232,7 +1232,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   type="button"
                   onClick={handlePrevSlide}
                   aria-label="Previous store"
-                  className="w-10 h-10 rounded-xl border-2 border-indigo-400/65 lt:border-indigo-400 bg-indigo-500/10 lt:bg-indigo-50/75 text-indigo-200 lt:text-indigo-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-10 h-10 rounded-xl border border-indigo-400/65 lt:border-indigo-400 bg-indigo-500/10 lt:bg-indigo-50/75 text-indigo-200 lt:text-indigo-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -1241,7 +1241,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   type="button"
                   onClick={handleNextSlide}
                   aria-label="Next store"
-                  className="w-10 h-10 rounded-xl border-2 border-indigo-400/65 lt:border-indigo-400 bg-indigo-500/10 lt:bg-indigo-50/75 text-indigo-200 lt:text-indigo-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-10 h-10 rounded-xl border border-indigo-400/65 lt:border-indigo-400 bg-indigo-500/10 lt:bg-indigo-50/75 text-indigo-200 lt:text-indigo-700 hover:bg-purple-600 hover:text-white lt:hover:bg-purple-600 lt:hover:text-white hover:border-purple-400 lt:hover:border-purple-500 flex items-center justify-center transition-all cursor-pointer shadow-md shadow-indigo-950/30 lt:shadow-indigo-900/10 hover:shadow-lg hover:shadow-purple-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>

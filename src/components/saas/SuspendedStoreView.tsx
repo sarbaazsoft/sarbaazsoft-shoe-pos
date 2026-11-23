@@ -139,7 +139,7 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
           <button
             type="button"
             onClick={onGoToLanding}
-            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-slate-600/80 bg-slate-800 hover:bg-slate-700 hover:border-slate-500 text-slate-200 font-semibold text-sm shadow-md shadow-slate-950/30 hover:shadow-lg transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-600/80 bg-slate-800 hover:bg-slate-700 hover:border-slate-500 text-slate-200 font-semibold text-sm shadow-md shadow-slate-950/30 hover:shadow-lg transition-all cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             Home

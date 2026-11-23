@@ -2300,7 +2300,7 @@ aside {
   .btn-secondary {
     background: rgba(var(--brand-companion-rgb, 79, 70, 229), 0.06);
     color: var(--color-indigo-700, #4338CA);
-    border-width: 2px;
+    border-width: 1px;
     border-style: solid;
     border-color: var(--color-indigo-400, #818CF8);
     box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08), 0 1px 3px -1px rgba(var(--brand-companion-rgb, 79, 70, 229), 0.16);
@@ -2315,7 +2315,7 @@ aside {
   .dark .btn-secondary {
     background: rgba(var(--primary-rgb, 147, 51, 234), 0.18);
     color: var(--color-purple-200, #e9d5ff);
-    border-width: 2px;
+    border-width: 1px;
     border-style: solid;
     border-color: rgba(var(--primary-rgb, 147, 51, 234), 0.55);
     box-shadow: 0 2px 10px -1px rgba(0, 0, 0, 0.35), 0 0 14px rgba(var(--primary-rgb, 147, 51, 234), 0.22);
@@ -2441,7 +2441,7 @@ aside {
   .btn-outline-warning,
   .btn-outline-info,
   .btn-outline-success {
-    border-width: 2px;
+    border-width: 1px;
     border-style: solid;
     box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
   }
@@ -2653,7 +2653,7 @@ aside {
 
   .btn-outline-facebook {
     background-color: transparent;
-    border: 1.5px solid #3b5998;
+    border: 1px solid #3b5998;
     color: #3b5998;
   }
   .btn-outline-facebook:hover {
@@ -2665,7 +2665,7 @@ aside {
 
   .btn-outline-google {
     background-color: transparent;
-    border: 1.5px solid #db3236;
+    border: 1px solid #db3236;
     color: #db3236;
   }
   .btn-outline-google:hover {
@@ -2677,7 +2677,7 @@ aside {
 
   .btn-outline-instagram {
     background-color: transparent;
-    border: 1.5px solid #e1306c;
+    border: 1px solid #e1306c;
     color: #e1306c;
   }
   .btn-outline-instagram:hover {
@@ -4014,14 +4014,14 @@ div:has(> button[data-tab]) {
 
 /* ========================================================================= */
 /* SECONDARY / OUTLINE BUTTONS: shared across landing, Store & SuperAdmin    */
-/* Visible 2px themed border, balanced light/dark shadow, indigo-tint hover. */
+/* Crisp 1px themed border, balanced light/dark shadow, indigo-tint hover.  */
 /* Applied to Refresh + secondary buttons (.btn-outline-landing / .btn-secondary). */
 /* ========================================================================= */
 .btn-outline-landing,
 .saas-panel .btn-secondary {
   background-color: transparent;
   background-image: none;
-  border-width: 2px;
+  border-width: 1px;
   border-style: solid;
   border-radius: 0.75rem;
   font-weight: 600;

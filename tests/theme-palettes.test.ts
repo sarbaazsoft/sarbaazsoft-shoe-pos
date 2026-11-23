@@ -562,13 +562,13 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     }
   });
 
-  it('applies 2px borders and visible shadows to outline and secondary buttons across landing, public/auth, and panel routes', () => {
+  it('applies 1px borders and visible shadows to outline and secondary buttons across landing, public/auth, and panel routes', () => {
     const cssSource = readFileSync('src/index.css', 'utf8');
-    assert.ok(cssSource.includes('border-width: 2px;'), 'index.css outline/secondary buttons should use 2px borders');
+    assert.ok(cssSource.includes('border-width: 1px;'), 'index.css outline/secondary buttons should use 1px borders');
     assert.equal(
-      cssSource.includes('.btn-outline-landing,\n.saas-panel .btn-secondary {\n  background-color: transparent;\n  background-image: none;\n  border-width: 1px;'),
+      cssSource.includes('border-width: 2px;'),
       false,
-      '.btn-outline-landing and .saas-panel .btn-secondary must not force 1px borders'
+      'index.css outline and secondary buttons must not force 2px borders'
     );
     assert.equal(
       /\.btn-outline-landing,\s*\.saas-panel \.btn-secondary\s*\{[^}]*box-shadow:\s*none;/s.test(cssSource),
@@ -579,32 +579,35 @@ describe('Multi-Color Brand Gradient Palettes', () => {
     const landingSrc = readFileSync('src/components/saas/SaasLandingPage.tsx', 'utf8');
     const outlineMatch = landingSrc.match(/const outlineBtn =\s*'([^']+)'/);
     assert.ok(outlineMatch, 'SaasLandingPage should define outlineBtn');
-    assert.ok(outlineMatch[1].includes('border-2'), 'SaasLandingPage outlineBtn should use border-2');
+    assert.ok(/\bborder\b/.test(outlineMatch[1]) && !outlineMatch[1].includes('border-2'), 'SaasLandingPage outlineBtn should use 1px border');
     assert.ok(outlineMatch[1].includes('shadow-md'), 'SaasLandingPage outlineBtn should apply shadow-md');
     assert.ok(outlineMatch[1].includes('text-indigo-200') && outlineMatch[1].includes('lt:text-indigo-700'), 'SaasLandingPage outlineBtn font color should match border/bg tint');
 
     const navbarSrc = readFileSync('src/components/saas/Navbar.tsx', 'utf8');
     assert.ok(
-      navbarSrc.includes('border-2 shadow-sm hover:shadow-md') && navbarSrc.includes('text-indigo-200') && navbarSrc.includes('text-indigo-700'),
-      'Navbar outline Login buttons should use border-2, shadows, and matching font color'
+      navbarSrc.includes('border shadow-sm hover:shadow-md') &&
+        !navbarSrc.includes('border-2 shadow-sm hover:shadow-md') &&
+        navbarSrc.includes('text-indigo-200') &&
+        navbarSrc.includes('text-indigo-700'),
+      'Navbar outline Login buttons should use 1px border, shadows, and matching font color'
     );
 
     const authSrc = readFileSync('src/components/auth/AuthModal.tsx', 'utf8');
     assert.ok(
-      authSrc.includes('border-2 border-purple-400/70 shadow-sm hover:shadow-md') && authSrc.includes('text-purple-700 dark:text-purple-200'),
-      'AuthModal outline button should use border-2, shadow, and matching font color'
+      authSrc.includes('border border-purple-400/70 shadow-sm hover:shadow-md') && authSrc.includes('text-purple-700 dark:text-purple-200'),
+      'AuthModal outline button should use 1px border, shadow, and matching font color'
     );
 
     const verifySrc = readFileSync('src/components/auth/VerifyEmailNoticeView.tsx', 'utf8');
     assert.ok(
-      verifySrc.includes('border-2 border-indigo-400 dark:border-indigo-400/70') && verifySrc.includes('text-indigo-700 dark:text-indigo-200'),
-      'VerifyEmailNoticeView outline button should use border-2, shadow, and matching font color'
+      verifySrc.includes('border border-indigo-400 dark:border-indigo-400/70') && verifySrc.includes('text-indigo-700 dark:text-indigo-200'),
+      'VerifyEmailNoticeView outline button should use 1px border, shadow, and matching font color'
     );
 
     const suspendedSrc = readFileSync('src/components/saas/SuspendedStoreView.tsx', 'utf8');
     assert.ok(
-      suspendedSrc.includes('border-2 border-slate-600/80'),
-      'SuspendedStoreView secondary Home button should use border-2 and shadow'
+      suspendedSrc.includes('border border-slate-600/80'),
+      'SuspendedStoreView secondary Home button should use 1px border and shadow'
     );
   });
 

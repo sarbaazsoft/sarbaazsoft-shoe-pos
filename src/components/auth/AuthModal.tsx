@@ -438,7 +438,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     } catch {}
                     onClearTenantScope?.();
                   }}
-                  className="px-2.5 py-1 rounded-md bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-700 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border-2 border-purple-400/70 shadow-sm hover:shadow-md"
+                  className="px-2.5 py-1 rounded-md bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-700 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border border-purple-400/70 shadow-sm hover:shadow-md"
                   title="Clear tenant scope and sign in without a store lock"
                 >
                   Clear Store Scope
@@ -554,7 +554,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         type="button"
                         disabled={isLoading}
                         onClick={() => handleStoreChoice(store)}
-                        className="flex items-center justify-between rounded-lg border-2 border-blue-400 bg-blue-50/70 hover:bg-blue-100 px-3 py-2 text-left text-xs font-semibold text-blue-700 shadow-sm hover:shadow-md hover:border-blue-500 transition-all cursor-pointer disabled:opacity-60 dark:border-blue-600 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 dark:text-blue-200"
+                        className="flex items-center justify-between rounded-lg border border-blue-400 bg-blue-50/70 hover:bg-blue-100 px-3 py-2 text-left text-xs font-semibold text-blue-700 shadow-sm hover:shadow-md hover:border-blue-500 transition-all cursor-pointer disabled:opacity-60 dark:border-blue-600 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 dark:text-blue-200"
                       >
                         <span>{store.name}</span>
                       </button>

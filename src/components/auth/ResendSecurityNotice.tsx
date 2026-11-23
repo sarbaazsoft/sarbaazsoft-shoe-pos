@@ -94,7 +94,7 @@ export const ResendSecurityNotice: React.FC<ResendSecurityNoticeProps> = ({
           type="button"
           disabled={disabled || isResending || isInCooldown}
           onClick={onResend}
-          className="w-full py-2.5 px-3.5 rounded-xl border-2 border-purple-400/70 dark:border-purple-500/60 bg-white hover:bg-purple-50 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-700 dark:text-purple-200 font-bold text-xs shadow-sm hover:shadow-md transition-all active:scale-[0.99] disabled:opacity-55 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+          className="w-full py-2.5 px-3.5 rounded-xl border border-purple-400/70 dark:border-purple-500/60 bg-white hover:bg-purple-50 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-700 dark:text-purple-200 font-bold text-xs shadow-sm hover:shadow-md transition-all active:scale-[0.99] disabled:opacity-55 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
         >
           <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isResending ? 'animate-spin' : ''}`} />
           <span>
