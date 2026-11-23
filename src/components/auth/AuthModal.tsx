@@ -449,9 +449,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         ) : null
       }
       footer={<PublicFooter storeName={storeName} />}
-      mainClassName="relative z-10 w-full px-4 py-8 sm:py-12"
+      mainClassName="relative z-10 w-full py-8 sm:py-12"
     >
-        <div className="w-full max-w-md mx-auto">
+        <div className="w-[calc(100%-2rem)] max-w-md mx-4">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.985, filter: 'blur(6px)' }}
             animate={isVisible

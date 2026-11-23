@@ -1471,7 +1471,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             isSuperAdmin={true}
           />
         }
-        mainClassName="relative z-10 w-full px-4 py-8 sm:py-12"
+        mainClassName="relative z-10 w-full py-8 sm:py-12"
         footer={
           <PublicFooter
             storeName="POS SaaS C-Panel"
@@ -1479,7 +1479,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           />
         }
       >
-        <div className="w-full max-w-md mx-auto">
+        <div className="w-[calc(100%-2rem)] max-w-md mx-4">
             <motion.div
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 16, scale: 0.98 }}
