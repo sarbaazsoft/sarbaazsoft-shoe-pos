@@ -2148,8 +2148,11 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                                       </button>
                                     )}
                                   </div>
-                                  <div className="relative">
-                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 font-mono text-xs font-semibold">
+                                  <div className="currency-input-group flex items-stretch bg-white dark:bg-[#0B1120] border border-slate-300 dark:border-purple-800/60 rounded-lg overflow-hidden shadow-2xs transition">
+                                    <span
+                                      aria-hidden="true"
+                                      className="shrink-0 inline-flex items-center justify-center min-w-[2.5rem] px-2 bg-slate-100/90 dark:bg-slate-900/90 border-r border-slate-200 dark:border-purple-900/50 text-slate-500 dark:text-slate-300 font-mono text-xs font-semibold select-none"
+                                    >
                                       {currencySymbol}
                                     </span>
                                     <input
@@ -2172,7 +2175,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
                                         }
                                       }}
                                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddItem())}
-                                      className="w-full py-1.5 pl-8 pr-3 bg-white dark:bg-[#0B1120] border border-slate-300 dark:border-purple-800/60 rounded-lg font-bold font-mono text-right outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-2xs text-slate-900 dark:text-white"
+                                      className="currency-input-field flex-1 min-w-0 py-1.5 px-3 font-bold font-mono text-right outline-none text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
                                     />
                                   </div>
                                   <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">

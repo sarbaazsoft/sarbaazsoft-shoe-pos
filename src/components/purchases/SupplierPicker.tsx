@@ -596,7 +596,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
               placeholder={`Opening Balance (${currencySymbol}) - optional`}
               value={newOpeningBalance}
               onChange={(e) => setNewOpeningBalance(e.target.value)}
-              className="app-input w-full pl-8 pr-3 py-2 text-xs font-mono"
+              className="app-input w-full pl-9 pr-3 py-2 text-xs font-mono"
             />
           </div>
           <select

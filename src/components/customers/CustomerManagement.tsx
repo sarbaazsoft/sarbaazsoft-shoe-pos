@@ -720,6 +720,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
         {deletingCustomerId && (
           <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
             <motion.div
+              data-motion-modal="true"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}

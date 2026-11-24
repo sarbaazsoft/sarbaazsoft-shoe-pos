@@ -952,11 +952,11 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {/* ANNOUNCEMENT DETAIL MODAL (/announcements/:id) */}
       {(selectedAnnouncement || pendingAnnouncementId) && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm"
+          className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+          <div className="modal-panel-enter relative w-full max-w-lg rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
             <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 to-indigo-600 shrink-0" />
             {selectedAnnouncement ? (
               <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">

@@ -123,6 +123,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
     <AnimatePresence>
       <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
         <motion.div
+          data-motion-modal="true"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -241,8 +242,11 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                     </button>
                   )}
                 </div>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 font-bold text-xs">
+                <div className="currency-input-group flex items-stretch bg-white dark:bg-slate-800 border border-slate-300 dark:border-purple-800/60 rounded-xl overflow-hidden transition">
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 inline-flex items-center justify-center min-w-[2.9rem] px-3 bg-slate-100/90 dark:bg-slate-900/90 border-r border-slate-200 dark:border-purple-900/50 text-slate-600 dark:text-slate-300 font-mono font-bold text-xs select-none"
+                  >
                     {currencySymbol}
                   </span>
                   <input
@@ -254,7 +258,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                     value={amount}
                     onChange={(e) => setAmount(cleanStockPriceInput(e.target.value))}
                     onBlur={(e) => setAmount(cleanStockPriceInput(e.target.value))}
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300 dark:border-purple-800/60 rounded-xl text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
+                    className="currency-input-field flex-1 min-w-0 px-3.5 py-2.5 text-slate-900 dark:text-white text-sm font-mono font-bold outline-none placeholder:text-slate-400"
                   />
                 </div>
               </div>

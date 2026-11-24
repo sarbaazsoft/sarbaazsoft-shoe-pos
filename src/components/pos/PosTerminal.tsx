@@ -3333,8 +3333,11 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         100% Cash
                       </button>
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs">
+                    <div className="currency-input-group flex items-stretch bg-slate-50 dark:bg-[#131B2E] border border-emerald-200 dark:border-emerald-800 rounded-lg overflow-hidden transition">
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 inline-flex items-center justify-center min-w-[2.4rem] px-2 bg-emerald-50/90 dark:bg-emerald-950/50 border-r border-emerald-200/80 dark:border-emerald-800/70 text-emerald-700 dark:text-emerald-300 font-mono font-bold text-xs select-none"
+                      >
                         {currencySymbol}
                       </span>
                       <input
@@ -3352,7 +3355,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                             setSplitCashAmount(isNaN(parsed) ? '' : Math.max(0, Math.round(parsed)));
                           }
                         }}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-right font-mono font-bold text-sm bg-slate-50 dark:bg-[#131B2E] border border-emerald-200 dark:border-emerald-800 rounded-lg text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                        className="currency-input-field flex-1 min-w-0 px-2.5 py-1.5 text-right font-mono font-bold text-sm text-slate-900 dark:text-white outline-none placeholder:text-slate-400"
                       />
                     </div>
                     {/* Quick Cash Adders for split */}
@@ -3396,8 +3399,11 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         100% Digital
                       </button>
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 font-mono font-bold text-xs">
+                    <div className="currency-input-group flex items-stretch bg-slate-50 dark:bg-[#131B2E] border border-indigo-200 dark:border-indigo-800 rounded-lg overflow-hidden transition">
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 inline-flex items-center justify-center min-w-[2.4rem] px-2 bg-indigo-50/90 dark:bg-indigo-950/50 border-r border-indigo-200/80 dark:border-indigo-800/70 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-xs select-none"
+                      >
                         {currencySymbol}
                       </span>
                       <input
@@ -3415,7 +3421,7 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                             setSplitOnlineAmount(isNaN(parsed) ? '' : Math.max(0, Math.round(parsed)));
                           }
                         }}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-right font-mono font-bold text-sm bg-slate-50 dark:bg-[#131B2E] border border-indigo-200 dark:border-indigo-800 rounded-lg text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="currency-input-field flex-1 min-w-0 px-2.5 py-1.5 text-right font-mono font-bold text-sm text-slate-900 dark:text-white outline-none placeholder:text-slate-400"
                       />
                     </div>
                     {/* Digital Channel Selector */}
@@ -3510,8 +3516,11 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                 </div>
 
                 {/* Amount Received Input with currency symbol, clear, and exact bill shortcuts */}
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-sm pointer-events-none select-none">
+                <div className="currency-input-group flex items-stretch bg-white dark:bg-[#0A0E1A] border border-purple-300/80 dark:border-purple-700/70 rounded-xl overflow-hidden shadow-inner transition">
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 inline-flex items-center justify-center min-w-[2.9rem] px-3 bg-purple-50/90 dark:bg-purple-950/50 border-r border-purple-200/80 dark:border-purple-800/70 text-purple-700 dark:text-purple-300 font-mono font-bold text-sm select-none"
+                  >
                     {currencySymbol}
                   </span>
                   <input
@@ -3529,9 +3538,9 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
                         setCashReceived(isNaN(parsed) ? '' : Math.max(0, Math.round(parsed)));
                       }
                     }}
-                    className="w-full pl-10 pr-20 py-2.5 text-right font-mono font-bold text-base bg-white dark:bg-[#0A0E1A] border border-purple-300/80 dark:border-purple-700/70 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 shadow-inner transition"
+                    className="currency-input-field flex-1 min-w-0 px-3 py-2.5 text-right font-mono font-bold text-base text-slate-900 dark:text-white outline-none placeholder:text-slate-400"
                   />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <div className="shrink-0 flex items-center gap-1 pr-2">
                     {cashReceived !== '' && (
                       <button
                         type="button"

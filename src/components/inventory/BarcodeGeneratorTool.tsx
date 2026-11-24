@@ -354,6 +354,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
 
   return (
     <motion.div
+      data-motion-modal="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -365,6 +366,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
     >
       {/* SCREEN DIALOG CONTAINER */}
       <motion.div
+        data-motion-modal="true"
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -514,7 +516,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
                       placeholder="Search Article name or Barcode..."
                       value={catalogSearch}
                       onChange={(e) => setCatalogSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-gray-300 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 font-medium"
+                      className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-gray-300 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 font-medium"
                     />
                   </div>
 

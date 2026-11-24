@@ -2555,7 +2555,7 @@ setFormErrors(errors);
                   )}
                 </label>
                 <div className="relative">
-                  <span className="font-bold text-slate-400 absolute left-3.5 top-3 text-xs pointer-events-none">₨</span>
+                  <span aria-hidden="true" className="font-bold text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 text-sm leading-none pointer-events-none select-none">₨</span>
                   <input
                     type="text"
                     value={formData.currency_symbol}
@@ -3112,6 +3112,7 @@ setFormErrors(errors);
                 onClick={() => !isDeletingUser && setUserToDelete(null)}
               >
                 <motion.div
+                  data-motion-modal="true"
                   initial={{ opacity: 0, scale: 0.95, y: 16 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 16 }}

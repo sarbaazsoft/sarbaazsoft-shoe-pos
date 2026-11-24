@@ -1302,9 +1302,9 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
           aria-modal="true"
           aria-labelledby="sql-confirm-modal-title"
           data-testid="sql-confirm-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs"
+          className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs"
         >
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131B2E] shadow-2xl overflow-hidden">
+          <div className="modal-panel-enter w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131B2E] shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div

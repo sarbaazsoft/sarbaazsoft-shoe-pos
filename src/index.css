@@ -1000,42 +1000,61 @@ pre,
 /* ========================================================================= */
 
 /* 1. Universal Purple Input Borders across Light (#9333ea) and Dark (#a855f7) Modes */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]),
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field),
 select,
 textarea,
 .app-input,
 .form-input,
-.form-select {
+.form-select,
+.currency-input-group:not(.currency-input-error) {
   border: 1px solid var(--primary, #9333ea) !important;
   border-color: var(--primary, #9333ea) !important;
 }
 
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]),
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field),
 html.dark select,
 html.dark textarea,
 html.dark .app-input,
 html.dark .form-input,
 html.dark .form-select,
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]),
+html.dark .currency-input-group:not(.currency-input-error),
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field),
 .dark select,
 .dark textarea,
 .dark .app-input,
 .dark .form-input,
-.dark .form-select {
+.dark .form-select,
+.dark .currency-input-group:not(.currency-input-error) {
   border: 1px solid var(--primary-light, #a855f7) !important;
   border-color: var(--primary-light, #a855f7) !important;
 }
 
+.currency-input-group.currency-input-error,
+html.dark .currency-input-group.currency-input-error,
+.dark .currency-input-group.currency-input-error {
+  border: 1.5px solid #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.currency-input-group.currency-input-error:focus-within,
+html.dark .currency-input-group.currency-input-error:focus-within,
+.dark .currency-input-group.currency-input-error:focus-within {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 8px 0 rgba(239, 68, 68, 0.45) !important;
+  --tw-ring-shadow: 0 0 8px 0 rgba(239, 68, 68, 0.45) !important;
+}
+
 /* 2. Focus Shadow Effect driven by active theme CSS variables */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):focus,
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):focus-visible,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus-visible,
 select:focus,
 select:focus-visible,
 textarea:focus,
 textarea:focus-visible,
 :not([type="email"]):not(.email-focus-pulse).app-input:focus,
 :not([type="email"]):not(.email-focus-pulse).form-input:focus,
-.form-select:focus {
+.form-select:focus,
+.currency-input-group:not(.currency-input-error):focus-within {
   border-color: var(--primary, #9333ea) !important;
   outline: none !important;
   box-shadow: 0 0 8px 0 rgba(var(--primary-rgb, 147, 51, 234), 0.55) !important;
@@ -1044,8 +1063,8 @@ textarea:focus-visible,
   --tw-ring-offset-shadow: none !important;
 }
 
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):focus,
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):focus-visible,
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus,
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus-visible,
 html.dark select:focus,
 html.dark select:focus-visible,
 html.dark textarea:focus,
@@ -1053,15 +1072,17 @@ html.dark textarea:focus-visible,
 html.dark :not([type="email"]):not(.email-focus-pulse).app-input:focus,
 html.dark :not([type="email"]):not(.email-focus-pulse).form-input:focus,
 html.dark .form-select:focus,
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):focus,
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):focus-visible,
+html.dark .currency-input-group:not(.currency-input-error):focus-within,
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus,
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus-visible,
 .dark select:focus,
 .dark select:focus-visible,
 .dark textarea:focus,
 .dark textarea:focus-visible,
 .dark :not([type="email"]):not(.email-focus-pulse).app-input:focus,
 .dark :not([type="email"]):not(.email-focus-pulse).form-input:focus,
-.dark .form-select:focus {
+.dark .form-select:focus,
+.dark .currency-input-group:not(.currency-input-error):focus-within {
   border-color: var(--primary-400, #c084fc) !important;
   outline: none !important;
   box-shadow: 0 0 8px 0 rgba(var(--primary-rgb, 147, 51, 234), 0.6) !important;
@@ -1684,16 +1705,16 @@ html.dark .supplier-btn svg,
 }
 
 /* 4. Snug Icon-to-Text Alignment & Clean Action Suffix Padding */
-div:has(> .pointer-events-none > svg) > input:not([type="checkbox"]):not([type="radio"]),
-div:has(> svg[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]),
-.relative:has(> svg[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]),
-.relative:has(> div[class*="absolute"] > svg) > input:not([type="checkbox"]):not([type="radio"]) {
-  padding-left: 2.125rem !important;
+div:has(> .pointer-events-none > svg) > input:not([type="checkbox"]):not([type="radio"]):not(.currency-input-field):not([class*="pl-1"]),
+div:has(> svg[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]):not(.currency-input-field):not([class*="pl-1"]),
+.relative:has(> svg[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]):not(.currency-input-field):not([class*="pl-1"]),
+.relative:has(> div[class*="absolute"] > svg) > input:not([type="checkbox"]):not([type="radio"]):not(.currency-input-field):not([class*="pl-1"]) {
+  padding-left: 2.25rem !important;
 }
 
-div:has(> button[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]):not([class*="pr-40"]):not([class*="pr-24"]):not([class*="pr-20"]),
-.relative:has(> button[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]):not([class*="pr-40"]):not([class*="pr-24"]):not([class*="pr-20"]) {
-  padding-right: 2.125rem !important;
+div:has(> button[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]):not(.currency-input-field):not([class*="pr-40"]):not([class*="pr-28"]):not([class*="pr-24"]):not([class*="pr-20"]):not([class*="pr-16"]),
+.relative:has(> button[class*="absolute"]) > input:not([type="checkbox"]):not([type="radio"]):not(.currency-input-field):not([class*="pr-40"]):not([class*="pr-28"]):not([class*="pr-24"]):not([class*="pr-20"]):not([class*="pr-16"]) {
+  padding-right: 2.25rem !important;
 }
 
 /* ========================================================================= */
@@ -1838,16 +1859,18 @@ aside {
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 0 25px rgba(6, 182, 212, 0.08);
   }
 
-  /* 3. .app-input: Form Inputs, Drops & Selects */
+  /* 3. .app-input: Form Inputs, Drops & Selects (base padding in @layer components so Tailwind pl- and pr- utilities always win) */
   .app-input {
     background-color: #ffffff;
     border: 1px solid var(--primary, #9333ea) !important;
     color: #0f172a;
     border-radius: 0.75rem;
-    padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
     outline: none;
     transition: all 0.2s ease;
+  }
+  .app-input:not([class*="p-"]):not([class*="px-"]):not([class*="py-"]):not([class*="pl-"]):not([class*="pr-"]) {
+    padding: 0.625rem 0.875rem;
   }
   .app-input:focus {
     border-color: var(--primary, #9333ea) !important;
@@ -4145,22 +4168,46 @@ html.dark .saas-panel .app-stat-card.app-stat-card:hover {
 }
 
 
-/* Consistent form-modal styling, intentionally scoped to modal overlays only. */
-.form-modal-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
-.form-modal-theme select,
-.form-modal-theme textarea {
-  width: 100%; min-height: 42px; border: 1px solid #cbd5e1; border-radius: 0.625rem;
-  background-color: #fff; color: #0f172a; padding: 0.625rem 0.75rem; font-size: 0.875rem;
-  line-height: 1.35rem; outline: none; box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
-  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+/* Consistent form-modal styling in @layer components so Tailwind spacing/border utilities override cleanly. */
+@layer components {
+  .form-modal-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.currency-input-field),
+  .form-modal-theme select,
+  .form-modal-theme textarea {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.625rem;
+    background-color: #fff;
+    color: #0f172a;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.35rem;
+    outline: none;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  }
+  .form-modal-theme input.currency-input-field {
+    border: 0 !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    min-height: 0;
+  }
+  .currency-input-field,
+  .currency-input-field:focus,
+  .currency-input-field:focus-visible {
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background-color: transparent !important;
+  }
+  .form-modal-theme input[type="checkbox"], .form-modal-theme input[type="radio"] { accent-color: var(--primary, #7c3aed); }
+  .form-modal-theme input:not(.currency-input-field):focus, .form-modal-theme select:focus, .form-modal-theme textarea:focus { border-color: var(--primary-light, #8b5cf6); box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 147, 51, 234), 0.16); }
+  .form-modal-theme input:disabled, .form-modal-theme select:disabled, .form-modal-theme textarea:disabled { cursor: not-allowed; opacity: 0.65; }
+  .form-modal-theme input::placeholder, .form-modal-theme textarea::placeholder { color: #94a3b8; }
+  .dark .form-modal-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.currency-input-field),
+  .dark .form-modal-theme select, .dark .form-modal-theme textarea { background-color: #0f172a; color: #e2e8f0; border-color: #475569; }
+  .dark .form-modal-theme input::placeholder, .dark .form-modal-theme textarea::placeholder { color: #64748b; }
 }
-.form-modal-theme input[type="checkbox"], .form-modal-theme input[type="radio"] { accent-color: var(--primary, #7c3aed); }
-.form-modal-theme input:focus, .form-modal-theme select:focus, .form-modal-theme textarea:focus { border-color: var(--primary-light, #8b5cf6); box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 147, 51, 234), 0.16); }
-.form-modal-theme input:disabled, .form-modal-theme select:disabled, .form-modal-theme textarea:disabled { cursor: not-allowed; opacity: 0.65; }
-.form-modal-theme input::placeholder, .form-modal-theme textarea::placeholder { color: #94a3b8; }
-.dark .form-modal-theme input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
-.dark .form-modal-theme select, .dark .form-modal-theme textarea { background-color: #0f172a; color: #e2e8f0; border-color: #475569; }
-.dark .form-modal-theme input::placeholder, .dark .form-modal-theme textarea::placeholder { color: #64748b; }
 
 
 /* Auth login card entrance: keep the motion subtle and respect accessibility settings. */
@@ -4612,4 +4659,86 @@ html:not(.dark) .hero-underline-bar,
     transform: none !important;
   }
 }
+
+/* ============================================================================
+   MODAL TRANSITIONS (Subtle Fade-In Backdrop & Scale-Up Dialog Entrance)
+   Covers .form-modal-theme modals, .app-modal-overlay/.app-modal-container,
+   standalone dialog overlays, and animate-in utility classes without
+   conflicting with Framer Motion modals, drawers, or print output.
+   ============================================================================ */
+@keyframes modalBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPanelEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal-backdrop-enter {
+  animation: modalBackdropFadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-panel-enter {
+  animation: modalPanelEnter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+
+.form-modal-theme.fixed.inset-0:not([data-motion-modal="true"]),
+.app-modal-overlay:not([data-motion-modal="true"]) {
+  animation: modalBackdropFadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.form-modal-theme.fixed.inset-0 > :not([data-motion-modal="true"]):not([aria-hidden="true"]):not(.hidden),
+.app-modal-overlay > :not([data-motion-modal="true"]):not([aria-hidden="true"]):not(.hidden) {
+  animation: modalPanelEnter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+
+.animate-in.fade-in:not([data-motion-modal="true"]) {
+  animation: modalBackdropFadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-in.fade-in.zoom-in-95:not([data-motion-modal="true"]),
+.animate-in.fade-in.zoom-in:not([data-motion-modal="true"]) {
+  animation: modalPanelEnter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop-enter,
+  .modal-panel-enter,
+  .form-modal-theme.fixed.inset-0:not([data-motion-modal="true"]),
+  .app-modal-overlay:not([data-motion-modal="true"]),
+  .form-modal-theme.fixed.inset-0 > :not([data-motion-modal="true"]):not([aria-hidden="true"]):not(.hidden),
+  .app-modal-overlay > :not([data-motion-modal="true"]):not([aria-hidden="true"]):not(.hidden),
+  .animate-in.fade-in:not([data-motion-modal="true"]) {
+    animation: modalBackdropFadeIn 120ms ease-out !important;
+    transform: none !important;
+  }
+}
+
+@media print {
+  .modal-backdrop-enter,
+  .modal-panel-enter,
+  .form-modal-theme.fixed.inset-0,
+  .app-modal-overlay,
+  .form-modal-theme.fixed.inset-0 > *,
+  .app-modal-overlay > * {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
 

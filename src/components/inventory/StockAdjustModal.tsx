@@ -103,6 +103,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
 
   return (
     <motion.div
+      data-motion-modal="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -113,6 +114,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
       }}
     >
       <motion.div
+        data-motion-modal="true"
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}

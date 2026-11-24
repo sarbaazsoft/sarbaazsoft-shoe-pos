@@ -930,6 +930,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   return (
     <motion.div
+      data-motion-modal="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -940,6 +941,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       }}
     >
       <motion.div
+        data-motion-modal="true"
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -1676,8 +1678,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400">
                           Unit acquisition / factory cost per single pair.
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 font-mono font-bold text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#0B101D] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.costPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-indigo-200 dark:border-indigo-800/80'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[3.1rem] px-3 bg-slate-100/90 dark:bg-slate-900/90 border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-sm sm:text-base select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1690,11 +1701,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder="0"
                             value={costPrice}
                             onChange={(e) => handleIntegerPriceInput(e.target.value, setCostPrice, 'costPrice')}
-                            className={`w-full pl-12 pr-3 py-3 bg-white dark:bg-[#0B101D] border-2 rounded-xl font-mono font-black text-lg text-gray-950 dark:text-white outline-none transition shadow-xs ${
-                              pricingFieldErrors.costPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-indigo-200 dark:border-indigo-800/80 focus:border-indigo-600'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3.5 py-3 font-mono font-black text-lg text-gray-950 dark:text-white placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.costPrice && (
@@ -1717,8 +1724,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80">
                           B2B wholesale selling rate per single pair.
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-700 dark:text-indigo-300 font-mono font-black text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#070B14] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.maxPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-indigo-400 dark:border-indigo-500'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[3.1rem] px-3 bg-indigo-50/90 dark:bg-indigo-950/60 border-r border-indigo-200/80 dark:border-indigo-800/70 text-indigo-700 dark:text-indigo-300 font-mono font-black text-sm sm:text-base select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1730,11 +1746,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder="0"
                             value={maxPrice}
                             onChange={(e) => handleWholesaleRateChange(e.target.value)}
-                            className={`w-full pl-12 pr-3 py-3 bg-white dark:bg-[#070B14] border-2 rounded-xl font-mono font-black text-lg text-indigo-950 dark:text-indigo-100 outline-none transition shadow-xs ${
-                              pricingFieldErrors.maxPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-indigo-400 dark:border-indigo-500 focus:border-indigo-600'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3.5 py-3 font-mono font-black text-lg text-indigo-950 dark:text-indigo-100 placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.maxPrice && (
@@ -1801,8 +1813,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400">
                           Unit acquisition cost paid to supplier or factory.
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 font-mono font-bold text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#0B101D] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.costPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-indigo-200 dark:border-indigo-800/80'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[3.1rem] px-3 bg-slate-100/90 dark:bg-slate-900/90 border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-sm sm:text-base select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1815,11 +1836,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder="0"
                             value={costPrice}
                             onChange={(e) => handleIntegerPriceInput(e.target.value, setCostPrice, 'costPrice')}
-                            className={`w-full pl-12 pr-4 py-3 bg-white dark:bg-[#0B101D] border-2 rounded-xl font-mono font-black text-lg text-gray-950 dark:text-white outline-none transition shadow-xs ${
-                              pricingFieldErrors.costPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-indigo-200 dark:border-indigo-800/80 focus:border-indigo-600 dark:focus:border-indigo-400'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3.5 py-3 font-mono font-black text-lg text-gray-950 dark:text-white placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.costPrice && (
@@ -1842,8 +1859,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
                           Tag price (must be &ge; Cost Price).
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-700 dark:text-purple-300 font-mono font-black text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#070B14] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.maxPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-purple-400 dark:border-purple-500'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[3.1rem] px-3 bg-purple-50/90 dark:bg-purple-950/60 border-r border-purple-200/80 dark:border-purple-800/70 text-purple-700 dark:text-purple-300 font-mono font-black text-sm sm:text-base select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1855,11 +1881,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder={String(costVal || 0)}
                             value={maxPrice}
                             onChange={(e) => handleIntegerPriceInput(e.target.value, setMaxPrice, 'maxPrice')}
-                            className={`w-full pl-12 pr-4 py-3 bg-white dark:bg-[#070B14] border-2 rounded-xl font-mono font-black text-lg text-purple-950 dark:text-purple-100 outline-none transition shadow-xs ${
-                              pricingFieldErrors.maxPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-purple-400 dark:border-purple-500 focus:border-purple-600 dark:focus:border-purple-400'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3.5 py-3 font-mono font-black text-lg text-purple-950 dark:text-purple-100 placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.maxPrice && (
@@ -1899,8 +1921,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400">
                           Unit acquisition cost per pair.
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 font-mono font-bold text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#0B101D] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.costPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-slate-300 dark:border-slate-700'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[2.9rem] px-2.5 bg-slate-100/90 dark:bg-slate-900/90 border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-sm select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1913,11 +1944,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder="0"
                             value={costPrice}
                             onChange={(e) => handleIntegerPriceInput(e.target.value, setCostPrice, 'costPrice')}
-                            className={`w-full pl-11 pr-3 py-3 bg-white dark:bg-[#0B101D] border-2 rounded-xl font-mono font-black text-base text-gray-950 dark:text-white outline-none transition shadow-xs ${
-                              pricingFieldErrors.costPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-slate-300 dark:border-slate-700 focus:border-indigo-600 dark:focus:border-indigo-400'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3 py-3 font-mono font-black text-base text-gray-950 dark:text-white placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.costPrice && (
@@ -1938,8 +1965,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
                           POS floor limit (must be &ge; Cost Price).
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-700 dark:text-amber-300 font-mono font-black text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#070B14] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.minPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-amber-400 dark:border-amber-500'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[2.9rem] px-2.5 bg-amber-50/90 dark:bg-amber-950/60 border-r border-amber-200/80 dark:border-amber-800/70 text-amber-700 dark:text-amber-300 font-mono font-black text-sm select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1951,11 +1987,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder={String(costVal || 0)}
                             value={minPrice}
                             onChange={(e) => handleIntegerPriceInput(e.target.value, setMinPrice, 'minPrice')}
-                            className={`w-full pl-11 pr-3 py-3 bg-white dark:bg-[#070B14] border-2 rounded-xl font-mono font-black text-base text-amber-950 dark:text-amber-100 outline-none transition shadow-xs ${
-                              pricingFieldErrors.minPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-amber-400 dark:border-amber-500 focus:border-amber-600 dark:focus:border-amber-400'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3 py-3 font-mono font-black text-base text-amber-950 dark:text-amber-100 placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.minPrice && (
@@ -1976,8 +2008,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80">
                           Tag price (must be greater than Min Price).
                         </p>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-700 dark:text-indigo-300 font-mono font-black text-base">
+                        <div
+                          className={`currency-input-group flex items-stretch bg-white dark:bg-[#070B14] border-2 rounded-xl overflow-hidden transition shadow-xs ${
+                            pricingFieldErrors.maxPrice
+                              ? 'currency-input-error border-red-400 dark:border-red-500'
+                              : 'border-indigo-400 dark:border-indigo-500'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 inline-flex items-center justify-center min-w-[2.9rem] px-2.5 bg-indigo-50/90 dark:bg-indigo-950/60 border-r border-indigo-200/80 dark:border-indigo-800/70 text-indigo-700 dark:text-indigo-300 font-mono font-black text-sm select-none"
+                          >
                             {currencySymbol}
                           </span>
                           <input
@@ -1989,11 +2030,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             placeholder={String(negotiableMinVal || costVal || 0)}
                             value={maxPrice}
                             onChange={(e) => handleIntegerPriceInput(e.target.value, setMaxPrice, 'maxPrice')}
-                            className={`w-full pl-11 pr-3 py-3 bg-white dark:bg-[#070B14] border-2 rounded-xl font-mono font-black text-base text-indigo-950 dark:text-indigo-100 outline-none transition shadow-xs ${
-                              pricingFieldErrors.maxPrice
-                                ? 'border-red-400 dark:border-red-500 focus:border-red-600'
-                                : 'border-indigo-400 dark:border-indigo-500 focus:border-indigo-600 dark:focus:border-indigo-400'
-                            }`}
+                            className="currency-input-field flex-1 min-w-0 px-3 py-3 font-mono font-black text-base text-indigo-950 dark:text-indigo-100 placeholder:text-slate-400 outline-none"
                           />
                         </div>
                         {pricingFieldErrors.maxPrice && (
