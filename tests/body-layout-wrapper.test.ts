@@ -290,11 +290,11 @@ describe('Global Route Integration with BodyLayoutWrapper', () => {
     );
   });
 
-  it('applies 2rem margin around the Auth route login card without horizontal overflow', () => {
+  it('applies +0.25rem increased responsive outer margin around the Auth route login card without horizontal overflow', () => {
     const authSrc = readSrc('src/components/auth/AuthModal.tsx');
     assert.ok(
-      authSrc.includes('className="w-[calc(100%-4rem)] max-w-md m-8"'),
-      'AuthModal login card wrapper should apply 2rem (m-8) margin and calc(100%-4rem) width'
+      authSrc.includes('className="w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-md mx-3 my-7 sm:mx-4 sm:my-9"'),
+      'AuthModal login card wrapper should apply mx-3 my-7 sm:mx-4 sm:my-9 margin and synced calc widths'
     );
   });
 

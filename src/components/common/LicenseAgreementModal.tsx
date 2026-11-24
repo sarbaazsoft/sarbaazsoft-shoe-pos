@@ -58,7 +58,7 @@ export const LicenseAgreementModal: React.FC<LicenseAgreementModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="license-agreement-modal-title"
-      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/65 backdrop-blur-xs px-2 py-3 sm:px-3.5 sm:py-5 overflow-y-auto"
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/65 backdrop-blur-xs px-3 py-4 sm:px-4.5 sm:py-6 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

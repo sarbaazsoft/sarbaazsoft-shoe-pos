@@ -23,7 +23,7 @@ export const UnknownStore404View: React.FC<UnknownStore404ViewProps> = ({
     <BodyLayoutWrapper
       layoutMeta={notFoundLayoutMeta}
       className="bg-slate-950 text-slate-100"
-      mainClassName="p-3.5 sm:p-6 relative"
+      mainClassName="p-4.5 sm:p-7 relative"
       backdrop={
         <>
           <ShowroomBackground />

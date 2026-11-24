@@ -1463,7 +1463,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* RECORD NEW PURCHASE MODAL */}
       {isModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto">
           <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] border border-slate-200 dark:border-purple-800/80">
             {/* Modal Header & 3-Step Wizard Stepper matching ProductFormModal */}
             <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4">
@@ -2659,7 +2659,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* CATALOG PRODUCTS TABLE MODAL (BROWSE FULL CATALOG AND SELECT ARTICLE) */}
       {isProductCatalogModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4">
+        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
           <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
@@ -2851,7 +2851,7 @@ export const PurchaseManagement: React.FC<PurchaseManagementProps> = ({
 
       {/* VIEW PAST PURCHASE DETAILS MODAL */}
       {viewPurchaseModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4">
+        <div className="form-modal-theme fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
           <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
               <div className="flex items-center space-x-2.5">

@@ -2441,7 +2441,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="dashboard-upgrade-title"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-3 sm:px-3 sm:py-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-4 sm:px-4 sm:py-5 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget && !isSubmittingUpgrade) {
               setIsUpgradeModalOpen(false);

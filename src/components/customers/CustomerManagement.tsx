@@ -718,7 +718,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
       {/* DELETE CONFIRMATION DIALOG */}
       <AnimatePresence>
         {deletingCustomerId && (
-          <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4">
+          <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
             <motion.div
               data-motion-modal="true"
               initial={{ opacity: 0, scale: 0.95 }}

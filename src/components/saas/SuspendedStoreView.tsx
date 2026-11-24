@@ -58,7 +58,7 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
     <BodyLayoutWrapper
       layoutMeta={statusLayoutMeta}
       className="bg-slate-950 text-slate-100"
-      mainClassName="relative z-10 px-2 py-4 sm:px-4 sm:py-6"
+      mainClassName="relative z-10 px-3 py-5 sm:px-5 sm:py-7"
       backdrop={<ShowroomBackground />}
     >
       <div className="max-w-lg w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-5 sm:p-8 shadow-2xl">

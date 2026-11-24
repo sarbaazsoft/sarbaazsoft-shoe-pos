@@ -196,25 +196,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         <ShowroomBackground contained={true} intensity="portal" scope="sidebar" />
-        <div
-          className={`relative z-10 flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden sidebar-scrollbar ${
-            collapsed ? 'px-2' : ''
-          }`}
-        >
-        {/* TOP: Store Brand Header aligned with top Header bar (exact h-[3.6rem] with matching border-b) */}
+        {/* TOP: Pinned Store Brand Header aligned with top Header bar (exact h-[3.6rem] with matching border-b) */}
         <div
           style={
             !isSolidBackdrop
               ? { backgroundColor: `rgba(8, 10, 42, ${headerGlassAlpha})` }
               : undefined
           }
-          className={`h-[3.6rem] flex items-center shrink-0 transition-colors ${
+          className={`relative z-20 h-[3.6rem] flex items-center shrink-0 transition-colors ${
             isSolidLight
               ? 'border-b border-slate-200 bg-white'
               : isSolidBackdrop
               ? 'border-b border-[#1A263D] bg-[#0A0E1A]'
               : 'border-b border-indigo-400/20 backdrop-blur-md'
-          } ${collapsed ? 'px-1.5 justify-center gap-1' : 'px-3.5 sm:px-4 justify-between gap-2'}`}
+          } ${collapsed ? 'px-1 justify-center gap-1' : 'px-3.5 sm:px-4 justify-between gap-2'}`}
         >
           {/* Brand Banner */}
           <div className={`flex items-center min-w-0 ${collapsed ? 'justify-center' : 'gap-2.5 flex-1'}`}>
@@ -297,6 +292,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* SCROLLABLE NAVIGATION CONTAINER */}
+        <div
+          className={`relative z-10 flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden sidebar-scrollbar ${
+            collapsed ? 'px-2' : ''
+          }`}
+        >
         {/* MAIN MENU: Dashboard + Navigation Sections */}
         <div
           style={
@@ -701,7 +702,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         transition={{ type: 'spring', stiffness: 350, damping: 32 }}
         className={`hidden lg:flex shrink-0 z-30 no-print overflow-hidden rounded-none shadow-lg border-r border-indigo-500/20 ${
           embeddedInBodyLayout
-            ? 'self-stretch sticky top-[3.6rem] max-h-[calc(100dvh-3.6rem)]'
+            ? 'h-[calc(100dvh-3.6rem)] max-h-[calc(100dvh-3.6rem)] sticky top-[3.6rem]'
             : 'h-screen sticky top-0'
         }`}
       >

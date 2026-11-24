@@ -275,7 +275,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   return (
     <div
       id="user-profile-modal-backdrop"
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto animate-in fade-in duration-150"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto animate-in fade-in duration-150"
     >
       <div
         id="user-profile-modal-card"

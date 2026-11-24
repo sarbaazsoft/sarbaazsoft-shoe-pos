@@ -77,7 +77,7 @@ test('FreeTrialOnboardingModal and PasswordRequirementsTooltip prevent horizonta
 
   const modal = readWorkspaceFile('src/components/saas/FreeTrialOnboardingModal.tsx');
   assert.ok(modal.includes('overflow-y-auto overflow-x-hidden'), 'Overlay and body must prevent horizontal scroll');
-  assert.ok(modal.includes('w-[calc(100%-4rem)] max-w-xl min-w-0 m-8 max-h-[calc(100dvh-4rem)]'), 'Modal panel should match 2rem outer margin without horizontal overflow');
+  assert.ok(modal.includes('w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-xl min-w-0 mx-3 my-7 sm:mx-4 sm:my-9 max-h-[calc(100dvh-3.5rem)] sm:max-h-[calc(100dvh-4.5rem)]'), 'Modal panel should match +0.25rem responsive outer margin without horizontal overflow');
   assert.ok(modal.includes('className="flex flex-col flex-1 min-h-0 min-w-0 w-full"'));
   assert.ok(modal.includes('p-4 sm:p-7 space-y-3 sm:space-y-4 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden'));
   assert.ok(modal.includes('w-full min-w-0 p-3.5 sm:p-5 rounded-2xl'));

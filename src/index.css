@@ -1922,7 +1922,7 @@ aside {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.625rem;
+    padding: 0.875rem;
     overflow-y: auto;
     background-color: rgba(11, 15, 23, 0.8);
     backdrop-filter: blur(8px);
@@ -1930,7 +1930,7 @@ aside {
   }
   @media (min-width: 640px) {
     .app-modal-overlay {
-      padding: 1rem;
+      padding: 1.25rem;
     }
   }
 

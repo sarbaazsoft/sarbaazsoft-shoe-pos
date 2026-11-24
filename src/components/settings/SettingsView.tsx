@@ -3144,7 +3144,7 @@ setFormErrors(errors);
           <AnimatePresence>
             {userToDelete && (
               <div
-                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
                 onClick={() => !isDeletingUser && setUserToDelete(null)}
               >
                 <motion.div
@@ -5044,7 +5044,7 @@ setFormErrors(errors);
       {isRenewModalOpen && (
         <div
           id="renew-subscription-modal"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsRenewModalOpen(false);
           }}
@@ -5460,7 +5460,7 @@ setFormErrors(errors);
 
       {/* Camera Capture Modal for Store Receipt Logo */}
       {isCameraOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
           <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl max-w-md w-full max-h-[92dvh] overflow-y-auto">
             <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 dark:border-purple-900/50">
               <div className="flex items-center space-x-2">

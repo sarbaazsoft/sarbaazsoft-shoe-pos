@@ -297,7 +297,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
           dbText="Secure Store Setup"
         />
       }
-      mainClassName="relative z-10 w-full py-5 sm:py-8 px-3 sm:px-6"
+      mainClassName="relative z-10 w-full py-6 sm:py-9 px-4 sm:px-7"
       footer={<PublicFooter />}
     >
       <div className="max-w-4xl mx-auto w-full">

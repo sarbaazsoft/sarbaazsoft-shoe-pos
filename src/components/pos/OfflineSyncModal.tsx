@@ -63,7 +63,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
   return (
     <AnimatePresence>
       <div
-        className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-900/60 backdrop-blur-sm no-print"
+        className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-900/60 backdrop-blur-sm no-print"
         onClick={onClose}
       >
         <motion.div

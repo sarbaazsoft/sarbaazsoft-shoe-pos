@@ -102,4 +102,19 @@ test('Super Admin Sidebar displays brand logo alongside "SarbaazSoft Shoe POS" c
   const drawerBlock = saSrc.slice(drawerStart, drawerEnd);
   assert.ok(drawerBlock.includes('z-[60] lg:hidden'), 'SuperAdmin mobile sidebar drawer must stack above z-40 header');
   assert.ok(drawerBlock.includes('createPortal(mobileDrawer, document.body)'), 'SuperAdmin mobile sidebar drawer must portal to document.body');
+  assert.ok(
+    drawerBlock.includes('h-[calc(100dvh-3.6rem)]'),
+    'SuperAdmin desktop sidebar aside must set explicit viewport height so inner menu scrolls below pinned brand header'
+  );
+
+  // Verify pinned brand header sits ABOVE the scrollable nav container in both sidebars
+  const saBrandIdx = sidebarBlock.indexOf('TOP: Pinned Brand Header');
+  const saScrollIdx = sidebarBlock.indexOf('sidebar-scrollbar');
+  assert.ok(saBrandIdx !== -1 && saScrollIdx !== -1 && saBrandIdx < saScrollIdx, 'SuperAdmin Sidebar brand header must sit above sidebar-scrollbar so scrolling never hides it');
+
+  const storeSidebarSrc = readProjectFile('src/components/common/Sidebar.tsx');
+  const storeBrandIdx = storeSidebarSrc.indexOf('TOP: Pinned Store Brand Header');
+  const storeScrollIdx = storeSidebarSrc.indexOf('sidebar-scrollbar');
+  assert.ok(storeBrandIdx !== -1 && storeScrollIdx !== -1 && storeBrandIdx < storeScrollIdx, 'Store Sidebar brand header must sit above sidebar-scrollbar so scrolling never hides it');
+  assert.ok(storeSidebarSrc.includes('h-[calc(100dvh-3.6rem)]'), 'Store desktop sidebar aside must set explicit viewport height');
 });

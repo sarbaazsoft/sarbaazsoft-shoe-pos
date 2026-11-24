@@ -495,7 +495,7 @@ export const CenteredLoadingSpinner: React.FC<CenteredLoadingSpinnerProps> = ({
         role="status"
         aria-live="polite"
         aria-label={label}
-        className="fixed inset-0 z-50 flex items-center justify-center px-2 py-3 sm:px-3 sm:py-4 bg-slate-950/75 backdrop-blur-xs"
+        className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-5 bg-slate-950/75 backdrop-blur-xs"
       >
         <div
           className={`w-full max-w-md min-h-[240px] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl flex flex-col items-center justify-center gap-3 p-6 sm:p-8 transition-colors ${className}`}

@@ -213,7 +213,7 @@ export function clearStoredUnauthTenantId() {
 function PortalRouteFallback({ label = 'Loading...' }: { label?: string }) {
   return (
     <div
-      className="relative min-h-screen w-full flex items-center justify-center bg-slate-200 dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-200 p-6"
+      className="relative min-h-screen w-full flex items-center justify-center bg-slate-200 dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-200 p-7"
       role="status"
       aria-live="polite"
     >
