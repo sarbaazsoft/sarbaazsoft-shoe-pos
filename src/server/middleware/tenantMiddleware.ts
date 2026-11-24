@@ -202,11 +202,11 @@ export async function resolveTenantContext(req: Request): Promise<TenantRouteRes
   let effectiveSubscriptionStatus: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' =
     (String(row.subscription_status || 'ACTIVE').toUpperCase() as 'ACTIVE' | 'EXPIRED' | 'SUSPENDED');
 
-  // Automatic Expiry Tracking: Check if subscriptionEndDate < currentTimestamp
-  if (effectiveEndDt.getTime() < Date.now()) {
-    effectiveSubscriptionStatus = 'EXPIRED';
-  } else if (row.status === 'SUSPENDED') {
+  // Suspension takes precedence over expiration so explicitly suspended stores report SUSPENDED cleanly
+  if (row.status === 'SUSPENDED' || String(row.subscription_status || '').toUpperCase() === 'SUSPENDED') {
     effectiveSubscriptionStatus = 'SUSPENDED';
+  } else if (effectiveEndDt.getTime() < Date.now()) {
+    effectiveSubscriptionStatus = 'EXPIRED';
   }
 
   if (!row.subscription_start_date || !row.subscription_end_date || String(row.subscription_status).toUpperCase() !== effectiveSubscriptionStatus) {
@@ -329,16 +329,16 @@ export async function tenantRoutingMiddleware(
         if (verifiedSuperAdmin) {
           (req as any).isSuperAdminOverride = true;
           res.setHeader('X-SuperAdmin-Override', 'true');
-        } else if (isExpiredTenant) {
-          return res.status(403).json({
-            error: 'Your subscription key has expired. Please contact support to renew.',
-            code: 'SUBSCRIPTION_EXPIRED',
-            tenant: resolution.tenant,
-          });
-        } else {
+        } else if (isSuspendedTenant) {
           return res.status(423).json({
             error: `Store "${resolution.tenant?.name || 'this tenant'}" is currently suspended. Please contact platform billing or support.`,
             code: 'TENANT_SUSPENDED',
+            tenant: resolution.tenant,
+          });
+        } else {
+          return res.status(403).json({
+            error: 'Your subscription key has expired. Please contact support to renew.',
+            code: 'SUBSCRIPTION_EXPIRED',
             tenant: resolution.tenant,
           });
         }

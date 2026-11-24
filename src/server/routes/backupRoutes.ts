@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { pgClient, dbInfo, isStandardPostgres } from '../../db/index.ts';
 import { ensureDatabaseSchema } from '../../db/schemaInit.ts';
-import { requireAuth, requireSuperAdmin } from '../auth.ts';
+import { requireAuth, requireSuperAdmin, verifySuperAdminRequest } from '../auth.ts';
 import type { AuthenticatedRequest } from '../auth.ts';
 
 const router = Router();
@@ -434,6 +434,84 @@ router.post('/import-sql', requireAuth, requireSuperAdmin, async (req: Authentic
   } catch (err: any) {
     console.error('Error importing SQL in backup:', err);
     res.status(500).json({ error: 'Failed to execute SQL script: ' + err.message });
+  }
+});
+
+// POST /api/backup/execute-sql - Direct SuperAdmin SQL Query Execution Console
+router.post('/execute-sql', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const verifiedSuperAdmin = await verifySuperAdminRequest(req);
+    if (!verifiedSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: Verified Platform SuperAdmin permission is required to execute SQL queries.',
+        code: 'FORBIDDEN_SUPERADMIN_REQUIRED',
+      });
+    }
+
+    if (req.body?.confirmExecution !== true) {
+      return res.status(400).json({
+        success: false,
+        error: 'Execution confirmation is required before running direct SQL queries.',
+        code: 'CONFIRMATION_REQUIRED',
+      });
+    }
+
+    const rawSql = req.body?.sql;
+    if (typeof rawSql !== 'string' || !rawSql.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'SQL query cannot be empty. Please write or paste a valid SQL query.',
+        code: 'EMPTY_SQL_QUERY',
+      });
+    }
+
+    if (rawSql.length > 500_000) {
+      return res.status(413).json({
+        success: false,
+        error: 'SQL query exceeds the 500 KB execution limit.',
+        code: 'SQL_TOO_LARGE',
+      });
+    }
+
+    const result = await pgClient.executeRawSql(rawSql);
+
+    console.info(
+      `[SQL-CONSOLE] SuperAdmin #${verifiedSuperAdmin.id} (${verifiedSuperAdmin.email}) executed ${result.statementCount} statement(s) [${result.command}] (${result.rowCount} rows, ${result.durationMs}ms).`
+    );
+
+    return res.json({
+      success: true,
+      command: result.command,
+      rowCount: result.rowCount,
+      columns: result.columns,
+      rows: result.rows,
+      totalRowsReturned: result.totalRowsReturned,
+      truncated: result.truncated,
+      statementCount: result.statementCount,
+      durationMs: result.durationMs,
+      message:
+        result.totalRowsReturned > 0
+          ? `Query executed (${result.command}): ${result.totalRowsReturned} row${result.totalRowsReturned === 1 ? '' : 's'} returned in ${result.durationMs} ms.`
+          : `Query executed (${result.command}): ${result.rowCount} row${result.rowCount === 1 ? '' : 's'} affected in ${result.durationMs} ms.`,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    const cleanMsg = String(err?.message || 'SQL execution failed')
+      .replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, 'postgresql://[redacted]');
+    console.warn('[SQL-CONSOLE] Execution error:', cleanMsg);
+    return res.status(400).json({
+      success: false,
+      error: cleanMsg,
+      code: typeof err?.code === 'string' ? err.code : 'SQL_EXECUTION_ERROR',
+      detail: typeof err?.detail === 'string' ? err.detail : undefined,
+      hint: typeof err?.hint === 'string' ? err.hint : undefined,
+      position:
+        typeof err?.position === 'string' || typeof err?.position === 'number'
+          ? String(err.position)
+          : undefined,
+    });
   }
 });
 

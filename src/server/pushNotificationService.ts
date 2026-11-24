@@ -7,6 +7,7 @@ import {
   ensurePlatformNotificationsSchema,
   ensureSaasControlPlane,
   normalizeSubscriptionPlan,
+  syncExpiredTenantSubscriptions,
 } from '../db/schemaInit.ts';
 import { getAppSetting, registerSettingsUpdateListener } from './services/appSettingsService.ts';
 import {

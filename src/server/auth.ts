@@ -194,7 +194,12 @@ export async function verifySuperAdminRequest(req: Request): Promise<AuthUser | 
       [userId]
     );
     const row = userRes.rows[0];
-    if (!row || String(row.status || '').toUpperCase() !== 'APPROVED' || row.active === false) {
+    if (
+      !row ||
+      String(row.role || '').toUpperCase() !== 'SUPERADMIN' ||
+      String(row.status || '').toUpperCase() !== 'APPROVED' ||
+      row.active === false
+    ) {
       return null;
     }
 

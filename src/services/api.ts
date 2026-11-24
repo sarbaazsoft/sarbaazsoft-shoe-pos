@@ -305,6 +305,7 @@ export function getValidatedStoredSession(): { token: string; user: any } | null
 interface RequestOptions extends RequestInit {
   body?: any;
   idempotent?: boolean;
+  skipKeyTransform?: boolean;
 }
 
 export function createAbortError(message = 'The operation was aborted.'): Error {
@@ -365,7 +366,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
 
   if (activeTenantId) headers['X-Tenant-Id'] = String(activeTenantId);
 
-  const { body: rawBody, idempotent, ...restOptions } = options;
+  const { body: rawBody, idempotent, skipKeyTransform, ...restOptions } = options;
   const method = (restOptions.method || 'GET').toUpperCase();
   const isIdempotentRequest = method === 'GET' || method === 'HEAD' || Boolean(idempotent);
 
@@ -548,6 +549,9 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
       nextAvailableAt?: string | null;
       flow?: string;
       blockedByIp?: boolean;
+      detail?: string;
+      hint?: string;
+      position?: string;
     };
     apiError.code = data.code;
     apiError.stores = Array.isArray(data.stores) ? data.stores : undefined;
@@ -558,10 +562,13 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     if (data.nextAvailableAt !== undefined) apiError.nextAvailableAt = data.nextAvailableAt;
     if (typeof data.flow === 'string') apiError.flow = data.flow;
     if (typeof data.blockedByIp === 'boolean') apiError.blockedByIp = data.blockedByIp;
+    if (typeof data.detail === 'string') apiError.detail = data.detail;
+    if (typeof data.hint === 'string') apiError.hint = data.hint;
+    if (typeof data.position === 'string') apiError.position = data.position;
     throw apiError;
   }
 
-  const transformed = transformKeysToCamelCase<T>(data);
+  const transformed = skipKeyTransform ? (data as T) : transformKeysToCamelCase<T>(data);
   notifyApiMutationSuccess(endpoint, method);
   return transformed;
 }
@@ -1430,6 +1437,24 @@ export const api = {
       apiFetch('/backup/restore', { method: 'POST', body: backupPayload }),
     importSql: (sqlContent: string) =>
       apiFetch('/backup/import-sql', { method: 'POST', body: { sql: sqlContent, sqlContent } }),
+    executeSql: (sql: string, confirmExecution: boolean) =>
+      apiFetch<{
+        success: boolean;
+        command: string;
+        rowCount: number;
+        columns: string[];
+        rows: Record<string, any>[];
+        totalRowsReturned: number;
+        truncated: boolean;
+        statementCount: number;
+        durationMs: number;
+        message: string;
+        timestamp: string;
+      }>('/backup/execute-sql', {
+        method: 'POST',
+        body: { sql, confirmExecution },
+        skipKeyTransform: true,
+      }),
   },
   notifications: {
     grouped: (limit: number = 5, reqOptions?: { signal?: AbortSignal; noticesOnly?: boolean }) =>

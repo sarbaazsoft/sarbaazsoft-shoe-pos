@@ -1049,8 +1049,14 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     }
 
     if (upper.startsWith('SELECT')) {
-      const tid = params.length > 0 && params[0] !== null && params[0] !== undefined ? Number(params[0]) : 1;
-      let list = (mockStore.notifications || []).filter((n: any) => Number(n.tenant_id || 1) === tid);
+      let list = [...(mockStore.notifications || [])];
+      if (upper.includes('TENANT_ID = ANY($1')) {
+        const tids = (Array.isArray(params[0]) ? params[0] : []).map(Number);
+        list = list.filter((n: any) => tids.includes(Number(n.tenant_id || 1)));
+      } else {
+        const tid = params.length > 0 && params[0] !== null && params[0] !== undefined ? Number(params[0]) : 1;
+        list = list.filter((n: any) => Number(n.tenant_id || 1) === tid);
+      }
       if (upper.includes('IS_READ = FALSE') || upper.includes('COALESCE(IS_READ, FALSE) = FALSE') || upper.includes('COALESCE(N.IS_READ, FALSE) = FALSE')) {
         list = list.filter((n: any) => !n.is_read);
       }
@@ -2371,8 +2377,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     if (whereClause.includes('WHERE ID = $1')) {
       const targetId = Number(params[0]);
       const targetTenantId = params.length >= 2 ? Number(params[1]) : null;
+      const requiresSuperAdmin =
+        whereClause.includes("AND UPPER(ROLE::TEXT) = 'SUPERADMIN'") ||
+        whereClause.includes("AND UPPER(ROLE) = 'SUPERADMIN'") ||
+        whereClause.includes("AND ROLE = 'SUPERADMIN'");
       rows = rows.filter((u) => {
         if (Number(u.id) !== targetId) return false;
+        if (requiresSuperAdmin && String(u.role).toUpperCase() !== 'SUPERADMIN') return false;
         if (targetTenantId !== null && (whereClause.includes('TENANT_ID = $2') || whereClause.includes('OR TENANT_ID = $2'))) {
           if (String(u.role).toUpperCase() !== 'SUPERADMIN' && Number(u.tenant_id) !== targetTenantId) {
             return false;
@@ -2410,10 +2421,10 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
           (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED') &&
           (!whereClause.includes('COALESCE(ACTIVE, TRUE) = TRUE') || u.active !== false)
       );
-    } else if (whereClause.includes("ROLE = 'ADMIN'")) {
-      rows = rows.filter((u) => u.role === 'ADMIN' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
-    } else if (whereClause.includes("ROLE = 'CASHIER'")) {
-      rows = rows.filter((u) => u.role === 'CASHIER' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
+    } else if (whereClause.includes("ROLE = 'ADMIN'") || whereClause.includes("UPPER(ROLE::TEXT) = 'ADMIN'")) {
+      rows = rows.filter((u) => String(u.role).toUpperCase() === 'ADMIN' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
+    } else if (whereClause.includes("ROLE = 'CASHIER'") || whereClause.includes("UPPER(ROLE::TEXT) = 'CASHIER'")) {
+      rows = rows.filter((u) => String(u.role).toUpperCase() === 'CASHIER' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
     } else if (whereClause.includes("ROLE = 'SUPERADMIN'") && whereClause.includes('LOWER(EMAIL) = LOWER($1)')) {
       rows = rows.filter(
         (u) =>
@@ -2441,7 +2452,15 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       whereClause.includes('LOWER(BTRIM(U.EMAIL)) = LOWER(BTRIM($1))')
     ) {
       rows = rows.filter((u) => String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase());
-    } else if (whereClause.includes("UPPER(ROLE) = 'SUPERADMIN'") || (whereClause.includes('SUPERADMIN') && whereClause.includes('ROLE'))) {
+    } else if (whereClause.includes('TENANT_ID = ANY($1')) {
+      const tids = (Array.isArray(params[0]) ? params[0] : []).map(Number);
+      rows = rows.filter(
+        (u) => tids.includes(Number(u.tenant_id)) && (!whereClause.includes("ROLE <> 'SUPERADMIN'") || String(u.role).toUpperCase() !== 'SUPERADMIN')
+      );
+    } else if (
+      (whereClause.includes("UPPER(ROLE) = 'SUPERADMIN'") ||
+        (whereClause.includes('SUPERADMIN') && whereClause.includes('ROLE') && !whereClause.includes('<>') && !whereClause.includes('!=')))
+    ) {
       rows = rows.filter((u) => String(u.role).toUpperCase() === 'SUPERADMIN');
     } else if (whereClause.includes('TENANT_ID = $1') || whereClause.includes('COALESCE(TENANT_ID, 1) = $1')) {
       rows = rows.filter((u) => Number(u.tenant_id) === Number(params[0]));
@@ -2758,7 +2777,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       return { rows: matched as unknown as T[], rowCount: matched.length };
     }
 
-    const tid = params.length > 0 ? Number(params[0]) : null;
+    if (upper.includes('WHERE TENANT_ID = ANY($1')) {
+      const tids = (Array.isArray(params[0]) ? params[0] : []).map(Number);
+      const matched = mockStore.products.filter((p) => tids.includes(Number(p.tenant_id || 1)));
+      return { rows: matched as unknown as T[], rowCount: matched.length };
+    }
+
+    const tid = params.length > 0 && !Array.isArray(params[0]) ? Number(params[0]) : null;
     const storeProds = mockStore.products.filter(
       (p) => p.active !== false && (!tid || Number(p.tenant_id) === tid)
     );
@@ -2974,6 +2999,12 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
   }
 
   if (upper.startsWith('DELETE FROM PRODUCTS')) {
+    if (upper.includes('WHERE TENANT_ID = $1') && !/\bID\s*=\s*\$1\b/.test(upper)) {
+      const tid = Number(params[0]);
+      const before = mockStore.products.length;
+      mockStore.products = mockStore.products.filter((p) => Number(p.tenant_id || 1) !== tid);
+      return { rows: [], rowCount: before - mockStore.products.length };
+    }
     const targetId = Number(params[0]);
     const tid = params.length > 1 ? Number(params[1]) : null;
     mockStore.products = mockStore.products.filter(
@@ -4031,6 +4062,862 @@ export const pgClient = {
     }
     await rawPool.query(sql);
   },
+
+  async executeRawSql(sqlText: string): Promise<RawSqlExecutionResult> {
+    await waitForDatabaseReady();
+    const startedAt = Date.now();
+    const trimmedSql = String(sqlText || '').trim();
+    if (!trimmedSql) {
+      const err: any = new Error('SQL query cannot be empty.');
+      err.code = '42601';
+      throw err;
+    }
+
+    const MAX_PREVIEW_ROWS = 500;
+
+    if (useMock || !rawPool) {
+      return executeMockRawSql(trimmedSql, startedAt, MAX_PREVIEW_ROWS);
+    }
+
+    const client = await rawPool.connect();
+    const upperNoComments = stripSqlComments(trimmedSql).toUpperCase();
+    const containsExplicitTxControl =
+      /\b(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION|VACUUM|CREATE\s+DATABASE|DROP\s+DATABASE|CREATE\s+INDEX\s+CONCURRENTLY)\b/i.test(
+        upperNoComments
+      );
+
+    try {
+      if (!containsExplicitTxControl) {
+        await client.query('BEGIN');
+      }
+      const rawRes = await client.query(trimmedSql);
+      if (!containsExplicitTxControl) {
+        await client.query('COMMIT');
+      }
+
+      const resultArray: any[] = Array.isArray(rawRes) ? rawRes : [rawRes];
+      const validResults = resultArray.filter(Boolean);
+      const lastWithRows = [...validResults].reverse().find((r) => Array.isArray(r.rows) && r.rows.length > 0);
+      const targetRes = lastWithRows || validResults[validResults.length - 1] || {};
+
+      const allRows: Record<string, any>[] = Array.isArray(targetRes.rows) ? targetRes.rows : [];
+      const columns: string[] =
+        Array.isArray(targetRes.fields) && targetRes.fields.length > 0
+          ? targetRes.fields.map((f: any) => String(f.name))
+          : allRows.length > 0
+          ? Object.keys(allRows[0])
+          : [];
+
+      const truncated = allRows.length > MAX_PREVIEW_ROWS;
+      const previewRows = truncated ? allRows.slice(0, MAX_PREVIEW_ROWS) : allRows;
+
+      const commands = validResults.map((r) => String(r.command || '').trim()).filter(Boolean);
+      const command =
+        commands.length > 1
+          ? commands.slice(-3).join(', ')
+          : String(targetRes.command || 'OK');
+
+      const totalAffected =
+        allRows.length > 0
+          ? Number(targetRes.rowCount ?? allRows.length)
+          : validResults.reduce((sum, r) => sum + Math.max(0, Number(r?.rowCount ?? 0)), 0);
+
+      return {
+        command,
+        rowCount: Number.isFinite(totalAffected) ? totalAffected : allRows.length,
+        columns,
+        rows: previewRows,
+        totalRowsReturned: allRows.length,
+        truncated,
+        statementCount: Math.max(1, validResults.length),
+        durationMs: Math.max(1, Date.now() - startedAt),
+      };
+    } catch (err: any) {
+      if (!containsExplicitTxControl) {
+        await client.query('ROLLBACK').catch(() => {});
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
 };
+
+export interface RawSqlExecutionResult {
+  command: string;
+  rowCount: number;
+  columns: string[];
+  rows: Record<string, any>[];
+  totalRowsReturned: number;
+  truncated: boolean;
+  statementCount: number;
+  durationMs: number;
+}
+
+function stripSqlComments(sql: string): string {
+  let out = '';
+  let i = 0;
+  let inSingle = false;
+  let inDouble = false;
+  while (i < sql.length) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+    if (!inSingle && !inDouble && ch === '-' && next === '-') {
+      while (i < sql.length && sql[i] !== '\n') i++;
+      out += ' ';
+      continue;
+    }
+    if (!inSingle && !inDouble && ch === '/' && next === '*') {
+      i += 2;
+      while (i < sql.length && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
+      i += 2;
+      out += ' ';
+      continue;
+    }
+    if (ch === "'" && !inDouble) {
+      if (inSingle && next === "'") {
+        out += "''";
+        i += 2;
+        continue;
+      }
+      inSingle = !inSingle;
+    } else if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let i = 0;
+  let inSingle = false;
+  let inDouble = false;
+
+  while (i < sql.length) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    if (!inSingle && !inDouble && ch === '-' && next === '-') {
+      while (i < sql.length && sql[i] !== '\n') i++;
+      current += '\n';
+      continue;
+    }
+    if (!inSingle && !inDouble && ch === '/' && next === '*') {
+      const startIdx = i;
+      i += 2;
+      let closed = false;
+      while (i < sql.length) {
+        if (sql[i] === '*' && sql[i + 1] === '/') {
+          i += 2;
+          closed = true;
+          break;
+        }
+        i++;
+      }
+      if (!closed) {
+        const err: any = new Error(`Unterminated /* comment at position ${startIdx + 1}`);
+        err.code = '42601';
+        err.position = String(startIdx + 1);
+        throw err;
+      }
+      current += ' ';
+      continue;
+    }
+
+    if (ch === "'" && !inDouble) {
+      current += ch;
+      if (inSingle && next === "'") {
+        current += next;
+        i += 2;
+        continue;
+      }
+      inSingle = !inSingle;
+      i++;
+      continue;
+    }
+
+    if (ch === '"' && !inSingle) {
+      current += ch;
+      inDouble = !inDouble;
+      i++;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && ch === ';') {
+      const trimmed = current.trim();
+      if (trimmed) statements.push(trimmed);
+      current = '';
+      i++;
+      continue;
+    }
+
+    current += ch;
+    i++;
+  }
+
+  if (inSingle) {
+    const err: any = new Error('Unterminated quoted string constant');
+    err.code = '42601';
+    throw err;
+  }
+  if (inDouble) {
+    const err: any = new Error('Unterminated quoted identifier');
+    err.code = '42601';
+    throw err;
+  }
+
+  const tail = current.trim();
+  if (tail) statements.push(tail);
+  return statements;
+}
+
+function parseSqlLiteral(rawToken: string): any {
+  const token = rawToken.trim();
+  const upper = token.toUpperCase();
+  if (upper === 'NULL') return null;
+  if (upper === 'TRUE') return true;
+  if (upper === 'FALSE') return false;
+  if (upper === 'NOW()' || upper === 'CURRENT_TIMESTAMP') return new Date().toISOString();
+  if (token.startsWith("'") && token.endsWith("'") && token.length >= 2) {
+    return token.slice(1, -1).replace(/''/g, "'");
+  }
+  if (/^-?\d+(\.\d+)?$/.test(token)) {
+    return Number(token);
+  }
+  return token;
+}
+
+function splitTopLevelComma(expr: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    const next = expr[i + 1];
+    if (ch === "'" && !inDouble) {
+      current += ch;
+      if (inSingle && next === "'") {
+        current += next;
+        i++;
+        continue;
+      }
+      inSingle = !inSingle;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      current += ch;
+      inDouble = !inDouble;
+      continue;
+    }
+    if (!inSingle && !inDouble) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth = Math.max(0, depth - 1);
+      else if (ch === ',' && depth === 0) {
+        parts.push(current.trim());
+        current = '';
+        continue;
+      }
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function evaluateMockWhere(row: Record<string, any>, whereClause: string): boolean {
+  const trimmed = whereClause.trim();
+  if (!trimmed) return true;
+
+  // Handle OR groups only outside parentheses/quotes
+  const orParts = splitLogicalKeyword(trimmed, 'OR');
+  if (orParts.length > 1) {
+    return orParts.some((part) => evaluateMockWhere(row, part));
+  }
+
+  const andParts = splitLogicalKeyword(trimmed, 'AND');
+  if (andParts.length > 1) {
+    return andParts.every((part) => evaluateMockWhere(row, part));
+  }
+
+  let cond = trimmed;
+  if (cond.startsWith('(') && cond.endsWith(')')) {
+    cond = cond.slice(1, -1).trim();
+  }
+
+  const isNullMatch = cond.match(/^"?([a-zA-Z0-9_]+)"?\s+IS\s+(NOT\s+)?NULL$/i);
+  if (isNullMatch) {
+    const col = isNullMatch[1];
+    const isNot = Boolean(isNullMatch[2]);
+    const val = row[col];
+    return isNot ? val !== null && val !== undefined : val === null || val === undefined;
+  }
+
+  const inMatch = cond.match(/^"?([a-zA-Z0-9_]+)"?\s+(NOT\s+)?IN\s*\((.+)\)$/i);
+  if (inMatch) {
+    const col = inMatch[1];
+    const isNot = Boolean(inMatch[2]);
+    const vals = splitTopLevelComma(inMatch[3]).map(parseSqlLiteral);
+    const matched = vals.some((v) => String(row[col]) === String(v));
+    return isNot ? !matched : matched;
+  }
+
+  const opMatch = cond.match(/^"?([a-zA-Z0-9_]+)"?\s*(=|!=|<>|>=|<=|>|<|ILIKE|LIKE)\s*(.+)$/i);
+  if (opMatch) {
+    const col = opMatch[1];
+    const op = opMatch[2].toUpperCase();
+    const expected = parseSqlLiteral(opMatch[3]);
+    const actual = row[col];
+
+    if (op === 'LIKE' || op === 'ILIKE') {
+      const patternStr = String(expected ?? '');
+      const regex = new RegExp(
+        '^' + patternStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$',
+        op === 'ILIKE' ? 'i' : ''
+      );
+      return regex.test(String(actual ?? ''));
+    }
+
+    if (op === '=') {
+      if (typeof actual === 'number' && typeof expected === 'number') return actual === expected;
+      if (typeof actual === 'boolean' && typeof expected === 'boolean') return actual === expected;
+      return String(actual ?? '') === String(expected ?? '');
+    }
+    if (op === '!=' || op === '<>') {
+      if (typeof actual === 'number' && typeof expected === 'number') return actual !== expected;
+      return String(actual ?? '') !== String(expected ?? '');
+    }
+    const numA = Number(actual);
+    const numB = Number(expected);
+    if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+      if (op === '>') return numA > numB;
+      if (op === '>=') return numA >= numB;
+      if (op === '<') return numA < numB;
+      if (op === '<=') return numA <= numB;
+    }
+    const strA = String(actual ?? '');
+    const strB = String(expected ?? '');
+    if (op === '>') return strA > strB;
+    if (op === '>=') return strA >= strB;
+    if (op === '<') return strA < strB;
+    if (op === '<=') return strA <= strB;
+  }
+
+  const err: any = new Error(`Unsupported or invalid WHERE condition: "${cond}"`);
+  err.code = '42601';
+  throw err;
+}
+
+function splitLogicalKeyword(expr: string, keyword: 'AND' | 'OR'): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  const kwLen = keyword.length;
+
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    const next = expr[i + 1];
+    if (ch === "'" && !inDouble) {
+      current += ch;
+      if (inSingle && next === "'") {
+        current += next;
+        i++;
+        continue;
+      }
+      inSingle = !inSingle;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      current += ch;
+      inDouble = !inDouble;
+      continue;
+    }
+    if (!inSingle && !inDouble) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth = Math.max(0, depth - 1);
+      else if (depth === 0) {
+        const prevChar = i > 0 ? expr[i - 1] : ' ';
+        const slice = expr.slice(i, i + kwLen);
+        const afterChar = expr[i + kwLen] ?? ' ';
+        if (
+          /\s/.test(prevChar) &&
+          slice.toUpperCase() === keyword &&
+          /\s/.test(afterChar)
+        ) {
+          parts.push(current.trim());
+          current = '';
+          i += kwLen - 1;
+          continue;
+        }
+      }
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function normalizeMockTableName(rawTable: string): string {
+  return rawTable
+    .trim()
+    .replace(/^public\./i, '')
+    .replace(/^"([^"]+)"$/, '$1')
+    .toLowerCase();
+}
+
+async function executeMockRawSql(
+  sqlText: string,
+  startedAt: number,
+  maxPreviewRows: number
+): Promise<RawSqlExecutionResult> {
+  const snapshot = structuredClone({ store: mockStore, counters: mockIdCounters });
+  const statements = splitSqlStatements(sqlText);
+  if (statements.length === 0) {
+    const err: any = new Error('SQL query contains no executable statements.');
+    err.code = '42601';
+    throw err;
+  }
+
+  let lastCommand = 'OK';
+  let lastRows: Record<string, any>[] = [];
+  let lastColumns: string[] = [];
+  let totalAffected = 0;
+
+  try {
+    for (const stmt of statements) {
+      const cleanStmt = stmt.trim();
+      const upperStmt = cleanStmt.toUpperCase();
+
+      if (upperStmt === 'BEGIN' || upperStmt === 'START TRANSACTION') {
+        lastCommand = 'BEGIN';
+        continue;
+      }
+      if (upperStmt === 'COMMIT') {
+        lastCommand = 'COMMIT';
+        continue;
+      }
+      if (upperStmt === 'ROLLBACK') {
+        restoreMockStoreSnapshot(snapshot);
+        lastCommand = 'ROLLBACK';
+        lastRows = [];
+        lastColumns = [];
+        continue;
+      }
+
+      // CREATE TABLE [IF NOT EXISTS] tbl ...
+      const createTblMatch = cleanStmt.match(/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)/i);
+      if (createTblMatch) {
+        const tbl = normalizeMockTableName(createTblMatch[1]);
+        if (!mockStore[tbl]) {
+          mockStore[tbl] = [];
+          mockIdCounters[tbl] = 1;
+        }
+        lastCommand = 'CREATE';
+        continue;
+      }
+
+      // DROP TABLE [IF EXISTS] tbl
+      const dropTblMatch = cleanStmt.match(/^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([^\s;]+)/i);
+      if (dropTblMatch) {
+        const tbl = normalizeMockTableName(dropTblMatch[1]);
+        if (!mockStore[tbl] && !/IF\s+EXISTS/i.test(cleanStmt)) {
+          const err: any = new Error(`table "${tbl}" does not exist`);
+          err.code = '42P01';
+          throw err;
+        }
+        delete mockStore[tbl];
+        lastCommand = 'DROP';
+        continue;
+      }
+
+      // TRUNCATE [TABLE] tbl
+      const truncMatch = cleanStmt.match(/^TRUNCATE\s+(?:TABLE\s+)?([^\s;]+)/i);
+      if (truncMatch) {
+        const tbl = normalizeMockTableName(truncMatch[1]);
+        if (!Array.isArray(mockStore[tbl])) {
+          const err: any = new Error(`relation "${tbl}" does not exist`);
+          err.code = '42P01';
+          throw err;
+        }
+        const count = mockStore[tbl].length;
+        mockStore[tbl] = [];
+        totalAffected += count;
+        lastCommand = 'TRUNCATE';
+        lastRows = [];
+        lastColumns = [];
+        continue;
+      }
+
+      // SELECT without FROM (e.g. SELECT 1, SELECT NOW(), SELECT version())
+      if (/^SELECT\b/i.test(cleanStmt) && !/\bFROM\b/i.test(cleanStmt)) {
+        const selectBody = cleanStmt.replace(/^SELECT\s+/i, '').trim();
+        const exprs = splitTopLevelComma(selectBody);
+        const row: Record<string, any> = {};
+        const cols: string[] = [];
+        exprs.forEach((expr, idx) => {
+          const aliasMatch = expr.match(/^(.+?)\s+AS\s+"?([a-zA-Z0-9_]+)"?$/i);
+          const rawExpr = aliasMatch ? aliasMatch[1].trim() : expr.trim();
+          const upperExpr = rawExpr.toUpperCase();
+          let val: any;
+          let colName = aliasMatch ? aliasMatch[2] : `column_${idx + 1}`;
+          if (upperExpr === 'NOW()' || upperExpr === 'CURRENT_TIMESTAMP') {
+            val = new Date().toISOString();
+            if (!aliasMatch) colName = 'now';
+          } else if (upperExpr === 'VERSION()') {
+            val = 'PostgreSQL 16.0 (AI Studio In-Memory Store)';
+            if (!aliasMatch) colName = 'version';
+          } else if (upperExpr === 'CURRENT_DATABASE()') {
+            val = dbInfo.database || 'postgres';
+            if (!aliasMatch) colName = 'current_database';
+          } else {
+            val = parseSqlLiteral(rawExpr);
+            if (!aliasMatch && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(rawExpr)) colName = rawExpr;
+            else if (!aliasMatch && /^-?\d+(\.\d+)?$/.test(rawExpr)) colName = '?column?';
+          }
+          row[colName] = val;
+          cols.push(colName);
+        });
+        lastCommand = 'SELECT';
+        lastRows = [row];
+        lastColumns = cols;
+        totalAffected = 1;
+        continue;
+      }
+
+      // SELECT ... FROM ...
+      if (/^SELECT\b/i.test(cleanStmt)) {
+        const selectMatch = cleanStmt.match(
+          /^SELECT\s+([\s\S]+?)\s+FROM\s+([^\s;]+)([\s\S]*)$/i
+        );
+        if (!selectMatch) {
+          const err: any = new Error(`Syntax error near "${cleanStmt.slice(0, 48)}"`);
+          err.code = '42601';
+          throw err;
+        }
+        const projectionRaw = selectMatch[1].trim();
+        const tblRaw = selectMatch[2].trim();
+        const maybeWhereOrderLimit = (selectMatch[3] || '').trim();
+
+        const tbl = normalizeMockTableName(tblRaw);
+        let sourceRows: Record<string, any>[];
+        if (tbl === 'information_schema.tables') {
+          sourceRows = Object.keys(mockStore).map((t) => ({
+            table_schema: 'public',
+            table_name: t,
+            table_type: 'BASE TABLE',
+          }));
+        } else if (Array.isArray(mockStore[tbl])) {
+          sourceRows = mockStore[tbl].map((r) => ({ ...r }));
+        } else {
+          const err: any = new Error(`relation "${tbl}" does not exist`);
+          err.code = '42P01';
+          throw err;
+        }
+
+        // Parse WHERE / ORDER BY / LIMIT / OFFSET accurately
+        const whereClauseMatch = maybeWhereOrderLimit.match(
+          /\bWHERE\s+([\s\S]+?)(?=\s+ORDER\s+BY\b|\s+LIMIT\b|\s+OFFSET\b|$)/i
+        );
+        const orderMatch = maybeWhereOrderLimit.match(/\bORDER\s+BY\s+([\s\S]+?)(?=\s+LIMIT\b|\s+OFFSET\b|$)/i);
+        const limitMatch = maybeWhereOrderLimit.match(/\bLIMIT\s+(\d+)/i);
+        const offsetMatch = maybeWhereOrderLimit.match(/\bOFFSET\s+(\d+)/i);
+
+        let filtered = whereClauseMatch
+          ? sourceRows.filter((r) => evaluateMockWhere(r, whereClauseMatch[1]))
+          : sourceRows;
+
+        if (/^COUNT\s*\(\s*\*\s*\)(?:\s+AS\s+"?([a-zA-Z0-9_]+)"?)?$/i.test(projectionRaw)) {
+          const aliasMatch = projectionRaw.match(/\bAS\s+"?([a-zA-Z0-9_]+)"?$/i);
+          const col = aliasMatch ? aliasMatch[1] : 'count';
+          lastCommand = 'SELECT';
+          lastRows = [{ [col]: String(filtered.length) }];
+          lastColumns = [col];
+          totalAffected = 1;
+          continue;
+        }
+
+        if (orderMatch) {
+          const orderParts = orderMatch[1].trim().split(',')[0].trim().split(/\s+/);
+          const orderCol = orderParts[0].replace(/^"|"$/g, '');
+          const desc = (orderParts[1] || '').toUpperCase() === 'DESC';
+          filtered = [...filtered].sort((a, b) => {
+            const va = a[orderCol];
+            const vb = b[orderCol];
+            if (typeof va === 'number' && typeof vb === 'number') return desc ? vb - va : va - vb;
+            return desc
+              ? String(vb ?? '').localeCompare(String(va ?? ''))
+              : String(va ?? '').localeCompare(String(vb ?? ''));
+          });
+        }
+
+        const offsetVal = offsetMatch ? Math.max(0, parseInt(offsetMatch[1], 10)) : 0;
+        const limitVal = limitMatch ? Math.max(0, parseInt(limitMatch[1], 10)) : null;
+        if (offsetVal > 0 || limitVal !== null) {
+          filtered = filtered.slice(offsetVal, limitVal !== null ? offsetVal + limitVal : undefined);
+        }
+
+        if (projectionRaw === '*') {
+          const cols = filtered.length > 0 ? Object.keys(filtered[0]) : [];
+          lastRows = filtered;
+          lastColumns = cols;
+        } else {
+          const colsList = splitTopLevelComma(projectionRaw);
+          const resolvedCols: string[] = [];
+          const projected = filtered.map((row, rIdx) => {
+            const out: Record<string, any> = {};
+            colsList.forEach((colExpr) => {
+              const aliasM = colExpr.match(/^(.+?)\s+AS\s+"?([a-zA-Z0-9_]+)"?$/i);
+              const srcCol = (aliasM ? aliasM[1] : colExpr).trim().replace(/^[a-zA-Z0-9_]+\./, '').replace(/^"|"$/g, '');
+              const outCol = aliasM ? aliasM[2] : srcCol;
+              if (rIdx === 0) resolvedCols.push(outCol);
+              out[outCol] = row[srcCol] !== undefined ? row[srcCol] : null;
+            });
+            return out;
+          });
+          if (projected.length === 0) {
+            colsList.forEach((colExpr) => {
+              const aliasM = colExpr.match(/^(.+?)\s+AS\s+"?([a-zA-Z0-9_]+)"?$/i);
+              const srcCol = (aliasM ? aliasM[1] : colExpr).trim().replace(/^[a-zA-Z0-9_]+\./, '').replace(/^"|"$/g, '');
+              resolvedCols.push(aliasM ? aliasM[2] : srcCol);
+            });
+          }
+          lastRows = projected;
+          lastColumns = resolvedCols;
+        }
+        lastCommand = 'SELECT';
+        totalAffected = lastRows.length;
+        continue;
+      }
+
+      // INSERT INTO tbl [(cols)] VALUES (...) [ON CONFLICT ...] [RETURNING ...]
+      if (/^INSERT\s+INTO\b/i.test(cleanStmt)) {
+        const insMatch = cleanStmt.match(
+          /^INSERT\s+INTO\s+([^\s(]+)\s*(?:\(([^)]+)\))?\s*VALUES\s*([\s\S]+?)(?:\s+ON\s+CONFLICT[\s\S]*?)?(?:\s+RETURNING\s+([\s\S]+))?$/i
+        );
+        if (!insMatch) {
+          const err: any = new Error(`Syntax error in INSERT statement near "${cleanStmt.slice(0, 48)}"`);
+          err.code = '42601';
+          throw err;
+        }
+        const tbl = normalizeMockTableName(insMatch[1]);
+        if (!Array.isArray(mockStore[tbl])) {
+          const err: any = new Error(`relation "${tbl}" does not exist`);
+          err.code = '42P01';
+          throw err;
+        }
+        const cols = insMatch[2]
+          ? insMatch[2].split(',').map((c) => c.trim().replace(/^"|"$/g, ''))
+          : null;
+        const valuesBody = insMatch[3].trim();
+        const returningClause = insMatch[4]?.trim();
+
+        // Parse tuple "(v1, v2), (v3, v4)"
+        const tupleMatches: string[] = [];
+        let depth = 0;
+        let inS = false;
+        let buf = '';
+        for (let i = 0; i < valuesBody.length; i++) {
+          const ch = valuesBody[i];
+          const nxt = valuesBody[i + 1];
+          if (ch === "'") {
+            buf += ch;
+            if (inS && nxt === "'") {
+              buf += nxt;
+              i++;
+              continue;
+            }
+            inS = !inS;
+            continue;
+          }
+          if (!inS) {
+            if (ch === '(') {
+              if (depth === 0) buf = '';
+              else buf += ch;
+              depth++;
+              continue;
+            }
+            if (ch === ')') {
+              depth--;
+              if (depth === 0) {
+                tupleMatches.push(buf);
+                buf = '';
+                continue;
+              }
+            }
+          }
+          if (depth > 0) buf += ch;
+        }
+
+        if (tupleMatches.length === 0) {
+          const err: any = new Error('INSERT VALUES clause contains no tuples.');
+          err.code = '42601';
+          throw err;
+        }
+
+        const insertedRows: Record<string, any>[] = [];
+        for (const tupleStr of tupleMatches) {
+          const rawVals = splitTopLevelComma(tupleStr);
+          const parsedVals = rawVals.map(parseSqlLiteral);
+          const newRow: Record<string, any> = {};
+          if (cols) {
+            if (cols.length !== parsedVals.length) {
+              const err: any = new Error('INSERT has more target columns than expressions or vice versa.');
+              err.code = '42601';
+              throw err;
+            }
+            cols.forEach((c, idx) => {
+              newRow[c] = parsedVals[idx];
+            });
+          } else {
+            parsedVals.forEach((v, idx) => {
+              newRow[`col_${idx + 1}`] = v;
+            });
+          }
+          if (newRow.id === undefined && tbl !== 'app_settings') {
+            newRow.id = nextMockId(tbl);
+          }
+          if (newRow.created_at === undefined) newRow.created_at = new Date().toISOString();
+          if (newRow.updated_at === undefined) newRow.updated_at = new Date().toISOString();
+          mockStore[tbl].push(newRow);
+          insertedRows.push({ ...newRow });
+        }
+
+        lastCommand = 'INSERT';
+        totalAffected += insertedRows.length;
+        if (returningClause) {
+          lastRows = returningClause === '*' ? insertedRows : insertedRows;
+          lastColumns = lastRows.length > 0 ? Object.keys(lastRows[0]) : [];
+        } else {
+          lastRows = [];
+          lastColumns = [];
+        }
+        continue;
+      }
+
+      // UPDATE tbl SET ... [WHERE ...] [RETURNING ...]
+      if (/^UPDATE\b/i.test(cleanStmt)) {
+        const updMatch = cleanStmt.match(
+          /^UPDATE\s+([^\s]+)\s+SET\s+([\s\S]+?)(?:\s+WHERE\s+([\s\S]+?))?(?:\s+RETURNING\s+([\s\S]+))?$/i
+        );
+        if (!updMatch) {
+          const err: any = new Error(`Syntax error in UPDATE statement near "${cleanStmt.slice(0, 48)}"`);
+          err.code = '42601';
+          throw err;
+        }
+        const tbl = normalizeMockTableName(updMatch[1]);
+        if (!Array.isArray(mockStore[tbl])) {
+          const err: any = new Error(`relation "${tbl}" does not exist`);
+          err.code = '42P01';
+          throw err;
+        }
+        const assignments = splitTopLevelComma(updMatch[2]);
+        const updates: Array<[string, any]> = assignments.map((part) => {
+          const eqIdx = part.indexOf('=');
+          if (eqIdx === -1) {
+            const err: any = new Error(`Invalid SET assignment "${part}"`);
+            err.code = '42601';
+            throw err;
+          }
+          const col = part.slice(0, eqIdx).trim().replace(/^"|"$/g, '');
+          const val = parseSqlLiteral(part.slice(eqIdx + 1));
+          return [col, val];
+        });
+        const whereClause = updMatch[3]?.trim() || '';
+        const returningClause = updMatch[4]?.trim();
+
+        const updatedRows: Record<string, any>[] = [];
+        for (const row of mockStore[tbl]) {
+          if (!whereClause || evaluateMockWhere(row, whereClause)) {
+            for (const [col, val] of updates) {
+              row[col] = val;
+            }
+            updatedRows.push({ ...row });
+          }
+        }
+        lastCommand = 'UPDATE';
+        totalAffected += updatedRows.length;
+        if (returningClause) {
+          lastRows = updatedRows;
+          lastColumns = updatedRows.length > 0 ? Object.keys(updatedRows[0]) : [];
+        } else {
+          lastRows = [];
+          lastColumns = [];
+        }
+        continue;
+      }
+
+      // DELETE FROM tbl [WHERE ...] [RETURNING ...]
+      if (/^DELETE\s+FROM\b/i.test(cleanStmt)) {
+        const delMatch = cleanStmt.match(
+          /^DELETE\s+FROM\s+([^\s;]+)(?:\s+WHERE\s+([\s\S]+?))?(?:\s+RETURNING\s+([\s\S]+))?$/i
+        );
+        if (!delMatch) {
+          const err: any = new Error(`Syntax error in DELETE statement near "${cleanStmt.slice(0, 48)}"`);
+          err.code = '42601';
+          throw err;
+        }
+        const tbl = normalizeMockTableName(delMatch[1]);
+        if (!Array.isArray(mockStore[tbl])) {
+          const err: any = new Error(`relation "${tbl}" does not exist`);
+          err.code = '42P01';
+          throw err;
+        }
+        const whereClause = delMatch[2]?.trim() || '';
+        const returningClause = delMatch[3]?.trim();
+
+        const deletedRows: Record<string, any>[] = [];
+        const keptRows: Record<string, any>[] = [];
+        for (const row of mockStore[tbl]) {
+          if (!whereClause || evaluateMockWhere(row, whereClause)) {
+            deletedRows.push({ ...row });
+          } else {
+            keptRows.push(row);
+          }
+        }
+        mockStore[tbl] = keptRows;
+        lastCommand = 'DELETE';
+        totalAffected += deletedRows.length;
+        if (returningClause) {
+          lastRows = deletedRows;
+          lastColumns = deletedRows.length > 0 ? Object.keys(deletedRows[0]) : [];
+        } else {
+          lastRows = [];
+          lastColumns = [];
+        }
+        continue;
+      }
+
+      const firstToken = cleanStmt.split(/\s+/)[0] || '';
+      const err: any = new Error(`syntax error at or near "${firstToken}"`);
+      err.code = '42601';
+      throw err;
+    }
+
+    const truncated = lastRows.length > maxPreviewRows;
+    const previewRows = truncated ? lastRows.slice(0, maxPreviewRows) : lastRows;
+
+    return {
+      command: lastCommand,
+      rowCount: lastRows.length > 0 ? lastRows.length : totalAffected,
+      columns: lastColumns,
+      rows: previewRows,
+      totalRowsReturned: lastRows.length,
+      truncated,
+      statementCount: statements.length,
+      durationMs: Math.max(1, Date.now() - startedAt),
+    };
+  } catch (err) {
+    restoreMockStoreSnapshot(snapshot);
+    throw err;
+  }
+}
 
 export { dbInfo, rawPool };
