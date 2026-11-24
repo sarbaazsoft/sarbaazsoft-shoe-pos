@@ -12,6 +12,8 @@ import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { LuxuryBadge } from '../common/Badge';
 import type { LuxuryBadgeTone } from '../../utils/badgeStyles';
+import { LicenseAgreementModal } from '../common/LicenseAgreementModal';
+import type { LicenseAgreementType } from '../../data/licenseAgreements';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Autoplay, Pagination } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
@@ -669,6 +671,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   };
 
   const [plan, setPlan] = useState('TRIAL');
+  const [licenseModalType, setLicenseModalType] = useState<LicenseAgreementType | null>(null);
 
   const openGetStartedWithPlan = (selectedPlan: string) => {
     setPlan(selectedPlan);
@@ -973,7 +976,23 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 lt:text-slate-500">
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-2.5 gap-y-1 text-[11px] sm:text-xs text-slate-400 lt:text-slate-500">
+              <button
+                type="button"
+                onClick={() => setLicenseModalType('free_trial')}
+                className="hover:text-white lt:hover:text-slate-900 underline-offset-2 hover:underline transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Free Trial License
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                onClick={() => setLicenseModalType('premium')}
+                className="hover:text-white lt:hover:text-slate-900 underline-offset-2 hover:underline transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Premium License
+              </button>
+              <span aria-hidden="true">·</span>
               <span>&copy; {new Date().getFullYear()} SarbaazSoft Shoe POS. All rights reserved.</span>
               <button
                 type="button"
@@ -1370,10 +1389,31 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                     {p.cta}
                   </button>
                   <p className="mt-3 text-center text-xs leading-relaxed text-slate-400 lt:text-slate-500">{p.note}</p>
+                  <div className="mt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setLicenseModalType(p.id === 'TRIAL' ? 'free_trial' : 'premium')}
+                      className="text-[11px] font-medium text-indigo-300 lt:text-indigo-600 hover:text-white lt:hover:text-indigo-800 underline underline-offset-2 transition-colors cursor-pointer"
+                    >
+                      {p.id === 'TRIAL' ? 'View Free Trial License' : 'View Premium License Terms'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+
+          <p className="mt-6 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-slate-400 lt:text-slate-500 leading-relaxed">
+            Displayed paid plan rates are introductory promotional prices subject to change without prior notice under the{' '}
+            <button
+              type="button"
+              onClick={() => setLicenseModalType('premium')}
+              className="text-indigo-300 lt:text-indigo-600 hover:underline underline-offset-2 font-medium cursor-pointer"
+            >
+              Premium Subscription Software License Agreement
+            </button>
+            .
+          </p>
         </div>
       </section>
 
@@ -1432,6 +1472,14 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         onStoreCreated={handleStoreCreated}
         theme={landingTheme}
         onToggleTheme={toggleLandingTheme}
+      />
+
+      <LicenseAgreementModal
+        isOpen={licenseModalType !== null}
+        onClose={() => setLicenseModalType(null)}
+        initialLicenseType={licenseModalType || 'free_trial'}
+        allowSwitch={true}
+        theme={landingTheme}
       />
 
     </BodyLayoutWrapper>

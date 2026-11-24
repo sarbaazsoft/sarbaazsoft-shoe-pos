@@ -35,7 +35,7 @@ export const PurchaseReturnDetailsModal: React.FC<PurchaseReturnDetailsModalProp
   );
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92dvh] my-auto">
         {/* Modal Header */}
         <div className="p-3.5 sm:p-5 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white shrink-0">

@@ -1,10 +1,12 @@
-import React from 'react';
-import { ShieldOff, Lock, ArrowLeft, Shield, KeyRound, Calendar, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { ShieldOff, Lock, ArrowLeft, Shield, KeyRound, Calendar, Clock, FileText } from 'lucide-react';
 import type { TenantInfo } from '../../types';
 import { isFreeTrial } from '../../utils/subscription';
 import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
+import { LicenseAgreementModal } from '../common/LicenseAgreementModal';
+import type { LicenseAgreementType } from '../../data/licenseAgreements';
 
 interface SuspendedStoreViewProps {
   tenant: TenantInfo | null;
@@ -38,11 +40,14 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
       })
     : 'N/A';
 
-  const planLabel = isFreeTrial(tenant?.subscriptionPlan)
+  const isTrialPlan = isFreeTrial(tenant?.subscriptionPlan);
+  const planLabel = isTrialPlan
     ? '30-Day Free Trial'
     : tenant?.subscriptionPlan === '6_MONTHS'
     ? '6 Months'
     : 'Yearly';
+
+  const [licenseModalType, setLicenseModalType] = useState<LicenseAgreementType | null>(null);
 
   const statusLayoutMeta = resolveRouteLayoutMetadata(
     expired ? 'TENANT_EXPIRED' : 'TENANT_SUSPENDED',
@@ -53,7 +58,7 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
     <BodyLayoutWrapper
       layoutMeta={statusLayoutMeta}
       className="bg-slate-950 text-slate-100"
-      mainClassName="relative z-10 p-3.5 sm:p-6"
+      mainClassName="relative z-10 px-2 py-4 sm:px-4 sm:py-6"
       backdrop={<ShowroomBackground />}
     >
       <div className="max-w-lg w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-5 sm:p-8 shadow-2xl">
@@ -110,6 +115,25 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
                 {expired ? 'EXPIRED' : tenant.subscriptionStatus || tenant.status}
               </span>
             </div>
+            <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setLicenseModalType(isTrialPlan ? 'free_trial' : 'premium')}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200 underline underline-offset-2 transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span>View Applicable License Agreement</span>
+              </button>
+              {expired && (
+                <button
+                  type="button"
+                  onClick={() => setLicenseModalType('premium')}
+                  className="text-[11px] font-semibold text-purple-300 hover:text-purple-200 underline underline-offset-2 transition-colors cursor-pointer"
+                >
+                  View Premium Renewal Terms
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -146,6 +170,14 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
           </button>
         </div>
       </div>
+
+      <LicenseAgreementModal
+        isOpen={licenseModalType !== null}
+        onClose={() => setLicenseModalType(null)}
+        initialLicenseType={licenseModalType || (isTrialPlan ? 'free_trial' : 'premium')}
+        allowSwitch={true}
+        theme="dark"
+      />
     </BodyLayoutWrapper>
   );
 };

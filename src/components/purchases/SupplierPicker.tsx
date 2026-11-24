@@ -993,7 +993,7 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
       {/* DEDICATED "FIND SUPPLIER" LOOKUP MODAL */}
       {isModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4"
+          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4"
           onKeyDown={handleModalKeyDown}
         >
           <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88dvh] animate-in fade-in zoom-in-95 duration-150">

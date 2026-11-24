@@ -171,7 +171,7 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
       onClick={onClose}
     >
       <motion.div

@@ -355,7 +355,7 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
   ];
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4 animate-in fade-in duration-200">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 animate-in fade-in duration-200">
       <div className="w-full max-w-2xl app-modal-container flex flex-col max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden">
         {/* Header */}
         <div className="flex items-start sm:items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white">

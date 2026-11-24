@@ -761,7 +761,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* ADD / EDIT SUPPLIER MODAL */}
       {isModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto">
           <div className="relative w-full max-w-lg max-h-[92dvh] bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
               <div className="flex items-center space-x-2.5">
@@ -903,7 +903,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* VIEW SUPPLIER PURCHASES HISTORY MODAL */}
       {viewSupplierModalOpen && selectedSupplier && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto">
           <div className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh] border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 gap-2">
               <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
@@ -1175,7 +1175,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* DELETE CONFIRMATION DIALOG */}
       {deletingSupplierId && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
               <AlertCircle className="w-5 h-5" />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette } from 'lucide-react';
+import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette, FileText } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { LicenseAgreementModal } from '../common/LicenseAgreementModal.tsx';
+import type { LicenseAgreementType } from '../../data/licenseAgreements.ts';
 import { lazyWithRetry } from '../../utils/lazyWithRetry.ts';
 const PrinterHardwareSettings = lazyWithRetry(() => import('./PrinterHardwareSettings.tsx'), (m) => m.PrinterHardwareSettings, '/src/components/settings/PrinterHardwareSettings.tsx');
 const DataBackupRestore = lazyWithRetry(() => import('./DataBackupRestore.tsx'), (m) => m.DataBackupRestore, '/src/components/settings/DataBackupRestore.tsx');
@@ -423,6 +425,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSubmittingRenewal, setIsSubmittingRenewal] = useState(false);
   const [renewalSuccessMessage, setRenewalSuccessMessage] = useState<string | null>(null);
   const [renewalErrorMessage, setRenewalErrorMessage] = useState<string | null>(null);
+  const [licenseModalType, setLicenseModalType] = useState<LicenseAgreementType | null>(null);
+  const [acceptedPremiumLicense, setAcceptedPremiumLicense] = useState(false);
   const hasAutoPromptedExpiredRef = useRef(false);
 
   // Automatically display the 'Renew' modal if the store subscription status is EXPIRED
@@ -440,6 +444,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSelectedRenewalPlan(plan);
       setActiveTemplateChip('REACTIVATION');
       setHasUserEditedNotes(false);
+      setAcceptedPremiumLicense(false);
       setRenewalNotes(getRenewalMessageTemplate('REACTIVATION', plan, subscriptionInfo.subscriptionPlan));
       setIsRenewModalOpen(true);
     }
@@ -448,6 +453,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleOpenRenewModal = () => {
     setRenewalErrorMessage(null);
     setRenewalSuccessMessage(null);
+    setAcceptedPremiumLicense(false);
     const isExpired = String(subscriptionInfo.subscriptionStatus || '').toUpperCase() === 'EXPIRED';
     const norm = normalizeSubscriptionPlan(subscriptionInfo.subscriptionPlan);
     // If active on 1-year, extension plan can only be YEARLY.
@@ -486,6 +492,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleRequestSubscriptionRenewal = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!acceptedPremiumLicense) {
+      setRenewalErrorMessage('Please accept the Premium Subscription Software License Agreement before submitting.');
+      return;
+    }
     setIsSubmittingRenewal(true);
     setRenewalErrorMessage(null);
     setRenewalSuccessMessage(null);
@@ -2083,6 +2093,24 @@ setFormErrors(errors);
                 </div>
               </div>
             </div>
+
+            <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-purple-900/40 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Applicable terms:{' '}
+                <strong className="text-slate-700 dark:text-slate-200">
+                  {isTrialActive ? 'Free Trial Software License Agreement' : 'Premium Subscription Software License Agreement'}
+                </strong>
+              </span>
+              <button
+                id="settings-view-license-agreement-btn"
+                type="button"
+                onClick={() => setLicenseModalType(isTrialActive ? 'free_trial' : 'premium')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 underline underline-offset-2 transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span>View Active Software License</span>
+              </button>
+            </div>
           </div>
 
           {/* CARD 1: COMPANY PROFILE */}
@@ -3116,7 +3144,7 @@ setFormErrors(errors);
           <AnimatePresence>
             {userToDelete && (
               <div
-                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
                 onClick={() => !isDeletingUser && setUserToDelete(null)}
               >
                 <motion.div
@@ -5016,7 +5044,7 @@ setFormErrors(errors);
       {isRenewModalOpen && (
         <div
           id="renew-subscription-modal"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsRenewModalOpen(false);
           }}
@@ -5346,6 +5374,48 @@ setFormErrors(errors);
                         Tip: Pre-filled with standard format. Simply replace <code className="bg-slate-100 dark:bg-purple-950/60 px-1 py-0.5 rounded text-purple-600 dark:text-purple-300 font-mono">[Insert Ref ID]</code> with your actual bank/online transfer reference ID.
                       </p>
                     </div>
+
+                    <div
+                      className={`p-3.5 rounded-xl border transition-colors ${
+                        acceptedPremiumLicense
+                          ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-700/50'
+                          : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-purple-900/50'
+                      }`}
+                    >
+                      <label
+                        htmlFor="settings-premium-license-checkbox"
+                        className="flex items-start gap-2.5 cursor-pointer select-none"
+                      >
+                        <input
+                          id="settings-premium-license-checkbox"
+                          type="checkbox"
+                          checked={acceptedPremiumLicense}
+                          disabled={isSubmittingRenewal}
+                          onChange={(e) => {
+                            setAcceptedPremiumLicense(e.target.checked);
+                            if (e.target.checked && renewalErrorMessage?.toLowerCase().includes('license')) {
+                              setRenewalErrorMessage(null);
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-purple-500/60 text-purple-600 focus:ring-purple-500/40 cursor-pointer shrink-0 accent-purple-600"
+                        />
+                        <span className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+                          I have read and accept the{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setLicenseModalType('premium');
+                            }}
+                            className="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 cursor-pointer"
+                          >
+                            Premium Subscription Software License Agreement
+                          </button>
+                          <span className="text-rose-500 font-bold ml-0.5">*</span>
+                        </span>
+                      </label>
+                    </div>
                   </form>
 
                   {/* Modal Footer Buttons matching ProductFormModal */}
@@ -5361,8 +5431,9 @@ setFormErrors(errors);
                       id="submit-renew-subscription-btn"
                       type="button"
                       onClick={handleRequestSubscriptionRenewal}
-                      disabled={isSubmittingRenewal}
-                      className="btn-primary px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer shadow-md font-bold disabled:opacity-50"
+                      disabled={isSubmittingRenewal || !acceptedPremiumLicense}
+                      title={!acceptedPremiumLicense ? 'Please accept the Premium Subscription Software License Agreement first' : undefined}
+                      className="btn-primary px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer shadow-md font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSubmittingRenewal ? 'animate-spin' : ''}`} />
                       <span>
@@ -5389,7 +5460,7 @@ setFormErrors(errors);
 
       {/* Camera Capture Modal for Store Receipt Logo */}
       {isCameraOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-2.5 sm:p-4">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4">
           <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl max-w-md w-full max-h-[92dvh] overflow-y-auto">
             <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 dark:border-purple-900/50">
               <div className="flex items-center space-x-2">
@@ -5450,6 +5521,22 @@ setFormErrors(errors);
           </div>
         </div>
       )}
+
+      <LicenseAgreementModal
+        isOpen={licenseModalType !== null}
+        onClose={() => setLicenseModalType(null)}
+        initialLicenseType={licenseModalType || (isTrialActive ? 'free_trial' : 'premium')}
+        allowSwitch={true}
+        onAccept={
+          isRenewModalOpen
+            ? () => {
+                setAcceptedPremiumLicense(true);
+                setLicenseModalType(null);
+              }
+            : undefined
+        }
+        acceptLabel="Accept Premium License"
+      />
     </div>
   );
 };

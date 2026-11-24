@@ -14,6 +14,7 @@ import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { AnalyticsOverviewSkeleton } from '../common/RouteSkeletons.tsx';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
+import { LicenseAgreementModal } from '../common/LicenseAgreementModal.tsx';
 
 interface CustomCategoryArticlesTooltipProps {
   active?: boolean;
@@ -393,10 +394,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
   const [upgradeSuccessMessage, setUpgradeSuccessMessage] = useState<string | null>(null);
   const [upgradeErrorMessage, setUpgradeErrorMessage] = useState<string | null>(null);
+  const [isPremiumLicenseOpen, setIsPremiumLicenseOpen] = useState(false);
+  const [acceptedPremiumLicense, setAcceptedPremiumLicense] = useState(false);
 
   const handleOpenUpgradeModal = () => {
     setUpgradeSuccessMessage(null);
     setUpgradeErrorMessage(null);
+    setAcceptedPremiumLicense(false);
     const plan: '6_MONTHS' | 'YEARLY' = isActive1Year ? 'YEARLY' : 'YEARLY';
     setSelectedUpgradePlan(plan);
     const defaultType = resolveDefaultRenewalTemplateType(
@@ -526,6 +530,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   const handleRequestUpgrade = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!acceptedPremiumLicense) {
+      setUpgradeErrorMessage('Please accept the Premium Subscription Software License Agreement before submitting.');
+      return;
+    }
     setIsSubmittingUpgrade(true);
     setUpgradeErrorMessage(null);
     setUpgradeSuccessMessage(null);
@@ -2433,7 +2441,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="dashboard-upgrade-title"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-2 py-3 sm:px-3 sm:py-4 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget && !isSubmittingUpgrade) {
               setIsUpgradeModalOpen(false);
@@ -2750,6 +2758,48 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         Tip: Pre-filled with standard format. Simply replace <code className="bg-slate-100 dark:bg-purple-950/60 px-1 py-0.5 rounded text-purple-600 dark:text-purple-300 font-mono">[Insert Ref ID]</code> with your actual bank/online transfer reference ID.
                       </p>
                     </div>
+
+                    <div
+                      className={`p-3.5 rounded-xl border transition-colors ${
+                        acceptedPremiumLicense
+                          ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-700/50'
+                          : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-purple-900/50'
+                      }`}
+                    >
+                      <label
+                        htmlFor="dashboard-premium-license-checkbox"
+                        className="flex items-start gap-2.5 cursor-pointer select-none"
+                      >
+                        <input
+                          id="dashboard-premium-license-checkbox"
+                          type="checkbox"
+                          checked={acceptedPremiumLicense}
+                          disabled={isSubmittingUpgrade}
+                          onChange={(e) => {
+                            setAcceptedPremiumLicense(e.target.checked);
+                            if (e.target.checked && upgradeErrorMessage?.toLowerCase().includes('license')) {
+                              setUpgradeErrorMessage(null);
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-purple-500/60 text-purple-600 focus:ring-purple-500/40 cursor-pointer shrink-0 accent-purple-600"
+                        />
+                        <span className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+                          I have read and accept the{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setIsPremiumLicenseOpen(true);
+                            }}
+                            className="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 cursor-pointer"
+                          >
+                            Premium Subscription Software License Agreement
+                          </button>
+                          <span className="text-rose-500 font-bold ml-0.5">*</span>
+                        </span>
+                      </label>
+                    </div>
                   </form>
 
                   {/* Modal Footer Buttons matching ProductFormModal */}
@@ -2776,8 +2826,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       <button
                         type="button"
                         onClick={handleRequestUpgrade}
-                        disabled={isSubmittingUpgrade}
-                        className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50 min-h-[40px] flex-1 sm:flex-initial"
+                        disabled={isSubmittingUpgrade || !acceptedPremiumLicense}
+                        title={!acceptedPremiumLicense ? 'Please accept the Premium Subscription Software License Agreement first' : undefined}
+                        className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px] flex-1 sm:flex-initial"
                       >
                         {isSubmittingUpgrade ? (
                           <>
@@ -2807,6 +2858,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
         </div>
       )}
+
+      <LicenseAgreementModal
+        isOpen={isPremiumLicenseOpen}
+        onClose={() => setIsPremiumLicenseOpen(false)}
+        initialLicenseType="premium"
+        allowSwitch={true}
+        onAccept={() => {
+          setAcceptedPremiumLicense(true);
+          setIsPremiumLicenseOpen(false);
+        }}
+        acceptLabel="Accept Premium License"
+      />
     </div>
   );
 };

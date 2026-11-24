@@ -121,7 +121,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+      <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
         <motion.div
           data-motion-modal="true"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}

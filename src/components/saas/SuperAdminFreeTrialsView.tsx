@@ -1125,7 +1125,7 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* VIEW DETAILS & TRACKING TIMELINE MODAL */}
       {viewingTrial && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
           onClick={() => setViewingTrial(null)}
         >
           <div
@@ -1264,7 +1264,7 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* EDIT FREE TRIAL MODAL */}
       {editingTrial && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
           onClick={() => !savingEdit && setEditingTrial(null)}
         >
           <div
@@ -1436,7 +1436,7 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* EXTEND TRIAL MODAL */}
       {extendingTrialModal && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4"
           onClick={() => busyId === null && setExtendingTrialModal(null)}
         >
           <div
@@ -1520,7 +1520,7 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* PERMANENT CASCADE DELETE MODAL */}
       {deletingTrial && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4"
           onClick={() => !isDeleting && setDeletingTrial(null)}
         >
           <div

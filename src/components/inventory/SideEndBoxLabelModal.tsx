@@ -122,7 +122,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

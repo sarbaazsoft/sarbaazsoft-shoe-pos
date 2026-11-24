@@ -1422,7 +1422,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           />
         }
       >
-        <div className="w-[calc(100%-2rem)] max-w-md mx-4">
+        <div className="w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)] max-w-md mx-2 sm:mx-3">
             <motion.div
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 16, scale: 0.98 }}
@@ -5518,7 +5518,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Add New Store Modal (Aligned with ProductFormModal Header, Cards & Footer) */}
       {createModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => setCreateModalOpen(false)}
         >
           <div
@@ -6083,7 +6083,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* Edit Store Subscription Modal */}
       {storeToEditSub && (
-        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto">
           <div className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
@@ -6247,7 +6247,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* Confirm Delete Store Modal */}
       {storeToDelete && (
-        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto">
           <div className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
@@ -6329,7 +6329,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* SuperAdmin Platform SQL Import Modal */}
       {importSqlModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => !importingPlatformSql && setImportSqlModalOpen(false)}
         >
           <div
@@ -6523,7 +6523,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Compose Custom Notification Modal */}
       {notificationModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
           onClick={() => {
             if (!sendingNotif) setNotificationModalOpen(false);
           }}
@@ -6838,7 +6838,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Confirm Revoke Notification Modal */}
       {notifToRevoke && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-2 py-2.5 sm:px-3 sm:py-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => !revokingNotif && setNotifToRevoke(null)}
         >
           <div

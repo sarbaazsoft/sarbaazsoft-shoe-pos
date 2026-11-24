@@ -7,6 +7,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
 import { useResendCooldown } from '../../hooks/useResendCooldown.ts';
 import { ResendSecurityNotice } from './ResendSecurityNotice.tsx';
+import { LicenseAgreementModal } from '../common/LicenseAgreementModal.tsx';
 
 interface VerifyEmailNoticeViewProps {
   initialEmail?: string;
@@ -73,6 +74,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
   const [isResending, setIsResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
 
   const verificationCooldown = useResendCooldown({
     flow: 'email_verification',
@@ -286,7 +288,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
               errorMessage={resendError}
             />
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-center text-xs">
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
               <button
                 type="button"
                 onClick={() => onNavigateLogin?.(email)}
@@ -294,10 +296,23 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
               </button>
+              <button
+                type="button"
+                onClick={() => setIsLicenseModalOpen(true)}
+                className="text-indigo-600 dark:text-indigo-400 hover:underline underline-offset-2 font-medium cursor-pointer"
+              >
+                Free Trial License
+              </button>
             </div>
           </div>
         )}
       </div>
+      <LicenseAgreementModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        initialLicenseType="free_trial"
+        allowSwitch={true}
+      />
     </PublicLayout>
   );
 };

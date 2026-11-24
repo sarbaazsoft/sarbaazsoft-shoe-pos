@@ -53,7 +53,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
       }
       footer={<PublicFooter storeName={storeName} subtitle={subtitle} />}
       className="bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
-      mainClassName={`relative z-10 px-4 py-6 sm:px-8 sm:py-10 ${contentClassName}`}
+      mainClassName={`relative z-10 px-2 py-6 sm:px-4 sm:py-8 ${contentClassName}`}
     >
       {children}
     </BodyLayoutWrapper>

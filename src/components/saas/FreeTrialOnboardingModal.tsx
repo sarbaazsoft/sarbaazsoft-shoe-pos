@@ -28,6 +28,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
 import { ShowroomBackground } from '../common/ShowroomBackground.tsx';
+import { LicenseAgreementModal } from '../common/LicenseAgreementModal.tsx';
 
 interface FreeTrialOnboardingModalProps {
   isOpen: boolean;
@@ -72,6 +73,8 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
+  const [acceptedLicense, setAcceptedLicense] = useState(false);
 
   const [emailChecking, setEmailChecking] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
@@ -83,6 +86,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
     phone: false,
     password: false,
     confirmPassword: false,
+    license: false,
   });
 
   const emailCheckTimerRef = useRef<any>(null);
@@ -98,6 +102,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
       setShowConfirmPassword(false);
       setIsLoading(false);
       setErrorMessage(null);
+      setAcceptedLicense(false);
       setEmailChecking(false);
       setEmailAvailable(null);
       setEmailCheckMessage(null);
@@ -107,6 +112,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         phone: false,
         password: false,
         confirmPassword: false,
+        license: false,
       });
     }
   }, [isOpen]);
@@ -177,6 +183,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
       phone: true,
       password: true,
       confirmPassword: true,
+      license: true,
     });
 
     if (!cleanName || !isNameValid) {
@@ -207,6 +214,11 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
     if (password !== confirmPassword) {
       setErrorMessage('Passwords do not match. Please verify your confirm password.');
+      return;
+    }
+
+    if (!acceptedLicense) {
+      setErrorMessage('Please accept the Free Trial Software License Agreement to continue.');
       return;
     }
 
@@ -323,7 +335,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className={`relative z-10 w-[calc(100%-4rem)] max-w-xl min-w-0 m-8 max-h-[calc(100dvh-4rem)] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-colors duration-200 ${
+          className={`relative z-10 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)] max-w-xl min-w-0 mx-2 my-6 sm:mx-3 sm:my-8 max-h-[calc(100dvh-3rem)] sm:max-h-[calc(100dvh-4rem)] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-colors duration-200 ${
             isDark
               ? 'bg-[#131B2E] text-white border border-purple-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.8)]'
               : 'bg-white text-slate-900 border border-slate-200 shadow-2xl'
@@ -876,6 +888,70 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
                   Instant Launch
                 </span>
               </div>
+
+              <div
+                className={`w-full rounded-xl border px-3.5 py-2.5 transition-colors ${
+                  touched.license && !acceptedLicense
+                    ? isDark
+                      ? 'bg-rose-950/30 border-rose-500/60'
+                      : 'bg-rose-50/70 border-rose-300'
+                    : acceptedLicense
+                    ? isDark
+                      ? 'bg-emerald-950/20 border-emerald-500/40'
+                      : 'bg-emerald-50/50 border-emerald-200'
+                    : isDark
+                    ? 'bg-[#11182B] border-purple-900/50'
+                    : 'bg-slate-50/80 border-slate-200'
+                }`}
+              >
+                <label
+                  htmlFor="free-trial-license-checkbox"
+                  className="flex items-start gap-2.5 cursor-pointer select-none"
+                >
+                  <input
+                    id="free-trial-license-checkbox"
+                    type="checkbox"
+                    checked={acceptedLicense}
+                    disabled={isLoading}
+                    onChange={(e) => {
+                      setAcceptedLicense(e.target.checked);
+                      setTouched((prev) => ({ ...prev, license: true }));
+                      if (e.target.checked && errorMessage?.toLowerCase().includes('license')) {
+                        setErrorMessage(null);
+                      }
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-purple-500/60 text-purple-600 focus:ring-purple-500/40 cursor-pointer shrink-0 accent-purple-600"
+                  />
+                  <span
+                    className={`text-[11px] sm:text-xs leading-relaxed ${
+                      isDark ? 'text-slate-300' : 'text-slate-700'
+                    }`}
+                  >
+                    I have read and accept the{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsLicenseModalOpen(true);
+                      }}
+                      className={`font-semibold underline underline-offset-2 cursor-pointer transition-colors ${
+                        isDark
+                          ? 'text-indigo-300 hover:text-indigo-200'
+                          : 'text-indigo-600 hover:text-indigo-800'
+                      }`}
+                    >
+                      Free Trial Software License Agreement
+                    </button>
+                    <span className="text-purple-500 font-bold ml-0.5">*</span>
+                  </span>
+                </label>
+                {touched.license && !acceptedLicense && (
+                  <p className="mt-1.5 pl-6 text-[11px] text-rose-500 font-medium">
+                    You must accept the Free Trial Software License Agreement to activate.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* MODAL FOOTER ACTION BAR - Soft Pastel Gradient & Subtle Indigo Divider */}
@@ -901,8 +977,9 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
-                  disabled={isLoading || (touched.email && emailAvailable === false)}
-                  className="btn-primary px-5 py-2.5 text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md font-bold disabled:opacity-50 transition active:scale-[0.99]"
+                  disabled={isLoading || !acceptedLicense || (touched.email && emailAvailable === false)}
+                  title={!acceptedLicense ? 'Please accept the Free Trial Software License Agreement to continue' : undefined}
+                  className="btn-primary px-5 py-2.5 text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md font-bold disabled:opacity-50 disabled:cursor-not-allowed transition active:scale-[0.99]"
                 >
                   {isLoading ? (
                     <>
@@ -924,9 +1001,28 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
     </AnimatePresence>
   );
 
+  const modalWithLicense = (
+    <>
+      {modalContent}
+      <LicenseAgreementModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        initialLicenseType="free_trial"
+        allowSwitch={true}
+        theme={isDark ? 'dark' : 'light'}
+        onAccept={() => {
+          setAcceptedLicense(true);
+          setTouched((prev) => ({ ...prev, license: true }));
+          setIsLicenseModalOpen(false);
+        }}
+        acceptLabel="Accept Free Trial License"
+      />
+    </>
+  );
+
   if (typeof document !== 'undefined' && document.body) {
-    return createPortal(modalContent, document.body);
+    return createPortal(modalWithLicense, document.body);
   }
 
-  return modalContent;
+  return modalWithLicense;
 };
