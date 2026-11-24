@@ -307,7 +307,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         role="dialog"
         aria-modal="true"
         aria-labelledby="free-trial-title"
-        className={`form-modal-theme fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden transition-colors duration-200 ${
+        className={`form-modal-theme fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overflow-x-hidden transition-colors duration-200 ${
           isDark ? 'dark bg-black/80' : 'light bg-slate-900/60'
         } backdrop-blur-xs`}
         data-theme={isDark ? 'dark' : 'light'}
@@ -323,7 +323,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className={`relative z-10 w-full max-w-xl min-w-0 max-h-[94dvh] rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto transition-colors duration-200 ${
+          className={`relative z-10 w-[calc(100%-4rem)] max-w-xl min-w-0 m-8 max-h-[calc(100dvh-4rem)] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-colors duration-200 ${
             isDark
               ? 'bg-[#131B2E] text-white border border-purple-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.8)]'
               : 'bg-white text-slate-900 border border-slate-200 shadow-2xl'
@@ -332,7 +332,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         >
           {/* MODAL HEADER - Soft Pastel Gradient & Subtle Indigo Divider */}
           <div
-            className={`px-3.5 py-3 sm:px-7 sm:py-5 shrink-0 transition-colors duration-200 border-b ${
+            className={`px-4 py-3.5 sm:px-7 sm:py-5 shrink-0 transition-colors duration-200 border-b ${
               isDark
                 ? 'bg-gradient-to-b from-purple-950/40 via-indigo-950/30 to-[#131B2E] border-purple-800/60 text-white'
                 : 'bg-gradient-to-b from-indigo-50/50 via-purple-50/30 to-white border-indigo-100/60 text-slate-800'
@@ -392,7 +392,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
           {/* MODAL BODY FORM */}
           <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 min-h-0 min-w-0 w-full">
-            <div className="p-3 sm:p-6 space-y-3 sm:space-y-4 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden">
+            <div className="p-4 sm:p-7 space-y-3 sm:space-y-4 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden">
               {/* Alert Error Box */}
               {errorMessage && (
                 <div
@@ -410,7 +410,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
               {/* Card Container for Inputs */}
               <div
-                className={`w-full min-w-0 p-3 sm:p-5 rounded-2xl border shadow-xs space-y-3 sm:space-y-4 transition-colors duration-200 ${
+                className={`w-full min-w-0 p-3.5 sm:p-5 rounded-2xl border shadow-xs space-y-3 sm:space-y-4 transition-colors duration-200 ${
                   isDark
                     ? 'bg-[#0E1528] border-purple-900/50 shadow-inner'
                     : 'bg-slate-50/70 border-slate-200'
@@ -880,7 +880,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
             {/* MODAL FOOTER ACTION BAR - Soft Pastel Gradient & Subtle Indigo Divider */}
             <div
-              className={`px-3.5 py-3 sm:px-7 sm:py-4.5 border-t flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0 transition-colors duration-200 ${
+              className={`px-4 py-3.5 sm:px-7 sm:py-4.5 border-t flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0 transition-colors duration-200 ${
                 isDark
                   ? 'bg-gradient-to-b from-purple-950/40 via-indigo-950/30 to-[#131B2E] border-purple-800/60'
                   : 'bg-gradient-to-b from-indigo-50/50 via-purple-50/30 to-white border-indigo-100/60'

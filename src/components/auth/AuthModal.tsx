@@ -471,9 +471,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         ) : null
       }
       footer={<PublicFooter storeName={storeName} />}
-      mainClassName="relative z-10 w-full py-4 sm:py-10"
+      mainClassName="relative z-10 w-full"
     >
-        <div className="w-[calc(100%-2rem)] max-w-md mx-4">
+        <div className="w-[calc(100%-4rem)] max-w-md m-8">
           {tenantNotice && (
             <div
               role="alert"
