@@ -92,15 +92,9 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
         }
       }
 
-      if (
+      const isStoreSuspended =
         String(tenant.status).toUpperCase() === 'SUSPENDED' ||
-        String(tenant.subscription_status || '').toUpperCase() === 'SUSPENDED'
-      ) {
-        return res.status(423).json({
-          error: `Store Suspended: "${tenant.name}" is currently suspended by platform administration.`,
-          code: 'TENANT_SUSPENDED',
-        });
-      }
+        String(tenant.subscription_status || '').toUpperCase() === 'SUSPENDED';
 
       // Strictly query users belonging ONLY to this specific store (WHERE tenant_id = $2 AND LOWER(email) = LOWER($1))
       // Even if Store 1 and Store 2 share identical email & password, only Store 2's rows (with tenant_id = verifiedTenantId) are inspected.
@@ -142,6 +136,13 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
       if (!matchedUser) {
         return res.status(401).json({
           error: `Invalid email or password for store "${tenant.name}".`,
+        });
+      }
+
+      if (isStoreSuspended && String(matchedUser.role || '').toUpperCase() !== 'SUPERADMIN') {
+        return res.status(423).json({
+          error: `Store Suspended: "${tenant.name}" is currently suspended by platform administration.`,
+          code: 'TENANT_SUSPENDED',
         });
       }
     } else {
@@ -478,10 +479,37 @@ router.all('/verify-email', async (req: Request, res: Response) => {
 
     await pgClient.query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', ['APPROVED', row.user_id]);
     await pgClient.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [row.user_id]).catch(() => {});
-    await pgClient.query(
-      "UPDATE trial_activations SET status = 'ACTIVE' WHERE user_id = $1 AND status = 'PENDING'",
-      [row.user_id]
-    ).catch(() => {});
+    const verifiedTrialsRes = await pgClient
+      .query<any>(
+        "UPDATE trial_activations SET status = 'ACTIVE', reactivated_at = COALESCE(reactivated_at, NOW()), updated_at = NOW() WHERE user_id = $1 AND status = 'PENDING' RETURNING *",
+        [row.user_id]
+      )
+      .catch(() => ({ rows: [] as any[] }));
+    for (const vt of verifiedTrialsRes.rows || []) {
+      await pgClient
+        .query(
+          `INSERT INTO trial_tracking_history (
+            trial_id, tenant_id, user_id, event_type, previous_status, new_status,
+            previous_end_date, new_end_date, actor_user_id, actor_email, actor_role,
+            owner_email, owner_name, store_name, notes
+          ) VALUES ($1, $2, $3, 'EMAIL_VERIFIED', 'PENDING', 'ACTIVE', $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            vt.id,
+            vt.tenant_id || row.tenant_id || null,
+            row.user_id,
+            vt.trial_end_date || null,
+            vt.trial_end_date || null,
+            row.user_id,
+            row.email || '',
+            String(row.role || 'ADMIN').toUpperCase(),
+            vt.email || row.email || '',
+            vt.user_name || row.name || '',
+            vt.store_name || row.store_name || '',
+            'Store owner verified email address and activated the free trial.',
+          ]
+        )
+        .catch(() => {});
+    }
     await resetResendCooldown('email_verification', row.email);
 
     const authUser = {

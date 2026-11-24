@@ -43,11 +43,62 @@ export interface TrialActivation {
   trialStartDate: string;
   trialEndDate: string;
   daysRemaining?: number;
-  status: 'ACTIVE' | 'EXPIRED' | 'CONVERTED' | 'PENDING';
+  status: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' | 'CONVERTED' | 'PENDING';
+  liveTenantStatus?: string | null;
+  liveSubscriptionStatus?: string | null;
+  liveSubscriptionPlan?: string | null;
+  onboardingCompleted?: boolean;
+  convertedAt?: string | null;
+  convertedPlan?: string | null;
+  expiredAt?: string | null;
+  suspendedAt?: string | null;
+  reactivatedAt?: string | null;
   ipAddress?: string;
   userAgent?: string;
   activatedAt: string;
+  updatedAt?: string;
   details?: Record<string, any>;
+}
+
+export type TrialTrackingEventType =
+  | 'ACTIVATED'
+  | 'EMAIL_VERIFIED'
+  | 'EXTENDED'
+  | 'EXPIRED'
+  | 'SUSPENDED'
+  | 'REACTIVATED'
+  | 'CONVERTED'
+  | 'EDITED';
+
+export interface TrialTrackingHistoryEntry {
+  id: number;
+  trialId?: number | null;
+  tenantId?: number | null;
+  userId?: number | null;
+  eventType: TrialTrackingEventType | string;
+  previousStatus?: string | null;
+  newStatus: string;
+  previousEndDate?: string | null;
+  newEndDate?: string | null;
+  actorUserId?: number | null;
+  actorEmail?: string;
+  actorRole?: string;
+  ownerEmail?: string;
+  ownerName?: string;
+  storeName?: string;
+  notes?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface FreeTrialSummary {
+  totalTrials: number;
+  activeTrials: number;
+  expiredTrials: number;
+  suspendedTrials: number;
+  convertedTrials: number;
+  pendingTrials: number;
+  todayTrials: number;
 }
 
 export interface TenantInfo {

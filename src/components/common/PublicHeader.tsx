@@ -119,7 +119,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
   return (
     <header
       id="global-public-header"
-      className="sticky top-0 z-30 w-full min-h-[3.6rem] py-1.5 flex items-center px-4 border-b border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 justify-between gap-3 sm:gap-4 md:gap-6 select-none text-slate-800 dark:text-slate-100 no-print"
+      className="relative z-30 w-full min-h-[3.6rem] py-1.5 flex items-center px-3 sm:px-4 border-b border-indigo-500/20 bg-white/95 dark:bg-white/10 backdrop-blur-lg shadow-lg transition-colors duration-500 justify-between gap-2 sm:gap-4 md:gap-6 select-none text-slate-800 dark:text-slate-100 no-print"
     >
       {/* Brand identity & titles matching Store Header */}
       <button
@@ -140,7 +140,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             window.dispatchEvent(new PopStateEvent('popstate'));
           } catch {}
         }}
-        className="flex items-center gap-2.5 sm:gap-3 min-w-0 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none"
+        className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none"
         title="Go to Home / Store Portal"
       >
         {isSuperAdminView ? (
@@ -148,13 +148,13 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             <img src="/admin/pwa-192x192.png" alt="SuperAdmin PWA Logo" className="w-full h-full object-contain rounded-lg" />
           </div>
         ) : (
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden p-0.5">
+          <div className="w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 shrink-0 shadow-xs flex items-center justify-center overflow-hidden p-0.5">
             <ShoeIcon src={logoSrc || '/pwa-192x192.png'} alt={`${storeName} Logo`} className="w-full h-full object-cover rounded-xl" />
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base tracking-tight leading-tight truncate block">
+            <span className="font-bold text-slate-900 dark:text-white text-[13px] min-[375px]:text-sm sm:text-base tracking-tight leading-tight truncate block">
               {renderBrandName(storeName)}
             </span>
             {badgeText && badgeText !== 'Terminal Online' && (
@@ -163,11 +163,11 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
               </div>
             )}
           </div>
-          <span className="text-[11px] sm:text-xs text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1.5 min-w-0 mt-0.5">
+          <span className="text-[10.5px] sm:text-xs text-slate-500 dark:text-indigo-200/70 font-medium flex items-center gap-1 sm:gap-1.5 min-w-0 mt-0.5">
             {isSuperAdminView ? (
-              <img src="/admin/pwa-192x192.png" alt="" className="w-3.5 h-3.5 shrink-0 object-contain" />
+              <img src="/admin/pwa-192x192.png" alt="" className="w-3 sm:w-3.5 h-3 sm:h-3.5 shrink-0 object-contain" />
             ) : (
-              <TinyShoeIcon className="w-3.5 h-3.5 shrink-0" />
+              <TinyShoeIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5 shrink-0" />
             )}
             <span className="truncate">{subtitle}</span>
           </span>
@@ -175,7 +175,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
       </button>
 
       {/* Right side buttons: Cloud Synced Button, Action Button & Theme Dropdown matching Store Header */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto pl-1">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
         {/* Optional Action Button */}
         {actionText && onActionClick && (
           <button
@@ -184,7 +184,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             onClick={onActionClick}
             title={actionText}
             aria-label={actionText}
-            className="h-8 sm:h-8.5 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:opacity-95 active:scale-98"
+            className="h-8 sm:h-8.5 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:opacity-95 active:scale-98"
           >
             {actionIcon}
             <span className="hidden sm:inline">{actionText}</span>
@@ -198,7 +198,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             type="button"
             onClick={handleSyncCheck}
             disabled={isCheckingSync}
-            className={`h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold ${
+            className={`h-8 sm:h-8.5 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold ${
               syncStatusState === 'just-synced'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-600/60 shadow-xs'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'

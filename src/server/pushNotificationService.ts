@@ -1654,15 +1654,8 @@ export async function syncAndNotifyTenantSubscriptionLifecycle(options?: { force
       await ensureSaasControlPlane();
       await ensurePlatformNotificationsSchema();
 
-      // 1. Mark newly expired tenants
-      await pgClient.query(`
-        UPDATE tenants
-        SET subscription_status = 'EXPIRED',
-            updated_at = NOW()
-        WHERE subscription_end_date IS NOT NULL
-          AND subscription_end_date < NOW()
-          AND subscription_status NOT IN ('EXPIRED', 'SUSPENDED')
-      `);
+      // 1. Mark newly expired tenants (and linked active free trials + tracking history)
+      await syncExpiredTenantSubscriptions();
 
       // 2. Notify stores whose subscription is EXPIRED (idempotent per tenant + end_date)
       const expiredRes = await pgClient.query<{

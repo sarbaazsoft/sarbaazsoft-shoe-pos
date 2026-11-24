@@ -365,6 +365,163 @@ router.post('/saas/store-request', async (req: Request, res: Response) => {
  * Helper to record and log every user who activates or achieves a trial,
  * storing their details alongside their email address for tracking & analytics.
  */
+export type TrialTrackingEventType =
+  | 'ACTIVATED'
+  | 'EMAIL_VERIFIED'
+  | 'EXTENDED'
+  | 'EXPIRED'
+  | 'SUSPENDED'
+  | 'REACTIVATED'
+  | 'CONVERTED'
+  | 'EDITED';
+
+export async function logTrialTrackingEvent(data: {
+  trialId?: number | null;
+  tenantId?: number | null;
+  userId?: number | null;
+  eventType: TrialTrackingEventType;
+  previousStatus?: string | null;
+  newStatus: string;
+  previousEndDate?: string | Date | null;
+  newEndDate?: string | Date | null;
+  actorUser?: AuthUser | null;
+  actorRole?: string;
+  ownerEmail?: string;
+  ownerName?: string;
+  storeName?: string;
+  notes?: string;
+  metadata?: Record<string, any>;
+}): Promise<any> {
+  try {
+    const actor = data.actorUser || null;
+    const prevEndIso = data.previousEndDate ? new Date(data.previousEndDate).toISOString() : null;
+    const newEndIso = data.newEndDate ? new Date(data.newEndDate).toISOString() : null;
+    const res = await pgClient.query(
+      `INSERT INTO trial_tracking_history (
+        trial_id, tenant_id, user_id, event_type, previous_status, new_status,
+        previous_end_date, new_end_date, actor_user_id, actor_email, actor_role,
+        owner_email, owner_name, store_name, notes, metadata, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+      RETURNING *`,
+      [
+        data.trialId || null,
+        data.tenantId || null,
+        data.userId || null,
+        String(data.eventType || 'EDITED').toUpperCase(),
+        data.previousStatus ? String(data.previousStatus).toUpperCase() : null,
+        String(data.newStatus || 'ACTIVE').toUpperCase(),
+        prevEndIso,
+        newEndIso,
+        actor?.id || null,
+        String(actor?.email || '').trim().toLowerCase(),
+        String(data.actorRole || actor?.role || 'SUPERADMIN').toUpperCase(),
+        String(data.ownerEmail || '').trim().toLowerCase(),
+        String(data.ownerName || '').trim(),
+        String(data.storeName || '').trim(),
+        String(data.notes || '').trim(),
+        JSON.stringify(data.metadata || {}),
+      ]
+    );
+    return res.rows[0] || null;
+  } catch (err: any) {
+    console.error('[Trial History] Failed to log trial tracking event:', err?.message || err);
+    return null;
+  }
+}
+
+export function formatTrialActivationRow(row: any, nowMs: number = Date.now()) {
+  const rawEnd = row.live_subscription_end_date || row.trial_end_date;
+  const end = rawEnd ? new Date(rawEnd) : new Date(nowMs);
+  const start = row.trial_start_date ? new Date(row.trial_start_date) : new Date(row.activated_at || nowMs);
+  const daysRemaining = Math.max(0, Math.ceil((end.getTime() - nowMs) / 86400000));
+  const rawStatus = String(row.status || 'ACTIVE').toUpperCase();
+  const liveTenantStatus = String(row.live_tenant_status || '').toUpperCase();
+  const liveSubStatus = String(row.live_subscription_status || '').toUpperCase();
+
+  let effectiveStatus: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' | 'CONVERTED' | 'PENDING' = 'ACTIVE';
+  if (rawStatus === 'CONVERTED') {
+    effectiveStatus = 'CONVERTED';
+  } else if (rawStatus === 'SUSPENDED' || liveTenantStatus === 'SUSPENDED' || liveSubStatus === 'SUSPENDED') {
+    effectiveStatus = 'SUSPENDED';
+  } else if (rawStatus === 'PENDING') {
+    effectiveStatus = 'PENDING';
+  } else if (rawStatus === 'EXPIRED' || liveSubStatus === 'EXPIRED' || end.getTime() <= nowMs) {
+    effectiveStatus = 'EXPIRED';
+  }
+
+  let parsedDetails: Record<string, any> = {};
+  try {
+    parsedDetails = typeof row.details === 'string' ? JSON.parse(row.details || '{}') : (row.details || {});
+  } catch {
+    parsedDetails = {};
+  }
+
+  return {
+    id: Number(row.id),
+    userId: row.user_id ? Number(row.user_id) : null,
+    tenantId: row.tenant_id ? Number(row.tenant_id) : null,
+    email: row.live_owner_email || row.email || '',
+    userName: row.live_owner_name || row.user_name || row.store_name || '',
+    phone: row.live_owner_phone !== undefined && row.live_owner_phone !== null && row.live_owner_phone !== '' ? row.live_owner_phone : (row.phone || ''),
+    storeName: row.live_tenant_name || row.store_name || '',
+    businessType: row.live_business_type || row.business_type || 'RETAIL',
+    pricingMode: row.live_pricing_mode || row.pricing_mode || 'FIXED',
+    plan: row.plan || 'TRIAL',
+    trialDurationDays: Number(row.trial_duration_days || 30),
+    trialStartDate: start.toISOString(),
+    trialEndDate: end.toISOString(),
+    daysRemaining: effectiveStatus === 'EXPIRED' || effectiveStatus === 'CONVERTED' ? 0 : daysRemaining,
+    status: effectiveStatus,
+    liveTenantStatus: liveTenantStatus || null,
+    liveSubscriptionStatus: liveSubStatus || null,
+    liveSubscriptionPlan: row.live_subscription_plan || null,
+    onboardingCompleted: row.live_onboarding_completed !== undefined && row.live_onboarding_completed !== null ? Boolean(row.live_onboarding_completed) : undefined,
+    convertedAt: row.converted_at ? new Date(row.converted_at).toISOString() : null,
+    convertedPlan: row.converted_plan || null,
+    expiredAt: row.expired_at ? new Date(row.expired_at).toISOString() : null,
+    suspendedAt: row.suspended_at ? new Date(row.suspended_at).toISOString() : null,
+    reactivatedAt: row.reactivated_at ? new Date(row.reactivated_at).toISOString() : null,
+    ipAddress: row.ip_address || '',
+    userAgent: row.user_agent || '',
+    activatedAt: row.activated_at ? new Date(row.activated_at).toISOString() : start.toISOString(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
+    details: parsedDetails,
+  };
+}
+
+export function formatTrialHistoryRow(row: any) {
+  let metadata: Record<string, any> = {};
+  try {
+    metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : (row.metadata || {});
+  } catch {
+    metadata = {};
+  }
+  return {
+    id: Number(row.id),
+    trialId: row.trial_id ? Number(row.trial_id) : null,
+    tenantId: row.tenant_id ? Number(row.tenant_id) : null,
+    userId: row.user_id ? Number(row.user_id) : null,
+    eventType: String(row.event_type || 'EDITED').toUpperCase(),
+    previousStatus: row.previous_status || null,
+    newStatus: String(row.new_status || ''),
+    previousEndDate: row.previous_end_date ? new Date(row.previous_end_date).toISOString() : null,
+    newEndDate: row.new_end_date ? new Date(row.new_end_date).toISOString() : null,
+    actorUserId: row.actor_user_id ? Number(row.actor_user_id) : null,
+    actorEmail: row.actor_email || '',
+    actorRole: row.actor_role || 'SYSTEM',
+    ownerEmail: row.owner_email || '',
+    ownerName: row.owner_name || '',
+    storeName: row.store_name || '',
+    notes: row.notes || '',
+    metadata,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+  };
+}
+
+/**
+ * Helper to record and log every user who activates or achieves a trial,
+ * storing their details alongside their email address for tracking & analytics.
+ */
 export async function recordTrialActivation(data: {
   userId?: number | null;
   tenantId?: number | null;
@@ -378,10 +535,11 @@ export async function recordTrialActivation(data: {
   trialDurationDays?: number;
   trialStartDate?: string | Date;
   trialEndDate?: string | Date;
-  status?: 'ACTIVE' | 'EXPIRED' | 'CONVERTED' | 'PENDING';
+  status?: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' | 'CONVERTED' | 'PENDING';
   ipAddress?: string;
   userAgent?: string;
   details?: Record<string, any>;
+  actorUser?: AuthUser | null;
 }): Promise<any> {
   const cleanEmail = String(data.email || '').trim().toLowerCase();
   const durationDays = data.trialDurationDays || 30;
@@ -418,12 +576,35 @@ export async function recordTrialActivation(data: {
       ]
     );
 
+    const inserted = res.rows[0];
+    if (inserted?.id) {
+      await logTrialTrackingEvent({
+        trialId: inserted.id,
+        tenantId: data.tenantId || null,
+        userId: data.userId || null,
+        eventType: 'ACTIVATED',
+        previousStatus: null,
+        newStatus: status,
+        previousEndDate: null,
+        newEndDate: endDate.toISOString(),
+        actorUser: data.actorUser || null,
+        actorRole: data.actorUser?.role || (data.details?.createdBy === 'SUPERADMIN' ? 'SUPERADMIN' : 'SYSTEM'),
+        ownerEmail: cleanEmail,
+        ownerName: String(data.userName || '').trim(),
+        storeName: String(data.storeName || '').trim(),
+        notes: status === 'PENDING'
+          ? `30-day Free Trial registered for '${String(data.storeName || '').trim()}' (awaiting email verification).`
+          : `30-day Free Trial activated for '${String(data.storeName || '').trim()}'.`,
+        metadata: { source: data.details?.source || data.details?.createdBy || 'registration', durationDays },
+      });
+    }
+
     // Alert SuperAdmin via platform notification about the new free trial registration (strictly scoped to SUPERADMIN role)
     const trialEventId = `trial-activation-${data.tenantId || cleanEmail}`;
     await pgClient
       .query(
         `INSERT INTO platform_notifications (tenant_id, target_role, title, message, type, action_url, action_label, event_id, created_at)
-         VALUES (NULL, 'SUPERADMIN', $1, $2, 'INFO', '/superadmin', 'View Store', $3, NOW())
+         VALUES (NULL, 'SUPERADMIN', $1, $2, 'INFO', '/admin/free-trials', 'View Trial', $3, NOW())
          ON CONFLICT (event_id) DO NOTHING
          RETURNING id, created_at`,
         [
@@ -443,15 +624,15 @@ export async function recordTrialActivation(data: {
             title: `New Free Trial: ${String(data.storeName || 'New Store').trim()}`,
             message: `New 30-day Free Tier store registered by ${String(data.userName || 'Store Owner').trim()} (${cleanEmail}${data.phone ? ' • ' + data.phone : ''}).`,
             type: 'INFO',
-            actionUrl: '/superadmin',
-            actionLabel: 'View Store',
+            actionUrl: '/admin/free-trials',
+            actionLabel: 'View Trial',
             timestamp: notifRow.created_at,
           }).catch(() => {});
         }
       })
       .catch(() => {});
 
-    return res.rows[0];
+    return inserted;
   } catch (err: any) {
     console.error('[Trial Tracker] Failed to record trial activation:', err?.message || err);
     return null;
@@ -529,16 +710,37 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
 
     const trialsRes = await pgClient
       .query(`
-        SELECT *
-        FROM trial_activations
-        ORDER BY created_at DESC
+        SELECT ta.*,
+               t.name AS live_tenant_name,
+               t.status AS live_tenant_status,
+               t.subscription_status AS live_subscription_status,
+               t.subscription_plan AS live_subscription_plan,
+               t.subscription_end_date AS live_subscription_end_date,
+               t.onboarding_completed AS live_onboarding_completed,
+               u.name AS live_owner_name,
+               u.email AS live_owner_email,
+               u.phone AS live_owner_phone,
+               cs.business_type AS live_business_type,
+               cs.pricing_mode AS live_pricing_mode
+        FROM trial_activations ta
+        LEFT JOIN tenants t ON t.id = ta.tenant_id
+        LEFT JOIN LATERAL (
+          SELECT name, email, phone
+          FROM users
+          WHERE tenant_id = ta.tenant_id AND role = 'ADMIN'
+          ORDER BY id ASC
+          LIMIT 1
+        ) u ON true
+        LEFT JOIN company_settings cs ON cs.tenant_id = ta.tenant_id
+        ORDER BY ta.activated_at DESC, ta.id DESC
       `)
       .catch(() => ({ rows: [] }));
 
-    const activeTrialsCount = trialsRes.rows.filter((r: any) => {
-      const endsAt = r.trial_ends_at ? new Date(r.trial_ends_at).getTime() : 0;
-      return endsAt > Date.now() && r.status !== 'EXPIRED';
-    }).length;
+    const formattedTrials = (trialsRes.rows || []).map((r: any) => formatTrialActivationRow(r));
+    const activeTrialsCount = formattedTrials.filter((t) => t.status === 'ACTIVE').length;
+    const expiredTrialsCount = formattedTrials.filter((t) => t.status === 'EXPIRED').length;
+    const suspendedTrialsCount = formattedTrials.filter((t) => t.status === 'SUSPENDED').length;
+    const convertedTrialsCount = formattedTrials.filter((t) => t.status === 'CONVERTED').length;
 
     const topProductsRes = await pgClient
       .query<{
@@ -835,7 +1037,10 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
       expiredStores: expiredStoresCount,
       suspendedStores: suspendedStoresCount,
       activeTrials: activeTrialsCount,
-      totalTrials: trialsRes.rows.length,
+      expiredTrials: expiredTrialsCount,
+      suspendedTrials: suspendedTrialsCount,
+      convertedTrials: convertedTrialsCount,
+      totalTrials: formattedTrials.length,
       onlineStores: onlineStoresCount,
       onboardedStores: onboardedStoresCount,
       retailStores: retailStoresCount,
@@ -914,7 +1119,10 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
         expiredStores: expiredStoresCount,
         pendingRequests: 0,
         activeTrials: activeTrialsCount,
-        totalTrials: trialsRes.rows.length,
+        expiredTrials: expiredTrialsCount,
+        suspendedTrials: suspendedTrialsCount,
+        convertedTrials: convertedTrialsCount,
+        totalTrials: formattedTrials.length,
         onlineStores: onlineStoresCount,
         onboardedStores: onboardedStoresCount,
         totalPlatformRevenue,
@@ -926,7 +1134,7 @@ router.get('/superadmin/overview', requireAuth, requireSuperAdmin, async (_req: 
       expiringTenants,
       stores,
       storeRequests: [],
-      trialActivations: trialsRes.rows,
+      trialActivations: formattedTrials,
       reports: {
         topProducts,
         topCategories,
@@ -1018,6 +1226,95 @@ router.patch('/superadmin/tenants/:id/status', requireAuth, requireSuperAdmin, a
     const updated = updateRes.rows[0];
     if (updated.status !== 'ACTIVE' || updated.subscription_status !== 'ACTIVE') {
       removeTenantMiddlewarePresence(tenantId);
+    }
+
+    // Keep linked Free Trial records & tracking history in sync with store status changes
+    const linkedTrialRes = await pgClient
+      .query<any>('SELECT * FROM trial_activations WHERE tenant_id = $1', [tenantId])
+      .catch(() => ({ rows: [] as any[] }));
+    const prevTrial = linkedTrialRes.rows[0];
+    if (prevTrial && String(prevTrial.status || '').toUpperCase() !== 'CONVERTED') {
+      const prevTrialStatus = String(prevTrial.status || curr.subscription_status || 'ACTIVE').toUpperCase();
+      if (status === 'SUSPENDED') {
+        await pgClient
+          .query(
+            `UPDATE trial_activations
+             SET status = 'SUSPENDED',
+                 suspended_at = NOW(),
+                 updated_at = NOW()
+             WHERE tenant_id = $1`,
+            [tenantId]
+          )
+          .catch(() => {});
+        await logTrialTrackingEvent({
+          trialId: prevTrial.id,
+          tenantId,
+          userId: prevTrial.user_id,
+          eventType: 'SUSPENDED',
+          previousStatus: prevTrialStatus,
+          newStatus: 'SUSPENDED',
+          previousEndDate: curr.subscription_end_date,
+          newEndDate: updated.subscription_end_date,
+          actorUser: req.user || null,
+          ownerEmail: prevTrial.email,
+          ownerName: prevTrial.user_name,
+          storeName: updated.name || prevTrial.store_name,
+          notes: `Free trial store '${updated.name}' suspended via store controls.`,
+        });
+      } else if (status === 'EXPIRED') {
+        await pgClient
+          .query(
+            `UPDATE trial_activations
+             SET status = 'EXPIRED',
+                 expired_at = NOW(),
+                 updated_at = NOW()
+             WHERE tenant_id = $1`,
+            [tenantId]
+          )
+          .catch(() => {});
+        await logTrialTrackingEvent({
+          trialId: prevTrial.id,
+          tenantId,
+          userId: prevTrial.user_id,
+          eventType: 'EXPIRED',
+          previousStatus: prevTrialStatus,
+          newStatus: 'EXPIRED',
+          previousEndDate: curr.subscription_end_date,
+          newEndDate: updated.subscription_end_date,
+          actorUser: req.user || null,
+          ownerEmail: prevTrial.email,
+          ownerName: prevTrial.user_name,
+          storeName: updated.name || prevTrial.store_name,
+          notes: `Free trial store '${updated.name}' marked expired via store controls.`,
+        });
+      } else if (status === 'ACTIVE') {
+        await pgClient
+          .query(
+            `UPDATE trial_activations
+             SET status = 'ACTIVE',
+                 trial_end_date = $1,
+                 reactivated_at = NOW(),
+                 updated_at = NOW()
+             WHERE tenant_id = $2`,
+            [nextEndDate.toISOString(), tenantId]
+          )
+          .catch(() => {});
+        await logTrialTrackingEvent({
+          trialId: prevTrial.id,
+          tenantId,
+          userId: prevTrial.user_id,
+          eventType: 'REACTIVATED',
+          previousStatus: prevTrialStatus,
+          newStatus: 'ACTIVE',
+          previousEndDate: curr.subscription_end_date,
+          newEndDate: updated.subscription_end_date,
+          actorUser: req.user || null,
+          ownerEmail: prevTrial.email,
+          ownerName: prevTrial.user_name,
+          storeName: updated.name || prevTrial.store_name,
+          notes: `Free trial store '${updated.name}' reactivated via store controls.`,
+        });
+      }
     }
 
     const planNorm = normalizeSubscriptionPlan(curr.subscription_plan);
@@ -1233,6 +1530,107 @@ async function handleUpdateTenantSubscription(req: AuthenticatedRequest, res: Re
     const resolvedPlan = normalizeSubscriptionPlan(row?.subscription_plan || finalPlan);
     const resolvedType = normalizeSubscriptionType(row?.subscription_type || resolvedPlan);
     const planLabel = resolvedPlan === 'free_tier' ? 'Free Trial' : resolvedPlan === '6_MONTHS' ? '6 Months' : 'Yearly';
+
+    // Sync linked trial_activations & record trial conversion / lifecycle events
+    const linkedTrialRes = await pgClient
+      .query<any>('SELECT * FROM trial_activations WHERE tenant_id = $1', [tenantId])
+      .catch(() => ({ rows: [] as any[] }));
+    const prevTrial = linkedTrialRes.rows[0];
+    if (prevTrial) {
+      const prevTrialStatus = String(prevTrial.status || 'ACTIVE').toUpperCase();
+      const isUpgradeToPaid = resolvedPlan !== 'free_tier' && prevTrialStatus !== 'CONVERTED';
+      if (isUpgradeToPaid) {
+        await pgClient
+          .query(
+            `UPDATE trial_activations
+             SET status = 'CONVERTED',
+                 converted_at = NOW(),
+                 converted_plan = $1,
+                 store_name = $2,
+                 email = CASE WHEN $3 != '' THEN $3 ELSE email END,
+                 phone = $4,
+                 updated_at = NOW()
+             WHERE tenant_id = $5`,
+            [resolvedPlan, row.name, finalOwnerEmail, finalOwnerPhone, tenantId]
+          )
+          .catch(() => {});
+        await logTrialTrackingEvent({
+          trialId: prevTrial.id,
+          tenantId,
+          userId: prevTrial.user_id,
+          eventType: 'CONVERTED',
+          previousStatus: prevTrialStatus,
+          newStatus: 'CONVERTED',
+          previousEndDate: curr.subscription_end_date,
+          newEndDate: row.subscription_end_date,
+          actorUser: req.user || null,
+          ownerEmail: finalOwnerEmail || prevTrial.email,
+          ownerName: prevTrial.user_name,
+          storeName: row.name,
+          notes: `Free trial store converted to paid ${planLabel} plan.`,
+          metadata: { convertedPlan: resolvedPlan },
+        });
+      } else if (prevTrialStatus !== 'CONVERTED') {
+        const syncedTrialStatus = finalSubStatus;
+        await pgClient
+          .query(
+            `UPDATE trial_activations
+             SET status = $1,
+                 store_name = $2,
+                 email = CASE WHEN $3 != '' THEN $3 ELSE email END,
+                 phone = $4,
+                 trial_start_date = $5,
+                 trial_end_date = $6,
+                 expired_at = CASE WHEN $1 = 'EXPIRED' THEN NOW() ELSE expired_at END,
+                 suspended_at = CASE WHEN $1 = 'SUSPENDED' THEN NOW() ELSE suspended_at END,
+                 reactivated_at = CASE WHEN $1 = 'ACTIVE' AND $7 != 'ACTIVE' THEN NOW() ELSE reactivated_at END,
+                 updated_at = NOW()
+             WHERE tenant_id = $8`,
+            [
+              syncedTrialStatus,
+              row.name,
+              finalOwnerEmail,
+              finalOwnerPhone,
+              finalStartDate.toISOString(),
+              finalEndDate.toISOString(),
+              prevTrialStatus,
+              tenantId,
+            ]
+          )
+          .catch(() => {});
+
+        const eventType: TrialTrackingEventType =
+          syncedTrialStatus === 'SUSPENDED' && prevTrialStatus !== 'SUSPENDED'
+            ? 'SUSPENDED'
+            : syncedTrialStatus === 'EXPIRED' && prevTrialStatus !== 'EXPIRED'
+            ? 'EXPIRED'
+            : syncedTrialStatus === 'ACTIVE' && (prevTrialStatus === 'EXPIRED' || prevTrialStatus === 'SUSPENDED')
+            ? 'REACTIVATED'
+            : isExtended
+            ? 'EXTENDED'
+            : 'EDITED';
+
+        await logTrialTrackingEvent({
+          trialId: prevTrial.id,
+          tenantId,
+          userId: prevTrial.user_id,
+          eventType,
+          previousStatus: prevTrialStatus,
+          newStatus: syncedTrialStatus,
+          previousEndDate: curr.subscription_end_date,
+          newEndDate: row.subscription_end_date,
+          actorUser: req.user || null,
+          ownerEmail: finalOwnerEmail || prevTrial.email,
+          ownerName: prevTrial.user_name,
+          storeName: row.name,
+          notes: `Subscription updated for free trial store '${row.name}' (${prevTrialStatus} -> ${syncedTrialStatus}).`,
+        });
+      }
+    }
+
+    if (finalSubStatus !== 'ACTIVE') {
+      removeTenantMiddlewarePresence(tenantId);
+    }
 
     if (finalSubStatus === 'EXPIRED' && String(curr.subscription_status || '').toUpperCase() !== 'EXPIRED') {
       await emitStoreSubscriptionNotification({
@@ -1667,6 +2065,7 @@ router.get('/superadmin/export-sql', requireAuth, requireSuperAdmin, async (_req
     const allTables = [
       'tenants',
       'trial_activations',
+      'trial_tracking_history',
       'company_settings',
       'users',
       'categories',
@@ -1741,6 +2140,7 @@ router.post('/superadmin/import-sql', requireAuth, requireSuperAdmin, async (req
     const seqTables = [
       'tenants',
       'trial_activations',
+      'trial_tracking_history',
       'company_settings',
       'users',
       'categories',
@@ -1800,29 +2200,85 @@ router.post('/superadmin/import-sql', requireAuth, requireSuperAdmin, async (req
 });
 
 /**
- * 5D. SUPERADMIN DELETE STORE TENANT & ALL ISOLATED DATA (`DELETE /api/superadmin/tenants/:id` & `POST /api/superadmin/tenants/:id/delete`)
+ * Permanent cascade deletion helper:
+ * Permanently removes a store tenant AND all associated trial records, tracking history,
+ * notifications/activity logs, tokens, users (except global SUPERADMIN), settings, and POS data.
  */
-async function handleDeleteTenantStore(req: AuthenticatedRequest, res: Response) {
-  try {
-    await ensureSaasControlPlane();
-    const tenantId = parseInt(req.params.id, 10);
-    if (!Number.isInteger(tenantId) || tenantId <= 0) {
-      return res.status(400).json({ error: 'Invalid store tenant ID.' });
-    }
+export async function permanentlyDeleteStoreAndTrialData(params: {
+  tenantId?: number | null;
+  trialId?: number | null;
+}): Promise<{
+  deletedStore: { id: number; name: string } | null;
+  deletedTrialId: number | null;
+  storeName: string;
+}> {
+  let tenantId = params.tenantId && Number.isInteger(Number(params.tenantId)) && Number(params.tenantId) > 0
+    ? Number(params.tenantId)
+    : null;
+  const trialId = params.trialId && Number.isInteger(Number(params.trialId)) && Number(params.trialId) > 0
+    ? Number(params.trialId)
+    : null;
 
+  let trialRow: any = null;
+  if (trialId) {
+    const tRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]).catch(() => ({ rows: [] as any[] }));
+    trialRow = tRes.rows[0] || null;
+    if (!tenantId && trialRow?.tenant_id) {
+      tenantId = Number(trialRow.tenant_id);
+    }
+  }
+
+  let store: { id: number; name: string } | null = null;
+  if (tenantId) {
     const tenantRes = await pgClient.query<{ id: number; name: string }>(
       'SELECT id, name FROM tenants WHERE id = $1 LIMIT 1',
       [tenantId]
     );
+    store = tenantRes.rows[0] || null;
+  }
 
-    if (tenantRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Store tenant not found or already deleted.' });
+  const trialIdsSet = new Set<number>();
+  const userIdsSet = new Set<number>();
+  const emailsSet = new Set<string>();
+
+  if (trialId) trialIdsSet.add(trialId);
+  if (trialRow?.user_id) userIdsSet.add(Number(trialRow.user_id));
+  if (trialRow?.email) emailsSet.add(String(trialRow.email).trim().toLowerCase());
+
+  if (tenantId) {
+    const linkedTrials = await pgClient
+      .query<any>('SELECT id, user_id, email FROM trial_activations WHERE tenant_id = $1', [tenantId])
+      .catch(() => ({ rows: [] as any[] }));
+    for (const r of linkedTrials.rows || []) {
+      if (r.id) trialIdsSet.add(Number(r.id));
+      if (r.user_id) userIdsSet.add(Number(r.user_id));
+      if (r.email) emailsSet.add(String(r.email).trim().toLowerCase());
     }
 
-    const store = tenantRes.rows[0];
+    const storeUsers = await pgClient
+      .query<any>("SELECT id, email FROM users WHERE tenant_id = $1 AND role != 'SUPERADMIN'", [tenantId])
+      .catch(() => ({ rows: [] as any[] }));
+    for (const u of storeUsers.rows || []) {
+      if (u.id) userIdsSet.add(Number(u.id));
+      if (u.email) emailsSet.add(String(u.email).trim().toLowerCase());
+    }
 
-    // Execute child-to-parent cleanup queries individually (outside a single transaction block so any optional table never aborts PostgreSQL transaction state)
-    const orderedCleanupStatements: Array<{ sql: string; params: any[] }> = [
+    const csRes = await pgClient
+      .query<any>('SELECT email FROM company_settings WHERE tenant_id = $1', [tenantId])
+      .catch(() => ({ rows: [] as any[] }));
+    for (const c of csRes.rows || []) {
+      if (c.email) emailsSet.add(String(c.email).trim().toLowerCase());
+    }
+  }
+
+  const trialIds = Array.from(trialIdsSet);
+  const userIds = Array.from(userIdsSet);
+  const emails = Array.from(emailsSet).filter(Boolean);
+
+  const orderedCleanupStatements: Array<{ sql: string; params: any[] }> = [];
+
+  if (tenantId) {
+    orderedCleanupStatements.push(
       {
         sql: `DELETE FROM return_items
               WHERE tenant_id = $1
@@ -1896,29 +2352,87 @@ async function handleDeleteTenantStore(req: AuthenticatedRequest, res: Response)
                  OR user_id IN (SELECT id FROM users WHERE tenant_id = $1 AND role != 'SUPERADMIN')`,
         params: [tenantId],
       },
+      { sql: `DELETE FROM customer_ledger WHERE tenant_id = $1`, params: [tenantId] },
+      { sql: `DELETE FROM supplier_ledger WHERE tenant_id = $1`, params: [tenantId] },
       { sql: `DELETE FROM products WHERE tenant_id = $1`, params: [tenantId] },
       { sql: `DELETE FROM customers WHERE tenant_id = $1`, params: [tenantId] },
       { sql: `DELETE FROM suppliers WHERE tenant_id = $1`, params: [tenantId] },
+      { sql: `DELETE FROM email_verification_tokens WHERE tenant_id = $1`, params: [tenantId] },
       {
         sql: `DELETE FROM password_reset_tokens
               WHERE tenant_id = $1
                  OR user_id IN (SELECT id FROM users WHERE tenant_id = $1 AND role != 'SUPERADMIN')`,
         params: [tenantId],
       },
-      { sql: `DELETE FROM company_settings WHERE tenant_id = $1`, params: [tenantId] },
-      { sql: `DELETE FROM users WHERE tenant_id = $1 AND role != 'SUPERADMIN'`, params: [tenantId] },
-      { sql: `DELETE FROM trial_activations WHERE tenant_id = $1`, params: [tenantId] },
-    ];
+      { sql: `DELETE FROM pos_notification_dismissals WHERE tenant_id = $1`, params: [tenantId] },
+      { sql: `DELETE FROM notifications WHERE tenant_id = $1`, params: [tenantId] },
+      { sql: `DELETE FROM fcm_tokens WHERE tenant_id = $1`, params: [tenantId] },
+      { sql: `DELETE FROM platform_notification_reads WHERE tenant_id = $1`, params: [tenantId] },
+      {
+        sql: `DELETE FROM platform_notifications
+              WHERE tenant_id = $1
+                 OR event_id = ANY(ARRAY(SELECT 'trial-activation-' || unnest($2::text[])))
+                 OR event_id LIKE $3
+                 OR event_id LIKE $4
+                 OR event_id LIKE $5
+                 OR event_id LIKE $6
+                 OR event_id LIKE $7
+                 OR event_id LIKE $8
+                 OR action_url ILIKE $9`,
+        params: [
+          tenantId,
+          emails,
+          `trial-activation-${tenantId}%`,
+          `sub-expired-${tenantId}-%`,
+          `sa-sub-expired-${tenantId}-%`,
+          `sub-renewed-${tenantId}-%`,
+          `renewal-approved-${tenantId}-%`,
+          `renewal-request-${tenantId}-%`,
+          `%tenantId=${tenantId}%`,
+        ],
+      }
+    );
+  } else if (emails.length > 0) {
+    orderedCleanupStatements.push({
+      sql: `DELETE FROM platform_notifications WHERE event_id = ANY($1::text[])`,
+      params: [emails.map((em) => `trial-activation-${em}`)],
+    });
+  }
 
-    for (const stmt of orderedCleanupStatements) {
-      await pgClient.query(stmt.sql, stmt.params).catch(() => {});
+  // Permanently delete all associated trial tracking history and trial activation records
+  orderedCleanupStatements.push(
+    {
+      sql: `DELETE FROM trial_tracking_history
+            WHERE ($1::int IS NOT NULL AND tenant_id = $1)
+               OR (cardinality($2::int[]) > 0 AND trial_id = ANY($2::int[]))
+               OR (cardinality($3::int[]) > 0 AND user_id = ANY($3::int[]))
+               OR (cardinality($4::text[]) > 0 AND LOWER(BTRIM(owner_email)) = ANY($4::text[]))`,
+      params: [tenantId, trialIds, userIds, emails],
+    },
+    {
+      sql: `DELETE FROM trial_activations
+            WHERE ($1::int IS NOT NULL AND tenant_id = $1)
+               OR ($2::int IS NOT NULL AND id = $2)
+               OR (cardinality($3::int[]) > 0 AND user_id = ANY($3::int[]))
+               OR (cardinality($4::text[]) > 0 AND LOWER(BTRIM(email)) = ANY($4::text[]))`,
+      params: [tenantId, trialId, userIds, emails],
     }
+  );
 
-    // Finally delete the tenant record itself
+  if (tenantId) {
+    orderedCleanupStatements.push(
+      { sql: `DELETE FROM company_settings WHERE tenant_id = $1`, params: [tenantId] },
+      { sql: `DELETE FROM users WHERE tenant_id = $1 AND role != 'SUPERADMIN'`, params: [tenantId] }
+    );
+  }
+
+  for (const stmt of orderedCleanupStatements) {
+    await pgClient.query(stmt.sql, stmt.params).catch(() => {});
+  }
+
+  if (tenantId) {
     await pgClient.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
     removeTenantMiddlewarePresence(tenantId);
-
-    // Keep tenants_id_seq synchronized after deletion so store IDs are cleanly recycled
     await pgClient
       .query(
         `SELECT setval(
@@ -1928,12 +2442,42 @@ async function handleDeleteTenantStore(req: AuthenticatedRequest, res: Response)
          )`
       )
       .catch(() => {});
+  }
+
+  return {
+    deletedStore: store,
+    deletedTrialId: trialId,
+    storeName: store?.name || trialRow?.store_name || `Store #${tenantId || trialId || ''}`,
+  };
+}
+
+/**
+ * 5D. SUPERADMIN DELETE STORE TENANT & ALL ISOLATED DATA (`DELETE /api/superadmin/tenants/:id` & `POST /api/superadmin/tenants/:id/delete`)
+ */
+async function handleDeleteTenantStore(req: AuthenticatedRequest, res: Response) {
+  try {
+    await ensureSaasControlPlane();
+    const tenantId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(tenantId) || tenantId <= 0) {
+      return res.status(400).json({ error: 'Invalid store tenant ID.' });
+    }
+
+    const tenantRes = await pgClient.query<{ id: number; name: string }>(
+      'SELECT id, name FROM tenants WHERE id = $1 LIMIT 1',
+      [tenantId]
+    );
+
+    if (tenantRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Store tenant not found or already deleted.' });
+    }
+
+    const { deletedStore, storeName } = await permanentlyDeleteStoreAndTrialData({ tenantId });
 
     return res.json({
       success: true,
-      deletedStore: store,
+      deletedStore,
       recycledTenantId: tenantId,
-      message: `Store '${store.name}' and all its isolated records have been permanently deleted.`,
+      message: `Store '${storeName}' and all associated trial history, tracking records, and activity logs have been permanently deleted.`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to delete store tenant: ' + err.message });
@@ -1943,122 +2487,438 @@ async function handleDeleteTenantStore(req: AuthenticatedRequest, res: Response)
 router.delete('/superadmin/tenants/:id', requireAuth, requireSuperAdmin, handleDeleteTenantStore);
 router.post('/superadmin/tenants/:id/delete', requireAuth, requireSuperAdmin, handleDeleteTenantStore);
 
-
 /**
- * 7b. SUPERADMIN TRIAL ACTIVATIONS TRACKING & ANALYTICS (`GET /api/superadmin/trial-activations`)
- * Fetches all users who activated or achieved a trial, with full details and analytics metrics.
+ * 7b. SUPERADMIN FREE TRIAL MANAGEMENT & TRACKING HISTORY
+ * Handles listing, searching, filtering, viewing, editing, extending, expiring, suspending, reactivating, and permanently deleting trial stores.
  */
-router.get('/superadmin/trial-activations', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+async function handleListFreeTrials(req: AuthenticatedRequest, res: Response) {
   try {
     await ensureSaasControlPlane();
+    await syncExpiredTenantSubscriptions();
     const search = String(req.query.search || '').trim().toLowerCase();
     const statusFilter = String(req.query.status || 'ALL').trim().toUpperCase();
 
-    let querySql = `
+    const result = await pgClient.query(`
       SELECT ta.*,
-             t.name as live_tenant_name,
-             t.status as live_tenant_status,
-             t.subscription_status as live_subscription_status,
-             t.subscription_end_date as live_subscription_end_date
+             t.name AS live_tenant_name,
+             t.status AS live_tenant_status,
+             t.subscription_status AS live_subscription_status,
+             t.subscription_plan AS live_subscription_plan,
+             t.subscription_end_date AS live_subscription_end_date,
+             t.onboarding_completed AS live_onboarding_completed,
+             u.name AS live_owner_name,
+             u.email AS live_owner_email,
+             u.phone AS live_owner_phone,
+             cs.business_type AS live_business_type,
+             cs.pricing_mode AS live_pricing_mode
       FROM trial_activations ta
       LEFT JOIN tenants t ON t.id = ta.tenant_id
-    `;
-    const params: any[] = [];
-    const whereClauses: string[] = [];
+      LEFT JOIN LATERAL (
+        SELECT name, email, phone
+        FROM users
+        WHERE tenant_id = ta.tenant_id AND role = 'ADMIN'
+        ORDER BY id ASC
+        LIMIT 1
+      ) u ON true
+      LEFT JOIN company_settings cs ON cs.tenant_id = ta.tenant_id
+      ORDER BY ta.activated_at DESC, ta.id DESC
+    `);
 
-    if (search) {
-      params.push(`%${search}%`);
-      whereClauses.push(`(
-        LOWER(ta.email) LIKE $${params.length} OR
-        LOWER(ta.store_name) LIKE $${params.length} OR
-        LOWER(ta.user_name) LIKE $${params.length} OR
-        LOWER(ta.phone) LIKE $${params.length}
-      )`);
-    }
-
-    if (statusFilter === 'ACTIVE') {
-      whereClauses.push(`(ta.trial_end_date > NOW() AND ta.status = 'ACTIVE')`);
-    } else if (statusFilter === 'EXPIRED') {
-      whereClauses.push(`(ta.trial_end_date <= NOW() OR ta.status = 'EXPIRED')`);
-    }
-
-    if (whereClauses.length > 0) {
-      querySql += ` WHERE ${whereClauses.join(' AND ')}`;
-    }
-
-    querySql += ` ORDER BY ta.activated_at DESC, ta.id DESC LIMIT 200`;
-
-    const result = await pgClient.query(querySql, params);
-    const now = Date.now();
+    const nowMs = Date.now();
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const trials = result.rows.map((row: any) => {
-      const end = row.live_subscription_end_date ? new Date(row.live_subscription_end_date) : new Date(row.trial_end_date);
-      const daysRemaining = Math.max(0, Math.ceil((end.getTime() - now) / 86400000));
-      const isExpired = end.getTime() <= now || row.live_subscription_status === 'EXPIRED';
+    const allFormatted = (result.rows || []).map((r: any) => formatTrialActivationRow(r, nowMs));
 
-      return {
-        id: row.id,
-        userId: row.user_id,
-        tenantId: row.tenant_id,
-        email: row.email,
-        userName: row.user_name || row.store_name,
-        phone: row.phone || '',
-        storeName: row.live_tenant_name || row.store_name,
-        businessType: row.business_type || 'RETAIL',
-        pricingMode: row.pricing_mode || 'FIXED',
-        plan: row.plan || 'TRIAL',
-        trialDurationDays: Number(row.trial_duration_days || 30),
-        trialStartDate: row.trial_start_date ? new Date(row.trial_start_date).toISOString() : new Date().toISOString(),
-        trialEndDate: end.toISOString(),
-        daysRemaining: isExpired ? 0 : daysRemaining,
-        status: isExpired ? 'EXPIRED' : (row.status || 'ACTIVE'),
-        ipAddress: row.ip_address || '',
-        userAgent: row.user_agent || '',
-        activatedAt: row.activated_at ? new Date(row.activated_at).toISOString() : new Date().toISOString(),
-        details: typeof row.details === 'string' ? JSON.parse(row.details || '{}') : (row.details || {}),
-      };
+    const summary = {
+      totalTrials: allFormatted.length,
+      activeTrials: allFormatted.filter((t) => t.status === 'ACTIVE').length,
+      expiredTrials: allFormatted.filter((t) => t.status === 'EXPIRED').length,
+      suspendedTrials: allFormatted.filter((t) => t.status === 'SUSPENDED').length,
+      convertedTrials: allFormatted.filter((t) => t.status === 'CONVERTED').length,
+      pendingTrials: allFormatted.filter((t) => t.status === 'PENDING').length,
+      todayTrials: allFormatted.filter((t) => new Date(t.activatedAt).getTime() >= startOfToday.getTime()).length,
+    };
+
+    const filteredTrials = allFormatted.filter((t) => {
+      if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+      if (!search) return true;
+      return (
+        String(t.storeName || '').toLowerCase().includes(search) ||
+        String(t.email || '').toLowerCase().includes(search) ||
+        String(t.userName || '').toLowerCase().includes(search) ||
+        String(t.phone || '').toLowerCase().includes(search) ||
+        String(t.tenantId || '').includes(search)
+      );
     });
 
-    // Compute summary stats across all trials
-    const allTrialsRes = await pgClient.query(`
-      SELECT trial_end_date, status, activated_at FROM trial_activations
-    `);
-    const allRows = allTrialsRes.rows || [];
-    const totalTrials = allRows.length;
-    const activeTrials = allRows.filter((r: any) => new Date(r.trial_end_date).getTime() > now && r.status !== 'EXPIRED').length;
-    const expiredTrials = allRows.filter((r: any) => new Date(r.trial_end_date).getTime() <= now || r.status === 'EXPIRED').length;
-    const todayTrials = allRows.filter((r: any) => new Date(r.activated_at).getTime() >= startOfToday.getTime()).length;
+    const historyRes = await pgClient
+      .query(`SELECT * FROM trial_tracking_history ORDER BY created_at DESC, id DESC LIMIT 250`)
+      .catch(() => ({ rows: [] as any[] }));
+    const history = (historyRes.rows || []).map(formatTrialHistoryRow);
 
     return res.json({
-      trials,
-      summary: {
-        totalTrials,
-        activeTrials,
-        expiredTrials,
-        todayTrials,
-      },
+      trials: filteredTrials,
+      history,
+      summary,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to fetch trial activations: ' + err.message });
+    return res.status(500).json({ error: 'Failed to fetch trial stores: ' + err.message });
+  }
+}
+
+router.get('/superadmin/free-trials', requireAuth, requireSuperAdmin, handleListFreeTrials);
+router.get('/superadmin/trial-activations', requireAuth, requireSuperAdmin, handleListFreeTrials);
+
+/**
+ * 7b-2. FREE TRIAL TRACKING HISTORY LEDGER (`GET /api/superadmin/free-trials/history`)
+ */
+router.get('/superadmin/free-trials/history', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    await syncExpiredTenantSubscriptions();
+    const search = String(req.query.search || '').trim().toLowerCase();
+    const eventType = String(req.query.eventType || 'ALL').trim().toUpperCase();
+    const trialIdParam = req.query.trialId ? parseInt(String(req.query.trialId), 10) : null;
+    const tenantIdParam = req.query.tenantId ? parseInt(String(req.query.tenantId), 10) : null;
+
+    let sql = `SELECT * FROM trial_tracking_history`;
+    const where: string[] = [];
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(
+        LOWER(COALESCE(owner_email, '')) LIKE $${params.length} OR
+        LOWER(COALESCE(owner_name, '')) LIKE $${params.length} OR
+        LOWER(COALESCE(store_name, '')) LIKE $${params.length} OR
+        LOWER(COALESCE(notes, '')) LIKE $${params.length}
+      )`);
+    }
+    if (eventType === 'EXPIRED_CONVERTED_SUSPENDED') {
+      where.push(`event_type IN ('EXPIRED', 'CONVERTED', 'SUSPENDED')`);
+    } else if (eventType && eventType !== 'ALL') {
+      params.push(eventType);
+      where.push(`UPPER(event_type) = $${params.length}`);
+    }
+    if (trialIdParam && Number.isInteger(trialIdParam)) {
+      params.push(trialIdParam);
+      where.push(`trial_id = $${params.length}`);
+    }
+    if (tenantIdParam && Number.isInteger(tenantIdParam)) {
+      params.push(tenantIdParam);
+      where.push(`tenant_id = $${params.length}`);
+    }
+
+    if (where.length > 0) {
+      sql += ` WHERE ${where.join(' AND ')}`;
+    }
+    sql += ` ORDER BY created_at DESC, id DESC LIMIT 500`;
+
+    const histRes = await pgClient.query(sql, params);
+    return res.json({
+      history: (histRes.rows || []).map(formatTrialHistoryRow),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to load trial tracking history: ' + err.message });
   }
 });
 
 /**
- * 7c. SUPERADMIN EXTEND 30-DAY TRIAL (`POST /api/superadmin/trial-activations/:id/extend`)
+ * 7b-3. PER-TRIAL TRACKING HISTORY (`GET /api/superadmin/free-trials/:id/history`)
  */
-router.post('/superadmin/trial-activations/:id/extend', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/superadmin/free-trials/:id/history', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    await ensureSaasControlPlane();
+    const trialId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+    const trialRes = await pgClient.query('SELECT id, tenant_id FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]);
+    if (trialRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Free trial store record not found.' });
+    }
+    const tenantId = trialRes.rows[0].tenant_id ? Number(trialRes.rows[0].tenant_id) : null;
+    const histRes = tenantId
+      ? await pgClient.query(
+          `SELECT * FROM trial_tracking_history WHERE trial_id = $1 OR tenant_id = $2 ORDER BY created_at DESC, id DESC`,
+          [trialId, tenantId]
+        )
+      : await pgClient.query(
+          `SELECT * FROM trial_tracking_history WHERE trial_id = $1 ORDER BY created_at DESC, id DESC`,
+          [trialId]
+        );
+    return res.json({
+      history: (histRes.rows || []).map(formatTrialHistoryRow),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to load trial history: ' + err.message });
+  }
+});
+
+/**
+ * Helper to load a single formatted trial store row
+ */
+async function loadFormattedTrialById(trialId: number) {
+  const res = await pgClient.query(
+    `SELECT ta.*,
+            t.name AS live_tenant_name,
+            t.status AS live_tenant_status,
+            t.subscription_status AS live_subscription_status,
+            t.subscription_plan AS live_subscription_plan,
+            t.subscription_end_date AS live_subscription_end_date,
+            t.onboarding_completed AS live_onboarding_completed,
+            u.name AS live_owner_name,
+            u.email AS live_owner_email,
+            u.phone AS live_owner_phone,
+            cs.business_type AS live_business_type,
+            cs.pricing_mode AS live_pricing_mode
+     FROM trial_activations ta
+     LEFT JOIN tenants t ON t.id = ta.tenant_id
+     LEFT JOIN LATERAL (
+       SELECT name, email, phone
+       FROM users
+       WHERE tenant_id = ta.tenant_id AND role = 'ADMIN'
+       ORDER BY id ASC
+       LIMIT 1
+     ) u ON true
+     LEFT JOIN company_settings cs ON cs.tenant_id = ta.tenant_id
+     WHERE ta.id = $1
+     LIMIT 1`,
+    [trialId]
+  );
+  return res.rows[0] ? formatTrialActivationRow(res.rows[0]) : null;
+}
+
+/**
+ * 7b-4. EDIT FREE TRIAL STORE & OWNER DETAILS (`PATCH /api/superadmin/free-trials/:id`)
+ */
+router.patch('/superadmin/free-trials/:id', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    const trialId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+
+    const trialRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]);
+    if (trialRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Free trial store record not found.' });
+    }
+    const curr = trialRes.rows[0];
+    const prevStatus = String(curr.status || 'ACTIVE').toUpperCase();
+    const prevEndDate = curr.trial_end_date;
+
+    const {
+      storeName,
+      userName,
+      ownerName,
+      email,
+      ownerEmail,
+      phone,
+      ownerPhone,
+      businessType,
+      pricingMode,
+      trialStartDate,
+      trialEndDate,
+      status,
+      notes,
+    } = req.body || {};
+
+    const finalStoreName = String(storeName ?? curr.store_name ?? '').trim() || curr.store_name;
+    const finalOwnerName = String(userName ?? ownerName ?? curr.user_name ?? '').trim() || curr.user_name;
+    const finalEmail = String(email ?? ownerEmail ?? curr.email ?? '').trim().toLowerCase();
+    const finalPhone = String(phone ?? ownerPhone ?? curr.phone ?? '').trim();
+    const finalBusinessType = String(businessType || curr.business_type || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL';
+    const finalPricingMode = finalBusinessType === 'WHOLESALE' ? 'FIXED' : (String(pricingMode || curr.pricing_mode || 'FIXED').toUpperCase() === 'NEGOTIABLE' ? 'NEGOTIABLE' : 'FIXED');
+
+    if (finalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(finalEmail)) {
+      return res.status(400).json({ error: 'Enter a valid owner email address.' });
+    }
+
+    if (finalEmail && curr.tenant_id) {
+      const dupCheck = await pgClient.query<{ id: number }>(
+        `SELECT id FROM users
+         WHERE LOWER(BTRIM(email)) = LOWER(BTRIM($1))
+           AND (tenant_id != $2 OR role != 'ADMIN')
+           AND id != COALESCE($3, 0)
+         LIMIT 1`,
+        [finalEmail, curr.tenant_id, curr.user_id || 0]
+      );
+      if (dupCheck.rows.length > 0) {
+        return res.status(409).json({
+          code: 'EMAIL_ALREADY_EXISTS',
+          error: 'This email is already in use by another account.',
+        });
+      }
+    }
+
+    const startDt = trialStartDate ? new Date(trialStartDate) : (curr.trial_start_date ? new Date(curr.trial_start_date) : new Date());
+    const validStart = isNaN(startDt.getTime()) ? new Date() : startDt;
+
+    let endDt = trialEndDate ? new Date(trialEndDate) : (curr.trial_end_date ? new Date(curr.trial_end_date) : new Date(validStart.getTime() + 30 * 86400000));
+    if (trialEndDate && /^\d{4}-\d{2}-\d{2}$/.test(String(trialEndDate).trim())) {
+      endDt = new Date(`${String(trialEndDate).trim()}T23:59:59.999Z`);
+    }
+    if (isNaN(endDt.getTime())) {
+      endDt = new Date(validStart.getTime() + 30 * 86400000);
+    }
+
+    const durationDays = Math.max(1, Math.round((endDt.getTime() - validStart.getTime()) / 86400000));
+    let nextStatus = status ? String(status).toUpperCase() : prevStatus;
+    if (!['ACTIVE', 'EXPIRED', 'SUSPENDED', 'CONVERTED', 'PENDING'].includes(nextStatus)) {
+      nextStatus = prevStatus;
+    }
+    if (!status) {
+      if (endDt.getTime() <= Date.now() && !['SUSPENDED', 'CONVERTED'].includes(nextStatus)) {
+        nextStatus = 'EXPIRED';
+      } else if (endDt.getTime() > Date.now() && nextStatus === 'EXPIRED') {
+        nextStatus = 'ACTIVE';
+      }
+    } else if (nextStatus === 'ACTIVE' && endDt.getTime() <= Date.now()) {
+      endDt = new Date(Date.now() + 30 * 86400000);
+    }
+
+    await pgClient.query(
+      `UPDATE trial_activations
+       SET store_name = $1,
+           user_name = $2,
+           email = $3,
+           phone = $4,
+           business_type = $5,
+           pricing_mode = $6,
+           trial_start_date = $7,
+           trial_end_date = $8,
+           trial_duration_days = $9,
+           status = $10,
+           expired_at = CASE WHEN $10 = 'EXPIRED' THEN NOW() ELSE expired_at END,
+           suspended_at = CASE WHEN $10 = 'SUSPENDED' THEN NOW() ELSE suspended_at END,
+           reactivated_at = CASE WHEN $10 = 'ACTIVE' AND $11 != 'ACTIVE' THEN NOW() ELSE reactivated_at END,
+           updated_at = NOW()
+       WHERE id = $12`,
+      [
+        finalStoreName,
+        finalOwnerName,
+        finalEmail,
+        finalPhone,
+        finalBusinessType,
+        finalPricingMode,
+        validStart.toISOString(),
+        endDt.toISOString(),
+        durationDays,
+        nextStatus,
+        prevStatus,
+        trialId,
+      ]
+    );
+
+    if (curr.tenant_id) {
+      const tenantSubStatus = nextStatus === 'SUSPENDED' ? 'SUSPENDED' : nextStatus === 'EXPIRED' ? 'EXPIRED' : 'ACTIVE';
+      const tenantStatus = nextStatus === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
+      await pgClient.query(
+        `UPDATE tenants
+         SET name = $1,
+             subscription_start_date = $2,
+             subscription_end_date = $3,
+             subscription_status = $4,
+             status = $5,
+             updated_at = NOW()
+         WHERE id = $6`,
+        [finalStoreName, validStart.toISOString(), endDt.toISOString(), tenantSubStatus, tenantStatus, curr.tenant_id]
+      );
+      await pgClient
+        .query(
+          `UPDATE company_settings
+           SET phone = $1,
+               email = $2,
+               business_type = $3,
+               pricing_mode = $4,
+               updated_at = NOW()
+           WHERE tenant_id = $5`,
+          [finalPhone, finalEmail, finalBusinessType, finalPricingMode, curr.tenant_id]
+        )
+        .catch(() => {});
+      if (curr.user_id) {
+        await pgClient
+          .query(
+            `UPDATE users
+             SET name = $1,
+                 email = $2,
+                 phone = $3,
+                 updated_at = NOW()
+             WHERE id = $4`,
+            [finalOwnerName, finalEmail, finalPhone, curr.user_id]
+          )
+          .catch(() => {});
+      }
+      if (tenantStatus !== 'ACTIVE' || tenantSubStatus !== 'ACTIVE') {
+        removeTenantMiddlewarePresence(Number(curr.tenant_id));
+      } else {
+        await clearSubscriptionAlertsOnRenewal(Number(curr.tenant_id)).catch(() => {});
+      }
+    }
+
+    const eventType: TrialTrackingEventType =
+      nextStatus !== prevStatus
+        ? nextStatus === 'SUSPENDED'
+          ? 'SUSPENDED'
+          : nextStatus === 'EXPIRED'
+          ? 'EXPIRED'
+          : nextStatus === 'CONVERTED'
+          ? 'CONVERTED'
+          : 'REACTIVATED'
+        : 'EDITED';
+
+    await logTrialTrackingEvent({
+      trialId,
+      tenantId: curr.tenant_id,
+      userId: curr.user_id,
+      eventType,
+      previousStatus: prevStatus,
+      newStatus: nextStatus,
+      previousEndDate: prevEndDate,
+      newEndDate: endDt.toISOString(),
+      actorUser: req.user || null,
+      ownerEmail: finalEmail,
+      ownerName: finalOwnerName,
+      storeName: finalStoreName,
+      notes: notes ? String(notes).trim() : `Free trial details updated for '${finalStoreName}'.`,
+    });
+
+    const formatted = await loadFormattedTrialById(trialId);
+    return res.json({
+      success: true,
+      trial: formatted,
+      message: `Free trial '${finalStoreName}' updated successfully.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to update free trial store: ' + err.message });
+  }
+});
+
+/**
+ * 7c. SUPERADMIN EXTEND FREE TRIAL (`POST /api/superadmin/free-trials/:id/extend` & legacy `/trial-activations/:id/extend`)
+ */
+async function handleExtendFreeTrial(req: AuthenticatedRequest, res: Response) {
+  try {
+    await ensureSaasControlPlane();
     const trialId = parseInt(req.params.id, 10);
     const extensionDays = Number(req.body?.days || 30);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+    if (!Number.isFinite(extensionDays) || extensionDays < 1 || extensionDays > 3650) {
+      return res.status(400).json({ error: 'Extension days must be between 1 and 3650.' });
+    }
 
-    const trialRes = await pgClient.query('SELECT * FROM trial_activations WHERE id = $1', [trialId]);
+    const trialRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1', [trialId]);
     if (trialRes.rows.length === 0) {
       return res.status(404).json({ error: 'Trial activation record not found.' });
     }
 
     const trial = trialRes.rows[0];
+    const prevStatus = String(trial.status || 'ACTIVE').toUpperCase();
+    const prevEndDate = trial.trial_end_date;
     const currEnd = trial.trial_end_date ? new Date(trial.trial_end_date) : new Date();
     const baseDate = currEnd.getTime() > Date.now() ? currEnd : new Date();
     const newEndDate = new Date(baseDate.getTime() + extensionDays * 86400000);
@@ -2067,9 +2927,11 @@ router.post('/superadmin/trial-activations/:id/extend', requireAuth, requireSupe
       `UPDATE trial_activations
        SET trial_end_date = $1,
            trial_duration_days = trial_duration_days + $2,
-           status = 'ACTIVE'
-       WHERE id = $3`,
-      [newEndDate.toISOString(), extensionDays, trialId]
+           status = 'ACTIVE',
+           reactivated_at = CASE WHEN $3 != 'ACTIVE' THEN NOW() ELSE reactivated_at END,
+           updated_at = NOW()
+       WHERE id = $4`,
+      [newEndDate.toISOString(), extensionDays, prevStatus, trialId]
     );
 
     if (trial.tenant_id) {
@@ -2107,13 +2969,301 @@ router.post('/superadmin/trial-activations/:id/extend', requireAuth, requireSupe
       }).catch(() => {});
     }
 
+    await logTrialTrackingEvent({
+      trialId,
+      tenantId: trial.tenant_id,
+      userId: trial.user_id,
+      eventType: 'EXTENDED',
+      previousStatus: prevStatus,
+      newStatus: 'ACTIVE',
+      previousEndDate: prevEndDate,
+      newEndDate: newEndDate.toISOString(),
+      actorUser: req.user || null,
+      ownerEmail: trial.email,
+      ownerName: trial.user_name,
+      storeName: trial.store_name,
+      notes: req.body?.notes ? String(req.body.notes).trim() : `Trial extended by +${extensionDays} days until ${newEndDate.toLocaleDateString()}.`,
+      metadata: { extensionDays },
+    });
+
+    const formatted = await loadFormattedTrialById(trialId);
     return res.json({
       success: true,
+      trial: formatted,
       message: `Trial for '${trial.email}' (${trial.store_name}) extended by ${extensionDays} days until ${newEndDate.toLocaleDateString()}.`,
       newEndDate: newEndDate.toISOString(),
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to extend trial: ' + err.message });
+  }
+}
+
+router.post('/superadmin/free-trials/:id/extend', requireAuth, requireSuperAdmin, handleExtendFreeTrial);
+router.post('/superadmin/trial-activations/:id/extend', requireAuth, requireSuperAdmin, handleExtendFreeTrial);
+
+/**
+ * 7d. SUPERADMIN EXPIRE FREE TRIAL STORE (`POST /api/superadmin/free-trials/:id/expire`)
+ */
+router.post('/superadmin/free-trials/:id/expire', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    const trialId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+    const trialRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]);
+    if (trialRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Free trial record not found.' });
+    }
+    const trial = trialRes.rows[0];
+    const prevStatus = String(trial.status || 'ACTIVE').toUpperCase();
+    const prevEndDate = trial.trial_end_date;
+    const prevEndMs = prevEndDate ? new Date(prevEndDate).getTime() : 0;
+    const effectiveEndDate = prevEndMs > 0 && prevEndMs <= Date.now()
+      ? new Date(prevEndDate).toISOString()
+      : new Date(Date.now() - 1000).toISOString();
+
+    await pgClient.query(
+      `UPDATE trial_activations
+       SET status = 'EXPIRED',
+           trial_end_date = $1,
+           expired_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $2`,
+      [effectiveEndDate, trialId]
+    );
+
+    if (trial.tenant_id) {
+      await pgClient.query(
+        `UPDATE tenants
+         SET subscription_status = 'EXPIRED',
+             subscription_end_date = $1,
+             status = 'ACTIVE',
+             updated_at = NOW()
+         WHERE id = $2`,
+        [effectiveEndDate, trial.tenant_id]
+      );
+      removeTenantMiddlewarePresence(Number(trial.tenant_id));
+      await emitStoreSubscriptionNotification({
+        tenantId: Number(trial.tenant_id),
+        storeName: trial.store_name || 'Trial Store',
+        kind: 'EXPIRED',
+        planLabel: 'Free Trial',
+        endDate: effectiveEndDate,
+      }).catch(() => {});
+    }
+
+    await logTrialTrackingEvent({
+      trialId,
+      tenantId: trial.tenant_id,
+      userId: trial.user_id,
+      eventType: 'EXPIRED',
+      previousStatus: prevStatus,
+      newStatus: 'EXPIRED',
+      previousEndDate: prevEndDate,
+      newEndDate: effectiveEndDate,
+      actorUser: req.user || null,
+      ownerEmail: trial.email,
+      ownerName: trial.user_name,
+      storeName: trial.store_name,
+      notes: req.body?.notes ? String(req.body.notes).trim() : `Free trial manually marked EXPIRED for '${trial.store_name}'.`,
+    });
+
+    const formatted = await loadFormattedTrialById(trialId);
+    return res.json({
+      success: true,
+      trial: formatted,
+      message: `Free trial for '${trial.store_name}' has been marked as expired.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to expire free trial: ' + err.message });
+  }
+});
+
+/**
+ * 7e. SUPERADMIN SUSPEND FREE TRIAL STORE (`POST /api/superadmin/free-trials/:id/suspend`)
+ */
+router.post('/superadmin/free-trials/:id/suspend', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    const trialId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+    const trialRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]);
+    if (trialRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Free trial record not found.' });
+    }
+    const trial = trialRes.rows[0];
+    const prevStatus = String(trial.status || 'ACTIVE').toUpperCase();
+
+    await pgClient.query(
+      `UPDATE trial_activations
+       SET status = 'SUSPENDED',
+           suspended_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [trialId]
+    );
+
+    if (trial.tenant_id) {
+      await pgClient.query(
+        `UPDATE tenants
+         SET status = 'SUSPENDED',
+             subscription_status = 'SUSPENDED',
+             updated_at = NOW()
+         WHERE id = $1`,
+        [trial.tenant_id]
+      );
+      removeTenantMiddlewarePresence(Number(trial.tenant_id));
+    }
+
+    await logTrialTrackingEvent({
+      trialId,
+      tenantId: trial.tenant_id,
+      userId: trial.user_id,
+      eventType: 'SUSPENDED',
+      previousStatus: prevStatus,
+      newStatus: 'SUSPENDED',
+      previousEndDate: trial.trial_end_date,
+      newEndDate: trial.trial_end_date,
+      actorUser: req.user || null,
+      ownerEmail: trial.email,
+      ownerName: trial.user_name,
+      storeName: trial.store_name,
+      notes: req.body?.notes ? String(req.body.notes).trim() : `Free trial store '${trial.store_name}' suspended by SuperAdmin.`,
+    });
+
+    const formatted = await loadFormattedTrialById(trialId);
+    return res.json({
+      success: true,
+      trial: formatted,
+      message: `Free trial store '${trial.store_name}' has been suspended.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to suspend free trial: ' + err.message });
+  }
+});
+
+/**
+ * 7f. SUPERADMIN REACTIVATE FREE TRIAL STORE (`POST /api/superadmin/free-trials/:id/reactivate`)
+ */
+router.post('/superadmin/free-trials/:id/reactivate', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    const trialId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+    const trialRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]);
+    if (trialRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Free trial record not found.' });
+    }
+    const trial = trialRes.rows[0];
+    const prevStatus = String(trial.status || 'EXPIRED').toUpperCase();
+    const prevEndDate = trial.trial_end_date;
+    const prevEndMs = prevEndDate ? new Date(prevEndDate).getTime() : 0;
+
+    const requestedDays = req.body?.days !== undefined ? Number(req.body.days) : null;
+    if (requestedDays !== null && (!Number.isFinite(requestedDays) || requestedDays < 1 || requestedDays > 3650)) {
+      return res.status(400).json({ error: 'Reactivation days must be between 1 and 3650.' });
+    }
+
+    const baseDate = prevEndMs > Date.now() && !requestedDays ? new Date(prevEndMs) : new Date();
+    const effectiveDays = requestedDays || (prevEndMs <= Date.now() ? 30 : 0);
+    const newEndDate = effectiveDays > 0
+      ? new Date(baseDate.getTime() + effectiveDays * 86400000)
+      : baseDate;
+
+    await pgClient.query(
+      `UPDATE trial_activations
+       SET status = 'ACTIVE',
+           trial_end_date = $1,
+           reactivated_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $2`,
+      [newEndDate.toISOString(), trialId]
+    );
+
+    if (trial.tenant_id) {
+      await pgClient.query(
+        `UPDATE tenants
+         SET status = 'ACTIVE',
+             subscription_status = 'ACTIVE',
+             subscription_end_date = $1,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [newEndDate.toISOString(), trial.tenant_id]
+      );
+      await clearSubscriptionAlertsOnRenewal(Number(trial.tenant_id)).catch(() => {});
+      await emitStoreSubscriptionNotification({
+        tenantId: Number(trial.tenant_id),
+        storeName: trial.store_name || 'Trial Store',
+        kind: 'RENEWED',
+        planLabel: 'Free Trial Reactivated',
+        endDate: newEndDate.toISOString(),
+      }).catch(() => {});
+    }
+
+    await logTrialTrackingEvent({
+      trialId,
+      tenantId: trial.tenant_id,
+      userId: trial.user_id,
+      eventType: 'REACTIVATED',
+      previousStatus: prevStatus,
+      newStatus: 'ACTIVE',
+      previousEndDate: prevEndDate,
+      newEndDate: newEndDate.toISOString(),
+      actorUser: req.user || null,
+      ownerEmail: trial.email,
+      ownerName: trial.user_name,
+      storeName: trial.store_name,
+      notes: req.body?.notes
+        ? String(req.body.notes).trim()
+        : `Free trial reactivated for '${trial.store_name}' until ${newEndDate.toLocaleDateString()}.`,
+      metadata: effectiveDays > 0 ? { addedDays: effectiveDays } : {},
+    });
+
+    const formatted = await loadFormattedTrialById(trialId);
+    return res.json({
+      success: true,
+      trial: formatted,
+      message: `Free trial store '${trial.store_name}' reactivated until ${newEndDate.toLocaleDateString()}.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to reactivate free trial: ' + err.message });
+  }
+});
+
+/**
+ * 7g. SUPERADMIN PERMANENT DELETE FREE TRIAL STORE (`DELETE /api/superadmin/free-trials/:id`)
+ * Permanently deletes the store tenant, trial activation, tracking history, and all activity logs.
+ */
+router.delete('/superadmin/free-trials/:id', requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await ensureSaasControlPlane();
+    const trialId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(trialId) || trialId <= 0) {
+      return res.status(400).json({ error: 'Invalid free trial ID.' });
+    }
+    const trialRes = await pgClient.query<any>('SELECT * FROM trial_activations WHERE id = $1 LIMIT 1', [trialId]);
+    if (trialRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Free trial store record not found or already deleted.' });
+    }
+    const trial = trialRes.rows[0];
+    const { storeName } = await permanentlyDeleteStoreAndTrialData({
+      tenantId: trial.tenant_id ? Number(trial.tenant_id) : null,
+      trialId,
+    });
+
+    return res.json({
+      success: true,
+      deletedTrialId: trialId,
+      deletedTenantId: trial.tenant_id ? Number(trial.tenant_id) : null,
+      message: `Free trial store '${storeName}' and all associated trial history, tracking records, and activity logs have been permanently deleted.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to permanently delete free trial store: ' + err.message });
   }
 });
 
@@ -2187,7 +3337,7 @@ router.post('/superadmin/tenants', requireAuth, requireSuperAdmin, async (req: A
     });
     await pgClient.query('COMMIT');
 
-    if (provisioned.subscriptionPlan === 'TRIAL') {
+    if (normalizeSubscriptionPlan(provisioned.subscriptionPlan) === 'free_tier') {
       await recordTrialActivation({
         userId: provisioned.adminUserId,
         tenantId: provisioned.tenantId,
@@ -2202,6 +3352,7 @@ router.post('/superadmin/tenants', requireAuth, requireSuperAdmin, async (req: A
         trialStartDate: provisioned.subscriptionStartDate,
         trialEndDate: provisioned.subscriptionEndDate,
         status: 'ACTIVE',
+        actorUser: req.user || null,
         details: { createdBy: 'SUPERADMIN' },
       });
     }
@@ -2234,7 +3385,11 @@ router.post('/superadmin/tenants', requireAuth, requireSuperAdmin, async (req: A
 router.get('/tenants/onboarding', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     await ensureSaasControlPlane();
-    const tenantId = Number(req.query.tenantId ?? req.headers['x-tenant-id'] ?? (req as any).user?.tenantId);
+    const authUser = (req as AuthenticatedRequest).user;
+    const isSuperAdminActor = String(authUser?.role || '').toUpperCase() === 'SUPERADMIN';
+    const tenantId = isSuperAdminActor
+      ? Number(req.query.tenantId ?? req.headers['x-tenant-id'] ?? authUser?.tenantId)
+      : Number(authUser?.tenantId);
     if (!Number.isSafeInteger(tenantId) || tenantId <= 0) return res.status(400).json({ error: 'A valid tenantId is required.' });
     const tenantRes = await pgClient.query(
       `SELECT t.*,
@@ -2305,7 +3460,11 @@ router.get('/tenants/onboarding', requireAuth, requireAdmin, async (req: Request
 router.post('/tenants/onboarding', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     await ensureSaasControlPlane();
-    const tenantId = Number(req.body?.tenantId ?? req.query?.tenantId ?? req.headers['x-tenant-id'] ?? (req as any).user?.tenantId);
+    const authUser = (req as AuthenticatedRequest).user;
+    const isSuperAdminActor = String(authUser?.role || '').toUpperCase() === 'SUPERADMIN';
+    const tenantId = isSuperAdminActor
+      ? Number(req.body?.tenantId ?? req.query?.tenantId ?? req.headers['x-tenant-id'] ?? authUser?.tenantId)
+      : Number(authUser?.tenantId);
     if (!Number.isSafeInteger(tenantId) || tenantId <= 0) return res.status(400).json({ error: 'A valid tenantId is required.' });
 
     const tenantRes = await pgClient.query<{

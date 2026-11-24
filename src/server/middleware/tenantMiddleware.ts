@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { pgClient } from '../../db/index.ts';
 import { ensureSaasControlPlane, normalizeSubscriptionPlan, calculateSubscriptionEndDate } from '../../db/schemaInit.ts';
+import { verifySuperAdminRequest } from '../auth.ts';
 
 export interface TenantRouteResolution {
   mode: 'LANDING' | 'SUPERADMIN' | 'TENANT_ACTIVE' | 'TENANT_SUSPENDED' | 'TENANT_EXPIRED' | 'TENANT_NOT_FOUND';
@@ -310,7 +311,7 @@ export async function tenantRoutingMiddleware(
       }
     }
 
-    // Real-time middleware enforcement: block API calls to expired or suspended tenants (except superadmin, auth & saas resolution)
+    // Real-time middleware enforcement: block API calls to expired or suspended tenants (except verified SUPERADMIN, auth & saas resolution)
     if (
       req.path.startsWith('/api/') &&
       !req.path.startsWith('/api/superadmin') &&
@@ -319,19 +320,28 @@ export async function tenantRoutingMiddleware(
       !req.path.startsWith('/api/pwa/') &&
       !req.path.startsWith('/api/auth')
     ) {
-      if (resolution.mode === 'TENANT_EXPIRED' || resolution.tenant?.subscriptionStatus === 'EXPIRED') {
-        return res.status(403).json({
-          error: 'Your subscription key has expired. Please contact support to renew.',
-          code: 'SUBSCRIPTION_EXPIRED',
-          tenant: resolution.tenant,
-        });
-      }
-      if (resolution.mode === 'TENANT_SUSPENDED') {
-        return res.status(423).json({
-          error: `Store "${resolution.tenant?.name || 'this tenant'}" is currently suspended. Please contact platform billing or support.`,
-          code: 'TENANT_SUSPENDED',
-          tenant: resolution.tenant,
-        });
+      const isExpiredTenant =
+        resolution.mode === 'TENANT_EXPIRED' || resolution.tenant?.subscriptionStatus === 'EXPIRED';
+      const isSuspendedTenant = resolution.mode === 'TENANT_SUSPENDED';
+
+      if (isExpiredTenant || isSuspendedTenant) {
+        const verifiedSuperAdmin = await verifySuperAdminRequest(req);
+        if (verifiedSuperAdmin) {
+          (req as any).isSuperAdminOverride = true;
+          res.setHeader('X-SuperAdmin-Override', 'true');
+        } else if (isExpiredTenant) {
+          return res.status(403).json({
+            error: 'Your subscription key has expired. Please contact support to renew.',
+            code: 'SUBSCRIPTION_EXPIRED',
+            tenant: resolution.tenant,
+          });
+        } else {
+          return res.status(423).json({
+            error: `Store "${resolution.tenant?.name || 'this tenant'}" is currently suspended. Please contact platform billing or support.`,
+            code: 'TENANT_SUSPENDED',
+            tenant: resolution.tenant,
+          });
+        }
       }
     }
 

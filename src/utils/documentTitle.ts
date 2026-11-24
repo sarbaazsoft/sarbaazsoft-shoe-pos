@@ -30,7 +30,7 @@ export const APP_ROUTE_TITLES: Record<string, string> = {
   assistant: 'AI Assistant',
   notifications: 'Notifications',
   superadmin: 'SuperAdmin Control Panel',
-  trials: 'Trial Activations',
+  trials: 'Free Trial Management',
   stores: 'Stores Management',
   requests: 'Subscription Requests',
 };

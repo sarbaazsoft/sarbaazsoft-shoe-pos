@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Lock, Mail, KeyRound, AlertCircle, CheckCircle2, Eye, EyeOff, Store, ArrowRight, Clock } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api.ts';
@@ -24,7 +24,9 @@ interface AuthModalProps {
   onBack?: () => void;
   onClearTenantScope?: () => void;
   onStoreCreated?: (tenantId: number, loginUrl: string, user?: any, token?: string) => void;
+  onTenantResolved?: (tenant: any) => void;
   sessionNotice?: string | null;
+  tenantNotice?: string | null;
   layoutMeta?: Partial<RouteLayoutMetadata>;
 }
 
@@ -34,7 +36,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onBack,
   onClearTenantScope,
   onStoreCreated,
+  onTenantResolved,
   sessionNotice,
+  tenantNotice,
   layoutMeta: layoutMetaOverride,
 }) => {
   const { theme } = useTheme();
@@ -42,6 +46,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [tab, setTab] = useState<'login' | 'forgot' | 'reset'>('login');
   const authTabDirection = useTabDirection(tab, ['login', 'forgot', 'reset'] as const);
   const [showFreeTrialModal, setShowFreeTrialModal] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   // Form states with email retrieval from localStorage
   const [email, setEmail] = useState(() => getRememberedEmail('store') ?? '');
@@ -132,10 +137,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       api.saas.resolve(activeTenantId).then((res) => {
         if (!isMounted) return;
         const target = res?.availableTenants?.find((t: any) => Number(t.id) === activeTenantId);
-        if (target?.name) {
-          setStoreTitle(target.name);
-        } else if (res?.resolution?.tenant?.name && Number(res.resolution.tenant.id) === activeTenantId) {
-          setStoreTitle(res.resolution.tenant.name);
+        const resolved =
+          target ||
+          (res?.resolution?.tenant && Number(res.resolution.tenant.id) === activeTenantId
+            ? res.resolution.tenant
+            : null);
+        if (resolved?.name) {
+          setStoreTitle(resolved.name);
+          onTenantResolved?.(resolved);
         }
       }).catch(() => {});
     }
@@ -143,7 +152,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeTenantId, companySettings]);
+  }, [activeTenantId, companySettings, onTenantResolved]);
 
   const effectiveStoreName =
     storeTitle ||
@@ -177,7 +186,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const urlResetToken = searchParams.get('resetToken') || '';
-    const urlEmail = searchParams.get('email') || '';
+    const urlEmail = (searchParams.get('email') || '').trim();
+    const isVerifiedRedirect =
+      searchParams.get('verified') === '1' || searchParams.get('verified') === 'true';
 
     if (urlResetToken) {
       setResetToken(urlResetToken);
@@ -199,12 +210,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     const savedEmail = getRememberedEmail('store') ?? '';
-    setEmail(savedEmail);
-    setRememberMe(Boolean(savedEmail));
+    const initialLoginEmail = urlEmail || savedEmail;
+    setEmail(initialLoginEmail);
+    setRememberMe(Boolean(savedEmail || urlEmail));
     setPassword('');
     setErrorMessage(null);
-    setInfoMessage(null);
+    setInfoMessage(
+      isVerifiedRedirect
+        ? 'Your email has been confirmed! Sign in below to continue to your store.'
+        : null
+    );
     setMatchingStores([]);
+
+    if (initialLoginEmail) {
+      requestAnimationFrame(() => {
+        passwordInputRef.current?.focus({ preventScroll: true });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTenantId]);
 
@@ -410,11 +432,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         activeTenantId ? (
           <div
             id="auth-tenant-scope-banner"
-            className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-2 px-3 sm:px-4 text-xs select-none"
+            className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-1.5 sm:py-2 px-3 sm:px-4 text-xs select-none"
           >
-            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
               <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+                <span className="flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse shrink-0" />
                 <span>
                   Active Store Scope: <strong>{effectiveStoreName}</strong> (Tenant #{activeTenantId})
                 </span>
@@ -449,9 +471,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         ) : null
       }
       footer={<PublicFooter storeName={storeName} />}
-      mainClassName="relative z-10 w-full py-8 sm:py-12"
+      mainClassName="relative z-10 w-full py-4 sm:py-10"
     >
         <div className="w-[calc(100%-2rem)] max-w-md mx-4">
+          {tenantNotice && (
+            <div
+              role="alert"
+              className="mb-3 rounded-xl border border-rose-300 bg-rose-50/95 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-rose-800 shadow-sm backdrop-blur-md dark:border-rose-800 dark:bg-rose-950/80 dark:text-rose-200"
+            >
+              {tenantNotice}
+            </div>
+          )}
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.985, filter: 'blur(6px)' }}
             animate={isVisible
@@ -479,20 +509,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               }`}
             >
               {/* Store Icon Header matching store sidebar top */}
-              <div className="text-center mb-5">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-lg shadow-purple-600/20 dark:shadow-[0_0_20px_rgba(var(--primary-rgb,147,51,234),)] border border-indigo-500/25 overflow-hidden">
+              <div className="text-center mb-3.5 sm:mb-5">
+                <div className="w-14 h-14 sm:w-20 sm:h-20 mx-auto mb-2.5 sm:mb-3 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-lg shadow-purple-600/20 dark:shadow-[0_0_20px_rgba(var(--primary-rgb,147,51,234),)] border border-indigo-500/25 overflow-hidden">
                   <ShoeIcon src={companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png'} alt={`${effectiveStoreName} Logo`} className="w-full h-full object-cover rounded-2xl" />
                 </div>
                 <div
                   id="auth-card-heading"
-                  className="text-[11px] font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-1"
+                  className="text-[11px] font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-0.5 sm:mb-1"
                 >
                   SarbaazSoft Shoe POS
                 </div>
                 <h2 id="auth-store-name" className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                   {effectiveStoreName}
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-1 font-medium">
+                <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-0.5 sm:mt-1 font-medium">
                   {isStoreSpecific
                     ? `Sign in to continue to ${effectiveStoreName}`
                     : 'Sign in to continue to store terminal'}
@@ -580,7 +610,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <AnimatedTabPanel activeKey={tab} direction={authTabDirection}>
               {/* TAB 1: LOGIN FORM */}
               {tab === 'login' && (
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
                   <div>
                     <label
                       htmlFor="login-email-input"
@@ -638,11 +668,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       </div>
 
                       <input
+                        ref={passwordInputRef}
                         id="login-password-input"
                         name="password"
                         type={showPassword ? 'text' : 'password'}
                         autoComplete="current-password"
-                        autoFocus={Boolean(email)}
                         required
                         placeholder="••••••••"
                         value={password}

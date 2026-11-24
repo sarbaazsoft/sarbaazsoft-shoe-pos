@@ -583,6 +583,20 @@ export default function App() {
         return;
       }
 
+      const isPlatformOwner = (() => {
+        if (String(currentUser?.originalRole || currentUser?.role || '').toUpperCase() === 'SUPERADMIN') {
+          return true;
+        }
+        try {
+          const raw = localStorage.getItem('pos_current_user');
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          return String(parsed?.originalRole || parsed?.role || '').toUpperCase() === 'SUPERADMIN';
+        } catch {
+          return false;
+        }
+      })();
+
       if (resolution?.mode === 'TENANT_NOT_FOUND') {
         setActiveTenant(null);
         setSaasMode('TENANT_NOT_FOUND');
@@ -591,7 +605,7 @@ export default function App() {
         if (resolution.tenant) {
           setActiveTenantId(resolution.tenant.id);
         }
-        setSaasMode('TENANT_SUSPENDED');
+        setSaasMode(isPlatformOwner ? 'TENANT_ACTIVE' : 'TENANT_SUSPENDED');
       } else if (
         resolution?.mode === 'TENANT_EXPIRED' ||
         resolution?.tenant?.status === 'EXPIRED' ||
@@ -601,23 +615,7 @@ export default function App() {
         if (resolution.tenant) {
           setActiveTenantId(resolution.tenant.id);
         }
-        const storedUserRole = (() => {
-          try {
-            const raw = localStorage.getItem('pos_current_user');
-            if (!raw) return '';
-            const parsed = JSON.parse(raw);
-            return String(parsed?.originalRole || parsed?.role || '').toUpperCase();
-          } catch {
-            return '';
-          }
-        })();
-        const isPlatformOwner = storedUserRole === 'SUPERADMIN';
-        if (isPlatformOwner) {
-          setSaasMode('TENANT_ACTIVE');
-          setCurrentTab('settings');
-        } else {
-          setSaasMode('TENANT_EXPIRED');
-        }
+        setSaasMode(isPlatformOwner ? 'TENANT_ACTIVE' : 'TENANT_EXPIRED');
       } else if (resolution?.tenant) {
         setActiveTenant(resolution.tenant);
         setActiveTenantId(resolution.tenant.id);
@@ -760,7 +758,9 @@ export default function App() {
 
         if (normalizedRole === 'SUPERADMIN' && !tenantIdForInit) {
           setSaasMode('SUPERADMIN');
-          window.history.replaceState({}, '', '/admin');
+          if (!window.location.pathname.startsWith('/admin')) {
+            window.history.replaceState({}, '', '/admin');
+          }
         } else if (verifiedUser.onboardingCompleted === false && normalizedRole === 'ADMIN') {
           setSaasMode('TENANT_ONBOARDING');
           const obTid = Number(verifiedUser.tenantId || tenantIdForInit || 0);
@@ -825,17 +825,89 @@ export default function App() {
       ? availableTenants.find((tenant) => Number(tenant.id) === requestedId)
       : undefined;
 
-    if (!target) {
-      if (availableTenants.length > 0) {
-        setStoreLoginTarget(null);
-        setTenantIdNotice(`Store / Tenant ID “${tenantIdParam}” was not found. Check the store link or contact your administrator.`);
-      }
+    if (target) {
+      setStoreLoginTarget(target);
+      setTenantIdNotice('');
       return;
     }
 
-    setStoreLoginTarget(target);
+    if (storeLoginTarget && Number(storeLoginTarget.id) === requestedId) {
+      setTenantIdNotice('');
+      return;
+    }
+
+    if (!Number.isSafeInteger(requestedId) || requestedId <= 0) {
+      setStoreLoginTarget(null);
+      setTenantIdNotice(`Store / Tenant ID “${tenantIdParam}” was not found. Check the store link or contact your administrator.`);
+      return;
+    }
+
+    let cancelled = false;
+    api.saas
+      .resolve(requestedId)
+      .then((res) => {
+        if (cancelled) return;
+        const resolvedList = Array.isArray(res?.availableTenants) ? res.availableTenants : null;
+        if (resolvedList) {
+          setAvailableTenants(resolvedList);
+        }
+        const matched =
+          resolvedList?.find((t: any) => Number(t.id) === requestedId) ||
+          (res?.resolution?.tenant && Number(res.resolution.tenant.id) === requestedId
+            ? res.resolution.tenant
+            : undefined);
+        if (matched) {
+          setStoreLoginTarget(matched);
+          setTenantIdNotice('');
+        } else if (resolvedList && resolvedList.length > 0) {
+          setStoreLoginTarget(null);
+          setTenantIdNotice(`Store / Tenant ID “${tenantIdParam}” was not found. Check the store link or contact your administrator.`);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (availableTenants.length > 0) {
+          setStoreLoginTarget(null);
+          setTenantIdNotice(`Store / Tenant ID “${tenantIdParam}” was not found. Check the store link or contact your administrator.`);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantIdParam, availableTenants, isInitializing, saasMode, storeLoginTarget]);
+
+  const handleAuthTenantResolved = useCallback((resolvedTenant: any) => {
+    if (!resolvedTenant || !resolvedTenant.id) return;
     setTenantIdNotice('');
-  }, [tenantIdParam, availableTenants, isInitializing, saasMode]);
+    setStoreLoginTarget(resolvedTenant);
+    setAvailableTenants((prev) => {
+      if (prev.some((t) => Number(t.id) === Number(resolvedTenant.id))) {
+        return prev;
+      }
+      return [...prev, resolvedTenant];
+    });
+  }, []);
+
+  // Ensure standalone / Auth / Verification views always open scrolled to top so the header sits flush at the viewport top
+  const isAuthViewActive = saasMode === 'AUTH' || (saasMode === 'LANDING' && isLoginModalOpen);
+  useEffect(() => {
+    if (
+      isAuthViewActive ||
+      saasMode === 'VERIFY_EMAIL' ||
+      saasMode === 'INSTALLER' ||
+      saasMode === 'TENANT_ONBOARDING' ||
+      saasMode === 'TENANT_NOT_FOUND' ||
+      saasMode === 'TENANT_SUSPENDED' ||
+      saasMode === 'TENANT_EXPIRED'
+    ) {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      } catch {}
+    }
+  }, [isAuthViewActive, saasMode]);
 
   // Keep tenantId on the shared root only while a store sign-in is required.
   useEffect(() => {
@@ -941,6 +1013,7 @@ export default function App() {
     const handleSubscriptionExpired = (event: Event) => {
       const customEvent = event as CustomEvent;
       const detail = customEvent.detail;
+      const isPlatformOwner = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
       setActiveTenant((prev) =>
         prev
           ? {
@@ -951,37 +1024,46 @@ export default function App() {
             }
           : prev
       );
-      if (saasMode !== 'SUPERADMIN' && saasMode !== 'LANDING') {
+      if (!isPlatformOwner && saasMode !== 'SUPERADMIN' && saasMode !== 'LANDING') {
         setSaasMode('TENANT_SUSPENDED');
       }
     };
     window.addEventListener('tenant:subscription-expired', handleSubscriptionExpired);
     return () => window.removeEventListener('tenant:subscription-expired', handleSubscriptionExpired);
-  }, [saasMode]);
+  }, [saasMode, currentUser]);
 
   // Listen for real-time subscription expiry or suspension events from API middleware
   useEffect(() => {
     const handleSubExpired = () => {
-      if (saasMode !== 'SUPERADMIN' && saasMode !== 'LANDING') {
+      const isPlatformOwner = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
+      if (!isPlatformOwner && saasMode !== 'SUPERADMIN' && saasMode !== 'LANDING') {
         setSaasMode('TENANT_EXPIRED');
         refreshTenantDirectory('TENANT_EXPIRED');
       }
     };
     window.addEventListener('pos:subscription-expired', handleSubExpired);
     return () => window.removeEventListener('pos:subscription-expired', handleSubExpired);
-  }, [saasMode, activeTenant?.id, refreshTenantDirectory]);
+  }, [saasMode, activeTenant?.id, refreshTenantDirectory, currentUser]);
 
   // Listen for registration or sign-in requiring email verification
   useEffect(() => {
     const handleRequireVerification = (event: Event) => {
       const customEvent = event as CustomEvent;
       const detail = customEvent.detail;
+      setIsLoginModalOpen(false);
+      if (detail?.tenantId) {
+        setTenantIdParam(String(detail.tenantId));
+        setStoredUnauthTenantId(String(detail.tenantId));
+      }
       setSaasMode('VERIFY_EMAIL');
       const queryParams = new URLSearchParams();
       if (detail?.email) queryParams.set('email', detail.email);
       if (detail?.tenantId) queryParams.set('tenantId', String(detail.tenantId));
       const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
       window.history.pushState({}, '', `/verify-email${queryString}`);
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      } catch {}
     };
     window.addEventListener('auth:require-email-verification', handleRequireVerification);
     return () => window.removeEventListener('auth:require-email-verification', handleRequireVerification);
@@ -1056,6 +1138,13 @@ export default function App() {
           setTenantIdParam(tid);
           setIsLoginModalOpen(Boolean(tid));
         }
+        return;
+      }
+
+      if (pathname === '/verify-email' || pathname.startsWith('/verify-email') || mode === 'verify-email') {
+        setSaasMode('VERIFY_EMAIL');
+        setIsLoginModalOpen(false);
+        if (tid) setTenantIdParam(tid);
         return;
       }
 
@@ -1217,7 +1306,9 @@ export default function App() {
       setSaasMode('SUPERADMIN');
       setActiveTenant(null);
       setActiveTenantId(null);
-      window.history.pushState({}, '', '/admin');
+      if (!window.location.pathname.startsWith('/admin')) {
+        window.history.pushState({}, '', '/admin');
+      }
       return;
     }
 
@@ -1601,7 +1692,9 @@ export default function App() {
       setActiveTenant(null);
       setActiveTenantId(null);
       setSaasMode('SUPERADMIN');
-      window.history.pushState({}, '', '/admin');
+      if (!window.location.pathname.startsWith('/admin')) {
+        window.history.pushState({}, '', '/admin');
+      }
       return;
     }
     if (userTenantId) {
@@ -2106,28 +2199,23 @@ export default function App() {
       {(saasMode === 'LANDING' || saasMode === 'AUTH') && (
         <>
           {showAuthModal && (
-            <>
-              {tenantIdNotice && (
-                <div role="alert" className="mx-auto mt-6 w-[min(92%,40rem)] rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
-                  {tenantIdNotice}
-                </div>
-              )}
-              <AuthModal
-                layoutMeta={activeRouteLayoutMeta}
-                companySettings={storeLoginTarget
-                  ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
-                  : (activeTenant
-                      ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
-                      : (tenantIdParam
-                          ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
-                          : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
-                onBack={handleBackToStoreDirectory}
-                onClearTenantScope={handleClearAuthTenantScope}
-                onStoreCreated={handleFreeTrialStoreCreated}
-                onSuccess={handleAuthSuccess}
-                sessionNotice={authSessionNotice}
-              />
-            </>
+            <AuthModal
+              layoutMeta={activeRouteLayoutMeta}
+              companySettings={storeLoginTarget
+                ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
+                : (activeTenant
+                    ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
+                    : (tenantIdParam
+                        ? { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }
+                        : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }))}
+              onBack={handleBackToStoreDirectory}
+              onClearTenantScope={handleClearAuthTenantScope}
+              onStoreCreated={handleFreeTrialStoreCreated}
+              onTenantResolved={handleAuthTenantResolved}
+              onSuccess={handleAuthSuccess}
+              sessionNotice={authSessionNotice}
+              tenantNotice={tenantIdNotice || null}
+            />
           )}
           <div className={showAuthModal ? 'hidden' : 'contents'} aria-hidden={showAuthModal || undefined}>
             <SaasLandingPage
@@ -2173,8 +2261,13 @@ export default function App() {
         <Suspense fallback={<PortalRouteFallback label="Loading verification..." />}>
           <VerifyEmailNoticeView
             layoutMeta={activeRouteLayoutMeta}
+            initialTenantId={tenantIdParam ? Number(tenantIdParam) : null}
             storeName={effectiveStoreName || 'SarbaazSoft Shoe POS'}
             onNavigateLogin={(verifiedEmail, sessionData) => {
+              void refreshTenantDirectory();
+              try {
+                window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+              } catch {}
               if (sessionData?.token && sessionData?.user) {
                 setAuthSession(sessionData.token, sessionData.user);
                 setCurrentUser(sessionData.user);
@@ -2192,16 +2285,41 @@ export default function App() {
                 handleNavigateDomain({ mode: 'TENANT', tenantId: targetTenantId });
                 return;
               }
-              setSaasMode('LANDING');
-              if (verifiedEmail) {
-                window.history.pushState({}, '', `/?mode=login&email=${encodeURIComponent(verifiedEmail)}`);
-              } else {
-                window.history.pushState({}, '', '/?mode=login');
+              const targetTenantId = Number(
+                sessionData?.tenantId ||
+                sessionData?.user?.tenantId ||
+                tenantIdParam ||
+                getStoredUnauthTenantId() ||
+                activeTenant?.id ||
+                0
+              );
+              const params = new URLSearchParams();
+              if (targetTenantId > 0) {
+                params.set('tenantId', String(targetTenantId));
+                setTenantIdParam(String(targetTenantId));
+                setStoredUnauthTenantId(String(targetTenantId));
+                const matched = availableTenants.find((t) => Number(t.id) === targetTenantId) || null;
+                if (matched) setStoreLoginTarget(matched);
               }
+              if (verifiedEmail) {
+                params.set('email', verifiedEmail);
+              }
+              if (sessionData?.verified) {
+                params.set('verified', '1');
+              }
+              setTenantIdNotice('');
+              setIsLoginModalOpen(true);
+              setSaasMode('AUTH');
+              const authQuery = params.toString();
+              window.history.pushState({}, '', `/auth${authQuery ? `?${authQuery}` : ''}`);
             }}
             onNavigateHome={() => {
+              setIsLoginModalOpen(false);
               setSaasMode('LANDING');
               window.history.pushState({}, '', '/');
+              try {
+                window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+              } catch {}
             }}
           />
         </Suspense>

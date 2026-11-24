@@ -53,6 +53,11 @@ const SuperAdminReportsView = lazyWithRetry(
   (m) => m.SuperAdminReportsView,
   '/src/components/saas/SuperAdminReportsView.tsx'
 );
+const SuperAdminFreeTrialsView = lazyWithRetry(
+  () => import('./SuperAdminFreeTrialsView'),
+  (m) => m.SuperAdminFreeTrialsView,
+  '/src/components/saas/SuperAdminFreeTrialsView.tsx'
+);
 const SettingsView = lazyWithRetry(
   () => import('../settings/SettingsView'),
   (m) => m.SettingsView,
@@ -194,7 +199,43 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const [isVisible, setIsVisible] = useState(false);
 
   // Dashboard Layout & Sidebar State (aligned with Store Sidebar & Header)
-  const [activeTab, setActiveTab] = useState<SuperAdminTab>('dashboard');
+  const getInitialSuperAdminTab = (): SuperAdminTab => {
+    if (typeof window !== 'undefined') {
+      const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+      if (normalizedPath === '/admin/free-trials' || normalizedPath === '/admin/trials') {
+        return 'trials';
+      }
+    }
+    return 'dashboard';
+  };
+  const [activeTab, setActiveTabState] = useState<SuperAdminTab>(getInitialSuperAdminTab);
+  const setActiveTab = useCallback((nextTab: SuperAdminTab) => {
+    setActiveTabState(nextTab);
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+      if (nextTab === 'trials' || nextTab === 'requests') {
+        if (currentPath !== '/admin/free-trials') {
+          window.history.pushState(null, '', '/admin/free-trials');
+        }
+      } else if (currentPath === '/admin/free-trials' || currentPath === '/admin/trials') {
+        window.history.pushState(null, '', '/admin');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+      if (normalizedPath === '/admin/free-trials' || normalizedPath === '/admin/trials') {
+        setActiveTabState('trials');
+      } else if (normalizedPath === '/admin' || normalizedPath === '') {
+        setActiveTabState((prev) => (prev === 'trials' || prev === 'requests' ? 'dashboard' : prev));
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const normalizedWorkspaceTab = activeTab === 'requests' ? 'trials' : activeTab;
   const workspaceTabDirection = useTabDirection(
     normalizedWorkspaceTab,
@@ -204,8 +245,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   const superAdminTabLabels: Record<SuperAdminTab, string> = {
     dashboard: 'Dashboard',
     stores: 'Stores Management',
-    trials: 'Trial Activations',
-    requests: 'Subscription Requests',
+    trials: 'Free Trial Management',
+    requests: 'Free Trial Management',
     notifications: 'Notifications',
     reports: 'Reports & Analytics',
     settings: 'System Settings',
@@ -269,8 +310,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   });
   const [stores, setStores] = useState<SuperAdminStoreRow[]>([]);
   const [trialActivations, setTrialActivations] = useState<TrialActivation[]>([]);
-  const [extendingTrialId, setExtendingTrialId] = useState<number | null>(null);
-  const [trialStatusFilter, setTrialStatusFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED'>('ALL');
   const [reportProducts, setReportProducts] = useState<SuperAdminReportProduct[]>([]);
   const [reportCategories, setReportCategories] = useState<SuperAdminReportBreakdown[]>([]);
   const [reportBrands, setReportBrands] = useState<SuperAdminReportBreakdown[]>([]);
@@ -803,7 +842,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   }, [isSuperAdmin]);
 
   const handleExtendTrial = async (trialId: number, days: number = 30) => {
-    setExtendingTrialId(trialId);
     setError(null);
     setSuccessMessage(null);
     try {
@@ -813,8 +851,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       onTenantsUpdated();
     } catch (err: any) {
       setError(err.message || 'Failed to extend trial duration.');
-    } finally {
-      setExtendingTrialId(null);
     }
   };
 
@@ -1935,19 +1971,9 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     );
   });
 
-  const filteredTrials = trialActivations.filter((t) => {
-    if (trialStatusFilter !== 'ALL' && t.status !== trialStatusFilter) return false;
-    if (!normalizedSearch) return true;
-    return (
-      (t.storeName || '').toLowerCase().includes(normalizedSearch) ||
-      (t.email || '').toLowerCase().includes(normalizedSearch) ||
-      (t.userName || '').toLowerCase().includes(normalizedSearch)
-    );
-  });
-
   const activeTrialsCount = trialActivations.filter((t) => {
     const ends = t.trialEndDate ? new Date(t.trialEndDate).getTime() : 0;
-    return ends > Date.now() && t.status !== 'EXPIRED';
+    return ends > Date.now() && t.status !== 'EXPIRED' && t.status !== 'SUSPENDED';
   }).length;
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
@@ -1970,7 +1996,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         },
         {
           id: 'trials' as SuperAdminTab,
-          label: 'Trial Activations',
+          label: 'Free Trial Management',
           icon: Sparkles,
           shortcut: 'F2',
           badge: (metrics.activeTrials || activeTrialsCount) > 0 ? String(metrics.activeTrials || activeTrialsCount) : undefined,
@@ -5179,431 +5205,23 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               </div>
             )}
 
-            {/* SECTION 2: 30-DAY FREE TRIAL ACTIVATIONS & EXTENSIONS */}
+            {/* SECTION 2: DEDICATED FREE TRIAL MANAGEMENT (/admin/free-trials) */}
             {(activeTab === 'trials' || (activeTab as any) === 'requests') && (
-              <div className="space-y-4 max-w-7xl mx-auto text-xs select-none">
-                {/* Top Banner & Action */}
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-purple-800/80 shadow-sm transition-colors dark:text-white"
-                >
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 font-mono mb-2">
-                      <Sparkles className="w-3 h-3" />
-                      30-Day Free Trial Model
-                    </div>
-                    <h2 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                      Trial Activations &amp; Extensions
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-purple-200/80 font-medium mt-0.5">
-                      Monitor auto-provisioned 30-day trials • Track days remaining • Grant 1-click subscription extensions
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('stores')}
-                      className="bg-[#0284C7] hover:bg-[#0369A1] dark:bg-purple-500/20 dark:hover:bg-purple-500/30 text-white dark:text-purple-200 border border-[#0284C7] dark:border-purple-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer"
-                      title="View Deployed Stores Directory"
-                    >
-                      <Store className="w-4 h-4" />
-                      <span>Deployed Stores ({stores.length})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setCreateModalOpen(true)}
-                      className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Add New Store</span>
-                    </button>
-                  </div>
-                </motion.div>
-
-                {/* Filter and Search Bar */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.25 }}
-                  className="app-card p-3 sm:p-4 flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs transition-colors dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 dark:border-purple-800/80 dark:text-white"
-                >
-                  <div className="w-full sm:w-auto flex-1 min-w-0 sm:min-w-[240px] relative">
-                    <Search className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Search trial stores by name, email, or owner..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="app-input w-full pl-[2.125rem] pr-8 py-2.5 text-xs font-medium dark:bg-slate-900/80 dark:border-purple-800/60 dark:text-white dark:placeholder-slate-400"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 p-1 text-xs cursor-pointer"
-                        title="Clear search"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {(['ALL', 'ACTIVE', 'EXPIRED'] as const).map((filterOpt) => (
-                      <button
-                        key={filterOpt}
-                        type="button"
-                        onClick={() => setTrialStatusFilter(filterOpt)}
-                        className={`px-3.5 py-2.5 rounded-xl font-bold border transition cursor-pointer text-xs ${
-                          trialStatusFilter === filterOpt
-                            ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/20 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'
-                            : 'bg-slate-50 dark:bg-purple-500/20 text-slate-700 dark:text-purple-200 border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white'
-                        }`}
-                      >
-                        {filterOpt}
-                      </button>
-                    ))}
-                  </div>
-
-                  <span className="font-mono font-bold px-3.5 py-2.5 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-500/40 shadow-xs flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{activeTrialsCount} Active Trials</span>
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={loadOverview}
-                    disabled={loading}
-                    className="btn-outline-landing flex items-center space-x-1.5 px-3.5 py-2.5 bg-slate-100 dark:bg-purple-500/20 hover:bg-slate-200 dark:hover:bg-purple-500/30 text-slate-700 dark:text-purple-200 dark:hover:text-white border border-slate-200 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold rounded-xl transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
-                    title={loading ? 'Refreshing trial activations...' : 'Refresh trial activations'}
-                  >
-                    <RefreshCw
-                      className={`w-3.5 h-3.5 ${
-                        loading ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'
-                      }`}
-                    />
-                    <span>Refresh</span>
-                  </button>
-                </motion.div>
-
-                {/* 30-Day Free Trial Activations Table */}
-                <motion.div
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.3 }}
-                  className="app-card overflow-hidden transition-colors dark:border-purple-800/60"
-                >
-                  {/* Mobile Stacked Cards (< sm) */}
-                  <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
-                    {loading && filteredTrials.length === 0 ? (
-                      <div className="py-10 text-center text-slate-400 dark:text-slate-500">
-                        <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto mb-2" />
-                        <p className="font-medium text-xs">Loading trial activations...</p>
-                      </div>
-                    ) : filteredTrials.length === 0 ? (
-                      <div className="py-10 text-center text-slate-400 text-xs">
-                        No trial activations match the selected filter.
-                      </div>
-                    ) : (
-                      filteredTrials.map((trial) => {
-                        const now = Date.now();
-                        const trialEnd = trial.trialEndDate ? new Date(trial.trialEndDate).getTime() : 0;
-                        const msDiff = trialEnd - now;
-                        const computedDays = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
-                        const daysRemaining = trial.daysRemaining !== undefined ? trial.daysRemaining : computedDays;
-                        const isExpired = trial.status === 'EXPIRED' || daysRemaining <= 0;
-                        const isConverting = trial.status === 'CONVERTED';
-
-                        return (
-                          <div key={`m-trial-${trial.id}`} className="p-3.5 space-y-2.5 text-xs">
-                            <div className="flex items-start justify-between gap-2.5">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shrink-0">
-                                  {(trial.storeName || 'TS').slice(0, 2).toUpperCase()}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="font-bold text-slate-900 dark:text-white text-sm truncate">
-                                    {trial.storeName}
-                                  </div>
-                                  <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                                    {trial.email}
-                                  </div>
-                                </div>
-                              </div>
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono shrink-0 ${
-                                  isExpired
-                                    ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
-                                    : isConverting
-                                    ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60'
-                                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
-                                }`}
-                              >
-                                {isExpired ? 'EXPIRED' : isConverting ? 'CONVERTED' : 'ACTIVE'}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 font-bold">
-                                TRIAL #{trial.id}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/40 font-bold">
-                                {(trial.businessType || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'Wholesale' : 'Retail'}
-                              </span>
-                              <span className="text-slate-600 dark:text-slate-300 font-semibold">
-                                Exp: {new Date(trial.trialEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </span>
-                              <span className={`font-bold ${isExpired ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                {isExpired ? `(${Math.abs(daysRemaining)}d ago)` : `(${daysRemaining}d left)`}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                              <button
-                                type="button"
-                                disabled={extendingTrialId === trial.id}
-                                onClick={() => handleExtendTrial(trial.id, 30)}
-                                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                              >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                <span>{extendingTrialId === trial.id ? 'Extending...' : '+30 Days'}</span>
-                              </button>
-                              <button
-                                type="button"
-                                disabled={extendingTrialId === trial.id}
-                                onClick={() => handleExtendTrial(trial.id, 15)}
-                                className="px-2.5 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-[#0E1628] text-indigo-700 dark:text-indigo-400 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>+15 Days</span>
-                              </button>
-                              {trial.tenantId && (
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenStore(trial.tenantId!)}
-                                  className="ml-auto px-2.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] text-purple-700 dark:text-purple-400 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Store className="w-3.5 h-3.5" />
-                                  <span>Open POS</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <div className="hidden sm:block overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-700 dark:text-white font-bold border-b border-slate-200 dark:border-purple-800/80 text-[11px] uppercase tracking-wider">
-                        <tr>
-                          <th className="py-3.5 px-4 w-14">Store</th>
-                          <th className="py-3.5 px-4">Trial Store &amp; Mode</th>
-                          <th className="py-3.5 px-3">Owner &amp; Contact</th>
-                          <th className="py-3.5 px-4">Trial Duration &amp; Expiry</th>
-                          <th className="py-3.5 px-3 text-center">Status</th>
-                          <th className="py-3.5 px-4 text-center">Actions &amp; Extensions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                        {loading && filteredTrials.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                              <div className="flex flex-col items-center justify-center space-y-2">
-                                <RefreshCw className="w-6 h-6 animate-spin text-blue-600 dark:text-purple-400 mx-auto" />
-                                <p className="font-medium text-xs">Loading trial activations...</p>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : filteredTrials.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="py-12 text-center text-slate-400">
-                              No trial activations match the selected filter.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredTrials.map((trial) => {
-                            const now = Date.now();
-                            const trialEnd = trial.trialEndDate ? new Date(trial.trialEndDate).getTime() : 0;
-                            const msDiff = trialEnd - now;
-                            const computedDays = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
-                            const daysRemaining = trial.daysRemaining !== undefined ? trial.daysRemaining : computedDays;
-                            const isExpired = trial.status === 'EXPIRED' || daysRemaining <= 0;
-                            const isConverting = trial.status === 'CONVERTED';
-
-                            return (
-                              <tr
-                                key={trial.id}
-                                className="table-row-hover border-b border-slate-100 dark:border-slate-800/80"
-                              >
-                                {/* Store Avatar Box */}
-                                <td className="py-3.5 px-4">
-                                  <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 dark:bg-[#0A0E1A] overflow-hidden flex items-center justify-center shrink-0 p-1 shadow-2xs">
-                                    <div className="w-full h-full rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-2xs">
-                                      {(trial.storeName || 'TS').slice(0, 2).toUpperCase()}
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* Trial Store & Mode */}
-                                <td className="py-3.5 px-4">
-                                  <div className="font-bold text-slate-900 dark:text-white text-sm">
-                                    {trial.storeName}
-                                  </div>
-                                  <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/40 font-mono">
-                                      TRIAL #{trial.id}
-                                    </span>
-                                    {trial.tenantId && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-sky-50 dark:bg-[#0284C7]/20 text-sky-700 dark:text-[#38BDF8] border border-sky-200 dark:border-[#0284C7]/40 font-mono">
-                                        TENANT #{trial.tenantId}
-                                      </span>
-                                    )}
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/40 font-mono">
-                                      {(trial.businessType || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'Wholesale (B2B)' : 'Retail (B2C)'}
-                                    </span>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
-                                      {(trial.pricingMode || 'FIXED').toUpperCase() === 'NEGOTIABLE' ? 'Bargaining' : 'Fixed Price'}
-                                    </span>
-                                  </div>
-                                </td>
-
-                                {/* Owner & Contact */}
-                                <td className="py-3.5 px-3">
-                                  <div className="font-mono text-[11px] font-bold text-slate-800 dark:text-white">
-                                    {trial.email}
-                                  </div>
-                                  {trial.userName && (
-                                    <div className="text-[10.5px] font-medium text-slate-600 dark:text-slate-300 mt-0.5">
-                                      {trial.userName}
-                                    </div>
-                                  )}
-                                  {trial.phone && (
-                                    <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                                      {trial.phone}
-                                    </div>
-                                  )}
-                                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                    Activated: {new Date(trial.activatedAt || trial.trialStartDate).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                    })}
-                                  </div>
-                                </td>
-
-                                {/* Trial Duration & Expiry */}
-                                <td className="py-3.5 px-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-purple-50 dark:bg-[#1E3A8A]/50 text-purple-800 dark:text-[#93C5FD] border border-purple-200 dark:border-[#3B82F6]/40 font-mono">
-                                      {trial.plan || '30-Day Free Tier'}
-                                    </span>
-                                    <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                      {trial.trialDurationDays || 30} Days
-                                    </span>
-                                  </div>
-                                  <div className="text-[11px] font-mono text-slate-700 dark:text-slate-300">
-                                    Expires: <strong>{new Date(trial.trialEndDate).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                    })}</strong>
-                                  </div>
-                                  <div className="mt-1">
-                                    {isExpired ? (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-mono">
-                                        Expired ({Math.abs(daysRemaining)}d ago)
-                                      </span>
-                                    ) : daysRemaining <= 5 ? (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 font-mono">
-                                        {daysRemaining} day{daysRemaining === 1 ? '' : 's'} left
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 font-mono">
-                                        {daysRemaining} days remaining
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-
-                                {/* Status Pill */}
-                                <td className="py-3.5 px-3 text-center">
-                                  <span
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono ${
-                                      isExpired
-                                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
-                                        : isConverting
-                                        ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60'
-                                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60'
-                                    }`}
-                                  >
-                                    <span
-                                      className={`w-1.5 h-1.5 rounded-full ${
-                                        isExpired
-                                          ? 'bg-rose-500'
-                                          : isConverting
-                                          ? 'bg-purple-500'
-                                          : 'bg-emerald-500 animate-pulse'
-                                      }`}
-                                    />
-                                    {isExpired ? 'EXPIRED' : isConverting ? 'CONVERTED' : 'ACTIVE'}
-                                  </span>
-                                </td>
-
-                                {/* Actions & Extensions */}
-                                <td className="py-3.5 px-4 text-center">
-                                  <div className="flex items-center justify-center flex-wrap gap-1.5">
-                                    <button
-                                      type="button"
-                                      disabled={extendingTrialId === trial.id}
-                                      onClick={() => handleExtendTrial(trial.id, 30)}
-                                      className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 disabled:opacity-50 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(var(--primary-rgb,147,51,234),)] text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                                      title="Extend trial by +30 Days"
-                                    >
-                                      <Sparkles className="w-3.5 h-3.5" />
-                                      <span>
-                                        {extendingTrialId === trial.id ? 'Extending...' : '+30 Days'}
-                                      </span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      disabled={extendingTrialId === trial.id}
-                                      onClick={() => handleExtendTrial(trial.id, 15)}
-                                      className="px-2.5 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-[#0E1628] text-indigo-700 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition-all shadow-2xs cursor-pointer flex items-center gap-1 text-[11px] font-bold disabled:opacity-50"
-                                      title="Extend trial by +15 Days"
-                                    >
-                                      <Plus className="w-3.5 h-3.5" />
-                                      <span>+15 Days</span>
-                                    </button>
-
-                                    {trial.tenantId && (
-                                      <button
-                                        type="button"
-                                        onClick={() => onOpenStore(trial.tenantId!)}
-                                        className="px-2.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-[#0E1628] text-purple-700 dark:text-purple-400 hover:bg-purple-600 dark:hover:bg-purple-600 hover:text-white dark:hover:text-white transition-all shadow-2xs group relative cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                        title="Open Store POS Terminal"
-                                      >
-                                        <Store className="w-3.5 h-3.5" />
-                                        <span>Open POS</span>
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </motion.div>
-              </div>
+              <React.Suspense fallback={<DirectoryCrudSkeleton variant="table" statCount={4} />}>
+                <SuperAdminFreeTrialsView
+                  storesCount={stores.length}
+                  initialTrials={trialActivations}
+                  onOpenStore={onOpenStore}
+                  onGoToStores={() => setActiveTab('stores')}
+                  onOpenCreateStore={() => setCreateModalOpen(true)}
+                  onDataChanged={() => {
+                    void loadOverview();
+                    onTenantsUpdated();
+                  }}
+                  onSuccessMessage={(msg) => setSuccessMessage(msg)}
+                  onErrorMessage={(msg) => setError(msg)}
+                />
+              </React.Suspense>
             )}
 
             {/* SECTION 3: DEDICATED REPORTS & ANALYTICS VIEW (ALIGNED WITH STORE REPORTS DASHBOARD) */}

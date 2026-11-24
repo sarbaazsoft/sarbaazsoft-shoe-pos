@@ -368,6 +368,7 @@ const mockStore: Record<string, any[]> = {
   supplier_payments: [],
   stock_movements: [],
   trial_activations: [],
+  trial_tracking_history: [],
   app_settings: [
     { key: 'INVOICE_PREFIX', value: 'INV-', category: 'billing', description: 'Default prefix for customer sales receipts and invoices', is_secret: false, updated_at: new Date().toISOString() },
     { key: 'ACTIVE_EMAIL_PROVIDER', value: 'resend', category: 'email', description: 'Active email provider (resend or gmail)', is_secret: false, updated_at: new Date().toISOString() },
@@ -415,6 +416,7 @@ let mockIdCounters: Record<string, number> = {
   supplier_payments: 1,
   stock_movements: 1,
   trial_activations: 1,
+  trial_tracking_history: 1,
   platform_notifications: 1,
   platform_notification_reads: 1,
   pos_notification_dismissals: 1,
@@ -621,9 +623,188 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: rows as unknown as T[], rowCount: rows.length };
   }
 
-  // Trial Activations tracking for Free Trial management
+  // Trial Tracking History ledger (must run BEFORE TRIAL_ACTIVATIONS check)
+  if (upper.includes('TRIAL_TRACKING_HISTORY') && !upper.includes('WITH NEWLY_EXPIRED')) {
+    if (!Array.isArray(mockStore.trial_tracking_history)) {
+      mockStore.trial_tracking_history = [];
+    }
+    if (upper.startsWith('INSERT INTO')) {
+      const colMatch = sql.match(/INSERT\s+INTO\s+(?:public\.)?trial_tracking_history\s*\(([^)]+)\)\s*VALUES\s*\(([\s\S]*?)\)\s*(?:RETURNING|$)/i);
+      const entry: Record<string, any> = {
+        id: nextMockId('trial_tracking_history'),
+        trial_id: null,
+        tenant_id: null,
+        user_id: null,
+        event_type: 'EDITED',
+        previous_status: null,
+        new_status: 'ACTIVE',
+        previous_end_date: null,
+        new_end_date: null,
+        actor_user_id: null,
+        actor_email: '',
+        actor_role: 'SYSTEM',
+        owner_email: '',
+        owner_name: '',
+        store_name: '',
+        notes: '',
+        metadata: {},
+        created_at: new Date().toISOString(),
+      };
+      if (colMatch) {
+        const cols = colMatch[1].split(',').map((c) => c.trim().toLowerCase());
+        const vals = colMatch[2].split(',').map((v) => v.trim());
+        cols.forEach((col, idx) => {
+          const expr = vals[idx];
+          if (expr === undefined) return;
+          const cleanExpr = expr.replace(/::\w+/g, '').trim();
+          const pm = cleanExpr.match(/^\$(\d+)$/);
+          let rawVal: any;
+          if (pm) rawVal = params[Number(pm[1]) - 1];
+          else if (/^null$/i.test(cleanExpr)) rawVal = null;
+          else if (/^now\(\)$/i.test(cleanExpr)) rawVal = new Date().toISOString();
+          else {
+            const sm = cleanExpr.match(/^'([^']*)'$/);
+            rawVal = sm ? sm[1] : cleanExpr;
+          }
+          if (col === 'metadata') {
+            try {
+              entry[col] = typeof rawVal === 'string' ? JSON.parse(rawVal || '{}') : (rawVal || {});
+            } catch {
+              entry[col] = {};
+            }
+          } else {
+            entry[col] = rawVal;
+          }
+        });
+      }
+      mockStore.trial_tracking_history.unshift(entry);
+      return { rows: [entry as unknown as T], rowCount: 1 };
+    }
+    if (upper.startsWith('SELECT')) {
+      let list = [...mockStore.trial_tracking_history];
+      const whereClause = upper.split(/\bORDER\s+BY\b|\bLIMIT\b/)[0] || upper;
+      if (whereClause.includes('TRIAL_ID = $1') && !whereClause.includes('COALESCE')) {
+        const trialId = Number(params[0]);
+        list = list.filter((h) => Number(h.trial_id) === trialId);
+      } else if (whereClause.includes('TENANT_ID = $1')) {
+        const tid = Number(params[0]);
+        list = list.filter((h) => Number(h.tenant_id) === tid);
+      } else {
+        // General dynamic filtering used by GET /api/superadmin/free-trials/history
+        let pIdx = 0;
+        if (whereClause.includes('LIKE $')) {
+          const needle = String(params[pIdx++] || '').replace(/%/g, '').toLowerCase();
+          if (needle) {
+            list = list.filter(
+              (h) =>
+                String(h.owner_email || '').toLowerCase().includes(needle) ||
+                String(h.owner_name || '').toLowerCase().includes(needle) ||
+                String(h.store_name || '').toLowerCase().includes(needle) ||
+                String(h.notes || '').toLowerCase().includes(needle)
+            );
+          }
+        }
+        if (whereClause.includes('UPPER(EVENT_TYPE) =')) {
+          const ev = String(params[pIdx++] || '').toUpperCase();
+          if (ev) list = list.filter((h) => String(h.event_type || '').toUpperCase() === ev);
+        } else if (whereClause.includes("EVENT_TYPE IN ('EXPIRED', 'CONVERTED', 'SUSPENDED')")) {
+          list = list.filter((h) => ['EXPIRED', 'CONVERTED', 'SUSPENDED'].includes(String(h.event_type || '').toUpperCase()));
+        }
+        if (whereClause.includes('TRIAL_ID =')) {
+          const tid = Number(params[pIdx++]);
+          if (tid) list = list.filter((h) => Number(h.trial_id) === tid);
+        }
+        if (whereClause.includes('TENANT_ID =')) {
+          const tid = Number(params[pIdx++]);
+          if (tid) list = list.filter((h) => Number(h.tenant_id) === tid);
+        }
+      }
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || Number(b.id) - Number(a.id));
+      return { rows: list as unknown as T[], rowCount: list.length };
+    }
+    if (upper.startsWith('DELETE FROM')) {
+      const before = mockStore.trial_tracking_history.length;
+      if (upper.includes('TENANT_ID = $1') && params.length === 1) {
+        const tid = Number(params[0]);
+        mockStore.trial_tracking_history = mockStore.trial_tracking_history.filter((h) => Number(h.tenant_id) !== tid);
+      } else if (upper.includes('TRIAL_ID = $1') && params.length === 1) {
+        const trialId = Number(params[0]);
+        mockStore.trial_tracking_history = mockStore.trial_tracking_history.filter((h) => Number(h.trial_id) !== trialId);
+      } else {
+        const tid = params[0] !== null && params[0] !== undefined ? Number(params[0]) : null;
+        const trialIds = Array.isArray(params[1]) ? params[1].map(Number) : [];
+        const userIds = Array.isArray(params[2]) ? params[2].map(Number) : [];
+        const emails = Array.isArray(params[3]) ? params[3].map((e: any) => String(e || '').trim().toLowerCase()) : [];
+        mockStore.trial_tracking_history = mockStore.trial_tracking_history.filter((h) => {
+          if (tid && Number(h.tenant_id) === tid) return false;
+          if (h.trial_id && trialIds.includes(Number(h.trial_id))) return false;
+          if (h.user_id && userIds.includes(Number(h.user_id))) return false;
+          if (h.owner_email && emails.includes(String(h.owner_email).trim().toLowerCase())) return false;
+          return true;
+        });
+      }
+      return { rows: [], rowCount: before - mockStore.trial_tracking_history.length };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
+  // Trial Activations tracking & automatic expiration sync for Free Trial management
   if (upper.includes('TRIAL_ACTIVATIONS')) {
+    if (!Array.isArray(mockStore.trial_activations)) {
+      mockStore.trial_activations = [];
+    }
+    if (!Array.isArray(mockStore.trial_tracking_history)) {
+      mockStore.trial_tracking_history = [];
+    }
+
+    if (upper.includes('WITH NEWLY_EXPIRED AS')) {
+      const nowMs = Date.now();
+      for (const ta of mockStore.trial_activations) {
+        const tenant = ta.tenant_id ? mockStore.tenants.find((t) => Number(t.id) === Number(ta.tenant_id)) : null;
+        const statusUpper = String(ta.status || '').toUpperCase();
+        if (!['ACTIVE', 'PENDING'].includes(statusUpper)) continue;
+        const endMs = ta.trial_end_date ? new Date(ta.trial_end_date).getTime() : 0;
+        const tenantExpired = tenant && String(tenant.subscription_status || '').toUpperCase() === 'EXPIRED';
+        if ((endMs > 0 && endMs <= nowMs) || tenantExpired) {
+          ta.status = 'EXPIRED';
+          ta.expired_at = ta.expired_at || new Date().toISOString();
+          ta.updated_at = new Date().toISOString();
+          const alreadyLogged = mockStore.trial_tracking_history.some(
+            (h) =>
+              Number(h.trial_id) === Number(ta.id) &&
+              h.event_type === 'EXPIRED' &&
+              h.new_status === 'EXPIRED' &&
+              nowMs - new Date(h.created_at).getTime() < 300_000
+          );
+          if (!alreadyLogged) {
+            mockStore.trial_tracking_history.unshift({
+              id: nextMockId('trial_tracking_history'),
+              trial_id: ta.id,
+              tenant_id: ta.tenant_id,
+              user_id: ta.user_id,
+              event_type: 'EXPIRED',
+              previous_status: statusUpper,
+              new_status: 'EXPIRED',
+              previous_end_date: ta.trial_end_date,
+              new_end_date: ta.trial_end_date,
+              actor_user_id: null,
+              actor_email: '',
+              actor_role: 'SYSTEM',
+              owner_email: ta.email || '',
+              owner_name: ta.user_name || '',
+              store_name: ta.store_name || '',
+              notes: 'Free trial period ended and status transitioned to EXPIRED automatically.',
+              metadata: {},
+              created_at: new Date().toISOString(),
+            });
+          }
+        }
+      }
+      return { rows: [], rowCount: 0 };
+    }
+
     if (upper.startsWith('INSERT INTO') || upper.includes('INSERT INTO PUBLIC.TRIAL_ACTIVATIONS')) {
+      const nowIso = new Date().toISOString();
       const entry = {
         id: nextMockId('trial_activations'),
         user_id: params[0] !== undefined && params[0] !== null ? Number(params[0]) : null,
@@ -636,47 +817,158 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         pricing_mode: String(params[7] || 'FIXED'),
         plan: String(params[8] || 'TRIAL'),
         trial_duration_days: Number(params[9] || 30),
-        trial_start_date: params[10] ? new Date(params[10]).toISOString() : new Date().toISOString(),
+        trial_start_date: params[10] ? new Date(params[10]).toISOString() : nowIso,
         trial_end_date: params[11] ? new Date(params[11]).toISOString() : new Date(Date.now() + 86400000 * 30).toISOString(),
         status: String(params[12] || 'ACTIVE'),
+        converted_at: null,
+        converted_plan: null,
+        expired_at: null,
+        suspended_at: null,
+        reactivated_at: null,
         ip_address: String(params[13] || ''),
         user_agent: String(params[14] || ''),
-        activated_at: new Date().toISOString(),
+        activated_at: nowIso,
+        updated_at: nowIso,
         details: params[15] ? (typeof params[15] === 'string' ? JSON.parse(params[15]) : params[15]) : {},
       };
-      if (!Array.isArray(mockStore.trial_activations)) {
-        mockStore.trial_activations = [];
-      }
       mockStore.trial_activations.unshift(entry);
       return { rows: [entry as unknown as T], rowCount: 1 };
     }
     if (upper.startsWith('SELECT')) {
-      let list = [...(mockStore.trial_activations || [])];
+      let list = [...mockStore.trial_activations];
+      const isJoined = upper.includes('LEFT JOIN TENANTS');
+      if (isJoined) {
+        list = list.map((ta: any) => {
+          const tenant = ta.tenant_id ? mockStore.tenants.find((t) => Number(t.id) === Number(ta.tenant_id)) : null;
+          const owner = ta.user_id
+            ? mockStore.users.find((u) => Number(u.id) === Number(ta.user_id))
+            : ta.tenant_id
+            ? mockStore.users.find((u) => Number(u.tenant_id) === Number(ta.tenant_id) && String(u.role).toUpperCase() === 'ADMIN')
+            : null;
+          const cs = ta.tenant_id ? mockStore.company_settings.find((c) => Number(c.tenant_id) === Number(ta.tenant_id)) : null;
+          return {
+            ...ta,
+            live_tenant_name: tenant?.name || null,
+            live_tenant_status: tenant?.status || null,
+            live_subscription_status: tenant?.subscription_status || null,
+            live_subscription_plan: tenant?.subscription_plan || null,
+            live_subscription_end_date: tenant?.subscription_end_date || null,
+            live_onboarding_completed: tenant?.onboarding_completed ?? null,
+            live_owner_name: owner?.name || null,
+            live_owner_email: owner?.email || null,
+            live_owner_phone: owner?.phone || null,
+            live_business_type: cs?.business_type || null,
+            live_pricing_mode: cs?.pricing_mode || null,
+          };
+        });
+      }
       if (upper.includes('COUNT(*)')) {
         return { rows: [{ count: String(list.length) } as unknown as T], rowCount: 1 };
       }
-      if (upper.includes('WHERE ID = $1')) {
+      const outerClauseSource = upper.includes('LEFT JOIN COMPANY_SETTINGS')
+        ? upper.slice(upper.lastIndexOf('LEFT JOIN COMPANY_SETTINGS'))
+        : upper.includes('FROM TRIAL_ACTIVATIONS')
+        ? upper.slice(upper.lastIndexOf('FROM TRIAL_ACTIVATIONS'))
+        : upper;
+      const whereClause = outerClauseSource.split(/\bORDER\s+BY\b|\bLIMIT\b/)[0] || outerClauseSource;
+      if (whereClause.includes('WHERE TA.ID = $1') || whereClause.includes('WHERE ID = $1')) {
         const targetId = Number(params[0]);
         list = list.filter((t: any) => Number(t.id) === targetId);
-      } else if (upper.includes('LOWER(BTRIM(EMAIL)) =') || upper.includes('EMAIL =')) {
+      } else if (whereClause.includes('WHERE TA.TENANT_ID = $1') || whereClause.includes('WHERE TENANT_ID = $1')) {
+        const tid = Number(params[0]);
+        list = list.filter((t: any) => Number(t.tenant_id) === tid);
+      } else if (whereClause.includes('WHERE USER_ID = $1')) {
+        const uid = Number(params[0]);
+        list = list.filter((t: any) => Number(t.user_id) === uid);
+      } else if (whereClause.includes('LOWER(BTRIM(EMAIL)) =') || whereClause.includes('EMAIL =')) {
         const targetEmail = String(params[0] || '').trim().toLowerCase();
         list = list.filter((t: any) => String(t.email || '').toLowerCase() === targetEmail);
+      } else if (params.length > 0 && whereClause.includes('LIKE $1')) {
+        const needle = String(params[0] || '').replace(/%/g, '').toLowerCase();
+        if (needle) {
+          list = list.filter(
+            (t: any) =>
+              String(t.email || '').toLowerCase().includes(needle) ||
+              String(t.store_name || t.live_tenant_name || '').toLowerCase().includes(needle) ||
+              String(t.user_name || t.live_owner_name || '').toLowerCase().includes(needle) ||
+              String(t.phone || t.live_owner_phone || '').toLowerCase().includes(needle)
+          );
+        }
       }
+      list.sort((a: any, b: any) => new Date(b.activated_at || 0).getTime() - new Date(a.activated_at || 0).getTime() || Number(b.id) - Number(a.id));
       return { rows: list as unknown as T[], rowCount: list.length };
     }
     if (upper.startsWith('UPDATE')) {
-      const targetId = Number(params[params.length - 1]);
-      const entry = (mockStore.trial_activations || []).find((t: any) => Number(t.id) === targetId);
-      if (entry) {
-        if (upper.includes('TRIAL_END_DATE = $1')) {
-          entry.trial_end_date = params[0] ? new Date(params[0]).toISOString() : entry.trial_end_date;
-          entry.status = 'ACTIVE';
+      const lastParam = params[params.length - 1];
+      const matchesTarget = (t: any) => {
+        if (upper.includes('WHERE USER_ID = $')) {
+          return Number(t.user_id) === Number(lastParam) && (!upper.includes("STATUS = 'PENDING'") || t.status === 'PENDING');
         }
-        if (upper.includes('STATUS = $1')) {
-          entry.status = String(params[0] || entry.status);
+        if (upper.includes('WHERE TENANT_ID = $')) {
+          return Number(t.tenant_id) === Number(lastParam);
+        }
+        return Number(t.id) === Number(lastParam);
+      };
+      const matched = mockStore.trial_activations.filter(matchesTarget);
+      const setMatch = sql.match(/SET\s+([\s\S]+?)\s+WHERE\s+/i);
+      const nowIso = new Date().toISOString();
+      for (const entry of matched) {
+        if (setMatch) {
+          const setBody = setMatch[1];
+          const assignRegex = /([a-z_]+)\s*=\s*(?:COALESCE\([^)]*\$(\d+)[^)]*\)|COALESCE\([^)]*\)|\$(\d+)|'([^']*)'|NOW\(\)|([a-z_]+)\s*\+\s*\$(\d+))/gi;
+          let m: RegExpExecArray | null;
+          while ((m = assignRegex.exec(setBody)) !== null) {
+            const col = m[1].toLowerCase();
+            if (col === 'updated_at') {
+              entry.updated_at = nowIso;
+              continue;
+            }
+            if (m[6]) {
+              const delta = Number(params[Number(m[6]) - 1] || 0);
+              entry[col] = Number(entry[col] || 0) + delta;
+              continue;
+            }
+            const pRef = m[2] || m[3];
+            const val = pRef ? params[Number(pRef) - 1] : m[4] !== undefined ? m[4] : nowIso;
+            if (val !== undefined) {
+              entry[col] = val;
+            }
+          }
+          if (setBody.includes("status = 'ACTIVE'") || setBody.toLowerCase().includes("status = 'active'")) entry.status = 'ACTIVE';
+          if (setBody.includes("status = 'EXPIRED'") || setBody.toLowerCase().includes("status = 'expired'")) entry.status = 'EXPIRED';
+          if (setBody.includes("status = 'SUSPENDED'") || setBody.toLowerCase().includes("status = 'suspended'")) entry.status = 'SUSPENDED';
+          if (setBody.includes("status = 'CONVERTED'") || setBody.toLowerCase().includes("status = 'converted'")) entry.status = 'CONVERTED';
+          if (setBody.toLowerCase().includes('converted_at = now()')) entry.converted_at = entry.converted_at || nowIso;
+          if (setBody.toLowerCase().includes('expired_at = now()') || setBody.toLowerCase().includes('expired_at = coalesce')) entry.expired_at = nowIso;
+          if (setBody.toLowerCase().includes('suspended_at = now()') || setBody.toLowerCase().includes('suspended_at = coalesce')) entry.suspended_at = nowIso;
+          if (setBody.toLowerCase().includes('reactivated_at = now()') || setBody.toLowerCase().includes('reactivated_at = coalesce')) entry.reactivated_at = nowIso;
+          entry.updated_at = nowIso;
         }
       }
-      return { rows: entry ? ([entry] as unknown as T[]) : [], rowCount: entry ? 1 : 0 };
+      return { rows: matched as unknown as T[], rowCount: matched.length };
+    }
+    if (upper.startsWith('DELETE FROM')) {
+      const before = mockStore.trial_activations.length;
+      if (upper.includes('WHERE ID = $1') && params.length === 1) {
+        const targetId = Number(params[0]);
+        mockStore.trial_activations = mockStore.trial_activations.filter((t: any) => Number(t.id) !== targetId);
+      } else if (upper.includes('WHERE TENANT_ID = $1') && params.length === 1) {
+        const tid = Number(params[0]);
+        mockStore.trial_activations = mockStore.trial_activations.filter((t: any) => Number(t.tenant_id) !== tid);
+      } else {
+        const tid = params[0] !== null && params[0] !== undefined ? Number(params[0]) : null;
+        const trialId = params[1] !== null && params[1] !== undefined ? Number(params[1]) : null;
+        const userIds = Array.isArray(params[2]) ? params[2].map(Number) : [];
+        const emails = Array.isArray(params[3]) ? params[3].map((e: any) => String(e || '').trim().toLowerCase()) : [];
+        mockStore.trial_activations = mockStore.trial_activations.filter((t: any) => {
+          if (tid && Number(t.tenant_id) === tid) return false;
+          if (trialId && Number(t.id) === trialId) return false;
+          if (t.user_id && userIds.includes(Number(t.user_id))) return false;
+          if (t.email && emails.includes(String(t.email).trim().toLowerCase())) return false;
+          return true;
+        });
+      }
+      return { rows: [], rowCount: before - mockStore.trial_activations.length };
     }
     return { rows: [], rowCount: 0 };
   }
@@ -862,7 +1154,10 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       return { rows: rows as unknown as T[], rowCount: rows.length };
     }
     if (upper.startsWith('DELETE FROM')) {
-      if (Array.isArray(params[0])) {
+      if (upper.includes('WHERE TENANT_ID = $1')) {
+        const tid = Number(params[0] || 0);
+        mockStore.fcm_tokens = mockStore.fcm_tokens.filter((f: any) => Number(f.tenant_id) !== tid);
+      } else if (Array.isArray(params[0])) {
         const delSet = new Set(params[0].map((x: any) => String(x)));
         mockStore.fcm_tokens = mockStore.fcm_tokens.filter((f: any) => !delSet.has(f.token));
       } else if (params[0]) {
@@ -1161,6 +1456,39 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         });
         return { rows: [], rowCount: 1 };
       }
+      if (upper.includes('TENANT_ID = $1') && upper.includes('EVENT_ID LIKE')) {
+        const tId = Number(params[0]);
+        const emails = Array.isArray(params[1]) ? params[1].map((e: any) => String(e || '').trim().toLowerCase()) : [];
+        const before = (mockStore.platform_notifications || []).length;
+        mockStore.platform_notifications = (mockStore.platform_notifications || []).filter((pn: any) => {
+          if (Number(pn.tenant_id) === tId) return false;
+          const ev = String(pn.event_id || '').toLowerCase();
+          const url = String(pn.action_url || '').toLowerCase();
+          if (
+            ev === `trial-activation-${tId}` ||
+            ev.startsWith(`trial-activation-${tId}-`) ||
+            ev.startsWith(`sub-expired-${tId}-`) ||
+            ev.startsWith(`sa-sub-expired-${tId}-`) ||
+            ev.startsWith(`sub-renewed-${tId}-`) ||
+            ev.startsWith(`renewal-approved-${tId}-`) ||
+            ev.startsWith(`renewal-request-${tId}-`) ||
+            url.includes(`tenantid=${tId}`)
+          ) {
+            return false;
+          }
+          if (emails.some((em) => em && ev === `trial-activation-${em}`)) return false;
+          return true;
+        });
+        return { rows: [], rowCount: before - mockStore.platform_notifications.length };
+      }
+      if (upper.includes('EVENT_ID = ANY($1)')) {
+        const evs = new Set((Array.isArray(params[0]) ? params[0] : []).map((x: any) => String(x || '').toLowerCase()));
+        const before = (mockStore.platform_notifications || []).length;
+        mockStore.platform_notifications = (mockStore.platform_notifications || []).filter(
+          (pn: any) => !evs.has(String(pn.event_id || '').toLowerCase())
+        );
+        return { rows: [], rowCount: before - mockStore.platform_notifications.length };
+      }
       const targetId = Number(params[0]);
       mockStore.platform_notifications = (mockStore.platform_notifications || []).filter((pn: any) => Number(pn.id) !== targetId);
       return { rows: [], rowCount: 1 };
@@ -1251,10 +1579,22 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       return { rows: [], rowCount: 1 };
     }
     if (upper.startsWith('DELETE FROM')) {
-      const notifId = Number(params[0] || 0);
-      mockStore.platform_notification_reads = mockStore.platform_notification_reads.filter(
-        (r) => Number(r.notification_id) !== notifId
-      );
+      if (upper.includes('TENANT_ID = $1')) {
+        const tid = Number(params[0] || 0);
+        const notifIds = new Set(
+          (mockStore.platform_notifications || [])
+            .filter((pn: any) => Number(pn.tenant_id) === tid)
+            .map((pn: any) => Number(pn.id))
+        );
+        mockStore.platform_notification_reads = mockStore.platform_notification_reads.filter(
+          (r) => Number(r.tenant_id) !== tid && !notifIds.has(Number(r.notification_id))
+        );
+      } else {
+        const notifId = Number(params[0] || 0);
+        mockStore.platform_notification_reads = mockStore.platform_notification_reads.filter(
+          (r) => Number(r.notification_id) !== notifId
+        );
+      }
       return { rows: [], rowCount: 1 };
     }
     return { rows: [], rowCount: 0 };
@@ -1832,16 +2172,33 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       tenant.subscription_end_date = params[2] || tenant.subscription_end_date;
       tenant.subscription_status = 'ACTIVE';
       tenant.status = 'ACTIVE';
-    } else if (upper.includes('SET STATUS = $1') && upper.includes('SUBSCRIPTION_STATUS = $2')) {
-      tenant.status = String(params[0] || tenant.status);
-      tenant.subscription_status = String(params[1] || tenant.subscription_status);
-      tenant.subscription_end_date = params[2] || tenant.subscription_end_date;
-    } else if (upper.includes("SET SUBSCRIPTION_STATUS = 'EXPIRED'")) {
-      tenant.subscription_status = 'EXPIRED';
     } else if (upper.includes("SET SUBSCRIPTION_END_DATE = NOW() - INTERVAL '1 HOUR'")) {
       tenant.subscription_end_date = new Date(Date.now() - 3_600_000).toISOString();
-    } else if (upper.includes('SET SUBSCRIPTION_END_DATE = $1')) {
-      tenant.subscription_end_date = params[0] || tenant.subscription_end_date;
+    } else {
+      const setMatch = sql.match(/SET\s+([\s\S]+?)\s+WHERE\s+/i);
+      if (setMatch) {
+        const setBody = setMatch[1];
+        const assignRegex = /([a-z_]+)\s*=\s*(?:\$(\d+)|'([^']*)'|\b(TRUE|FALSE)\b|NOW\(\))/gi;
+        let m: RegExpExecArray | null;
+        while ((m = assignRegex.exec(setBody)) !== null) {
+          const col = m[1].toLowerCase();
+          if (col === 'updated_at') continue;
+          if (m[2]) {
+            const val = params[Number(m[2]) - 1];
+            if (val !== undefined) (tenant as any)[col] = val;
+          } else if (m[3] !== undefined) {
+            (tenant as any)[col] = m[3];
+          } else if (m[4] !== undefined) {
+            (tenant as any)[col] = m[4].toUpperCase() === 'TRUE';
+          } else {
+            (tenant as any)[col] = new Date().toISOString();
+          }
+        }
+        if (setBody.toLowerCase().includes('subscription_plan') && !setBody.toLowerCase().includes('subscription_type')) {
+          tenant.subscription_type =
+            tenant.subscription_plan === '6_MONTHS' ? '6_months' : tenant.subscription_plan === 'YEARLY' ? '1_year' : 'free_tier';
+        }
+      }
     }
     tenant.updated_at = new Date().toISOString();
     return { rows: [tenant as unknown as T], rowCount: 1 };
@@ -2292,6 +2649,29 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         u.updated_at = new Date().toISOString();
       }
       return { rows: u ? ([u] as unknown as T[]) : [], rowCount: u ? 1 : 0 };
+    }
+    const uid = Number(params[params.length - 1]);
+    const u = Number.isInteger(uid) ? mockStore.users.find((x) => Number(x.id) === uid) : undefined;
+    const setMatch = sql.match(/SET\s+([\s\S]+?)\s+WHERE\s+/i);
+    if (u && setMatch) {
+      const assignRegex = /([a-z_]+)\s*=\s*(?:\$(\d+)|'([^']*)'|\b(TRUE|FALSE)\b|NOW\(\))/gi;
+      let m: RegExpExecArray | null;
+      while ((m = assignRegex.exec(setMatch[1])) !== null) {
+        const col = m[1].toLowerCase();
+        if (col === 'updated_at') continue;
+        if (m[2]) {
+          const val = params[Number(m[2]) - 1];
+          if (val !== undefined) {
+            (u as any)[col] = col === 'email' ? String(val).trim().toLowerCase() : val;
+          }
+        } else if (m[3] !== undefined) {
+          (u as any)[col] = m[3];
+        } else if (m[4] !== undefined) {
+          (u as any)[col] = m[4].toUpperCase() === 'TRUE';
+        }
+      }
+      u.updated_at = new Date().toISOString();
+      return { rows: [u as unknown as T], rowCount: 1 };
     }
     return { rows: [], rowCount: 0 };
   }
@@ -3374,6 +3754,18 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       };
     });
     return { rows: enriched as unknown as T[], rowCount: enriched.length };
+  }
+
+  // Generic tenant-scoped DELETE cleanup fallback for store cascade deletion in mockStore
+  if (upper.startsWith('DELETE FROM ')) {
+    const tblMatch = upper.match(/^DELETE\s+FROM\s+(?:PUBLIC\.)?([A-Z0-9_]+)/);
+    const tbl = tblMatch ? tblMatch[1].toLowerCase() : '';
+    if (tbl && Array.isArray(mockStore[tbl]) && params.length > 0 && upper.includes('TENANT_ID = $1')) {
+      const tid = Number(params[0]);
+      const before = mockStore[tbl].length;
+      mockStore[tbl] = mockStore[tbl].filter((row: any) => Number(row.tenant_id) !== tid);
+      return { rows: [], rowCount: before - mockStore[tbl].length };
+    }
   }
 
   return { rows: [], rowCount: 0 };

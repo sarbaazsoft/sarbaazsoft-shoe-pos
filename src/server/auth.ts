@@ -159,6 +159,62 @@ export function clearAuthCookies(res: Response): void {
   res.setHeader('Cache-Control', 'no-store');
 }
 
+/**
+ * Verifies JWT signature, revocation state, and database SUPERADMIN approval status
+ * without trusting unverified JWT claims or client-supplied role/tenant headers.
+ */
+export async function verifySuperAdminRequest(req: Request): Promise<AuthUser | null> {
+  const token = extractTokenFromRequest(req);
+  if (!token || isTokenRevoked(token)) {
+    return null;
+  }
+
+  let decoded: any;
+  try {
+    decoded = jwt.verify(token, getJwtSecret());
+  } catch {
+    return null;
+  }
+
+  if (!decoded || String(decoded.role || '').toUpperCase() !== 'SUPERADMIN') {
+    return null;
+  }
+
+  const userId = Number(decoded.id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return null;
+  }
+
+  try {
+    const userRes = await pgClient.query<any>(
+      `SELECT id, tenant_id, name, email, phone, avatar_url, role, status, theme_color, active
+       FROM users
+       WHERE id = $1 AND UPPER(role::text) = 'SUPERADMIN'
+       LIMIT 1`,
+      [userId]
+    );
+    const row = userRes.rows[0];
+    if (!row || String(row.status || '').toUpperCase() !== 'APPROVED' || row.active === false) {
+      return null;
+    }
+
+    const activeRouteTid = Number((req as any).tenantResolution?.tenant?.id);
+    return {
+      id: row.id,
+      tenantId: Number.isInteger(activeRouteTid) && activeRouteTid > 0 ? activeRouteTid : 0,
+      name: row.name,
+      email: row.email,
+      phone: row.phone || '',
+      avatarUrl: row.avatar_url || '',
+      role: 'SUPERADMIN',
+      status: 'APPROVED',
+      themeColor: row.theme_color || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   // Strip any untrusted client-supplied tenant_id / tenantId from body and query
   if (req.body && typeof req.body === 'object') {

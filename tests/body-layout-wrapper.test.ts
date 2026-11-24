@@ -257,4 +257,37 @@ describe('Global Route Integration with BodyLayoutWrapper', () => {
     const notFoundSrc = readSrc('src/components/saas/UnknownStore404View.tsx');
     assert.ok(notFoundSrc.includes('BodyLayoutWrapper'));
   });
+
+  it('pins Auth header to top without external alert siblings and routes email confirmation to AUTH cleanly', () => {
+    const appSrc = readSrc('src/App.tsx');
+    const authSrc = readSrc('src/components/auth/AuthModal.tsx');
+    const publicHeaderSrc = readSrc('src/components/common/PublicHeader.tsx');
+
+    // tenantIdNotice must be passed into AuthModal, never rendered above AuthModal outside BodyLayoutWrapper
+    const showAuthBlockMatch = appSrc.match(/\{showAuthModal && \(([\s\S]*?)<AuthModal/);
+    assert.ok(showAuthBlockMatch, 'Expected showAuthModal block in App.tsx');
+    assert.equal(
+      showAuthBlockMatch[1].includes('role="alert"'),
+      false,
+      'Must not render alert banner outside AuthModal BodyLayoutWrapper (it pushes PublicHeader down)'
+    );
+    assert.ok(appSrc.includes('tenantNotice={tenantIdNotice || null}'), 'App.tsx should pass tenantNotice into AuthModal');
+    assert.ok(authSrc.includes('{tenantNotice && ('), 'AuthModal should render tenantNotice inside BodyLayoutWrapper main');
+
+    // Verify email -> login redirect routes to AUTH with scroll reset
+    const verifyBlockMatch = appSrc.match(/saasMode === 'VERIFY_EMAIL'[\s\S]*?<VerifyEmailNoticeView([\s\S]*?)\/>/);
+    assert.ok(verifyBlockMatch, 'Expected VerifyEmailNoticeView block in App.tsx');
+    assert.ok(verifyBlockMatch[1].includes("setSaasMode('AUTH')"), 'VerifyEmailNoticeView onNavigateLogin should route unauthenticated users to AUTH');
+    assert.ok(verifyBlockMatch[1].includes('setIsLoginModalOpen(true)'), 'VerifyEmailNoticeView onNavigateLogin should open auth view');
+    assert.ok(verifyBlockMatch[1].includes('window.scrollTo'), 'VerifyEmailNoticeView redirect should reset scroll to top');
+
+    // PublicHeader sits directly inside BodyLayoutWrapper sticky header slot without nested sticky wrapper
+    assert.ok(publicHeaderSrc.includes('id="global-public-header"'));
+    assert.equal(
+      publicHeaderSrc.includes('sticky top-0'),
+      false,
+      'PublicHeader should rely on BodyLayoutWrapper data-layout-section="header" sticky container without nested sticky'
+    );
+  });
 });
+

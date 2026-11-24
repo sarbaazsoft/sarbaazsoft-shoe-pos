@@ -10,6 +10,7 @@ import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed, formatPhoneNumber,
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength';
+import { OnboardingStepFooter } from './OnboardingStepFooter';
 import type { User } from '../../types';
 
 interface TenantOnboardingWizardProps {
@@ -547,7 +548,7 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
               >
                 {/* STEP 1: STORE DETAILS & MASTER ADMINISTRATOR ACCOUNT */}
                 {step === 1 && (
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
                       <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <UserCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -742,47 +743,25 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
-                      <button
-                        type="button"
-                        onClick={onCancel}
-                        className="btn-secondary px-4 py-2.5 text-xs font-semibold cursor-pointer"
-                      >
-                        Cancel Setup
-                      </button>
-
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
-                          title="Save and launch store portal directly"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>{saving ? 'Saving...' : 'Save & Launch'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (validateStep1()) {
-                              setError(null);
-                              setStep(2);
-                            }
-                          }}
-                          className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold whitespace-normal text-center"
-                        >
-                          <span>Next: Cashier Account Setup (Recommended)</span>
-                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                        </button>
-                      </div>
-                    </div>
+                    <OnboardingStepFooter
+                      leftLabel="Cancel Setup"
+                      showLeftArrow={false}
+                      onLeftClick={onCancel}
+                      nextLabel="Next: Cashier Account Setup (Recommended)"
+                      onNextClick={() => {
+                        if (validateStep1()) {
+                          setError(null);
+                          setStep(2);
+                        }
+                      }}
+                      saving={saving}
+                    />
                   </div>
                 )}
 
                 {/* STEP 2: CASHIER ACCOUNT SETUP (RECOMMENDED) */}
                 {step === 2 && (
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
                       <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-[11px] font-mono font-bold mb-1.5">
                         <Users className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -983,51 +962,27 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
                     )}
 
-                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
-                      <button
-                        type="button"
-                        onClick={() => {
+                    <OnboardingStepFooter
+                      leftLabel="Back"
+                      onLeftClick={() => {
+                        setError(null);
+                        setStep(1);
+                      }}
+                      nextLabel={<>Next: Invoices, Taxes &amp; Receipts</>}
+                      onNextClick={() => {
+                        if (validateStep2()) {
                           setError(null);
-                          setStep(1);
-                        }}
-                        className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                        <span>Back</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
-                          title="Save and launch store portal directly"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>{saving ? 'Saving...' : 'Save & Launch'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (validateStep2()) {
-                              setError(null);
-                              setStep(3);
-                            }
-                          }}
-                          className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold whitespace-normal text-center"
-                        >
-                          <span>Next: Invoices, Taxes &amp; Receipts</span>
-                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                        </button>
-                      </div>
-                    </div>
+                          setStep(3);
+                        }
+                      }}
+                      saving={saving}
+                    />
                   </div>
                 )}
 
                 {/* STEP 3: DOCUMENT PREFIXES, TAXES & RECEIPT FOOTER */}
                 {step === 3 && (
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
                       <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Barcode className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -1363,49 +1318,25 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setError(null);
-                          setStep(2);
-                        }}
-                        className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                        <span>Back</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
-                          title="Save and launch store portal directly"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>{saving ? 'Saving...' : 'Save & Launch'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError(null);
-                            setStep(4);
-                          }}
-                          className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-sm font-bold whitespace-normal text-center"
-                        >
-                          <span>Next: Branding &amp; Catalog</span>
-                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                        </button>
-                      </div>
-                    </div>
+                    <OnboardingStepFooter
+                      leftLabel="Back"
+                      onLeftClick={() => {
+                        setError(null);
+                        setStep(2);
+                      }}
+                      nextLabel={<>Next: Branding &amp; Catalog</>}
+                      onNextClick={() => {
+                        setError(null);
+                        setStep(4);
+                      }}
+                      saving={saving}
+                    />
                   </div>
                 )}
 
                 {/* STEP 4: OPTIONAL PWA BRANDING & STARTER FOOTWEAR CATALOG */}
                 {step === 4 && (
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
                       <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -1595,39 +1526,15 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-200/80 dark:border-purple-900/40">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setError(null);
-                          setStep(3);
-                        }}
-                        className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs font-bold"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                        <span>Back</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          type="submit"
-                          disabled={saving}
-                          className="btn-primary px-4 sm:px-6 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50 whitespace-normal text-center"
-                        >
-                          {saving ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
-                              <span>Finalizing Store Setup...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
-                              <span>Complete Store Setup &amp; Unlock Owner Portal</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                    <OnboardingStepFooter
+                      leftLabel="Back"
+                      onLeftClick={() => {
+                        setError(null);
+                        setStep(3);
+                      }}
+                      saving={saving}
+                      isFinalStep={true}
+                    />
                   </div>
                 )}
               </form>

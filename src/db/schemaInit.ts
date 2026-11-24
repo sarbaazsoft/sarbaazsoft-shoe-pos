@@ -92,7 +92,7 @@ export function calculateSubscriptionEndDate(
 
 /**
  * Synchronizes expired subscriptions in PostgreSQL so any tenant whose subscription_end_date < NOW()
- * is automatically marked with subscription_status = 'EXPIRED'.
+ * is automatically marked with subscription_status = 'EXPIRED', along with any linked active trial records.
  */
 export async function syncExpiredTenantSubscriptions(): Promise<void> {
   try {
@@ -104,6 +104,40 @@ export async function syncExpiredTenantSubscriptions(): Promise<void> {
         AND subscription_end_date < NOW()
         AND subscription_status NOT IN ('EXPIRED', 'SUSPENDED')
     `);
+    await pgClient
+      .query(`
+        WITH newly_expired AS (
+          UPDATE trial_activations ta
+          SET status = 'EXPIRED',
+              expired_at = COALESCE(ta.expired_at, NOW()),
+              updated_at = NOW()
+          FROM tenants t
+          WHERE (ta.tenant_id = t.id OR ta.tenant_id IS NULL)
+            AND ta.status IN ('ACTIVE', 'PENDING')
+            AND (
+              ta.trial_end_date <= NOW()
+              OR (ta.tenant_id IS NOT NULL AND t.subscription_status::text = 'EXPIRED')
+            )
+          RETURNING ta.id, ta.tenant_id, ta.user_id, ta.status, ta.trial_end_date, ta.email, ta.user_name, ta.store_name
+        )
+        INSERT INTO trial_tracking_history (
+          trial_id, tenant_id, user_id, event_type, previous_status, new_status,
+          previous_end_date, new_end_date, actor_role, owner_email, owner_name, store_name, notes
+        )
+        SELECT DISTINCT
+          ne.id, ne.tenant_id, ne.user_id, 'EXPIRED', 'ACTIVE', 'EXPIRED',
+          ne.trial_end_date, ne.trial_end_date, 'SYSTEM', ne.email, ne.user_name, ne.store_name,
+          'Free trial period ended and status transitioned to EXPIRED automatically.'
+        FROM newly_expired ne
+        WHERE NOT EXISTS (
+          SELECT 1 FROM trial_tracking_history tth
+          WHERE tth.trial_id = ne.id
+            AND tth.event_type = 'EXPIRED'
+            AND tth.new_status = 'EXPIRED'
+            AND tth.created_at >= NOW() - INTERVAL '5 minutes'
+        )
+      `)
+      .catch(() => {});
   } catch {}
 }
 
@@ -131,6 +165,7 @@ export const REQUIRED_DATABASE_TABLES = [
   'customer_ledger',
   'supplier_ledger',
   'trial_activations',
+  'trial_tracking_history',
   'app_settings',
   'platform_notifications',
   'platform_notification_reads',
@@ -531,10 +566,36 @@ export const DATABASE_TABLE_DDL: string[] = [
     trial_start_date TIMESTAMP NOT NULL DEFAULT NOW(),
     trial_end_date TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
     status TEXT NOT NULL DEFAULT 'ACTIVE',
+    converted_at TIMESTAMP NULL,
+    converted_plan TEXT NULL,
+    expired_at TIMESTAMP NULL,
+    suspended_at TIMESTAMP NULL,
+    reactivated_at TIMESTAMP NULL,
     ip_address TEXT NOT NULL DEFAULT '',
     user_agent TEXT NOT NULL DEFAULT '',
     activated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     details JSONB NOT NULL DEFAULT '{}'::jsonb
+  )`,
+  `CREATE TABLE IF NOT EXISTS trial_tracking_history (
+    id SERIAL PRIMARY KEY,
+    trial_id INTEGER NULL,
+    tenant_id INTEGER NULL,
+    user_id INTEGER NULL,
+    event_type TEXT NOT NULL,
+    previous_status TEXT NULL,
+    new_status TEXT NOT NULL,
+    previous_end_date TIMESTAMP NULL,
+    new_end_date TIMESTAMP NULL,
+    actor_user_id INTEGER NULL,
+    actor_email TEXT NOT NULL DEFAULT '',
+    actor_role TEXT NOT NULL DEFAULT 'SYSTEM',
+    owner_email TEXT NOT NULL DEFAULT '',
+    owner_name TEXT NOT NULL DEFAULT '',
+    store_name TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key VARCHAR(100) PRIMARY KEY,
@@ -658,6 +719,11 @@ export const DATABASE_INDEX_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS trial_activations_email_idx ON trial_activations(LOWER(BTRIM(email)))`,
   `CREATE INDEX IF NOT EXISTS trial_activations_tenant_idx ON trial_activations(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS trial_activations_status_idx ON trial_activations(status)`,
+  `CREATE INDEX IF NOT EXISTS trial_tracking_history_trial_idx ON trial_tracking_history(trial_id)`,
+  `CREATE INDEX IF NOT EXISTS trial_tracking_history_tenant_idx ON trial_tracking_history(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS trial_tracking_history_event_idx ON trial_tracking_history(event_type)`,
+  `CREATE INDEX IF NOT EXISTS trial_tracking_history_created_idx ON trial_tracking_history(created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS trial_tracking_history_email_idx ON trial_tracking_history(LOWER(BTRIM(owner_email)))`,
   `CREATE INDEX IF NOT EXISTS app_settings_category_idx ON app_settings(category)`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_target_role_idx ON platform_notifications(target_role)`,
@@ -1400,6 +1466,7 @@ export async function dropAllTables(): Promise<void> {
       platform_notification_reads,
       platform_notifications,
       app_settings,
+      trial_tracking_history,
       trial_activations,
       customer_ledger,
       supplier_ledger,

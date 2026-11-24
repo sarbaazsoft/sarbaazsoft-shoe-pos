@@ -9,7 +9,7 @@ import {
 } from '../utils/offlineDb.ts';
 import { isTransientNetworkError } from './offline/syncEngine.ts';
 import { transformKeysToCamelCase } from '../utils/caseTransformer.ts';
-import type { ProductFormValues, TrialActivation, PlatformNotification, PlatformNotificationType, GroupedNotificationsResponse, AllNotificationsResponse } from '../types.ts';
+import type { ProductFormValues, TrialActivation, TrialTrackingHistoryEntry, FreeTrialSummary, PlatformNotification, PlatformNotificationType, GroupedNotificationsResponse, AllNotificationsResponse } from '../types.ts';
 import type {
   NotificationPresetId,
   StoreNotificationChannelId,
@@ -629,14 +629,101 @@ export const api = {
       const queryStr = q.toString() ? `?${q.toString()}` : '';
       return apiFetch<{
         trials: TrialActivation[];
-        summary: {
-          totalTrials: number;
-          activeTrials: number;
-          expiredTrials: number;
-          todayTrials: number;
-        };
+        history?: TrialTrackingHistoryEntry[];
+        summary: FreeTrialSummary;
       }>(`/superadmin/trial-activations${queryStr}`);
     },
+    getFreeTrials: (params?: { search?: string; status?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.search) q.set('search', params.search);
+      if (params?.status) q.set('status', params.status);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return apiFetch<{
+        trials: TrialActivation[];
+        history: TrialTrackingHistoryEntry[];
+        summary: FreeTrialSummary;
+      }>(`/superadmin/free-trials${queryStr}`);
+    },
+    getTrialHistory: (params?: { search?: string; eventType?: string; trialId?: number; tenantId?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.search) q.set('search', params.search);
+      if (params?.eventType) q.set('eventType', params.eventType);
+      if (params?.trialId) q.set('trialId', String(params.trialId));
+      if (params?.tenantId) q.set('tenantId', String(params.tenantId));
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return apiFetch<{ history: TrialTrackingHistoryEntry[] }>(`/superadmin/free-trials/history${queryStr}`);
+    },
+    getFreeTrialHistory: (id: number) =>
+      apiFetch<{ history: TrialTrackingHistoryEntry[] }>(`/superadmin/free-trials/${id}/history`),
+    updateFreeTrial: (
+      id: number,
+      data: {
+        storeName?: string;
+        userName?: string;
+        email?: string;
+        phone?: string;
+        businessType?: 'RETAIL' | 'WHOLESALE' | string;
+        pricingMode?: 'FIXED' | 'NEGOTIABLE' | string;
+        trialStartDate?: string;
+        trialEndDate?: string;
+        status?: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' | 'CONVERTED' | 'PENDING' | string;
+        notes?: string;
+      }
+    ) =>
+      apiFetch<{
+        success: boolean;
+        message: string;
+        trial: TrialActivation;
+      }>(`/superadmin/free-trials/${id}`, {
+        method: 'PATCH',
+        body: data,
+      }),
+    extendFreeTrial: (id: number, days = 30, notes?: string) =>
+      apiFetch<{
+        success: boolean;
+        message: string;
+        trial: TrialActivation;
+        newEndDate?: string;
+      }>(`/superadmin/free-trials/${id}/extend`, {
+        method: 'POST',
+        body: { days, notes },
+      }),
+    expireFreeTrial: (id: number, notes?: string) =>
+      apiFetch<{
+        success: boolean;
+        message: string;
+        trial: TrialActivation;
+      }>(`/superadmin/free-trials/${id}/expire`, {
+        method: 'POST',
+        body: { notes },
+      }),
+    suspendFreeTrial: (id: number, notes?: string) =>
+      apiFetch<{
+        success: boolean;
+        message: string;
+        trial: TrialActivation;
+      }>(`/superadmin/free-trials/${id}/suspend`, {
+        method: 'POST',
+        body: { notes },
+      }),
+    reactivateFreeTrial: (id: number, days?: number, notes?: string) =>
+      apiFetch<{
+        success: boolean;
+        message: string;
+        trial: TrialActivation;
+      }>(`/superadmin/free-trials/${id}/reactivate`, {
+        method: 'POST',
+        body: { days, notes },
+      }),
+    deleteFreeTrial: (id: number) =>
+      apiFetch<{
+        success: boolean;
+        deletedTrialId: number;
+        deletedTenantId?: number | null;
+        message: string;
+      }>(`/superadmin/free-trials/${id}`, {
+        method: 'DELETE',
+      }),
     extendTrialActivation: (id: number, days = 30) =>
       apiFetch<{
         success: boolean;
