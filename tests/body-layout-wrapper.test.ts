@@ -297,4 +297,39 @@ describe('Global Route Integration with BodyLayoutWrapper', () => {
       'AuthModal login card wrapper should apply 2rem (m-8) margin and calc(100%-4rem) width'
     );
   });
+
+  it('enforces onboarding immediately after email verification and across all store routes until setup completes', () => {
+    const appSrc = readSrc('src/App.tsx');
+    const wizardSrc = readSrc('src/components/saas/TenantOnboardingWizard.tsx');
+
+    // VerifyEmailNoticeView onNavigateLogin passes TENANT_ONBOARDING and authenticated: true so refreshTenantDirectory cannot race to Dashboard
+    const verifyBlockMatch = appSrc.match(/saasMode === 'VERIFY_EMAIL'[\s\S]*?<VerifyEmailNoticeView([\s\S]*?)\/>/);
+    assert.ok(verifyBlockMatch, 'Expected VerifyEmailNoticeView block in App.tsx');
+    assert.ok(
+      verifyBlockMatch[1].includes("refreshTenantDirectory(needsOnboarding ? 'TENANT_ONBOARDING' : 'TENANT_ACTIVE')"),
+      'VerifyEmailNoticeView must pass target mode to refreshTenantDirectory to prevent landing on Dashboard'
+    );
+    assert.ok(
+      verifyBlockMatch[1].includes("handleNavigateDomain({ mode: 'ONBOARDING', tenantId: targetTenantId, authenticated: true })"),
+      'VerifyEmailNoticeView must pass authenticated: true when redirecting un-onboarded users to ONBOARDING'
+    );
+
+    // refreshTenantDirectory must bail out during VERIFY_EMAIL and never open TENANT_ACTIVE while onboarding is pending
+    assert.ok(
+      appSrc.includes("effectiveMode === 'VERIFY_EMAIL'"),
+      'refreshTenantDirectory should not overwrite VERIFY_EMAIL state'
+    );
+    assert.ok(
+      appSrc.includes('isUserOnboardingPending(activeSessionUser, resolution.tenant)'),
+      'refreshTenantDirectory should redirect un-onboarded ADMIN to TENANT_ONBOARDING instead of TENANT_ACTIVE'
+    );
+
+    // Global store lock prevents TENANT_ACTIVE, handleTabChange, handlePopState, and onCancel bypass before onboarding finishes
+    assert.ok(appSrc.includes('const isAdminOnboardingIncomplete = Boolean('));
+    assert.ok(appSrc.includes("saasMode === 'TENANT_ACTIVE' && !isAdminOnboardingIncomplete"));
+    assert.ok(
+      wizardSrc.includes("leftLabel={isRequiredFirstLogin ? undefined : 'Cancel Setup'}"),
+      'Step 1 Cancel Setup button should be hidden when onboarding is mandatory'
+    );
+  });
 });

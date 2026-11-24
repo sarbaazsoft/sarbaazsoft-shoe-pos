@@ -2359,7 +2359,7 @@ export async function permanentlyDeleteStoreAndTrialData(params: {
       { sql: `DELETE FROM suppliers WHERE tenant_id = $1`, params: [tenantId] },
       { sql: `DELETE FROM email_verification_tokens WHERE tenant_id = $1`, params: [tenantId] },
       {
-        sql: `DELETE FROM password_reset_tokens
+        sql: `DELETE FROM password_reset_codes
               WHERE tenant_id = $1
                  OR user_id IN (SELECT id FROM users WHERE tenant_id = $1 AND role != 'SUPERADMIN')`,
         params: [tenantId],

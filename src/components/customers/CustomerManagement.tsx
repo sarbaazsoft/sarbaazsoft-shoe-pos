@@ -202,7 +202,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
           layout="horizontal"
           title="Sales Invoices"
           value={totalOrdersCount}
-          suffix=" orders"
+          suffix=" invoices"
           icon={ShoppingBag}
           iconColor="purple"
           loading={isLoading}
@@ -227,7 +227,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
         <StatCard
           id="stat-average-order-value"
           layout="horizontal"
-          title="Average Order Value"
+          title="Average Bill Value"
           value={averageOrderValue}
           prefix={`${currencySymbol} `}
           icon={TrendingUp}
@@ -292,7 +292,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
                 Name (A - Z)
               </option>
               <option value="orders" className="bg-white dark:bg-[var(--brand-dark-surface,#120726)] text-slate-900 dark:text-purple-100">
-                Most Orders
+                Most Invoices
               </option>
               <option value="spent" className="bg-white dark:bg-[var(--brand-dark-surface,#120726)] text-slate-900 dark:text-purple-100">
                 Highest Spending

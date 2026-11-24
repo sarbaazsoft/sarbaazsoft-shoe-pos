@@ -226,6 +226,15 @@ function PortalRouteFallback({ label = 'Loading...' }: { label?: string }) {
   );
 }
 
+function isUserOnboardingPending(user: any, tenant?: any): boolean {
+  if (!user) return false;
+  const roleUpper = String(user.originalRole || user.role || '').toUpperCase();
+  if (roleUpper !== 'ADMIN') return false;
+  if (user.onboardingCompleted === false) return true;
+  if (user.onboardingCompleted !== true && tenant?.onboardingCompleted === false) return true;
+  return false;
+}
+
 function detectInitialRouteFromLocation(): {
   mode: SaasRouteMode;
   tenantIdParam: string;
@@ -260,8 +269,7 @@ function detectInitialRouteFromLocation(): {
     pathname.startsWith('/auth/') ||
     pathname === '/login' ||
     pathname.startsWith('/login/') ||
-    searchParams.get('mode') === 'login' ||
-    Boolean(searchParams.get('resetToken'));
+    searchParams.get('mode') === 'login';
   let tenantIdParam = explicitTenantId;
   if (!hasAuthToken) {
     if (explicitTenantId) {
@@ -292,8 +300,7 @@ function detectInitialRouteFromLocation(): {
     pathname.startsWith('/auth/') ||
     pathname === '/login' ||
     pathname.startsWith('/login/') ||
-    searchParams.get('mode') === 'login' ||
-    Boolean(searchParams.get('resetToken'))
+    searchParams.get('mode') === 'login'
   ) {
     return { mode: 'AUTH', tenantIdParam };
   }
@@ -406,7 +413,6 @@ export default function App() {
       initialRoute.mode === 'AUTH' ||
       initialRoute.tenantIdParam ||
       sp.get('mode') === 'login' ||
-      sp.get('resetToken') ||
       sp.get('email')
     );
   });
@@ -571,7 +577,13 @@ export default function App() {
       const resolution = res?.resolution;
       const effectiveMode = targetMode || saasMode;
 
-      if (effectiveMode === 'LANDING' || effectiveMode === 'SUPERADMIN') {
+      if (
+        effectiveMode === 'LANDING' ||
+        effectiveMode === 'SUPERADMIN' ||
+        effectiveMode === 'VERIFY_EMAIL' ||
+        effectiveMode === 'AUTH' ||
+        effectiveMode === 'INSTALLER'
+      ) {
         return;
       }
 
@@ -583,18 +595,12 @@ export default function App() {
         return;
       }
 
+      const activeSessionUser = currentUser || getValidatedStoredSession()?.user || null;
       const isPlatformOwner = (() => {
-        if (String(currentUser?.originalRole || currentUser?.role || '').toUpperCase() === 'SUPERADMIN') {
+        if (String(activeSessionUser?.originalRole || activeSessionUser?.role || '').toUpperCase() === 'SUPERADMIN') {
           return true;
         }
-        try {
-          const raw = localStorage.getItem('pos_current_user');
-          if (!raw) return false;
-          const parsed = JSON.parse(raw);
-          return String(parsed?.originalRole || parsed?.role || '').toUpperCase() === 'SUPERADMIN';
-        } catch {
-          return false;
-        }
+        return false;
       })();
 
       if (resolution?.mode === 'TENANT_NOT_FOUND') {
@@ -619,12 +625,22 @@ export default function App() {
       } else if (resolution?.tenant) {
         setActiveTenant(resolution.tenant);
         setActiveTenantId(resolution.tenant.id);
+        if (!isPlatformOwner && isUserOnboardingPending(activeSessionUser, resolution.tenant)) {
+          setSaasMode('TENANT_ONBOARDING');
+          const obTid = Number(resolution.tenant.id || activeSessionUser?.tenantId || 0);
+          if (obTid > 0) {
+            try {
+              window.history.replaceState({}, '', `/onboarding?tenantId=${encodeURIComponent(obTid)}`);
+            } catch {}
+          }
+          return;
+        }
         setSaasMode('TENANT_ACTIVE');
       }
     } catch (err) {
       console.warn('Tenant resolution warning:', err);
     }
-  }, [saasMode]);
+  }, [saasMode, currentUser]);
 
   // Lightweight background tenant context sync for post-auth navigation (never shows full-screen LoadingWindow)
   const syncTenantContext = useCallback(async (targetTenantId: number) => {
@@ -1083,7 +1099,6 @@ export default function App() {
         (pathMatch ? pathMatch[1] : '') ||
         '';
       const mode = sp.get('mode');
-      const reset = sp.get('resetToken');
       const isAuthPath =
         pathname === '/auth' ||
         pathname.startsWith('/auth/') ||
@@ -1096,6 +1111,27 @@ export default function App() {
       }
 
       const role = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
+      const onboardingPending = isUserOnboardingPending(currentUser, activeTenant);
+
+      if (pathname === '/onboarding' || pathname.startsWith('/onboarding') || mode === 'onboarding') {
+        if (currentUser && (role === 'ADMIN' || role === 'SUPERADMIN')) {
+          setSaasMode('TENANT_ONBOARDING');
+          setIsLoginModalOpen(false);
+          if (tid) setTenantIdParam(tid);
+          return;
+        }
+      }
+
+      if (onboardingPending) {
+        const obTid = Number(activeTenant?.id || currentUser?.tenantId || tid || 0);
+        setSaasMode('TENANT_ONBOARDING');
+        setIsLoginModalOpen(false);
+        if (obTid > 0) {
+          window.history.replaceState({}, '', `/onboarding?tenantId=${encodeURIComponent(obTid)}`);
+        }
+        return;
+      }
+
       if (pathname === '/admin' || pathname.startsWith('/admin/')) {
         if (role === 'SUPERADMIN') {
           setSaasMode('SUPERADMIN');
@@ -1156,11 +1192,11 @@ export default function App() {
         setIsLoginModalOpen(false);
       }
       setTenantIdParam(tid);
-      setIsLoginModalOpen(Boolean(explicitTid || mode === 'login' || reset || isAuthPath));
+      setIsLoginModalOpen(Boolean(explicitTid || mode === 'login' || isAuthPath));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [currentUser, companySettings]);
+  }, [currentUser, companySettings, activeTenant]);
 
   // Explicit clearance of unauthenticated tenant scope
   const handleClearTenantScope = useCallback(() => {
@@ -1323,7 +1359,7 @@ export default function App() {
       const selected = availableTenants.find((tenant) => Number(tenant.id) === Number(target.tenantId)) || activeTenant;
       const targetId = selected?.id || target.tenantId;
       if (!targetId) return;
-      if (!currentUser && !target.authenticated) {
+      if (!currentUser && !target.authenticated && !isStoredTokenValid()) {
         setTenantIdParam(String(targetId));
         setIsLoginModalOpen(true);
         setSaasMode('AUTH');
@@ -1332,6 +1368,7 @@ export default function App() {
       }
       if (selected) setActiveTenant(selected);
       setActiveTenantId(targetId);
+      setIsLoginModalOpen(false);
       setSaasMode('TENANT_ONBOARDING');
       window.history.pushState({}, '', `/onboarding?tenantId=${encodeURIComponent(targetId)}`);
       return;
@@ -1344,6 +1381,22 @@ export default function App() {
       const matchingTenant = availableTenants.find((tenant) => Number(tenant.id) === targetId);
       const isSameTenant = Number(activeTenant?.id) === targetId;
       const selected = matchingTenant || (isSameTenant ? activeTenant : null);
+
+      const sessionUser = currentUser || getValidatedStoredSession()?.user || null;
+      const sessionRoleUpper = String(sessionUser?.originalRole || sessionUser?.role || '').toUpperCase();
+      if (
+        !isSuperAdmin &&
+        sessionRoleUpper === 'ADMIN' &&
+        (sessionUser?.onboardingCompleted === false ||
+          (sessionUser?.onboardingCompleted !== true && selected?.onboardingCompleted === false))
+      ) {
+        if (selected) setActiveTenant(selected);
+        setActiveTenantId(targetId);
+        setIsLoginModalOpen(false);
+        setSaasMode('TENANT_ONBOARDING');
+        window.history.pushState({}, '', `/onboarding?tenantId=${encodeURIComponent(targetId)}`);
+        return;
+      }
 
       // Clear any stale login target and pre-auth tenant query state
       setStoreLoginTarget(null);
@@ -1370,7 +1423,7 @@ export default function App() {
           pricingMode: 'FIXED',
           logoUrl: '/pwa-512x512.png',
           currency: 'PKR',
-          onboardingCompleted: true,
+          onboardingCompleted: Boolean(sessionUser?.onboardingCompleted),
           appPath: '/dashboard',
         };
         setActiveTenant(minimalTenant);
@@ -1387,10 +1440,18 @@ export default function App() {
   };
 
   const handleTabChange = useCallback((targetTab: string) => {
+    if (isUserOnboardingPending(currentUser, activeTenant)) {
+      const obTid = Number(activeTenant?.id || currentUser?.tenantId || 0);
+      setSaasMode('TENANT_ONBOARDING');
+      if (obTid > 0) {
+        window.history.replaceState({}, '', `/onboarding?tenantId=${encodeURIComponent(obTid)}`);
+      }
+      return;
+    }
     const valid = resolveTargetTab(targetTab, currentUser, companySettings);
     setCurrentTab(valid);
     window.history.replaceState({}, '', appPathForTab(valid));
-  }, [currentUser, companySettings]);
+  }, [currentUser, companySettings, activeTenant]);
 
   useEffect(() => {
     const role = (currentUser?.role || '').toLowerCase();
@@ -1518,6 +1579,15 @@ export default function App() {
           return;
         }
         // Keep SuperAdmin portal intact without forcing broken tenant routes
+        return;
+      }
+
+      if (isUserOnboardingPending(currentUser, activeTenant)) {
+        const obTid = Number(activeTenant?.id || currentUser?.tenantId || 0);
+        setSaasMode('TENANT_ONBOARDING');
+        if (obTid > 0) {
+          window.history.replaceState({}, '', `/onboarding?tenantId=${encodeURIComponent(obTid)}`);
+        }
         return;
       }
 
@@ -1729,22 +1799,55 @@ export default function App() {
 
   const handleFreeTrialStoreCreated = useCallback(
     (tenantId: number, _loginUrl: string, user?: any, token?: string) => {
-      refreshTenantDirectory('LANDING');
       if (token && user) {
+        const roleUpper = String(user.originalRole || user.role || 'ADMIN').toUpperCase();
+        const normalizedUser = {
+          ...user,
+          role: roleUpper,
+          originalRole: roleUpper,
+          onboardingCompleted: user.onboardingCompleted ?? false,
+          isSimulatedCashier: false,
+        };
+        const isPendingOnboarding = roleUpper === 'ADMIN' && normalizedUser.onboardingCompleted === false;
         clearStoredUnauthTenantId();
         setAuthSessionNotice(null);
         setStoreLoginTarget(null);
         setTenantIdParam('');
         setIsLoginModalOpen(false);
-        setAuthSession(token, user);
-        setCurrentUser(user);
-        syncUserThemeFromAuth(user);
-        if (user.onboardingCompleted === false) {
+        setAuthSession(token, normalizedUser);
+        setCurrentUser(normalizedUser);
+        try {
+          localStorage.setItem('pos_current_user', JSON.stringify(normalizedUser));
+        } catch {}
+        syncUserThemeFromAuth(normalizedUser);
+        if (tenantId > 0) {
+          setActiveTenantId(tenantId);
+          setActiveTenant((prev) =>
+            prev && Number(prev.id) === Number(tenantId)
+              ? { ...prev, onboardingCompleted: Boolean(normalizedUser.onboardingCompleted) }
+              : {
+                  id: tenantId,
+                  name: normalizedUser.tenantName || normalizedUser.storeName || `Store #${tenantId}`,
+                  status: 'ACTIVE',
+                  subscriptionStatus: normalizedUser.subscriptionStatus || 'ACTIVE',
+                  subscriptionPlan: normalizedUser.subscriptionPlan || 'free_tier',
+                  businessType: normalizedUser.businessType || 'RETAIL',
+                  pricingMode: normalizedUser.pricingMode || 'FIXED',
+                  logoUrl: '/pwa-512x512.png',
+                  currency: normalizedUser.currency || 'PKR',
+                  onboardingCompleted: Boolean(normalizedUser.onboardingCompleted),
+                  appPath: isPendingOnboarding ? `/onboarding?tenantId=${tenantId}` : '/dashboard',
+                }
+          );
+        }
+        void refreshTenantDirectory(isPendingOnboarding ? 'TENANT_ONBOARDING' : 'TENANT_ACTIVE');
+        if (isPendingOnboarding) {
           handleNavigateDomain({ mode: 'ONBOARDING', tenantId, authenticated: true });
         } else {
           handleNavigateDomain({ mode: 'TENANT', tenantId, authenticated: true });
         }
       } else {
+        void refreshTenantDirectory('AUTH');
         setStoredUnauthTenantId(String(tenantId));
         setTenantIdParam(String(tenantId));
         setIsLoginModalOpen(true);
@@ -1868,7 +1971,7 @@ export default function App() {
   // Keyboard Shortcuts for Physical Counter Navigation & POS Operations
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
-      if (saasMode !== 'TENANT_ACTIVE') return;
+      if (saasMode !== 'TENANT_ACTIVE' || isUserOnboardingPending(currentUser, activeTenant)) return;
       if (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9'].includes(e.key)) {
         e.preventDefault();
       }
@@ -2139,6 +2242,31 @@ export default function App() {
   const canAccessOnboarding = Boolean(
     currentUser && (currentRoleUpper === 'ADMIN' || currentRoleUpper === 'SUPERADMIN')
   );
+  const isAdminOnboardingIncomplete = Boolean(
+    !isInitializing && currentUser && isUserOnboardingPending(currentUser, activeTenant)
+  );
+
+  // Enforce mandatory onboarding setup across all routes when first-time Admin setup is incomplete
+  useEffect(() => {
+    if (!isAdminOnboardingIncomplete) return;
+    const obTenantId = Number(activeTenant?.id || currentUser?.tenantId || getActiveTenantId() || 0);
+    if (
+      saasMode === 'TENANT_ACTIVE' ||
+      saasMode === 'LANDING' ||
+      saasMode === 'AUTH' ||
+      saasMode === 'SUPERADMIN' ||
+      saasMode === 'VERIFY_EMAIL'
+    ) {
+      setIsLoginModalOpen(false);
+      setSaasMode('TENANT_ONBOARDING');
+      if (obTenantId > 0) {
+        const targetUrl = `/onboarding?tenantId=${encodeURIComponent(obTenantId)}`;
+        if (`${window.location.pathname}${window.location.search}` !== targetUrl) {
+          window.history.replaceState({}, '', targetUrl);
+        }
+      }
+    }
+  }, [isAdminOnboardingIncomplete, saasMode, activeTenant?.id, currentUser?.tenantId]);
 
   const activeRouteLayoutMeta = useMemo(
     () =>
@@ -2264,27 +2392,73 @@ export default function App() {
             initialTenantId={tenantIdParam ? Number(tenantIdParam) : null}
             storeName={effectiveStoreName || 'SarbaazSoft Shoe POS'}
             onNavigateLogin={(verifiedEmail, sessionData) => {
-              void refreshTenantDirectory();
               try {
                 window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
               } catch {}
               if (sessionData?.token && sessionData?.user) {
-                setAuthSession(sessionData.token, sessionData.user);
-                setCurrentUser(sessionData.user);
-                syncUserThemeFromAuth(sessionData.user);
+                const roleUpper = String(sessionData.user.originalRole || sessionData.user.role || 'ADMIN').toUpperCase();
+                const normalizedUser = {
+                  ...sessionData.user,
+                  role: roleUpper,
+                  originalRole: roleUpper,
+                  onboardingCompleted: sessionData.user.onboardingCompleted ?? false,
+                  isSimulatedCashier: false,
+                };
+                clearStoredUnauthTenantId();
+                setAuthSessionNotice(null);
+                setStoreLoginTarget(null);
+                setTenantIdParam('');
+                setIsLoginModalOpen(false);
+                setAuthSession(sessionData.token, normalizedUser);
+                setCurrentUser(normalizedUser);
+                try {
+                  localStorage.setItem('pos_current_user', JSON.stringify(normalizedUser));
+                } catch {}
+                syncUserThemeFromAuth(normalizedUser);
+
                 const targetTenantId = Number(
-                  sessionData.user.tenantId ||
+                  normalizedUser.tenantId ||
                   sessionData.tenantId ||
                   activeTenant?.id ||
                   0
                 );
-                if (sessionData.user.onboardingCompleted === false) {
-                  handleNavigateDomain({ mode: 'ONBOARDING', tenantId: targetTenantId });
+                const needsOnboarding = roleUpper === 'ADMIN' && normalizedUser.onboardingCompleted === false;
+
+                if (targetTenantId > 0) {
+                  setActiveTenantId(targetTenantId);
+                  setActiveTenant((prev) =>
+                    prev && Number(prev.id) === targetTenantId
+                      ? { ...prev, onboardingCompleted: Boolean(normalizedUser.onboardingCompleted) }
+                      : {
+                          id: targetTenantId,
+                          name: normalizedUser.tenantName || normalizedUser.storeName || `Store #${targetTenantId}`,
+                          status: 'ACTIVE',
+                          subscriptionStatus: normalizedUser.subscriptionStatus || 'ACTIVE',
+                          subscriptionPlan: 'free_tier',
+                          businessType: 'RETAIL',
+                          pricingMode: 'FIXED',
+                          logoUrl: '/pwa-512x512.png',
+                          currency: 'PKR',
+                          onboardingCompleted: Boolean(normalizedUser.onboardingCompleted),
+                          appPath: needsOnboarding ? `/onboarding?tenantId=${targetTenantId}` : '/dashboard',
+                        }
+                  );
+                }
+
+                void refreshTenantDirectory(needsOnboarding ? 'TENANT_ONBOARDING' : 'TENANT_ACTIVE');
+                if (needsOnboarding) {
+                  handleNavigateDomain({ mode: 'ONBOARDING', tenantId: targetTenantId, authenticated: true });
                   return;
                 }
-                handleNavigateDomain({ mode: 'TENANT', tenantId: targetTenantId });
+                handleNavigateDomain({
+                  mode: 'TENANT',
+                  tenantId: targetTenantId,
+                  authenticated: true,
+                  tab: roleUpper === 'CASHIER' ? 'pos' : 'dashboard',
+                });
                 return;
               }
+              void refreshTenantDirectory('AUTH');
               const targetTenantId = Number(
                 sessionData?.tenantId ||
                 sessionData?.user?.tenantId ||
@@ -2440,20 +2614,23 @@ export default function App() {
                 setCurrentTab('dashboard');
                 await handleNavigateDomain({ mode: 'TENANT', tenantId: completedTenantId, authenticated: true });
               }}
-              onCancel={() =>
+              onCancel={() => {
+                if (isAdminOnboardingIncomplete) {
+                  return;
+                }
                 handleNavigateDomain({
                   mode: 'TENANT',
                   tenantId: activeTenant?.id,
                   authenticated: true,
-                })
-              }
+                });
+              }}
             />
           </Suspense>
         ) : null
       )}
 
       {/* 6. ACTIVE TENANT POS & INVENTORY SUITE (shared root with tenantId) */}
-      {saasMode === 'TENANT_ACTIVE' && (
+      {saasMode === 'TENANT_ACTIVE' && !isAdminOnboardingIncomplete && (
         <>
           {isInitializing && hasStoredAuthToken && Boolean(currentUser) ? (
             <LoadingWindow

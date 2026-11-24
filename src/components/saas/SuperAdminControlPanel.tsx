@@ -15,9 +15,9 @@ import { ThemeDropdown } from '../common/ThemeDropdown';
 import { UserProfileModal } from '../auth/UserProfileModal';
 import { InstallAppModal } from '../common/InstallAppModal';
 import { RememberedEmailField } from '../auth/RememberedEmailField';
-import { ResendSecurityNotice } from '../auth/ResendSecurityNotice';
+import { PasswordResetFlow } from '../auth/PasswordResetFlow';
 import { useRememberedAccount } from '../../hooks/useRememberedAccount';
-import { useResendCooldown } from '../../hooks/useResendCooldown';
+import { usePasswordReset } from '../../hooks/usePasswordReset';
 import { getRememberedEmail, normalizeRememberedEmail } from '../../utils/rememberedAccount';
 import { StatCard, triggerStatRecount } from '../common/StatCard';
 import { RetailShoeMetrics, useDataPerIntersectionObserver, type RetailShoeMetricsData } from '../common/RetailShoeMetrics';
@@ -172,29 +172,31 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   };
 
   // Login / Reset form state when not authenticated as SUPERADMIN
-  const [authTab, setAuthTab] = useState<'login' | 'forgot' | 'reset'>('login');
-  const authTabDirection = useTabDirection(authTab, ['login', 'forgot', 'reset'] as const);
+  const [authTab, setAuthTab] = useState<'login' | 'reset'>('login');
+  const authTabDirection = useTabDirection(authTab, ['login', 'reset'] as const);
   // Remembered SuperAdmin email (email only; separate from store-login memory).
   const account = useRememberedAccount('platform');
   const [email, setEmail] = useState(() => getRememberedEmail('platform') ?? '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [resetToken, setResetToken] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [showResetPassword, setShowResetPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
-  const [isResendingSuperAdminReset, setIsResendingSuperAdminReset] = useState(false);
-  const [resendSuperAdminSuccess, setResendSuperAdminSuccess] = useState<string | null>(null);
-  const [resendSuperAdminError, setResendSuperAdminError] = useState<string | null>(null);
-  const trimmedSuperAdminEmail = email.trim();
-  const isSuperAdminEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedSuperAdminEmail);
-  const superAdminResetCooldown = useResendCooldown({
-    flow: 'password_reset',
-    email: trimmedSuperAdminEmail,
-    enabled: !isSuperAdmin && (authTab === 'forgot' || authTab === 'reset'),
+  const superAdminPasswordReset = usePasswordReset({
+    email,
+    onEmailChange: setEmail,
+    roleScope: 'SUPERADMIN',
+    enabled: !isSuperAdmin && authTab === 'reset',
+    onResetSuccess: (message, resetEmail) => {
+      setAuthError(null);
+      setAuthInfo(message);
+      setPassword('');
+      if (account.rememberedEmail && normalizeRememberedEmail(resetEmail) !== account.rememberedEmail) {
+        account.useAnotherAccount();
+      }
+      setAuthTab('login');
+    },
   });
   const [isVisible, setIsVisible] = useState(false);
 
@@ -258,11 +260,17 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
         isSuperAdmin: true,
         saasMode: 'SUPERADMIN',
         isAuthModalOpen: !isSuperAdmin,
-        authSubTab: !isSuperAdmin ? authTab : undefined,
+        authSubTab: !isSuperAdmin
+          ? authTab === 'login'
+            ? 'login'
+            : superAdminPasswordReset.step === 'request'
+            ? 'forgot'
+            : 'reset'
+          : undefined,
         currentTab: activeTab,
         routeName: superAdminTabLabels[activeTab],
       }),
-    [isSuperAdmin, activeTab, authTab]
+    [isSuperAdmin, activeTab, authTab, superAdminPasswordReset.step]
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1117,107 +1125,6 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     }
   };
 
-  const handleSuperAdminForgot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isSuperAdminEmailValid) {
-      setAuthError('Please enter a valid SuperAdmin email address.');
-      return;
-    }
-    if (superAdminResetCooldown.isInCooldown) {
-      setAuthError(
-        `Please wait ${superAdminResetCooldown.formattedCountdown} before requesting another password reset email.`
-      );
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError(null);
-    setAuthInfo(null);
-    setResendSuperAdminSuccess(null);
-    setResendSuperAdminError(null);
-    try {
-      const res = await api.auth.forgotPassword({
-        email: trimmedSuperAdminEmail,
-        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
-        isResend: false,
-      });
-      if (res.cooldown) {
-        superAdminResetCooldown.applyServerCooldown(res.cooldown);
-      }
-      setResetToken('');
-      setAuthInfo(
-        res.message ||
-          'Password reset token and link have been sent to your email. Please check your Inbox (and Spam/Junk folder) and enter the verification token below.'
-      );
-      setAuthTab('reset');
-    } catch (err: any) {
-      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
-        superAdminResetCooldown.applyServerCooldown(err);
-      }
-      setAuthError(err.message || 'Failed to request reset token.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSuperAdminResendResetCode = async () => {
-    if (!isSuperAdminEmailValid) {
-      setResendSuperAdminError('Please enter a valid SuperAdmin email address before resending the reset code.');
-      return;
-    }
-    if (superAdminResetCooldown.isInCooldown || isResendingSuperAdminReset) return;
-
-    setIsResendingSuperAdminReset(true);
-    setResendSuperAdminError(null);
-    setResendSuperAdminSuccess(null);
-    setAuthError(null);
-    try {
-      const res = await api.auth.forgotPassword({
-        email: trimmedSuperAdminEmail,
-        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
-        isResend: true,
-      });
-      if (res.cooldown) {
-        superAdminResetCooldown.applyServerCooldown(res.cooldown);
-      }
-      setResendSuperAdminSuccess(
-        res.message ||
-          `A new password reset code has been sent to ${trimmedSuperAdminEmail}. Please check your Inbox or Spam/Junk folder.`
-      );
-    } catch (err: any) {
-      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
-        superAdminResetCooldown.applyServerCooldown(err);
-      }
-      setResendSuperAdminError(err.message || 'Failed to resend reset code. Please try again later.');
-    } finally {
-      setIsResendingSuperAdminReset(false);
-    }
-  };
-
-  const handleSuperAdminResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError(null);
-    setAuthInfo(null);
-    try {
-      await api.auth.resetPassword({ email: email.trim(), token: resetToken.trim(), newPassword });
-      superAdminResetCooldown.clearCooldown();
-      setResendSuperAdminSuccess(null);
-      setResendSuperAdminError(null);
-      setAuthInfo('SuperAdmin password has been reset successfully! You can now sign in.');
-      setResetToken('');
-      setNewPassword('');
-      setPassword('');
-      if (account.rememberedEmail && normalizeRememberedEmail(email) !== account.rememberedEmail) {
-        account.useAnotherAccount();
-      }
-      setAuthTab('login');
-    } catch (err: any) {
-      setAuthError(err.message || 'Password reset failed.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const triggerSqlDownload = (filename: string, sqlContent: string) => {
     const blob = new Blob([sqlContent], { type: 'application/sql;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -1585,27 +1492,28 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   <button
                     id="superadmin-tab-forgot"
                     type="button"
-                    data-active={authTab === 'forgot' || authTab === 'reset'}
+                    data-active={authTab === 'reset'}
                     onClick={() => {
-                      setAuthTab('forgot');
+                      superAdminPasswordReset.resetFlow('request');
+                      setAuthTab('reset');
                       setAuthError(null);
                       setAuthInfo(null);
                     }}
                     className={`tab-underline-link relative flex-1 py-3 text-xs sm:text-sm font-semibold transition-colors duration-300 flex items-center justify-center space-x-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
-                      authTab === 'forgot' || authTab === 'reset'
+                      authTab === 'reset'
                         ? 'active text-purple-600 dark:text-purple-400 font-bold'
                         : 'text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300'
                     }`}
                   >
                     <KeyRound
                       className={`w-4 h-4 transition-colors duration-200 ${
-                        authTab === 'forgot' || authTab === 'reset'
+                        authTab === 'reset'
                           ? 'text-purple-600 dark:text-purple-400'
                           : 'text-slate-400 dark:text-slate-500'
                       }`}
                     />
                     <span>Reset PIN</span>
-                    {(authTab === 'forgot' || authTab === 'reset') && (
+                    {authTab === 'reset' && (
                       <motion.div
                         layoutId="superAdminAuthActiveUnderline"
                         className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 shadow-[0_2px_8px_rgba(var(--primary-rgb,147,51,234),)] pointer-events-none z-10"
@@ -1615,36 +1523,32 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   </button>
                 </div>
 
-                {/* Dynamic Header */}
-                <div className="mb-4">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                    {authTab === 'login' && 'Sign in to SuperAdmin C-Panel'}
-                    {authTab === 'forgot' && 'Reset SuperAdmin PIN / Password'}
-                    {authTab === 'reset' && 'Create New SuperAdmin Password'}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-purple-200/70 mt-0.5">
-                    {authTab === 'login' &&
-                      'Enter your SUPERADMIN credentials to manage tenant stores, toggle suspensions, and manage 30-day free trials.'}
-                    {authTab === 'forgot' &&
-                      'Provide your SuperAdmin email to generate an instant verification recovery code.'}
-                    {authTab === 'reset' &&
-                      'Enter your reset verification token and choose a new SuperAdmin password.'}
-                  </p>
-                </div>
+                {/* Login Header & Alerts */}
+                {authTab === 'login' && (
+                  <>
+                    <div className="mb-4">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
+                        Sign in to SuperAdmin C-Panel
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-purple-200/70 mt-0.5">
+                        Enter your SUPERADMIN credentials to manage tenant stores, toggle suspensions, and manage 30-day free trials.
+                      </p>
+                    </div>
 
-                {/* Alerts */}
-                {authError && (
-                  <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
-                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed font-medium">{authError}</span>
-                  </div>
-                )}
+                    {authError && (
+                      <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
+                        <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                        <span className="leading-relaxed font-medium">{authError}</span>
+                      </div>
+                    )}
 
-                {authInfo && (
-                  <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-start gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed font-medium">{authInfo}</span>
-                  </div>
+                    {authInfo && (
+                      <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span className="leading-relaxed font-medium">{authInfo}</span>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <AnimatedTabPanel activeKey={authTab} direction={authTabDirection}>
@@ -1675,8 +1579,10 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setAuthTab('forgot');
+                            superAdminPasswordReset.resetFlow('request');
+                            setAuthTab('reset');
                             setAuthError(null);
+                            setAuthInfo(null);
                           }}
                           className="text-xs font-semibold text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200 transition cursor-pointer"
                         >
@@ -1748,197 +1654,18 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   </form>
                 )}
 
-                {/* TAB 2: FORGOT PASSWORD FORM */}
-                {authTab === 'forgot' && (
-                  <form onSubmit={handleSuperAdminForgot} className="space-y-4">
-                    <p className="text-xs text-slate-500 dark:text-purple-200/70 leading-relaxed font-medium">
-                      Enter your SuperAdmin email address. A one-time verification token will be generated to reset your master credentials.
-                    </p>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        SuperAdmin Email Address
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          placeholder="Enter SuperAdmin email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 dark:focus:ring-purple-500/20 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-medium py-2.5 pl-[2.125rem] pr-4 transition outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {superAdminResetCooldown.isInCooldown && (
-                      <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-[11px] font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                        <span>
-                          Next reset email available in{' '}
-                          <strong className="font-mono tabular-nums">{superAdminResetCooldown.formattedCountdown}</strong>
-                          {superAdminResetCooldown.nextAvailableTimeLabel
-                            ? ` (at ${superAdminResetCooldown.nextAvailableTimeLabel})`
-                            : ''}
-                          .
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAuthTab('login');
-                          setAuthError(null);
-                        }}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-white hover:bg-purple-50/80 text-purple-700 hover:text-purple-800 border border-purple-200/90 shadow-xs hover:border-purple-300 dark:bg-slate-900/80 dark:hover:bg-purple-900/40 dark:border-purple-800/60 dark:text-purple-200 text-xs font-bold transition cursor-pointer"
-                      >
-                        Back to Sign In
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={authLoading || superAdminResetCooldown.isInCooldown}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        {authLoading
-                          ? 'Requesting Token...'
-                          : superAdminResetCooldown.isInCooldown
-                          ? `Wait ${superAdminResetCooldown.formattedCountdown}`
-                          : 'Generate Reset Token'}
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* TAB 3: RESET PASSWORD FORM */}
+                {/* TAB 2: CENTRALIZED 6-DIGIT PASSWORD RESET FLOW */}
                 {authTab === 'reset' && (
-                  <div className="space-y-4">
-                  <form onSubmit={handleSuperAdminResetPassword} className="space-y-4">
-                    {!isSuperAdminEmailValid && (
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                          SuperAdmin Email Address
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                            <Mail className="w-4 h-4" />
-                          </div>
-                          <input
-                            type="email"
-                            required
-                            placeholder="Enter SuperAdmin email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 dark:focus:ring-purple-500/20 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-medium py-2.5 pl-[2.125rem] pr-4 transition outline-none"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Verification Reset Token
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                          <KeyRound className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="text"
-                          required
-                          value={resetToken}
-                          onChange={(e) => setResetToken(e.target.value)}
-                          placeholder="e.g. 7F3A9C12"
-                          className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 dark:focus:ring-purple-500/20 text-slate-900 dark:text-white font-mono uppercase text-xs sm:text-sm rounded-xl py-2.5 pl-[2.125rem] pr-3 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                          New Password
-                        </label>
-                        <PasswordRequirementsTooltip minChars={6} password={newPassword} />
-                      </div>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                          <Lock className="w-4 h-4" />
-                        </div>
-                        <input
-                          type={showResetPassword ? 'text' : 'password'}
-                          required
-                          placeholder="Enter new password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className={`app-input w-full bg-slate-50 dark:bg-slate-900/80 border focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm rounded-xl py-2.5 pl-[2.125rem] pr-16 outline-none font-medium transition ${
-                            newPassword
-                              ? evaluatePasswordStrength(newPassword, { minChars: 6 }).borderColorClass
-                              : 'border-slate-200 dark:border-purple-800/60 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20'
-                          }`}
-                        />
-                        <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center space-x-1.5">
-                          {newPassword && evaluatePasswordStrength(newPassword, { minChars: 6 }).isStrong && (
-                            <span title="Strong password">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in fade-in zoom-in duration-200" />
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setShowResetPassword(!showResetPassword)}
-                            className="text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 transition cursor-pointer"
-                            title={showResetPassword ? 'Hide password' : 'Show password'}
-                          >
-                            {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                      {newPassword && (
-                        <PasswordStrengthIndicator password={newPassword} minChars={6} showChecklist={true} />
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAuthTab('login');
-                          setAuthError(null);
-                        }}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-white hover:bg-purple-50/80 text-purple-700 hover:text-purple-800 border border-purple-200/90 shadow-xs hover:border-purple-300 dark:bg-slate-900/80 dark:hover:bg-purple-900/40 dark:border-purple-800/60 dark:text-purple-200 text-xs font-bold transition cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={authLoading}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        {authLoading ? 'Updating...' : 'Save New Password'}
-                      </button>
-                    </div>
-                  </form>
-
-                  <ResendSecurityNotice
-                    idPrefix="superadmin-password-reset"
-                    email={trimmedSuperAdminEmail}
-                    helperContext="reset"
-                    buttonLabel="Resend Reset Code"
-                    onResend={handleSuperAdminResendResetCode}
-                    isResending={isResendingSuperAdminReset}
-                    isInCooldown={superAdminResetCooldown.isInCooldown}
-                    formattedCountdown={superAdminResetCooldown.formattedCountdown}
-                    nextAvailableTimeLabel={superAdminResetCooldown.nextAvailableTimeLabel}
-                    attemptCount={superAdminResetCooldown.attemptCount}
-                    disabled={authLoading || !isSuperAdminEmailValid}
-                    successMessage={resendSuperAdminSuccess}
-                    errorMessage={resendSuperAdminError}
+                  <PasswordResetFlow
+                    idPrefix="superadmin"
+                    controller={superAdminPasswordReset}
+                    roleScope="SUPERADMIN"
+                    onBackToLogin={() => {
+                      superAdminPasswordReset.resetFlow('request');
+                      setAuthTab('login');
+                      setAuthError(null);
+                    }}
                   />
-                  </div>
                 )}
                 </AnimatedTabPanel>
               </div>

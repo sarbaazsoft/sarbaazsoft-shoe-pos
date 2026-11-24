@@ -376,12 +376,12 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
                 id="theme-color-option-custom"
                 style={
                   isCustomSelected
-                    ? { background: customPalette.buttonGradient, color: customPalette.contrastText }
+                    ? { background: customPalette.buttonGradient, color: '#FFFFFF' }
                     : undefined
                 }
                 className={`relative w-full flex items-center justify-between gap-2 px-2.5 py-2 sm:py-1.5 rounded-xl text-[11px] transition-all border ${
                   isCustomSelected
-                    ? 'border-white/30 font-bold shadow-sm'
+                    ? 'text-white border-white/30 font-bold shadow-sm'
                     : 'bg-slate-50/90 hover:bg-slate-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] border-slate-200/70 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium'
                 }`}
               >

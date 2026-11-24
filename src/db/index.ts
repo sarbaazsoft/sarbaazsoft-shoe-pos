@@ -391,7 +391,7 @@ const mockStore: Record<string, any[]> = {
   notifications: [],
   fcm_tokens: [],
   email_verification_tokens: [],
-  password_reset_tokens: [],
+  password_reset_codes: [],
   auth_resend_rate_limits: [],
 };
 
@@ -423,7 +423,7 @@ let mockIdCounters: Record<string, number> = {
   notifications: 1,
   fcm_tokens: 1,
   email_verification_tokens: 1,
-  password_reset_tokens: 1,
+  password_reset_codes: 1,
   auth_resend_rate_limits: 1,
 };
 
@@ -1675,7 +1675,10 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       const param0 = hasWhere ? String(params[0] || '').trim().toLowerCase() : '';
       let matches = [...mockStore.email_verification_tokens];
       if (hasWhere) {
-        if (upper.includes('U.EMAIL')) {
+        if (upper.includes('USER_ID = $1')) {
+          const uid = Number(params[0] || 0);
+          matches = matches.filter((t) => Number(t.user_id) === uid);
+        } else if (upper.includes('U.EMAIL')) {
           matches = matches.filter((t) => {
             const u = mockStore.users.find((user) => Number(user.id) === Number(t.user_id));
             return u && String(u.email || '').trim().toLowerCase() === param0;
@@ -1690,6 +1693,7 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       if (upper.includes('LIMIT 1')) {
         matches = matches.slice(0, 1);
       }
+      matches = matches.map((t) => ({ ...t, stored_code: t.token }));
       if (upper.includes('JOIN USERS')) {
         const joined = matches.map((t) => {
           const u = mockStore.users.find((user) => Number(user.id) === Number(t.user_id)) || {};
@@ -1726,45 +1730,80 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
     return { rows: [], rowCount: 0 };
   }
 
-  if (upper.includes('PASSWORD_RESET_TOKENS')) {
-    if (!mockStore.password_reset_tokens) mockStore.password_reset_tokens = [];
+  if (upper.includes('PASSWORD_RESET_CODES')) {
+    if (!mockStore.password_reset_codes) mockStore.password_reset_codes = [];
     if (upper.startsWith('INSERT INTO')) {
-      const tid = Number(params[0] || 0);
+      const tid = Number(params[0] ?? 0);
       const uid = Number(params[1] || 0);
-      const token = String(params[2] || '');
-      const exp = params[3] ? new Date(params[3]).toISOString() : new Date(Date.now() + 3600000).toISOString();
+      const code = String(params[2] || '');
+      const exp = params[3]
+        ? new Date(params[3]).toISOString()
+        : new Date(Date.now() + 900000).toISOString();
       const entry = {
-        id: nextMockId('password_reset_tokens'),
+        id: nextMockId('password_reset_codes'),
         tenant_id: tid,
         user_id: uid,
-        token,
+        code,
+        attempts: 0,
         expires_at: exp,
         created_at: new Date().toISOString(),
       };
-      mockStore.password_reset_tokens.push(entry);
+      mockStore.password_reset_codes.push(entry);
       return { rows: [entry as unknown as T], rowCount: 1 };
     }
+    if (upper.startsWith('UPDATE')) {
+      const targetId = Number(params[params.length - 1] || 0);
+      let updated: any = null;
+      mockStore.password_reset_codes = mockStore.password_reset_codes.map((c) => {
+        if (Number(c.id) === targetId) {
+          if (upper.includes('EXPIRES_AT')) {
+            const nextExp = upper.includes('-')
+              ? new Date(Date.now() - 120_000).toISOString()
+              : params.length > 1
+              ? new Date(params[0]).toISOString()
+              : new Date(Date.now() + 900_000).toISOString();
+            updated = { ...c, expires_at: nextExp };
+          } else {
+            updated = { ...c, attempts: Number(c.attempts || 0) + 1 };
+          }
+          return updated;
+        }
+        return c;
+      });
+      return { rows: updated ? [updated as unknown as T] : [], rowCount: updated ? 1 : 0 };
+    }
     if (upper.startsWith('SELECT')) {
-      const hasTokenWhere = upper.includes('WHERE') && params.length > 0;
-      const tokenParam = hasTokenWhere ? String(params[0] || '').trim().toLowerCase() : '';
-      let matches = hasTokenWhere
-        ? mockStore.password_reset_tokens.filter(
-            (t) => String(t.token).trim().toLowerCase() === tokenParam
-          )
-        : [...mockStore.password_reset_tokens];
-      if (upper.includes('ORDER BY ID DESC')) {
+      const hasWhere = upper.includes('WHERE') && params.length > 0;
+      let matches = [...mockStore.password_reset_codes];
+      if (hasWhere) {
+        if (upper.includes('USER_ID = $1')) {
+          const uid = Number(params[0] || 0);
+          matches = matches.filter((c) => Number(c.user_id) === uid);
+        } else if (upper.includes('U.EMAIL')) {
+          const emailParam = String(params[0] || '').trim().toLowerCase();
+          matches = matches.filter((c) => {
+            const u = mockStore.users.find((user) => Number(user.id) === Number(c.user_id));
+            return u && String(u.email || '').trim().toLowerCase() === emailParam;
+          });
+        } else if (upper.includes('CODE')) {
+          const codeParam = String(params[0] || '').trim();
+          matches = matches.filter((c) => String(c.code).trim() === codeParam);
+        }
+      }
+      if (upper.includes('ORDER BY') && upper.includes('DESC')) {
         matches = matches.sort((a, b) => Number(b.id) - Number(a.id));
       }
       if (upper.includes('LIMIT 1')) {
         matches = matches.slice(0, 1);
       }
+      matches = matches.map((c) => ({ ...c, stored_code: c.code }));
       if (upper.includes('JOIN USERS')) {
-        const joined = matches.map((t) => {
-          const u = mockStore.users.find((user) => Number(user.id) === Number(t.user_id)) || {};
+        const joined = matches.map((c) => {
+          const u = mockStore.users.find((user) => Number(user.id) === Number(c.user_id)) || {};
           return {
-            ...t,
+            ...c,
             user_id: u.id,
-            tenant_id: t.tenant_id ?? u.tenant_id,
+            tenant_id: c.tenant_id ?? u.tenant_id ?? 0,
             email: u.email,
             name: u.name,
             role: u.role,
@@ -1775,13 +1814,20 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       return { rows: matches as unknown as T[], rowCount: matches.length };
     }
     if (upper.startsWith('DELETE FROM')) {
-      if (upper.includes('WHERE USER_ID = $1')) {
-        const uid = Number(params[0] || 0);
-        mockStore.password_reset_tokens = mockStore.password_reset_tokens.filter((t) => Number(t.user_id) !== uid);
-      } else if (upper.includes('TOKEN')) {
-        const tokenParam = String(params[0] || '').trim().toLowerCase();
-        mockStore.password_reset_tokens = mockStore.password_reset_tokens.filter(
-          (t) => String(t.token).trim().toLowerCase() !== tokenParam
+      const val = Number(params[0] || 0);
+      if (upper.includes('WHERE ID = $1')) {
+        mockStore.password_reset_codes = mockStore.password_reset_codes.filter((c) => Number(c.id) !== val);
+      } else if (upper.includes('WHERE USER_ID = $1')) {
+        mockStore.password_reset_codes = mockStore.password_reset_codes.filter((c) => Number(c.user_id) !== val);
+      } else if (upper.includes('TENANT_ID = $1')) {
+        const tid = Number(params[0] || 0);
+        const tenantUserIds = new Set(
+          mockStore.users
+            .filter((u) => Number(u.tenant_id) === tid && String(u.role || '').toUpperCase() !== 'SUPERADMIN')
+            .map((u) => Number(u.id))
+        );
+        mockStore.password_reset_codes = mockStore.password_reset_codes.filter(
+          (c) => Number(c.tenant_id) !== tid && !tenantUserIds.has(Number(c.user_id))
         );
       }
       return { rows: [], rowCount: 1 };
@@ -2397,10 +2443,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
         whereClause.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))') ||
         whereClause.includes('LOWER(BTRIM(U.EMAIL)) = LOWER(BTRIM($1))'))
     ) {
+      const excludesSuperAdmin =
+        whereClause.includes("<> 'SUPERADMIN'") || whereClause.includes("!= 'SUPERADMIN'");
       rows = rows.filter(
         (u) =>
           String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase() &&
-          Number(u.tenant_id || 1) === Number(params[1])
+          Number(u.tenant_id ?? 1) === Number(params[1]) &&
+          (!excludesSuperAdmin || String(u.role || '').toUpperCase() !== 'SUPERADMIN')
       );
     } else if (
       (whereClause.includes("ROLE = 'ADMIN'") || whereClause.includes("UPPER(COALESCE(ROLE::TEXT, '')) IN ('ADMIN', 'OWNER')") || whereClause.includes("UPPER(ROLE::TEXT) IN ('ADMIN', 'OWNER')")) &&
@@ -2425,11 +2474,17 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       rows = rows.filter((u) => String(u.role).toUpperCase() === 'ADMIN' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
     } else if (whereClause.includes("ROLE = 'CASHIER'") || whereClause.includes("UPPER(ROLE::TEXT) = 'CASHIER'")) {
       rows = rows.filter((u) => String(u.role).toUpperCase() === 'CASHIER' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
-    } else if (whereClause.includes("ROLE = 'SUPERADMIN'") && whereClause.includes('LOWER(EMAIL) = LOWER($1)')) {
+    } else if (
+      (whereClause.includes("ROLE = 'SUPERADMIN'") ||
+        whereClause.includes("UPPER(COALESCE(ROLE::TEXT, '')) = 'SUPERADMIN'") ||
+        whereClause.includes("UPPER(ROLE::TEXT) = 'SUPERADMIN'")) &&
+      (whereClause.includes('LOWER(EMAIL) = LOWER($1)') ||
+        whereClause.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))'))
+    ) {
       rows = rows.filter(
         (u) =>
           String(u.role).toUpperCase() === 'SUPERADMIN' &&
-          String(u.email).toLowerCase() === String(params[0] || '').toLowerCase()
+          String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase()
       );
     } else if (whereClause.includes("ROLE = 'SUPERADMIN'")) {
       rows = rows.filter((u) => String(u.role).toUpperCase() === 'SUPERADMIN' && (!whereClause.includes("STATUS = 'APPROVED'") || u.status === 'APPROVED'));
@@ -2451,7 +2506,13 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       whereClause.includes('LOWER(BTRIM(EMAIL)) = LOWER(BTRIM($1))') ||
       whereClause.includes('LOWER(BTRIM(U.EMAIL)) = LOWER(BTRIM($1))')
     ) {
-      rows = rows.filter((u) => String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase());
+      const excludesSuperAdmin =
+        whereClause.includes("<> 'SUPERADMIN'") || whereClause.includes("!= 'SUPERADMIN'");
+      rows = rows.filter(
+        (u) =>
+          String(u.email).trim().toLowerCase() === String(params[0] || '').trim().toLowerCase() &&
+          (!excludesSuperAdmin || String(u.role || '').toUpperCase() !== 'SUPERADMIN')
+      );
     } else if (whereClause.includes('TENANT_ID = ANY($1')) {
       const tids = (Array.isArray(params[0]) ? params[0] : []).map(Number);
       rows = rows.filter(

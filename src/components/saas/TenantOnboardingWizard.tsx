@@ -744,9 +744,9 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                     </div>
 
                     <OnboardingStepFooter
-                      leftLabel="Cancel Setup"
+                      leftLabel={isRequiredFirstLogin ? undefined : 'Cancel Setup'}
                       showLeftArrow={false}
-                      onLeftClick={onCancel}
+                      onLeftClick={isRequiredFirstLogin ? undefined : onCancel}
                       nextLabel="Next: Cashier Account Setup (Recommended)"
                       onNextClick={() => {
                         if (validateStep1()) {

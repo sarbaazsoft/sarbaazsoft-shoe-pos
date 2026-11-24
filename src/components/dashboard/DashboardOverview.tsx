@@ -122,13 +122,13 @@ const CustomWeeklySalesTooltip: React.FC<CustomWeeklySalesTooltipProps> = ({
             <span>Transactions:</span>
           </span>
           <span className="font-bold font-mono text-cyan-300">
-            {txVal} {txVal === 1 ? 'order' : 'orders'}
+            {txVal} {txVal === 1 ? 'invoice' : 'invoices'}
           </span>
         </div>
 
         {txVal > 0 && (
           <div className="pt-1.5 mt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Avg Order Value:</span>
+            <span>Avg Bill Value:</span>
             <span className="font-mono text-emerald-400 font-semibold">
               {formatCurrency(avgTicket, currency)}
             </span>
@@ -211,16 +211,16 @@ const CustomMonthlySalesTooltip: React.FC<CustomMonthlySalesTooltipProps> = ({
         <div className="flex items-center justify-between gap-3">
           <span className="text-slate-300 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10B981]" />
-            <span>Completed Orders:</span>
+            <span>Counter Invoices:</span>
           </span>
           <span className="font-bold font-mono text-emerald-300">
-            {txVal} {txVal === 1 ? 'order' : 'orders'}
+            {txVal} {txVal === 1 ? 'invoice' : 'invoices'}
           </span>
         </div>
 
         {txVal > 0 && (
           <div className="pt-1.5 mt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Avg Order Value (AOV):</span>
+            <span>Avg Bill Value:</span>
             <span className="font-mono text-emerald-400 font-semibold">
               {formatCurrency(avgTicket, currency)}
             </span>
@@ -1224,10 +1224,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           duration={1200}
         />
 
-        {/* Card 3: Average Order Value (AOV) */}
+        {/* Card 3: Average Bill Value */}
         <StatCard
           id="stat-average-order-value"
-          title="Average Order Value (AOV)"
+          title="Average Bill Value"
           value={dashboardData.todayAov || dashboardData.overallAov || 0}
           prefix={`${currency} `}
           icon={DollarSign}
@@ -1593,7 +1593,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     }`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${activeTrendTab === 'weekly' ? 'bg-cyan-300' : 'bg-emerald-400'}`} />
-                    <span>Orders</span>
+                    <span>{activeTrendTab === 'weekly' ? 'Invoices' : 'Pairs Sold'}</span>
                   </button>
                 </div>
               </div>
@@ -1726,7 +1726,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       yAxisId="tx"
                       type="monotone"
                       dataKey="txCount"
-                      name="Orders / Invoices"
+                      name="Counter Invoices"
                       stroke="#06B6D4"
                       strokeWidth={2.2}
                       fillOpacity={1}

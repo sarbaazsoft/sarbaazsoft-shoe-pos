@@ -1107,7 +1107,7 @@ router.delete('/users/:id', requireAuth, requireAdmin, async (req: Authenticated
       await pgClient.query('UPDATE purchase_returns SET created_by = $1 WHERE created_by = $2 AND tenant_id = $3', [currentAdminId, targetUserId, tenantId]);
       await pgClient.query('UPDATE returns SET created_by = $1 WHERE created_by = $2 AND tenant_id = $3', [currentAdminId, targetUserId, tenantId]);
       await pgClient.query('UPDATE stock_movements SET user_id = $1 WHERE user_id = $2 AND tenant_id = $3', [currentAdminId, targetUserId, tenantId]);
-      await pgClient.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [targetUserId]);
+      await pgClient.query('DELETE FROM password_reset_codes WHERE user_id = $1', [targetUserId]);
     } catch (reassignErr) {
       console.warn('Reassignment notice on user deletion:', reassignErr);
     }

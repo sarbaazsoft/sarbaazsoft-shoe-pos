@@ -2,8 +2,8 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2 } from 'lucide-react';
 
 export interface OnboardingStepFooterProps {
-  leftLabel: string;
-  onLeftClick: () => void;
+  leftLabel?: string;
+  onLeftClick?: () => void;
   showLeftArrow?: boolean;
   nextLabel?: React.ReactNode;
   onNextClick?: () => void;
@@ -36,14 +36,16 @@ export const OnboardingStepFooter: React.FC<OnboardingStepFooterProps> = ({
         </button>
 
         <div className="order-2 sm:contents flex items-center justify-between gap-2 w-full">
-          <button
-            type="button"
-            onClick={onLeftClick}
-            className="btn-secondary sm:order-1 rounded-xl inline-flex items-center justify-center gap-1.5 min-h-10 px-3.5 sm:px-4 py-2 text-xs font-bold leading-none whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
-          >
-            {showLeftArrow && <ArrowLeft className="w-3.5 h-3.5 shrink-0" />}
-            <span>{leftLabel}</span>
-          </button>
+          {leftLabel && onLeftClick && (
+            <button
+              type="button"
+              onClick={onLeftClick}
+              className="btn-secondary sm:order-1 rounded-xl inline-flex items-center justify-center gap-1.5 min-h-10 px-3.5 sm:px-4 py-2 text-xs font-bold leading-none whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+            >
+              {showLeftArrow && <ArrowLeft className="w-3.5 h-3.5 shrink-0" />}
+              <span>{leftLabel}</span>
+            </button>
+          )}
 
           <button
             type="submit"

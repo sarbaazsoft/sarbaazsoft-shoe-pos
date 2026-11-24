@@ -181,7 +181,7 @@ const SuperAdminTestNotificationCard: React.FC<SuperAdminTestNotificationCardPro
           className="text-xs font-semibold text-purple-600 dark:text-purple-300 hover:underline flex items-center gap-1 cursor-pointer"
         >
           <Flame className="w-3.5 h-3.5 text-amber-500" />
-          <span>Configure Firebase FCM Credentials &amp; Triggers in App Config</span>
+          <span>Configure Firebase FCM Credentials in App Config</span>
         </button>
 
         <button
@@ -992,7 +992,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleSaveAppSettings = async (e?: React.FormEvent) => {
+  const handleSaveAppSettings = async (e?: React.FormEvent, onlyNotificationTriggers = false) => {
     if (e) e.preventDefault();
     setIsSavingAppSettings(true);
     setAppSettingsSuccess(false);
@@ -1003,18 +1003,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const fromValue = (appSettingsForm.RESEND_FROM || '').trim() || `SarbaazSoft Shoe POS Security <${emailValue}>`;
       const activeProvider = (appSettingsForm.ACTIVE_EMAIL_PROVIDER || 'resend').toLowerCase() === 'gmail' ? 'gmail' : 'resend';
 
-      const payload = {
-        ...appSettingsForm,
-        ACTIVE_EMAIL_PROVIDER: activeProvider,
-        active_email_provider: activeProvider,
-        RESEND_API_KEY: appSettingsForm.RESEND_API_KEY ?? '',
-        resend_api_key: appSettingsForm.RESEND_API_KEY ?? '',
-        GMAIL_USER: appSettingsForm.GMAIL_USER ?? '',
-        GMAIL_FROM_NAME: appSettingsForm.GMAIL_FROM_NAME ?? '',
-        GMAIL_APP_PASSWORD: appSettingsForm.GMAIL_APP_PASSWORD ?? '',
-        RESEND_FROM: fromValue,
-        RESEND_FROM_EMAIL: emailValue,
-      };
+      const payload: Record<string, string> = onlyNotificationTriggers
+        ? {
+            SUPERADMIN_PUSH_ON_NEW_TRIAL: appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true',
+            SUPERADMIN_PUSH_ON_RENEWAL: appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true',
+            SUPERADMIN_PUSH_ON_EXPIRED_STORE: appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true',
+            SUPERADMIN_PUSH_ON_SECURITY_ALERT: appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true',
+            SUPERADMIN_PUSH_ON_SALES: appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false',
+          }
+        : {
+            ...appSettingsForm,
+            ACTIVE_EMAIL_PROVIDER: activeProvider,
+            active_email_provider: activeProvider,
+            RESEND_API_KEY: appSettingsForm.RESEND_API_KEY ?? '',
+            resend_api_key: appSettingsForm.RESEND_API_KEY ?? '',
+            GMAIL_USER: appSettingsForm.GMAIL_USER ?? '',
+            GMAIL_FROM_NAME: appSettingsForm.GMAIL_FROM_NAME ?? '',
+            GMAIL_APP_PASSWORD: appSettingsForm.GMAIL_APP_PASSWORD ?? '',
+            RESEND_FROM: fromValue,
+            RESEND_FROM_EMAIL: emailValue,
+          };
 
       const res = await api.settings.saveAppSettings(payload);
       setAppSettingsSuccess(true);
@@ -1022,13 +1030,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setAppSettingsForm((prev) => ({
           ...prev,
           ...res.appSettings,
-          ACTIVE_EMAIL_PROVIDER: res.appSettings.ACTIVE_EMAIL_PROVIDER || activeProvider,
-          RESEND_API_KEY: res.appSettings.RESEND_API_KEY ?? appSettingsForm.RESEND_API_KEY,
-          GMAIL_USER: res.appSettings.GMAIL_USER ?? appSettingsForm.GMAIL_USER,
-          GMAIL_FROM_NAME: res.appSettings.GMAIL_FROM_NAME ?? appSettingsForm.GMAIL_FROM_NAME,
-          GMAIL_APP_PASSWORD: res.appSettings.GMAIL_APP_PASSWORD ?? appSettingsForm.GMAIL_APP_PASSWORD,
-          RESEND_FROM: res.appSettings.RESEND_FROM || fromValue,
-          RESEND_FROM_EMAIL: res.appSettings.RESEND_FROM_EMAIL || emailValue,
+          ACTIVE_EMAIL_PROVIDER: res.appSettings.ACTIVE_EMAIL_PROVIDER || prev.ACTIVE_EMAIL_PROVIDER || activeProvider,
+          RESEND_API_KEY: res.appSettings.RESEND_API_KEY ?? prev.RESEND_API_KEY,
+          GMAIL_USER: res.appSettings.GMAIL_USER ?? prev.GMAIL_USER,
+          GMAIL_FROM_NAME: res.appSettings.GMAIL_FROM_NAME ?? prev.GMAIL_FROM_NAME,
+          GMAIL_APP_PASSWORD: res.appSettings.GMAIL_APP_PASSWORD ?? prev.GMAIL_APP_PASSWORD,
+          RESEND_FROM: res.appSettings.RESEND_FROM || prev.RESEND_FROM || fromValue,
+          RESEND_FROM_EMAIL: res.appSettings.RESEND_FROM_EMAIL || prev.RESEND_FROM_EMAIL || emailValue,
         }));
       }
       setTimeout(() => setAppSettingsSuccess(false), 4500);
@@ -1058,7 +1066,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       loadUsers();
     } else if (activeTab === 'install' && isSuperAdmin) {
       loadInstallStatus();
-    } else if (activeTab === 'app_settings' && isSuperAdmin && !hasLoadedAppSettingsRef.current) {
+    } else if ((activeTab === 'app_settings' || activeTab === 'notifications') && isSuperAdmin && !hasLoadedAppSettingsRef.current) {
       loadAppSettings();
     }
   }, [activeTab, isStoreAdmin, isSuperAdmin]);
@@ -3958,361 +3966,7 @@ setFormErrors(errors);
             </AnimatedTabPanel>
           </div>
 
-          {/* CATEGORY 4: SUPERADMIN NATIVE PUSH NOTIFICATION EVENT TRIGGERS */}
-          <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 flex items-center justify-center shrink-0 shadow-xs">
-                  <BellRing className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2 flex-wrap">
-                    <span>SuperAdmin Push Notification Event Triggers</span>
-                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
-                      Category: notifications
-                    </span>
-                  </h4>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                    Toggle which platform lifecycle events, customer upgrade requests, and merchant registrations trigger native device push notifications for SuperAdmin.
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick Presets */}
-              <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppSettingsForm((prev) => ({
-                      ...prev,
-                      SUPERADMIN_PUSH_ON_NEW_TRIAL: 'true',
-                      SUPERADMIN_PUSH_ON_RENEWAL: 'true',
-                      SUPERADMIN_PUSH_ON_EXPIRED_STORE: 'true',
-                      SUPERADMIN_PUSH_ON_SECURITY_ALERT: 'true',
-                      SUPERADMIN_PUSH_ON_SALES: 'true',
-                    }));
-                  }}
-                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                >
-                  Enable All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppSettingsForm((prev) => ({
-                      ...prev,
-                      SUPERADMIN_PUSH_ON_NEW_TRIAL: 'true',
-                      SUPERADMIN_PUSH_ON_RENEWAL: 'true',
-                      SUPERADMIN_PUSH_ON_EXPIRED_STORE: 'true',
-                      SUPERADMIN_PUSH_ON_SECURITY_ALERT: 'true',
-                      SUPERADMIN_PUSH_ON_SALES: 'false',
-                    }));
-                  }}
-                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60 transition cursor-pointer"
-                >
-                  Recommended
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppSettingsForm((prev) => ({
-                      ...prev,
-                      SUPERADMIN_PUSH_ON_NEW_TRIAL: 'false',
-                      SUPERADMIN_PUSH_ON_RENEWAL: 'false',
-                      SUPERADMIN_PUSH_ON_EXPIRED_STORE: 'false',
-                      SUPERADMIN_PUSH_ON_SECURITY_ALERT: 'false',
-                      SUPERADMIN_PUSH_ON_SALES: 'false',
-                    }));
-                  }}
-                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                >
-                  Disable All
-                </button>
-              </div>
-            </div>
-
-            {/* Event Toggles Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-              {/* 1. New Free Trial Registrations */}
-              <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800/50">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="push-new-trial-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
-                        New Free Trial Store Registrations
-                      </label>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
-                          SUPERADMIN_PUSH_ON_NEW_TRIAL
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
-                          Recommended
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
-                    <input
-                      id="push-new-trial-toggle"
-                      type="checkbox"
-                      checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true').toLowerCase() === 'true'}
-                      onChange={(e) =>
-                        setAppSettingsForm((prev) => ({
-                          ...prev,
-                          SUPERADMIN_PUSH_ON_NEW_TRIAL: e.target.checked ? 'true' : 'false',
-                        }))
-                      }
-                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Fires a real-time native device push notification, ringing bell icon animation, and audio chime immediately when a merchant registers for a 30-day Free Trial.
-                </p>
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400">Status</span>
-                  <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
-                    String(appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true').toLowerCase() === 'true'
-                      ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-800/60'
-                      : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
-                  }`}>
-                    {String(appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
-                  </span>
-                </div>
-              </div>
-
-              {/* 2. Subscription Renewals & Plan Upgrades */}
-              <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-200 dark:border-purple-800/50">
-                      <CreditCard className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="push-renewal-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
-                        Subscription Renewals &amp; Plan Upgrades
-                      </label>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
-                          SUPERADMIN_PUSH_ON_RENEWAL
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300">
-                          High Priority
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
-                    <input
-                      id="push-renewal-toggle"
-                      type="checkbox"
-                      checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true').toLowerCase() === 'true'}
-                      onChange={(e) =>
-                        setAppSettingsForm((prev) => ({
-                          ...prev,
-                          SUPERADMIN_PUSH_ON_RENEWAL: e.target.checked ? 'true' : 'false',
-                        }))
-                      }
-                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Sends high-priority push notifications with deep-link buttons when a store requests an extension or tier upgrade (Standard, Premium, Enterprise).
-                </p>
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400">Status</span>
-                  <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
-                    String(appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true').toLowerCase() === 'true'
-                      ? 'bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-300/60 dark:border-purple-800/60'
-                      : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
-                  }`}>
-                    {String(appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
-                  </span>
-                </div>
-              </div>
-
-              {/* 3. Store Expirations & Grace Periods */}
-              <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200 dark:border-amber-800/50">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="push-expired-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
-                        Store Expirations &amp; Grace Periods
-                      </label>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
-                          SUPERADMIN_PUSH_ON_EXPIRED_STORE
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
-                          Lifecycle
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
-                    <input
-                      id="push-expired-toggle"
-                      type="checkbox"
-                      checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true').toLowerCase() === 'true'}
-                      onChange={(e) =>
-                        setAppSettingsForm((prev) => ({
-                          ...prev,
-                          SUPERADMIN_PUSH_ON_EXPIRED_STORE: e.target.checked ? 'true' : 'false',
-                        }))
-                      }
-                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Alerts SuperAdmin devices when a store's trial or annual license reaches its expiry date and enters restricted mode, enabling timely retention outreach.
-                </p>
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400">Status</span>
-                  <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
-                    String(appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true').toLowerCase() === 'true'
-                      ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800/60'
-                      : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
-                  }`}>
-                    {String(appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
-                  </span>
-                </div>
-              </div>
-
-              {/* 4. Platform Security & System Alerts */}
-              <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200 dark:border-indigo-800/50">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="push-security-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
-                        Security &amp; System Health Alerts
-                      </label>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
-                          SUPERADMIN_PUSH_ON_SECURITY_ALERT
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300">
-                          Security
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
-                    <input
-                      id="push-security-toggle"
-                      type="checkbox"
-                      checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true').toLowerCase() === 'true'}
-                      onChange={(e) =>
-                        setAppSettingsForm((prev) => ({
-                          ...prev,
-                          SUPERADMIN_PUSH_ON_SECURITY_ALERT: e.target.checked ? 'true' : 'false',
-                        }))
-                      }
-                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Triggers notifications for database backup completions, security locks, repeated failed cashier logins, and server health exceptions.
-                </p>
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400">Status</span>
-                  <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
-                    String(appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true').toLowerCase() === 'true'
-                      ? 'bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-300/60 dark:border-indigo-800/60'
-                      : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
-                  }`}>
-                    {String(appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
-                  </span>
-                </div>
-              </div>
-
-              {/* 5. POS Sales & High-Value Auditing (spans 2 columns on desktop) */}
-              <div className="md:col-span-2 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/50">
-                      <ShoppingBag className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="push-sales-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
-                        POS Sales &amp; High-Value Platform Auditing Feed
-                      </label>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
-                          SUPERADMIN_PUSH_ON_SALES
-                        </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          Default: Off (Isolated)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
-                    <input
-                      id="push-sales-toggle"
-                      type="checkbox"
-                      checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false').toLowerCase() === 'true'}
-                      onChange={(e) =>
-                        setAppSettingsForm((prev) => ({
-                          ...prev,
-                          SUPERADMIN_PUSH_ON_SALES: e.target.checked ? 'true' : 'false',
-                        }))
-                      }
-                      className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  When enabled, sends a real-time native push alert for transactions processed across merchant stores. Kept disabled by default to maintain tenant isolation and keep SuperAdmin notifications focused strictly on platform administration.
-                </p>
-                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400">Status</span>
-                  <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
-                    String(appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false').toLowerCase() === 'true'
-                      ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-300/60 dark:border-rose-800/60'
-                      : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
-                  }`}>
-                    {String(appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false').toLowerCase() === 'true' ? '🔔 Audit Push: Active' : '🔒 Audit Push: Off (Isolated)'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Section Action Button */}
-            <div className="pt-3 border-t border-slate-100 dark:border-purple-900/40 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={handleSaveAppSettings}
-                disabled={isSavingAppSettings}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
-              >
-                {isSavingAppSettings ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving Event Triggers...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save Push Event Triggers</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* CATEGORY 5: SYSTEM RUNTIME CONTROLS */}
+          {/* CATEGORY 4: SYSTEM RUNTIME CONTROLS */}
           <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-4">
             <div className="flex items-center space-x-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
               <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-center shrink-0">
@@ -4594,7 +4248,383 @@ setFormErrors(errors);
             )}
           </Suspense>
 
-          {/* Card 2: Send Test Notification Message (Strictly SuperAdmin Only) */}
+          {/* SuperAdmin Push Notification Event Triggers (Moved to Notifications Tab) */}
+          {isSuperAdmin && (
+            <div
+              id="superadmin-notification-triggers-card"
+              className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm space-y-5"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-purple-900/40">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 flex items-center justify-center shrink-0 shadow-xs">
+                    <BellRing className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2 flex-wrap">
+                      <span>SuperAdmin Push Notification Event Triggers</span>
+                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                        Category: notifications
+                      </span>
+                    </h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+                      Toggle which platform lifecycle events, customer upgrade requests, and merchant registrations trigger native device push notifications for SuperAdmin.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    disabled={isLoadingAppSettings || isSavingAppSettings}
+                    onClick={() => {
+                      setAppSettingsForm((prev) => ({
+                        ...prev,
+                        SUPERADMIN_PUSH_ON_NEW_TRIAL: 'true',
+                        SUPERADMIN_PUSH_ON_RENEWAL: 'true',
+                        SUPERADMIN_PUSH_ON_EXPIRED_STORE: 'true',
+                        SUPERADMIN_PUSH_ON_SECURITY_ALERT: 'true',
+                        SUPERADMIN_PUSH_ON_SALES: 'true',
+                      }));
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer disabled:opacity-50"
+                  >
+                    Enable All
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLoadingAppSettings || isSavingAppSettings}
+                    onClick={() => {
+                      setAppSettingsForm((prev) => ({
+                        ...prev,
+                        SUPERADMIN_PUSH_ON_NEW_TRIAL: 'true',
+                        SUPERADMIN_PUSH_ON_RENEWAL: 'true',
+                        SUPERADMIN_PUSH_ON_EXPIRED_STORE: 'true',
+                        SUPERADMIN_PUSH_ON_SECURITY_ALERT: 'true',
+                        SUPERADMIN_PUSH_ON_SALES: 'false',
+                      }));
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60 transition cursor-pointer disabled:opacity-50"
+                  >
+                    Recommended
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLoadingAppSettings || isSavingAppSettings}
+                    onClick={() => {
+                      setAppSettingsForm((prev) => ({
+                        ...prev,
+                        SUPERADMIN_PUSH_ON_NEW_TRIAL: 'false',
+                        SUPERADMIN_PUSH_ON_RENEWAL: 'false',
+                        SUPERADMIN_PUSH_ON_EXPIRED_STORE: 'false',
+                        SUPERADMIN_PUSH_ON_SECURITY_ALERT: 'false',
+                        SUPERADMIN_PUSH_ON_SALES: 'false',
+                      }));
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer disabled:opacity-50"
+                  >
+                    Disable All
+                  </button>
+                </div>
+              </div>
+
+              {appSettingsSuccess && (
+                <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 flex items-center space-x-3 text-xs font-semibold shadow-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>SuperAdmin notification triggers saved successfully.</span>
+                </div>
+              )}
+
+              {appSettingsError && (
+                <div className="p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 flex items-center space-x-3 text-xs font-semibold shadow-xs">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{appSettingsError}</span>
+                </div>
+              )}
+
+              {/* Event Toggles Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                {/* 1. New Free Trial Registrations */}
+                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800/50">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="push-new-trial-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
+                          New Free Trial Store Registrations
+                        </label>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
+                            SUPERADMIN_PUSH_ON_NEW_TRIAL
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
+                            Recommended
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
+                      <input
+                        id="push-new-trial-toggle"
+                        type="checkbox"
+                        checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true').toLowerCase() === 'true'}
+                        onChange={(e) =>
+                          setAppSettingsForm((prev) => ({
+                            ...prev,
+                            SUPERADMIN_PUSH_ON_NEW_TRIAL: e.target.checked ? 'true' : 'false',
+                          }))
+                        }
+                        className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Fires a real-time native device push notification, ringing bell icon animation, and audio chime immediately when a merchant registers for a 30-day Free Trial.
+                  </p>
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 dark:text-slate-400">Status</span>
+                    <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
+                      String(appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true').toLowerCase() === 'true'
+                        ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-800/60'
+                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
+                    }`}>
+                      {String(appSettingsForm.SUPERADMIN_PUSH_ON_NEW_TRIAL ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Subscription Renewals & Plan Upgrades */}
+                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-200 dark:border-purple-800/50">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="push-renewal-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
+                          Subscription Renewals &amp; Plan Upgrades
+                        </label>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
+                            SUPERADMIN_PUSH_ON_RENEWAL
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300">
+                            High Priority
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
+                      <input
+                        id="push-renewal-toggle"
+                        type="checkbox"
+                        checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true').toLowerCase() === 'true'}
+                        onChange={(e) =>
+                          setAppSettingsForm((prev) => ({
+                            ...prev,
+                            SUPERADMIN_PUSH_ON_RENEWAL: e.target.checked ? 'true' : 'false',
+                          }))
+                        }
+                        className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Sends high-priority push notifications with deep-link buttons when a store requests an extension or tier upgrade (Standard, Premium, Enterprise).
+                  </p>
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 dark:text-slate-400">Status</span>
+                    <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
+                      String(appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true').toLowerCase() === 'true'
+                        ? 'bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-300/60 dark:border-purple-800/60'
+                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
+                    }`}>
+                      {String(appSettingsForm.SUPERADMIN_PUSH_ON_RENEWAL ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Store Expirations & Grace Periods */}
+                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200 dark:border-amber-800/50">
+                        <AlertTriangle className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="push-expired-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
+                          Store Expirations &amp; Grace Periods
+                        </label>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
+                            SUPERADMIN_PUSH_ON_EXPIRED_STORE
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                            Lifecycle
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
+                      <input
+                        id="push-expired-toggle"
+                        type="checkbox"
+                        checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true').toLowerCase() === 'true'}
+                        onChange={(e) =>
+                          setAppSettingsForm((prev) => ({
+                            ...prev,
+                            SUPERADMIN_PUSH_ON_EXPIRED_STORE: e.target.checked ? 'true' : 'false',
+                          }))
+                        }
+                        className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Alerts SuperAdmin devices when a store's trial or annual license reaches its expiry date and enters restricted mode, enabling timely retention outreach.
+                  </p>
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 dark:text-slate-400">Status</span>
+                    <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
+                      String(appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true').toLowerCase() === 'true'
+                        ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800/60'
+                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
+                    }`}>
+                      {String(appSettingsForm.SUPERADMIN_PUSH_ON_EXPIRED_STORE ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Platform Security & System Alerts */}
+                <div className="p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200 dark:border-indigo-800/50">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="push-security-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
+                          Security &amp; System Health Alerts
+                        </label>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
+                            SUPERADMIN_PUSH_ON_SECURITY_ALERT
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300">
+                            Security
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
+                      <input
+                        id="push-security-toggle"
+                        type="checkbox"
+                        checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true').toLowerCase() === 'true'}
+                        onChange={(e) =>
+                          setAppSettingsForm((prev) => ({
+                            ...prev,
+                            SUPERADMIN_PUSH_ON_SECURITY_ALERT: e.target.checked ? 'true' : 'false',
+                          }))
+                        }
+                        className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Triggers notifications for database backup completions, security locks, repeated failed cashier logins, and server health exceptions.
+                  </p>
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 dark:text-slate-400">Status</span>
+                    <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
+                      String(appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true').toLowerCase() === 'true'
+                        ? 'bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-300/60 dark:border-indigo-800/60'
+                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
+                    }`}>
+                      {String(appSettingsForm.SUPERADMIN_PUSH_ON_SECURITY_ALERT ?? 'true').toLowerCase() === 'true' ? '🔔 Push Active' : '🔕 Silenced'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. POS Sales & High-Value Auditing (spans 2 columns on desktop) */}
+                <div className="md:col-span-2 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 space-y-3 transition hover:border-purple-300 dark:hover:border-purple-800/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/50">
+                        <ShoppingBag className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="push-sales-toggle" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer select-none block">
+                          POS Sales &amp; High-Value Platform Auditing Feed
+                        </label>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 break-all">
+                            SUPERADMIN_PUSH_ON_SALES
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            Default: Off (Isolated)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 pt-0.5">
+                      <input
+                        id="push-sales-toggle"
+                        type="checkbox"
+                        checked={String(appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false').toLowerCase() === 'true'}
+                        onChange={(e) =>
+                          setAppSettingsForm((prev) => ({
+                            ...prev,
+                            SUPERADMIN_PUSH_ON_SALES: e.target.checked ? 'true' : 'false',
+                          }))
+                        }
+                        className="w-4.5 h-4.5 rounded-full text-purple-600 dark:text-purple-500 accent-purple-600 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500/20 cursor-pointer transition"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    When enabled, sends a real-time native push alert for transactions processed across merchant stores. Kept disabled by default to maintain tenant isolation and keep SuperAdmin notifications focused strictly on platform administration.
+                  </p>
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 dark:text-slate-400">Status</span>
+                    <span className={`font-semibold font-mono px-2 py-0.5 rounded-md ${
+                      String(appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false').toLowerCase() === 'true'
+                        ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-300/60 dark:border-rose-800/60'
+                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60'
+                    }`}>
+                      {String(appSettingsForm.SUPERADMIN_PUSH_ON_SALES ?? 'false').toLowerCase() === 'true' ? '🔔 Audit Push: Active' : '🔒 Audit Push: Off (Isolated)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Section Action Button */}
+              <div className="pt-3 border-t border-slate-100 dark:border-purple-900/40 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAppSettings(undefined, true)}
+                  disabled={isSavingAppSettings || isLoadingAppSettings}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
+                >
+                  {isSavingAppSettings ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Event Triggers...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Push Event Triggers</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Card 3: Send Test Notification Message (Strictly SuperAdmin Only) */}
           {isSuperAdmin && (
             <SuperAdminTestNotificationCard
               onOpenFcmConfig={() => {

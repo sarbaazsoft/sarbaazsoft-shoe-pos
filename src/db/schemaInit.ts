@@ -14,6 +14,7 @@ let customerLedgerSchemaPromise: Promise<void> | null = null;
 let platformNotificationsSchemaPromise: Promise<void> | null = null;
 let notificationsSchemaPromise: Promise<void> | null = null;
 let emailVerificationSchemaVerified = false;
+let passwordResetSchemaVerified = false;
 let authRateLimitSchemaVerified = false;
 let fcmTokensSchemaPromise: Promise<void> | null = null;
 
@@ -30,6 +31,7 @@ export function resetSaasControlPlaneState(): void {
   platformNotificationsSchemaPromise = null;
   notificationsSchemaPromise = null;
   emailVerificationSchemaVerified = false;
+  passwordResetSchemaVerified = false;
   authRateLimitSchemaVerified = false;
   fcmTokensSchemaPromise = null;
   resetSchemaColumnSyncState();
@@ -144,7 +146,7 @@ export async function syncExpiredTenantSubscriptions(): Promise<void> {
 export const REQUIRED_DATABASE_TABLES = [
   'tenants',
   'users',
-  'password_reset_tokens',
+  'password_reset_codes',
   'email_verification_tokens',
   'auth_resend_rate_limits',
   'company_settings',
@@ -273,11 +275,12 @@ export const DATABASE_TABLE_DDL: string[] = [
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  `CREATE TABLE IF NOT EXISTS password_reset_codes (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
+    tenant_id INTEGER NOT NULL DEFAULT 0 CHECK (tenant_id >= 0),
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT NOT NULL UNIQUE,
+    code TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
@@ -669,7 +672,8 @@ export const DATABASE_INDEX_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS tenants_subscription_status_idx ON tenants(subscription_status)`,
   `CREATE INDEX IF NOT EXISTS users_tenant_idx ON users(tenant_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique_idx ON users (LOWER(BTRIM(email)))`,
-  `CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens(user_id)`,
+  `CREATE INDEX IF NOT EXISTS password_reset_codes_user_idx ON password_reset_codes(user_id)`,
+  `CREATE INDEX IF NOT EXISTS password_reset_codes_code_idx ON password_reset_codes(code)`,
   `CREATE INDEX IF NOT EXISTS email_verification_tokens_token_idx ON email_verification_tokens(token)`,
   `CREATE INDEX IF NOT EXISTS email_verification_tokens_user_idx ON email_verification_tokens(user_id)`,
   `CREATE INDEX IF NOT EXISTS auth_resend_rate_limits_lookup_idx ON auth_resend_rate_limits(flow, scope_type, scope_key)`,
@@ -788,6 +792,10 @@ export async function ensureDatabaseSchema(): Promise<void> {
         indexDdls: DATABASE_INDEX_DDL,
         ensureEnums: ensureDatabaseEnumsSchema,
       });
+
+      await pgClient
+        .exec(`DROP TABLE IF EXISTS password_reset_tokens CASCADE`)
+        .catch(() => {});
 
       await pgClient
         .exec(
@@ -918,6 +926,24 @@ export async function ensureEmailVerificationSchema(): Promise<void> {
     emailVerificationSchemaVerified = true;
   } catch (err) {
     console.warn('Could not ensure email_verification_tokens table:', err);
+  }
+}
+
+export async function ensurePasswordResetSchema(): Promise<void> {
+  if (passwordResetSchemaVerified) return;
+  try {
+    await pgClient.waitReady;
+    await pgClient.exec(`DROP TABLE IF EXISTS password_reset_tokens CASCADE`).catch(() => {});
+    await pgClient.exec(findTableDdl('password_reset_codes'));
+    await pgClient.exec(
+      `ALTER TABLE password_reset_codes ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`
+    ).catch(() => {});
+    for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('password_reset_codes'))) {
+      await pgClient.exec(idxDdl).catch(() => {});
+    }
+    passwordResetSchemaVerified = true;
+  } catch (err) {
+    console.warn('Could not ensure password_reset_codes table:', err);
   }
 }
 
@@ -1198,6 +1224,8 @@ export async function ensureSaasControlPlane(): Promise<void> {
           indexDdls: DATABASE_INDEX_DDL,
           ensureEnums: ensureDatabaseEnumsSchema,
         });
+        await pgClient.exec(`DROP TABLE IF EXISTS password_reset_tokens CASCADE`).catch(() => {});
+        await ensurePasswordResetSchema();
         await ensureAppSettingsSchema();
         await syncExpiredTenantSubscriptions();
         saasControlPlaneInitialized = true;
@@ -1471,7 +1499,7 @@ export async function dropAllTables(): Promise<void> {
       customer_ledger,
       supplier_ledger,
       email_verification_tokens,
-      password_reset_tokens,
+      password_reset_codes,
       auth_resend_rate_limits,
       stock_movements,
       return_items,

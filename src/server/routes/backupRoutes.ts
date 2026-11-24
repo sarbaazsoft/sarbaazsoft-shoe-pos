@@ -203,7 +203,7 @@ router.post('/restore', requireAuth, requireSuperAdmin, async (req: Authenticate
       // 1. Truncate dependent tables in cascade order
       await pgClient.query(`
         TRUNCATE TABLE 
-          password_reset_tokens,
+          password_reset_codes,
           stock_movements,
           return_items,
           returns,

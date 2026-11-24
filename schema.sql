@@ -129,12 +129,13 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- 3.3 Password reset verification tokens
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
+-- 3.3 Centralized 6-digit password reset verification codes (Store Owner, Cashier, Super Admin)
+CREATE TABLE IF NOT EXISTS password_reset_codes (
   id SERIAL PRIMARY KEY,
-  tenant_id INTEGER NOT NULL DEFAULT 1 CHECK (tenant_id >= 0),
+  tenant_id INTEGER NOT NULL DEFAULT 0 CHECK (tenant_id >= 0),
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token TEXT NOT NULL UNIQUE,
+  code TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
   expires_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -555,7 +556,8 @@ CREATE INDEX IF NOT EXISTS tenants_subscription_status_idx ON tenants(subscripti
 CREATE INDEX IF NOT EXISTS users_tenant_idx ON users(tenant_id);
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique_idx ON users (LOWER(BTRIM(email)));
 
-CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS password_reset_codes_user_idx ON password_reset_codes(user_id);
+CREATE INDEX IF NOT EXISTS password_reset_codes_code_idx ON password_reset_codes(code);
 
 CREATE INDEX IF NOT EXISTS email_verification_tokens_token_idx ON email_verification_tokens(token);
 CREATE INDEX IF NOT EXISTS email_verification_tokens_user_idx ON email_verification_tokens(user_id);

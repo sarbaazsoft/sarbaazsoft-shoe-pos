@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Lock, Mail, KeyRound, AlertCircle, CheckCircle2, Eye, EyeOff, Store, ArrowRight, Clock } from 'lucide-react';
+import { Lock, Mail, AlertCircle, CheckCircle2, Eye, EyeOff, Store, ArrowRight, Clock } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api.ts';
 import { ShoeIcon } from '../common/ShoeIcon.tsx';
 import { ShowroomBackground } from '../common/ShowroomBackground.tsx';
@@ -10,12 +10,11 @@ import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper.tsx';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata.ts';
 import { getRememberedEmail, saveRememberedEmail, forgetRememberedEmail } from '../../utils/rememberedAccount.ts';
 import { useTheme } from '../../context/ThemeContext.tsx';
-import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.tsx';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
 import { FreeTrialOnboardingModal } from '../saas/FreeTrialOnboardingModal.tsx';
-import { useResendCooldown } from '../../hooks/useResendCooldown.ts';
-import { ResendSecurityNotice } from './ResendSecurityNotice.tsx';
+import { usePasswordReset } from '../../hooks/usePasswordReset.ts';
+import { PasswordResetFlow } from './PasswordResetFlow.tsx';
 import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 
 interface AuthModalProps {
@@ -43,8 +42,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [tab, setTab] = useState<'login' | 'forgot' | 'reset'>('login');
-  const authTabDirection = useTabDirection(tab, ['login', 'forgot', 'reset'] as const);
+  const [tab, setTab] = useState<'login' | 'reset'>('login');
+  const authTabDirection = useTabDirection(tab, ['login', 'reset'] as const);
   const [showFreeTrialModal, setShowFreeTrialModal] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -54,31 +53,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => Boolean(getRememberedEmail('store')));
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
-  const [resetToken, setResetToken] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [showResetPassword, setShowResetPassword] = useState(false);
   const [loginPasteBlocked, setLoginPasteBlocked] = useState(false);
-  const [resetPasteBlocked, setResetPasteBlocked] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [matchingStores, setMatchingStores] = useState<Array<{ tenantId: number; name: string }>>([]);
-  const [forgotEmailTouched, setForgotEmailTouched] = useState(false);
-  const [isResendingReset, setIsResendingReset] = useState(false);
-  const [resendResetSuccess, setResendResetSuccess] = useState<string | null>(null);
-  const [resendResetError, setResendResetError] = useState<string | null>(null);
-
-  const trimmedEmail = email.trim();
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedEmail);
-  const showForgotEmailError =
-    (forgotEmailTouched || trimmedEmail.length > 0) && trimmedEmail.length > 0 && !isEmailValid;
-
-  const resetCooldown = useResendCooldown({
-    flow: 'password_reset',
-    email: trimmedEmail,
-    enabled: tab === 'forgot' || tab === 'reset',
-  });
 
   // Check GET payload query parameters (?tenantId=... or ?storeId=...) or path segments / unauth storage
   const queryTenantId = (() => {
@@ -110,6 +90,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     0
   );
   const activeTenantId = Number.isSafeInteger(rawTenantId) && rawTenantId > 0 ? rawTenantId : null;
+
+  const passwordReset = usePasswordReset({
+    email,
+    onEmailChange: setEmail,
+    tenantId: activeTenantId,
+    roleScope: activeTenantId ? 'STORE' : 'ALL',
+    enabled: tab === 'reset',
+    onResetSuccess: (message, resetEmail) => {
+      setErrorMessage(null);
+      setInfoMessage(message);
+      setEmail(resetEmail);
+      setPassword('');
+      setTab('login');
+    },
+  });
 
   const initialStoreTitle = (() => {
     const raw = companySettings?.name || companySettings?.company_name || companySettings?.companyName || '';
@@ -167,10 +162,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       getStandardDocumentTitle({
         saasMode: 'AUTH',
         isAuthModalOpen: true,
-        authSubTab: tab,
+        authSubTab:
+          tab === 'login'
+            ? 'login'
+            : passwordReset.step === 'request'
+            ? 'forgot'
+            : 'reset',
         storeName,
       }),
-    [tab, storeName]
+    [tab, passwordReset.step, storeName]
   );
 
   // Hidden by default for a few ms, then fades in smoothly
@@ -185,29 +185,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    const urlResetToken = searchParams.get('resetToken') || '';
     const urlEmail = (searchParams.get('email') || '').trim();
     const isVerifiedRedirect =
       searchParams.get('verified') === '1' || searchParams.get('verified') === 'true';
-
-    if (urlResetToken) {
-      setResetToken(urlResetToken);
-      if (urlEmail) setEmail(urlEmail);
-      setTab('reset');
-      setErrorMessage(null);
-      setInfoMessage('Reset link verified. Enter a new password below to complete your password reset.');
-      api.auth
-        .verifyResetToken(urlResetToken)
-        .then((res) => {
-          if (res?.valid && res.email) {
-            setEmail(res.email);
-          }
-        })
-        .catch((err) => {
-          setErrorMessage(err?.message || 'This password reset link is invalid or has expired.');
-        });
-      return;
-    }
 
     const savedEmail = getRememberedEmail('store') ?? '';
     const initialLoginEmail = urlEmail || savedEmail;
@@ -286,120 +266,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onSuccess(res.user);
     } catch (err: any) {
       setErrorMessage(err.message || `Login failed for ${store.name}.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleForgot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForgotEmailTouched(true);
-    if (!isEmailValid) {
-      setErrorMessage('Please enter a valid email address before sending a password reset request.');
-      return;
-    }
-    if (resetCooldown.isInCooldown) {
-      setErrorMessage(
-        `Please wait ${resetCooldown.formattedCountdown} before requesting another password reset email.`
-      );
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    setInfoMessage(null);
-    setResendResetSuccess(null);
-    setResendResetError(null);
-    try {
-      const res = await api.auth.sendResetLink({
-        email: trimmedEmail,
-        tenantId: activeTenantId,
-        origin: window.location.origin,
-        isResend: false,
-      });
-      if (res.cooldown) {
-        resetCooldown.applyServerCooldown(res.cooldown);
-      }
-      setResetToken('');
-      setInfoMessage(
-        res.message ||
-          `Password reset token and link have been sent by email to ${trimmedEmail}. Please check your Inbox (and Spam/Junk folder) and enter the verification token below.`
-      );
-      setTab('reset');
-    } catch (err: any) {
-      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
-        resetCooldown.applyServerCooldown(err);
-      }
-      setErrorMessage(err.message || 'Failed to send password reset email.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendResetCode = async () => {
-    if (!isEmailValid) {
-      setResendResetError('Please enter a valid account email address before resending the reset code.');
-      return;
-    }
-    if (resetCooldown.isInCooldown || isResendingReset) return;
-
-    setIsResendingReset(true);
-    setResendResetError(null);
-    setResendResetSuccess(null);
-    setErrorMessage(null);
-    try {
-      const res = await api.auth.sendResetLink({
-        email: trimmedEmail,
-        tenantId: activeTenantId,
-        origin: window.location.origin,
-        isResend: true,
-      });
-      if (res.cooldown) {
-        resetCooldown.applyServerCooldown(res.cooldown);
-      }
-      setResetToken('');
-      setResendResetSuccess(
-        res.message ||
-          `A new password reset code has been sent to ${trimmedEmail}. Please check your Inbox or Spam/Junk folder.`
-      );
-    } catch (err: any) {
-      if (err?.status === 429 || typeof err?.remainingSeconds === 'number') {
-        resetCooldown.applyServerCooldown(err);
-      }
-      setResendResetError(err.message || 'Failed to resend reset code. Please try again later.');
-    } finally {
-      setIsResendingReset(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setErrorMessage(null);
-    setInfoMessage(null);
-    try {
-      await api.auth.resetPassword({
-        email: email.trim(),
-        token: resetToken.trim(),
-        newPassword,
-        tenantId: activeTenantId,
-      });
-      resetCooldown.clearCooldown();
-      setResendResetSuccess(null);
-      setResendResetError(null);
-      setInfoMessage('Password has been reset successfully! You can now log in with your new password.');
-      setResetToken('');
-      setNewPassword('');
-      setPassword('');
-      const searchParams = new URLSearchParams(window.location.search);
-      if (searchParams.has('resetToken')) {
-        searchParams.delete('resetToken');
-        searchParams.delete('email');
-        const nextQuery = searchParams.toString();
-        window.history.replaceState({}, '', `/${nextQuery ? `?${nextQuery}` : ''}`);
-      }
-      setTab('login');
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Password reset failed.');
     } finally {
       setIsLoading(false);
     }
@@ -529,22 +395,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </p>
               </div>
 
-              {/* Dynamic Header for Password Reset Flows */}
-              {(tab === 'forgot' || tab === 'reset') && (
-                <div className="mb-4">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                    {tab === 'forgot' && 'Forgot Password — Send Reset Link'}
-                    {tab === 'reset' && 'Create New Password'}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-purple-200/70 mt-0.5">
-                    {tab === 'forgot' && 'Enter your registered email address to receive a password reset link.'}
-                    {tab === 'reset' && 'Enter your reset verification token and choose a new password.'}
-                  </p>
-                </div>
-              )}
-
-              {/* Alerts */}
-              {errorMessage && (
+              {/* Login Alerts */}
+              {tab === 'login' && errorMessage && (
                 <div role="alert" className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex flex-col gap-2">
                   <div className="flex items-start gap-2.5">
                     <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -572,7 +424,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               )}
 
-              {matchingStores.length > 0 && (
+              {tab === 'login' && matchingStores.length > 0 && (
                 <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/40">
                   <p className="mb-2 text-xs font-bold text-blue-900 dark:text-blue-100">
                     Choose which store to sign in to:
@@ -593,14 +445,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               )}
 
-              {sessionNotice && !errorMessage && !infoMessage && (
+              {tab === 'login' && sessionNotice && !errorMessage && !infoMessage && (
                 <div role="status" className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2.5">
                   <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <span className="leading-relaxed font-medium">{sessionNotice}</span>
                 </div>
               )}
 
-              {infoMessage && (
+              {tab === 'login' && infoMessage && (
                 <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <span className="leading-relaxed font-medium">{infoMessage}</span>
@@ -652,7 +504,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         id="forgot-password-link"
                         type="button"
                         onClick={() => {
-                          setTab('forgot');
+                          passwordReset.resetFlow('request');
+                          setTab('reset');
                           setErrorMessage(null);
                           setInfoMessage(null);
                         }}
@@ -780,245 +633,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </form>
               )}
 
-              {/* TAB 2: FORGOT PASSWORD FORM */}
-              {tab === 'forgot' && (
-                <form onSubmit={handleForgot} noValidate className="space-y-4">
-                  <p className="text-xs text-slate-500 dark:text-purple-200/70 leading-relaxed font-medium">
-                    Enter the email address registered with your store or SuperAdmin account. We will send a password reset link to your email.
-                  </p>
-
-                  <div>
-                    <label
-                      htmlFor="forgot-email-input"
-                      className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
-                    >
-                      Account Email Address
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                        <Mail className="w-4 h-4" />
-                      </div>
-                      <input
-                        id="forgot-email-input"
-                        type="email"
-                        required
-                        aria-invalid={showForgotEmailError}
-                        aria-describedby="forgot-email-validation-msg"
-                        placeholder="admin@shoepos.com"
-                        value={email}
-                        onBlur={() => setForgotEmailTouched(true)}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (errorMessage) setErrorMessage(null);
-                        }}
-                        className={`app-input email-focus-pulse w-full bg-slate-50 dark:bg-slate-900/80 border focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-medium py-2.5 pl-[2.125rem] pr-9 transition outline-none ${
-                          showForgotEmailError
-                            ? 'border-rose-400 dark:border-rose-500/80 focus:border-rose-500'
-                            : isEmailValid
-                            ? 'border-emerald-400 dark:border-emerald-500/70 focus:border-emerald-500'
-                            : 'border-slate-200 dark:border-purple-800/60 focus:border-purple-600 dark:focus:border-purple-400'
-                        }`}
-                      />
-                      {trimmedEmail.length > 0 && (
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          {isEmailValid ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          ) : (
-                            <AlertCircle className="w-4 h-4 text-rose-500" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div id="forgot-email-validation-msg" className="mt-1.5 min-h-[18px]">
-                      {showForgotEmailError ? (
-                        <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>Enter a valid email address format (e.g., admin@shoepos.com).</span>
-                        </p>
-                      ) : isEmailValid ? (
-                        <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                          <span>Email format verified — ready to send request.</span>
-                        </p>
-                      ) : (
-                        <p className="text-[11px] text-slate-400 dark:text-purple-300/60">
-                          A valid email format is required to enable Send Request.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {resetCooldown.isInCooldown && (
-                    <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-[11px] font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                      <span>
-                        Next reset email available in{' '}
-                        <strong className="font-mono tabular-nums">{resetCooldown.formattedCountdown}</strong>
-                        {resetCooldown.nextAvailableTimeLabel ? ` (at ${resetCooldown.nextAvailableTimeLabel})` : ''}.
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTab('login');
-                        setErrorMessage(null);
-                      }}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-white hover:bg-purple-50/80 text-purple-700 hover:text-purple-800 border border-purple-200/90 shadow-xs hover:border-purple-300 dark:bg-slate-900/80 dark:hover:bg-purple-900/40 dark:border-purple-800/60 dark:text-purple-200 text-xs font-bold transition cursor-pointer"
-                    >
-                      Back to Sign In
-                    </button>
-                    <button
-                      id="send-reset-link-btn"
-                      type="submit"
-                      disabled={isLoading || !isEmailValid || resetCooldown.isInCooldown}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      {isLoading
-                        ? 'Sending Request...'
-                        : resetCooldown.isInCooldown
-                        ? `Wait ${resetCooldown.formattedCountdown}`
-                        : 'Send Request'}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* TAB 4: RESET PASSWORD FORM */}
+              {/* TAB 2: CENTRALIZED 6-DIGIT PASSWORD RESET FLOW */}
               {tab === 'reset' && (
-                <div className="space-y-4">
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  {!isEmailValid && (
-                    <div>
-                      <label
-                        htmlFor="reset-account-email-input"
-                        className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
-                      >
-                        Account Email Address
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <input
-                          id="reset-account-email-input"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="admin@shoepos.com"
-                          className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-medium py-2.5 pl-[2.125rem] pr-3 outline-none"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      Verification Reset Token
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                        <KeyRound className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={resetToken}
-                        onChange={(e) => setResetToken(e.target.value)}
-                        placeholder="e.g. 7F3A9C12"
-                        className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 dark:focus:ring-purple-500/20 text-slate-900 dark:text-white font-mono uppercase text-xs sm:text-sm rounded-xl py-2.5 pl-[2.125rem] pr-3 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-purple-600 dark:text-purple-400">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <input
-                        type={showResetPassword ? 'text' : 'password'}
-                        required
-                        placeholder="Enter new password"
-                        value={newPassword}
-                        onPaste={(e) => {
-                          e.preventDefault();
-                          setResetPasteBlocked(true);
-                          setTimeout(() => setResetPasteBlocked(false), 3500);
-                        }}
-                        onChange={(e) => {
-                          setNewPassword(e.target.value);
-                          if (resetPasteBlocked) setResetPasteBlocked(false);
-                        }}
-                        className="app-input w-full bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-purple-800/60 focus:bg-white dark:focus:bg-slate-900 focus:border-purple-600 dark:focus:border-purple-400 focus:ring-2 focus:ring-purple-500/20 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 rounded-xl text-xs sm:text-sm font-sans py-2.5 pl-[2.125rem] pr-12 transition outline-none"
-                      />
-                      <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => setShowResetPassword(!showResetPassword)}
-                          className="p-1 text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 transition cursor-pointer"
-                          title={showResetPassword ? 'Hide password' : 'Show password'}
-                        >
-                          {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Reset Paste Blocked Security Notice */}
-                    {resetPasteBlocked && (
-                      <div className="mt-1.5 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-800/60 text-[11px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <span>Pasting is disabled for security verification. Please type your password manually.</span>
-                      </div>
-                    )}
-
-                    {/* Password Strength Indicator (non-restrictive, leaves choice to user) */}
-                    {newPassword.length > 0 && (
-                      <PasswordStrengthIndicator password={newPassword} />
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTab('login');
-                        setErrorMessage(null);
-                      }}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-white hover:bg-purple-50/80 text-purple-700 hover:text-purple-800 border border-purple-200/90 shadow-xs hover:border-purple-300 dark:bg-slate-900/80 dark:hover:bg-purple-900/40 dark:border-purple-800/60 dark:text-purple-200 text-xs font-bold transition cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 dark:hover:from-purple-500 dark:hover:to-indigo-500 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      {isLoading ? 'Updating...' : 'Set Password & Sign In'}
-                    </button>
-                  </div>
-                </form>
-
-                <ResendSecurityNotice
-                  idPrefix="password-reset"
-                  email={trimmedEmail}
-                  helperContext="reset"
-                  buttonLabel="Resend Reset Code"
-                  onResend={handleResendResetCode}
-                  isResending={isResendingReset}
-                  isInCooldown={resetCooldown.isInCooldown}
-                  formattedCountdown={resetCooldown.formattedCountdown}
-                  nextAvailableTimeLabel={resetCooldown.nextAvailableTimeLabel}
-                  attemptCount={resetCooldown.attemptCount}
-                  disabled={isLoading || !isEmailValid}
-                  successMessage={resendResetSuccess}
-                  errorMessage={resendResetError}
+                <PasswordResetFlow
+                  idPrefix="store-auth"
+                  controller={passwordReset}
+                  roleScope={activeTenantId ? 'STORE' : 'ALL'}
+                  onBackToLogin={() => {
+                    passwordReset.resetFlow('request');
+                    setTab('login');
+                    setErrorMessage(null);
+                  }}
                 />
-                </div>
               )}
               </AnimatedTabPanel>
             </div>

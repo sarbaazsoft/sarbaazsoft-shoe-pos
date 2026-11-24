@@ -16,7 +16,7 @@ DROP TABLE IF EXISTS
   public.customer_ledger,
   public.supplier_ledger,
   public.email_verification_tokens,
-  public.password_reset_tokens,
+  public.password_reset_codes,
   public.auth_resend_rate_limits,
   public.stock_movements,
   public.return_items,

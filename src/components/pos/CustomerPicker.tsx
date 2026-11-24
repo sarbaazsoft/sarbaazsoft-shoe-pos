@@ -729,7 +729,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                                     : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40'
                                 }`}
                               >
-                                {isSelected ? 'Selected' : `${item.totalOrders} ${item.totalOrders === 1 ? 'order' : 'orders'}`}
+                                {isSelected ? 'Selected' : `${item.totalOrders} ${item.totalOrders === 1 ? 'invoice' : 'invoices'}`}
                               </span>
                             </div>
                           </div>
@@ -1041,7 +1041,7 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
                                       {currencySymbol} {formatStockPrice(item.totalSpent)}
                                     </strong>
                                     <span className="text-[10px] text-slate-400 ml-1">
-                                      ({item.totalOrders} {item.totalOrders === 1 ? 'order' : 'orders'})
+                                      ({item.totalOrders} {item.totalOrders === 1 ? 'invoice' : 'invoices'})
                                     </span>
                                   </div>
                                 </div>

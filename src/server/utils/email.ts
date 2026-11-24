@@ -493,16 +493,16 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
 }
 
 // ---------------------------------------------------------------------------
-// 1. Password Reset Email
+// 1. Password Reset Verification Code Email
 // ---------------------------------------------------------------------------
 
-export interface SendResetEmailOptions {
+export interface SendResetCodeEmailOptions {
   to: string;
   userName?: string;
   storeName?: string;
-  resetToken: string;
-  resetLink: string;
+  code: string;
   expiresAt: Date;
+  role?: string;
 }
 
 export interface SendResetEmailResult {
@@ -516,10 +516,28 @@ export interface SendResetEmailResult {
   sandboxRecipient?: string;
 }
 
-function buildResetEmailHtml(opts: SendResetEmailOptions): string {
-  const displayStore = opts.storeName || 'SarbaazSoft Shoe POS';
-  const displayName = opts.userName || opts.to;
-  const shortCode = opts.resetToken.toUpperCase();
+function escapeEmailHtml(raw: string): string {
+  return String(raw || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function resolveAccountRoleLabel(role?: string): string {
+  const upper = String(role || '').trim().toUpperCase();
+  if (upper === 'SUPERADMIN') return 'Super Admin';
+  if (upper === 'CASHIER') return 'Cashier';
+  return 'Store Owner';
+}
+
+function buildResetCodeEmailHtml(opts: SendResetCodeEmailOptions): string {
+  const displayStore = escapeEmailHtml(opts.storeName || 'SarbaazSoft Shoe POS');
+  const displayName = escapeEmailHtml(opts.userName || opts.to);
+  const displayEmail = escapeEmailHtml(opts.to);
+  const roleLabel = escapeEmailHtml(resolveAccountRoleLabel(opts.role));
+  const formattedCode = escapeEmailHtml(String(opts.code || '').trim());
 
   return `
 <!DOCTYPE html>
@@ -527,7 +545,7 @@ function buildResetEmailHtml(opts: SendResetEmailOptions): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Password Reset — ${displayStore}</title>
+  <title>Password Reset Code — ${displayStore}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f172a;padding:32px 16px;">
@@ -540,7 +558,7 @@ function buildResetEmailHtml(opts: SendResetEmailOptions): string {
                 ${displayStore}
               </h1>
               <p style="margin:6px 0 0;color:#e0e7ff;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
-                Password Reset Verification
+                6-Digit Password Reset Code
               </p>
             </td>
           </tr>
@@ -548,33 +566,20 @@ function buildResetEmailHtml(opts: SendResetEmailOptions): string {
             <td style="padding:32px;color:#e2e8f0;font-size:14px;line-height:1.6;">
               <p style="margin:0 0 16px;">Hello <strong style="color:#ffffff;">${displayName}</strong>,</p>
               <p style="margin:0 0 20px;color:#cbd5e1;">
-                We received a request to reset the password for your account (<strong style="color:#ffffff;">${opts.to}</strong>). Click the button below to choose a new password, or copy and paste your verification reset token into the terminal sign-in screen.
+                We received a password reset request for your <strong style="color:#ffffff;">${roleLabel}</strong> account (<strong style="color:#ffffff;">${displayEmail}</strong>). Enter the 6-digit verification code below to verify your identity and set a new password.
               </p>
 
-              <div style="text-align:center;margin:28px 0;">
-                <a href="${opts.resetLink}" style="display:inline-block;padding:13px 28px;background:linear-gradient(135deg,#7c3aed 0%,#4f46e5 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:10px;">
-                  Reset Password Now
-                </a>
-              </div>
-
-              <div style="background-color:#0f172a;border:1px solid #475569;border-radius:12px;padding:16px;margin:24px 0;text-align:center;">
-                <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">
-                  Verification Reset Token
+              <div style="background-color:#0f172a;border:1px solid #475569;border-radius:12px;padding:20px 16px;margin:24px 0;text-align:center;">
+                <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">
+                  Your 6-Digit Verification Code
                 </div>
-                <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:14px;font-weight:800;color:#c4b5fd;word-break:break-all;letter-spacing:0.04em;">
-                  ${shortCode}
+                <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:34px;font-weight:800;color:#c4b5fd;letter-spacing:0.28em;padding-left:0.28em;">
+                  ${formattedCode}
                 </div>
               </div>
-
-              <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;">
-                Or open this reset link directly in your browser:
-              </p>
-              <p style="margin:0 0 20px;font-size:12px;word-break:break-all;">
-                <a href="${opts.resetLink}" style="color:#a78bfa;text-decoration:underline;">${opts.resetLink}</a>
-              </p>
 
               <p style="margin:0;font-size:12px;color:#64748b;border-top:1px solid #334155;padding-top:16px;">
-                This password reset token expires in 60 minutes (${opts.expiresAt.toUTCString()}). If you did not request a password reset, you can safely ignore this email.
+                This verification code expires in 15 minutes (${opts.expiresAt.toUTCString()}) and can only be used once. If you did not request a password reset, you can safely ignore this email.
               </p>
             </td>
           </tr>
@@ -587,33 +592,30 @@ function buildResetEmailHtml(opts: SendResetEmailOptions): string {
   `.trim();
 }
 
-function buildResetEmailText(opts: SendResetEmailOptions): string {
+function buildResetCodeEmailText(opts: SendResetCodeEmailOptions): string {
   const displayStore = opts.storeName || 'SarbaazSoft Shoe POS';
   const displayName = opts.userName || opts.to;
+  const roleLabel = resolveAccountRoleLabel(opts.role);
   return [
-    `Password Reset Request — ${displayStore}`,
+    `Password Reset Code — ${displayStore}`,
     ``,
     `Hello ${displayName},`,
     ``,
-    `We received a request to reset the password for your account (${opts.to}).`,
+    `We received a password reset request for your ${roleLabel} account (${opts.to}).`,
     ``,
-    `1. Reset Link:`,
-    opts.resetLink,
+    `Your 6-Digit Verification Code: ${opts.code}`,
     ``,
-    `2. Verification Reset Token:`,
-    opts.resetToken,
-    ``,
-    `This token expires at ${opts.expiresAt.toUTCString()}.`,
+    `This code expires in 15 minutes (${opts.expiresAt.toUTCString()}) and is single-use.`,
   ].join('\n');
 }
 
-export async function sendPasswordResetEmail(
-  opts: SendResetEmailOptions
+export async function sendPasswordResetCodeEmail(
+  opts: SendResetCodeEmailOptions
 ): Promise<SendResetEmailResult> {
   try {
-    const subject = `Password Reset Token & Link — ${opts.storeName || 'SarbaazSoft Shoe POS'}`;
-    const html = buildResetEmailHtml(opts);
-    const text = buildResetEmailText(opts);
+    const subject = `${opts.code} is your Password Reset Code — ${opts.storeName || 'SarbaazSoft Shoe POS'}`;
+    const html = buildResetCodeEmailHtml(opts);
+    const text = buildResetCodeEmailText(opts);
 
     return await sendEmail({
       to: opts.to,
@@ -623,7 +625,7 @@ export async function sendPasswordResetEmail(
       tags: [{ name: 'category', value: 'password_reset' }],
     });
   } catch (err: any) {
-    console.warn(`[sendPasswordResetEmail Notice] Could not send reset email to ${opts.to}:`, err?.message || err);
+    console.warn(`[sendPasswordResetCodeEmail Notice] Could not send reset code email to ${opts.to}:`, err?.message || err);
     return {
       delivered: false,
       provider: 'resend',
@@ -1067,7 +1069,7 @@ export async function testEmailConfiguration(testRecipient?: string): Promise<Te
       <div><strong>Reply-To:</strong> ${activeReplyTo}</div>
       <div><strong>Timestamp:</strong> ${timestamp}</div>
     </div>
-    <p style="color:#94a3b8;font-size:12px;">If you received this message, password reset tokens and store onboarding notifications will deliver successfully to ${targetRecipient}.</p>
+    <p style="color:#94a3b8;font-size:12px;">If you received this message, password reset verification codes and store onboarding notifications will deliver successfully to ${targetRecipient}.</p>
   </div>
 </body>
 </html>

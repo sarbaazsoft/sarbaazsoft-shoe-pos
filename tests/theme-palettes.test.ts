@@ -718,4 +718,35 @@ describe('Multi-Color Brand Gradient Palettes', () => {
       'index.css should disable hero word sliding animations under prefers-reduced-motion: reduce'
     );
   });
+
+  it('always renders pure white font color (#ffffff) on primary action buttons and step indicators across Teal, Cyan, Orange, and Custom themes', () => {
+    for (const palette of ACCENT_THEME_LIST) {
+      assert.equal(
+        palette.contrastText,
+        '#FFFFFF',
+        `Preset palette "${palette.id}" should use #FFFFFF contrastText for readable white button/step text`
+      );
+    }
+
+    const cssSource = readFileSync('src/index.css', 'utf8');
+    const btnPrimaryMatch = cssSource.match(/\.btn-primary\s*\{[^}]*\}/);
+    assert.ok(btnPrimaryMatch, '.btn-primary rule should exist in src/index.css');
+    assert.ok(
+      btnPrimaryMatch[0].includes('color: #ffffff !important;'),
+      '.btn-primary must force white text (#ffffff !important) regardless of selected custom or preset accent color'
+    );
+
+    const btnGradientMatch = cssSource.match(/\.btn-signature-primary\s*\{[^}]*\}/);
+    assert.ok(btnGradientMatch, '.btn-signature-primary block should exist in src/index.css');
+    assert.ok(
+      btnGradientMatch[0].includes('color: #ffffff !important;'),
+      '.btn-gradient-primary / .btn-signature-primary must enforce #ffffff !important text'
+    );
+
+    const dropdownSrc = readFileSync('src/components/common/ThemeDropdown.tsx', 'utf8');
+    assert.ok(
+      dropdownSrc.includes("{ background: customPalette.buttonGradient, color: '#FFFFFF' }"),
+      'ThemeDropdown custom color option should render crisp white font when selected'
+    );
+  });
 });

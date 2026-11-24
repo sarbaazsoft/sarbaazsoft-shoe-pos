@@ -105,9 +105,9 @@ function isNonMutatingPostEndpoint(endpoint: string): boolean {
   return (
     pathOnly === '/auth/login' ||
     pathOnly === '/auth/logout' ||
-    pathOnly === '/auth/send-reset-link' ||
-    pathOnly === '/auth/verify-reset-token' ||
-    pathOnly === '/auth/reset-password' ||
+    pathOnly === '/auth/password-reset/request' ||
+    pathOnly === '/auth/password-reset/verify' ||
+    pathOnly === '/auth/password-reset/confirm' ||
     pathOnly === '/chat' ||
     pathOnly.startsWith('/notifications/fcm-token') ||
     pathOnly.startsWith('/notifications/test-') ||
@@ -859,41 +859,19 @@ export const api = {
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },
-    forgotPassword: (data: { email: string; tenantId?: number | null; origin?: string; isResend?: boolean }) => {
-      const rawTid = Number(data?.tenantId ?? getActiveTenantId() ?? 0);
-      const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
-      return apiFetch<{
-        success?: boolean;
-        emailSent?: boolean;
-        email?: string;
-        expiresAt?: string;
-        message: string;
-        cooldown?: {
-          flow: 'email_verification' | 'password_reset';
-          attemptCount: number;
-          cooldownSeconds: number;
-          remainingSeconds: number;
-          nextAvailableAt: string | null;
-          isInCooldown: boolean;
-        };
-      }>('/auth/send-reset-link', {
-        method: 'POST',
-        body: {
-          ...data,
-          tenantId: cleanTenantId,
-          origin: data.origin || (typeof window !== 'undefined' ? window.location.origin : ''),
-        },
-        ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
-      });
-    },
-    sendResetLink: (data: { email: string; tenantId?: number | null; origin?: string; isResend?: boolean }) => {
-      const rawTid = Number(data?.tenantId ?? getActiveTenantId() ?? 0);
+    requestPasswordResetCode: (data: {
+      email: string;
+      tenantId?: number | null;
+      roleScope?: 'ALL' | 'STORE' | 'SUPERADMIN';
+      isResend?: boolean;
+    }) => {
+      const isSuperAdminScope = data.roleScope === 'SUPERADMIN';
+      const rawTid = isSuperAdminScope ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
       return apiFetch<{
         success: boolean;
         emailSent: boolean;
         emailProvider?: string;
-        emailPreviewUrl?: string | null;
         email: string;
         expiresAt: string;
         message: string;
@@ -905,12 +883,13 @@ export const api = {
           nextAvailableAt: string | null;
           isInCooldown: boolean;
         };
-      }>('/auth/send-reset-link', {
+      }>('/auth/password-reset/request', {
         method: 'POST',
         body: {
-          ...data,
-          tenantId: cleanTenantId,
-          origin: data.origin || (typeof window !== 'undefined' ? window.location.origin : ''),
+          email: data.email,
+          roleScope: data.roleScope || 'ALL',
+          isResend: Boolean(data.isResend),
+          ...(cleanTenantId ? { tenantId: cleanTenantId } : {}),
         },
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
@@ -930,26 +909,56 @@ export const api = {
         blockedByIp?: boolean;
       }>(`/auth/resend-status?${qs.toString()}`);
     },
-    verifyResetToken: (token: string) =>
-      apiFetch<{
-        valid: boolean;
-        email?: string;
-        name?: string;
-        role?: string;
-        tenantId?: number;
-        expiresAt?: string;
-      }>(`/auth/verify-reset-token?token=${encodeURIComponent(token)}`),
-    resetPassword: (data: {
+    verifyPasswordResetCode: (data: {
       email: string;
-      token: string;
-      newPassword: string;
+      code: string;
       tenantId?: number | null;
+      roleScope?: 'ALL' | 'STORE' | 'SUPERADMIN';
     }) => {
-      const rawTid = Number(data?.tenantId ?? getActiveTenantId() ?? 0);
+      const isSuperAdminScope = data.roleScope === 'SUPERADMIN';
+      const rawTid = isSuperAdminScope ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
-      return apiFetch('/auth/reset-password', {
+      return apiFetch<{
+        valid: boolean;
+        verified: boolean;
+        email?: string;
+        expiresAt?: string;
+        message?: string;
+      }>('/auth/password-reset/verify', {
         method: 'POST',
-        body: { ...data, tenantId: cleanTenantId },
+        body: {
+          email: data.email,
+          code: data.code,
+          roleScope: data.roleScope || 'ALL',
+          ...(cleanTenantId ? { tenantId: cleanTenantId } : {}),
+        },
+        ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
+      });
+    },
+    confirmPasswordReset: (data: {
+      email: string;
+      code: string;
+      newPassword: string;
+      confirmPassword?: string;
+      tenantId?: number | null;
+      roleScope?: 'ALL' | 'STORE' | 'SUPERADMIN';
+    }) => {
+      const isSuperAdminScope = data.roleScope === 'SUPERADMIN';
+      const rawTid = isSuperAdminScope ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
+      const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
+      return apiFetch<{
+        success: boolean;
+        message: string;
+      }>('/auth/password-reset/confirm', {
+        method: 'POST',
+        body: {
+          email: data.email,
+          code: data.code,
+          newPassword: data.newPassword,
+          ...(data.confirmPassword !== undefined ? { confirmPassword: data.confirmPassword } : {}),
+          roleScope: data.roleScope || 'ALL',
+          ...(cleanTenantId ? { tenantId: cleanTenantId } : {}),
+        },
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },

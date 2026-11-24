@@ -34,7 +34,7 @@ export const ResendSecurityNotice: React.FC<ResendSecurityNoticeProps> = ({
 }) => {
   const cleanEmail = email?.trim() || '';
   const emailSubjectNoun =
-    helperContext === 'confirmation' ? 'confirmation email' : 'password reset code and link';
+    helperContext === 'confirmation' ? 'confirmation email' : '6-digit password reset code';
   const stageNumber = Math.min(Math.max(attemptCount, 1), 5);
 
   return (

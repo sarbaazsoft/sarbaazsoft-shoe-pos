@@ -268,3 +268,66 @@ test('API endpoint /api/notifications/test-push rejects unauthenticated, ADMIN, 
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('SuperAdmin Push Notification Event Triggers live in Notifications tab while FCM configuration remains untouched in App Config tab', () => {
+  const settingsSrc = readProjectFile('src/components/settings/SettingsView.tsx');
+  const fcmSrc = readProjectFile('src/components/settings/NotificationAlertProvidersSettings.tsx');
+
+  // Locate App Config section and Notifications section
+  const appConfigStart = settingsSrc.indexOf("{isSuperAdmin && activeTab === 'app_settings' && (");
+  const printersFallbackStart = settingsSrc.indexOf("{!isSuperAdmin && activeTab === 'printers' && (");
+  const notificationsStart = settingsSrc.indexOf("{(isStoreAdmin || isSuperAdmin) && activeTab === 'notifications' && (");
+  const systemRestrictedStart = settingsSrc.indexOf("{!isSuperAdmin && (activeTab === 'app_settings'");
+
+  assert.ok(appConfigStart !== -1 && printersFallbackStart > appConfigStart, 'App Config section must exist');
+  assert.ok(notificationsStart !== -1 && systemRestrictedStart > notificationsStart, 'Notifications section must exist');
+
+  const appConfigSection = settingsSrc.slice(appConfigStart, printersFallbackStart);
+  const notificationsSection = settingsSrc.slice(notificationsStart, systemRestrictedStart);
+
+  // App Config retains FCM settings untouched and excludes notification event triggers
+  assert.ok(appConfigSection.includes('<NotificationAlertProvidersSettings'), 'App Config must keep FCM settings component');
+  assert.ok(appConfigSection.includes('FCM Notification Settings'), 'App Config must keep FCM Notification Settings tab');
+  assert.equal(
+    appConfigSection.includes('superadmin-notification-triggers-card'),
+    false,
+    'SuperAdmin notification triggers card must be removed from App Config tab'
+  );
+  assert.equal(
+    appConfigSection.includes('SUPERADMIN_PUSH_ON_NEW_TRIAL'),
+    false,
+    'SUPERADMIN_PUSH_ON_* triggers must not remain duplicated inside App Config tab'
+  );
+
+  // Notifications tab hosts SuperAdmin Push Notification Event Triggers strictly for isSuperAdmin
+  assert.ok(notificationsSection.includes('id="superadmin-notification-triggers-card"'));
+  assert.ok(notificationsSection.includes('SuperAdmin Push Notification Event Triggers'));
+  assert.ok(notificationsSection.includes('SUPERADMIN_PUSH_ON_NEW_TRIAL'));
+  assert.ok(notificationsSection.includes('SUPERADMIN_PUSH_ON_RENEWAL'));
+  assert.ok(notificationsSection.includes('SUPERADMIN_PUSH_ON_EXPIRED_STORE'));
+  assert.ok(notificationsSection.includes('SUPERADMIN_PUSH_ON_SECURITY_ALERT'));
+  assert.ok(notificationsSection.includes('SUPERADMIN_PUSH_ON_SALES'));
+  assert.ok(notificationsSection.includes('Save Push Event Triggers'));
+  assert.ok(notificationsSection.includes('handleSaveAppSettings(undefined, true)'));
+
+  // Loading effect loads appSettings on either app_settings or notifications for SuperAdmin
+  assert.ok(
+    settingsSrc.includes("(activeTab === 'app_settings' || activeTab === 'notifications') && isSuperAdmin && !hasLoadedAppSettingsRef.current"),
+    'SettingsView must load persisted appSettings triggers when opening Notifications tab'
+  );
+
+  // All 8 FCM configuration keys remain intact in NotificationAlertProvidersSettings
+  for (const fcmKey of [
+    'FCM_PROJECT_ID',
+    'FCM_CLIENT_EMAIL',
+    'FCM_PRIVATE_KEY',
+    'FCM_API_KEY',
+    'FCM_MESSAGING_SENDER_ID',
+    'FCM_APP_ID',
+    'FCM_MEASUREMENT_ID',
+    'FCM_VAPID_KEY',
+  ]) {
+    assert.ok(fcmSrc.includes(fcmKey), `NotificationAlertProvidersSettings must preserve ${fcmKey}`);
+  }
+});
+

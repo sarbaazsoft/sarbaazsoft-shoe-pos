@@ -319,7 +319,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
             <div className="app-stat-card p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-purple-800/80">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Total Orders Placed
+                  Total Sales Invoices
                 </span>
                 <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 border border-blue-100 dark:border-purple-500/30 flex items-center justify-center shrink-0">
                   <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

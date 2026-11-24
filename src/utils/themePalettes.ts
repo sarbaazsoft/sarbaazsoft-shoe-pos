@@ -71,7 +71,7 @@ export function getWcagContrastRatio(hexA: string, hexB: string): number {
 export function getAccessibleTextColor(bgHex: string): string {
   const whiteContrast = getWcagContrastRatio(bgHex, '#FFFFFF');
   const darkContrast = getWcagContrastRatio(bgHex, '#0F172A');
-  return whiteContrast >= darkContrast ? '#FFFFFF' : '#0F172A';
+  return whiteContrast >= 3.0 || whiteContrast >= darkContrast ? '#FFFFFF' : '#0F172A';
 }
 
 function buildPalette(config: {

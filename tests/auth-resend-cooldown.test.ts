@@ -32,6 +32,7 @@ const {
   buildCooldownStorageKey,
 } = await import('../src/hooks/useResendCooldown.ts');
 const { ResendSecurityNotice } = await import('../src/components/auth/ResendSecurityNotice.tsx');
+const { PasswordResetFlow } = await import('../src/components/auth/PasswordResetFlow.tsx');
 const { VerifyEmailNoticeView } = await import('../src/components/auth/VerifyEmailNoticeView.tsx');
 const { AuthModal } = await import('../src/components/auth/AuthModal.tsx');
 const { ThemeProvider } = await import('../src/context/ThemeContext.tsx');
@@ -390,55 +391,86 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.equal(afterLockoutRes.status, 400);
     });
 
-    it('enforces backend cooldown (429 + Retry-After + zero token leak) on /send-reset-link and resets after /reset-password', async () => {
-      // Initial reset request does not lock first manual resend (attemptCount = 0)
-      const initialRes = await requestJson(baseUrl, '/api/auth/send-reset-link', {
+    it('enforces centralized 6-digit password reset & cooldown across Store Owner (ADMIN), Cashier (CASHIER), and Super Admin (SUPERADMIN)', async () => {
+      // 1. STORE OWNER (ADMIN): Initial request -> manual resend cooldown -> 429 block -> verify -> confirm -> login
+      const initialRes = await requestJson(baseUrl, '/api/auth/password-reset/request', {
         method: 'POST',
-        body: { email: routeEmail, isResend: false },
+        body: { email: routeEmail, tenantId: 1, roleScope: 'STORE', isResend: false },
         ip: resetRouteIp,
       });
       assert.equal(initialRes.status, 200);
-      assert.equal(initialRes.data.resetToken, undefined, '200 initial reset response must never expose resetToken');
-      assert.equal(initialRes.data.resetLink, undefined, '200 initial reset response must never expose resetLink');
+      assert.equal(initialRes.data.success, true);
+      assert.equal(initialRes.data.code, undefined, '200 initial reset response must never expose 6-digit code');
+      assert.equal((initialRes.data as any).resetToken, undefined, 'Must never expose legacy resetToken');
+      assert.equal((initialRes.data as any).resetLink, undefined, 'Must never expose legacy resetLink');
       assert.equal(initialRes.data.cooldown.attemptCount, 0);
       assert.equal(initialRes.data.cooldown.isInCooldown, false);
 
       // Manual resend triggers 1st progressive cooldown (120s)
-      const resendRes = await requestJson(baseUrl, '/api/auth/send-reset-link', {
+      const resendRes = await requestJson(baseUrl, '/api/auth/password-reset/request', {
         method: 'POST',
-        body: { email: routeEmail, isResend: true },
+        body: { email: routeEmail, tenantId: 1, roleScope: 'STORE', isResend: true },
         ip: resetRouteIp,
       });
       assert.equal(resendRes.status, 200);
-      assert.equal(resendRes.data.resetToken, undefined, '200 resend reset response must never expose resetToken');
-      assert.equal(resendRes.data.resetLink, undefined, '200 resend reset response must never expose resetLink');
+      assert.equal(resendRes.data.code, undefined, '200 resend response must never expose 6-digit code');
       assert.equal(resendRes.data.cooldown.attemptCount, 1);
       assert.equal(resendRes.data.cooldown.cooldownSeconds, 120);
 
-      // Immediate duplicate request returns HTTP 429 without exposing resetToken or resetLink
-      const blockedRes = await requestJson(baseUrl, '/api/auth/send-reset-link', {
+      // Immediate duplicate request returns HTTP 429 without exposing any code
+      const blockedRes = await requestJson(baseUrl, '/api/auth/password-reset/request', {
         method: 'POST',
-        body: { email: routeEmail, isResend: true },
+        body: { email: routeEmail, tenantId: 1, roleScope: 'STORE', isResend: true },
         ip: resetRouteIp,
       });
       assert.equal(blockedRes.status, 429);
       assert.ok(Number(blockedRes.headers['retry-after']) > 0);
-      assert.equal(blockedRes.data.resetToken, undefined, '429 response must never leak resetToken');
-      assert.equal(blockedRes.data.resetLink, undefined, '429 response must never leak resetLink');
+      assert.equal(blockedRes.data.code, 'RESEND_COOLDOWN_ACTIVE');
 
-      // Completing password reset clears password_reset attempt counter
-      const resetTokenRow = (
-        await pgClient.query('SELECT token FROM password_reset_tokens ORDER BY id DESC LIMIT 1')
-      ).rows[0] as any;
-      assert.ok(resetTokenRow?.token, 'Reset token should exist in DB');
+      // Retrieve latest 6-digit numeric code from password_reset_codes
+      const adminUserRow = (
+        await pgClient.query<{ id: number }>('SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [routeEmail])
+      ).rows[0];
+      assert.ok(adminUserRow?.id);
 
-      const completeReset = await requestJson(baseUrl, '/api/auth/reset-password', {
+      const adminCodeRow = (
+        await pgClient.query<{ code: string }>(
+          'SELECT code FROM password_reset_codes WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+          [adminUserRow.id]
+        )
+      ).rows[0];
+      assert.ok(adminCodeRow?.code, '6-digit password reset code should exist in DB');
+      assert.match(String(adminCodeRow.code), /^\d{6}$/, 'Password reset code must be 6 numeric digits');
+
+      // Verify code step succeeds
+      const adminVerifyRes = await requestJson(baseUrl, '/api/auth/password-reset/verify', {
         method: 'POST',
-        body: { token: resetTokenRow.token, newPassword: 'NewSecurePassword99!' },
+        body: { email: routeEmail, code: adminCodeRow.code, tenantId: 1, roleScope: 'STORE' },
+        ip: resetRouteIp,
+      });
+      assert.equal(adminVerifyRes.status, 200);
+      assert.equal(adminVerifyRes.data.valid, true);
+      assert.equal(adminVerifyRes.data.verified, true);
+
+      // Confirm reset updates password, deletes single-use code, and clears cooldown
+      const ownerNewPassword = 'NewOwnerPassword99!';
+      const completeReset = await requestJson(baseUrl, '/api/auth/password-reset/confirm', {
+        method: 'POST',
+        body: {
+          email: routeEmail,
+          code: adminCodeRow.code,
+          newPassword: ownerNewPassword,
+          confirmPassword: ownerNewPassword,
+          tenantId: 1,
+          roleScope: 'STORE',
+        },
         ip: resetRouteIp,
       });
       assert.equal(completeReset.status, 200);
       assert.equal(completeReset.data.success, true);
+
+      const postResetCodes = await pgClient.query('SELECT id FROM password_reset_codes WHERE user_id = $1', [adminUserRow.id]);
+      assert.equal(postResetCodes.rows.length, 0, 'Single-use password reset code must be deleted after completion');
 
       const postResetStatus = await requestJson(
         baseUrl,
@@ -448,6 +480,188 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.equal(postResetStatus.status, 200);
       assert.equal(postResetStatus.data.isInCooldown, false);
       assert.equal(postResetStatus.data.attemptCount, 0);
+
+      // Approve admin user briefly to confirm new password logs in cleanly
+      await pgClient.query(`UPDATE users SET status = 'APPROVED' WHERE id = $1`, [adminUserRow.id]);
+      const adminLoginRes = await requestJson(baseUrl, '/api/auth/login', {
+        method: 'POST',
+        body: { email: routeEmail, password: ownerNewPassword },
+        ip: resetRouteIp,
+      });
+      assert.equal(adminLoginRes.status, 200, 'Store Owner should sign in with newly reset password');
+      assert.ok(adminLoginRes.data.token);
+
+      // 2. CASHIER (CASHIER): Role-scoped 6-digit reset, brute-force lockout after 5 wrong guesses, expiration check, and completion
+      const cashierEmail = `cashier-reset-${Date.now()}@example.com`;
+      const cashierIp = '192.0.2.53';
+      createdEmails.push(cashierEmail);
+      createdIps.push(cashierIp);
+
+      const cashierInsert = await pgClient.query<{ id: number }>(
+        `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'CASHIER', 'APPROVED') RETURNING id`,
+        [1, 'Test Cashier', cashierEmail, '+923009998877', 'old-hash', 'OldPass1!']
+      );
+      const cashierUserId = Number(cashierInsert.rows[0].id);
+
+      const cashierReq = await requestJson(baseUrl, '/api/auth/password-reset/request', {
+        method: 'POST',
+        body: { email: cashierEmail, tenantId: 1, roleScope: 'STORE', isResend: false },
+        ip: cashierIp,
+      });
+      assert.equal(cashierReq.status, 200);
+
+      const cashierCodeRow1 = (
+        await pgClient.query<{ code: string }>(
+          'SELECT code FROM password_reset_codes WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+          [cashierUserId]
+        )
+      ).rows[0];
+      assert.match(String(cashierCodeRow1?.code), /^\d{6}$/);
+
+      const wrongResetCode = cashierCodeRow1.code === '000000' ? '111111' : '000000';
+      for (let i = 1; i <= 4; i++) {
+        const failRes = await requestJson(baseUrl, '/api/auth/password-reset/verify', {
+          method: 'POST',
+          body: { email: cashierEmail, code: wrongResetCode, tenantId: 1, roleScope: 'STORE' },
+          ip: cashierIp,
+        });
+        assert.equal(failRes.status, 400, `Cashier wrong code attempt #${i} should return 400`);
+      }
+
+      const cashierLockoutRes = await requestJson(baseUrl, '/api/auth/password-reset/verify', {
+        method: 'POST',
+        body: { email: cashierEmail, code: wrongResetCode, tenantId: 1, roleScope: 'STORE' },
+        ip: cashierIp,
+      });
+      assert.equal(cashierLockoutRes.status, 429);
+      assert.equal(cashierLockoutRes.data.code, 'VERIFICATION_ATTEMPTS_EXCEEDED');
+
+      // SuperAdmin roleScope must NOT authorize a Cashier account
+      const wrongScopeReq = await requestJson(baseUrl, '/api/auth/password-reset/request', {
+        method: 'POST',
+        body: { email: cashierEmail, roleScope: 'SUPERADMIN', isResend: false },
+        ip: cashierIp,
+      });
+      assert.equal(wrongScopeReq.status, 404, 'SUPERADMIN roleScope must reject non-SUPERADMIN accounts');
+
+      // Request fresh code for Cashier and test expiry rejection + valid reset
+      const cashierResend = await requestJson(baseUrl, '/api/auth/password-reset/request', {
+        method: 'POST',
+        body: { email: cashierEmail, tenantId: 1, roleScope: 'STORE', isResend: true },
+        ip: cashierIp,
+      });
+      assert.equal(cashierResend.status, 200);
+
+      const cashierCodeRow2 = (
+        await pgClient.query<{ id: number; code: string }>(
+          'SELECT id, code FROM password_reset_codes WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+          [cashierUserId]
+        )
+      ).rows[0];
+
+      await pgClient.query(
+        `UPDATE password_reset_codes SET expires_at = NOW() - INTERVAL '2 minutes' WHERE id = $1`,
+        [cashierCodeRow2.id]
+      );
+      const expiredVerifyRes = await requestJson(baseUrl, '/api/auth/password-reset/verify', {
+        method: 'POST',
+        body: { email: cashierEmail, code: cashierCodeRow2.code, tenantId: 1, roleScope: 'STORE' },
+        ip: cashierIp,
+      });
+      assert.equal(expiredVerifyRes.status, 400);
+      assert.equal(expiredVerifyRes.data.code, 'VERIFICATION_CODE_EXPIRED');
+
+      // Restore future expiry on newly generated code and complete Cashier reset
+      const futureExpiry = new Date(Date.now() + 15 * 60 * 1000);
+      await pgClient.query(
+        `INSERT INTO password_reset_codes (tenant_id, user_id, code, attempts, expires_at)
+         VALUES ($1, $2, $3, 0, $4)`,
+        [1, cashierUserId, '654321', futureExpiry]
+      );
+      const cashierNewPw = 'CashierSecure2026!';
+      const cashierConfirmRes = await requestJson(baseUrl, '/api/auth/password-reset/confirm', {
+        method: 'POST',
+        body: {
+          email: cashierEmail,
+          code: '654321',
+          newPassword: cashierNewPw,
+          confirmPassword: cashierNewPw,
+          tenantId: 1,
+          roleScope: 'STORE',
+        },
+        ip: cashierIp,
+      });
+      assert.equal(cashierConfirmRes.status, 200);
+      assert.equal(cashierConfirmRes.data.success, true);
+
+      const cashierLoginRes = await requestJson(baseUrl, '/api/auth/login', {
+        method: 'POST',
+        body: { email: cashierEmail, password: cashierNewPw },
+        ip: cashierIp,
+      });
+      assert.equal(cashierLoginRes.status, 200, 'Cashier should sign in with newly reset password');
+
+      // 3. SUPER ADMIN (SUPERADMIN): Uses the exact same centralized 6-digit flow with roleScope: 'SUPERADMIN'
+      const superAdminEmail = `superadmin-reset-${Date.now()}@example.com`;
+      const superAdminIp = '192.0.2.54';
+      createdEmails.push(superAdminEmail);
+      createdIps.push(superAdminIp);
+
+      const saInsert = await pgClient.query<{ id: number }>(
+        `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'SUPERADMIN', 'APPROVED') RETURNING id`,
+        [0, 'Super Admin Tester', superAdminEmail, '+923001234567', 'old-sa-hash', 'OldSA123!']
+      );
+      const saUserId = Number(saInsert.rows[0].id);
+
+      const saReq = await requestJson(baseUrl, '/api/auth/password-reset/request', {
+        method: 'POST',
+        body: { email: superAdminEmail, roleScope: 'SUPERADMIN', isResend: false },
+        ip: superAdminIp,
+      });
+      assert.equal(saReq.status, 200);
+      assert.equal(saReq.data.success, true);
+      assert.equal(saReq.data.code, undefined, 'SuperAdmin reset request must never leak the 6-digit code');
+
+      const saCodeRow = (
+        await pgClient.query<{ code: string }>(
+          'SELECT code FROM password_reset_codes WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
+          [saUserId]
+        )
+      ).rows[0];
+      assert.match(String(saCodeRow?.code), /^\d{6}$/, 'SuperAdmin reset must issue a 6-digit numeric code');
+
+      const saVerify = await requestJson(baseUrl, '/api/auth/password-reset/verify', {
+        method: 'POST',
+        body: { email: superAdminEmail, code: saCodeRow.code, roleScope: 'SUPERADMIN' },
+        ip: superAdminIp,
+      });
+      assert.equal(saVerify.status, 200);
+      assert.equal(saVerify.data.valid, true);
+
+      const saNewPassword = 'SuperAdminNewPass2026!';
+      const saConfirm = await requestJson(baseUrl, '/api/auth/password-reset/confirm', {
+        method: 'POST',
+        body: {
+          email: superAdminEmail,
+          code: saCodeRow.code,
+          newPassword: saNewPassword,
+          confirmPassword: saNewPassword,
+          roleScope: 'SUPERADMIN',
+        },
+        ip: superAdminIp,
+      });
+      assert.equal(saConfirm.status, 200);
+      assert.equal(saConfirm.data.success, true);
+
+      const saLogin = await requestJson(baseUrl, '/api/auth/login', {
+        method: 'POST',
+        body: { email: superAdminEmail, password: saNewPassword },
+        ip: superAdminIp,
+      });
+      assert.equal(saLogin.status, 200, 'SuperAdmin should sign in with newly reset password');
+      assert.equal(saLogin.data.user.role, 'SUPERADMIN');
     });
   });
 
@@ -530,23 +744,96 @@ describe('Auth Email Confirmation & Password Reset Resend Cooldowns', () => {
       assert.ok(verifySrc.includes("setTokenInput('')"), 'VerifyEmailNoticeView should clear stale input on resend so user enters emailed code manually');
     });
 
-    it('wires independent cooldowns and Resend Reset Code panel into AuthModal and SuperAdminControlPanel', () => {
+    it('wires centralized usePasswordReset hook and PasswordResetFlow into AuthModal and SuperAdminControlPanel with zero legacy token logic', () => {
+      const useResetSrc = readFileSync(join(ROOT, 'src/hooks/usePasswordReset.ts'), 'utf8');
+      assert.ok(useResetSrc.includes("flow: 'password_reset'"), 'usePasswordReset must use password_reset cooldown flow');
+      assert.ok(useResetSrc.includes('cooldown.clearCooldown()'), 'usePasswordReset must clear cooldown after reset completes');
+      assert.ok(useResetSrc.includes(".replace(/\\D/g, '').slice(0, 6)"), 'usePasswordReset must normalize input to 6 digits');
+
+      const resetFlowSrc = readFileSync(join(ROOT, 'src/components/auth/PasswordResetFlow.tsx'), 'utf8');
+      assert.ok(resetFlowSrc.includes('buttonLabel="Resend Reset Code"'), 'PasswordResetFlow must include Resend Reset Code button');
+      assert.ok(resetFlowSrc.includes('inputMode="numeric"'), 'PasswordResetFlow must use numeric keyboard for 6-digit code');
+      assert.ok(resetFlowSrc.includes('maxLength={6}'), 'PasswordResetFlow must enforce 6-digit maxLength');
+
+      // Render PasswordResetFlow in step='verify' and confirm 6-digit UI + ResendSecurityNotice
+      const verifyStepHtml = renderToStaticMarkup(
+        React.createElement(PasswordResetFlow, {
+          idPrefix: 'unit-test',
+          roleScope: 'STORE',
+          onBackToLogin: () => {},
+          controller: {
+            step: 'verify',
+            setStep: () => {},
+            email: 'cashier@shoepos.com',
+            trimmedEmail: 'cashier@shoepos.com',
+            updateEmail: () => {},
+            isEmailValid: true,
+            showEmailError: false,
+            setEmailTouched: () => {},
+            code: '123456',
+            setCode: () => {},
+            newPassword: '',
+            setNewPassword: () => {},
+            confirmPassword: '',
+            setConfirmPassword: () => {},
+            showNewPassword: false,
+            setShowNewPassword: () => {},
+            showConfirmPassword: false,
+            setShowConfirmPassword: () => {},
+            pasteBlocked: false,
+            setPasteBlocked: () => {},
+            triggerPasteBlockedNotice: () => {},
+            isSubmitting: false,
+            isResending: false,
+            errorMessage: null,
+            setErrorMessage: () => {},
+            infoMessage: null,
+            setInfoMessage: () => {},
+            resendSuccess: null,
+            resendError: null,
+            cooldown: {
+              attemptCount: 0,
+              cooldownSeconds: 0,
+              remainingSeconds: 0,
+              formattedCountdown: '00:00',
+              nextAvailableAt: null,
+              nextAvailableTimeLabel: null,
+              isInCooldown: false,
+              blockedByIp: false,
+              applyServerCooldown: () => {},
+              clearCooldown: () => {},
+              syncWithBackend: async () => {},
+            },
+            requestCode: async () => true,
+            verifyCode: async () => true,
+            confirmReset: async () => true,
+            resendCode: async () => true,
+            resetFlow: () => {},
+          },
+        })
+      );
+      assert.ok(verifyStepHtml.includes('6-Digit Verification Code'));
+      assert.ok(verifyStepHtml.includes('Resend Reset Code'));
+      assert.ok(verifyStepHtml.includes('inputMode="numeric"'));
+      assert.ok(verifyStepHtml.includes('maxLength="6"'));
+
       const authModalSrc = readFileSync(join(ROOT, 'src/components/auth/AuthModal.tsx'), 'utf8');
-      assert.ok(authModalSrc.includes("flow: 'password_reset'"), 'AuthModal must use password_reset cooldown flow');
-      assert.ok(authModalSrc.includes('buttonLabel="Resend Reset Code"'), 'AuthModal must include Resend Reset Code button');
-      assert.ok(authModalSrc.includes('resetCooldown.clearCooldown()'), 'AuthModal must clear cooldown after password reset succeeds');
+      assert.ok(authModalSrc.includes('usePasswordReset('), 'AuthModal must use centralized usePasswordReset hook');
+      assert.ok(authModalSrc.includes('<PasswordResetFlow'), 'AuthModal must render centralized PasswordResetFlow');
       assert.equal(
-        authModalSrc.includes('res.resetToken') || authModalSrc.includes('setResetToken(res.'),
+        /resetToken|sendResetLink|verifyResetToken|forgotPassword|resetLink/.test(authModalSrc),
         false,
-        'AuthModal must never auto-fill reset tokens from API responses'
+        'AuthModal must contain zero legacy reset token logic'
       );
 
       const superAdminSrc = readFileSync(join(ROOT, 'src/components/saas/SuperAdminControlPanel.tsx'), 'utf8');
-      assert.ok(superAdminSrc.includes("flow: 'password_reset'"), 'SuperAdminControlPanel must use password_reset cooldown flow');
-      assert.ok(superAdminSrc.includes('buttonLabel="Resend Reset Code"'), 'SuperAdminControlPanel must include Resend Reset Code button');
-      assert.ok(
-        superAdminSrc.includes('superAdminResetCooldown.clearCooldown()'),
-        'SuperAdminControlPanel must clear cooldown after SuperAdmin password reset succeeds'
+      assert.ok(superAdminSrc.includes('usePasswordReset('), 'SuperAdminControlPanel must use centralized usePasswordReset hook');
+      assert.ok(superAdminSrc.includes('<PasswordResetFlow'), 'SuperAdminControlPanel must render centralized PasswordResetFlow');
+      assert.ok(superAdminSrc.includes('roleScope="SUPERADMIN"'), 'SuperAdminControlPanel must pass SUPERADMIN roleScope');
+      assert.equal(
+        /resetToken|sendResetLink|verifyResetToken|forgotPassword|resetLink/.test(superAdminSrc),
+        false,
+        'SuperAdminControlPanel must contain zero legacy reset token logic'
       );
 
       // Ensure AuthModal default render stays completely intact
