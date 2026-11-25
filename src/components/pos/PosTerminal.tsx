@@ -12,7 +12,7 @@ import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
 import type { ActiveExchange } from '../../types.ts';
 import { offlineQueueService } from '../../services/offlineQueueService.ts';
 import { isTransientNetworkError } from '../../services/offline/syncEngine.ts';
-import { cacheCatalogOffline, lookupCachedProductOffline, searchCachedProductsOffline, resolveActiveTenantId } from '../../utils/offlineDb.ts';
+import { adjustCachedCustomerBalanceOffline, cacheCatalogOffline, lookupCachedProductOffline, searchCachedProductsOffline, resolveActiveTenantId } from '../../utils/offlineDb.ts';
 import { useOfflineSync } from '../../utils/useOfflineSync.ts';
 import { OfflineSyncModal } from './OfflineSyncModal.tsx';
 import { BrandLogo } from '../common/BrandLogo.tsx';
@@ -1454,45 +1454,139 @@ export const PosTerminal: React.FC<PosTerminalProps> = ({
     }
 
     const enqueueAndCompleteOfflineSale = async (noticeBuilder: (clientTxId: string) => string) => {
+      const selectedCustObj = customers.find((c: any) => c.id === selectedCustomerId);
+      const effectivePaidForQueue =
+        paymentMethod === 'SPLIT' ? numSplitCash : effectivePaidAmount;
+      const effectiveTotalTendered =
+        paymentMethod === 'SPLIT' ? totalSplitTendered : effectivePaidAmount;
       const queued = await offlineQueueService.enqueueSale({
-        items: cart.map((i) => ({
-          productId: i.productId,
-          name: i.name,
-          article: i.article,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          discount: i.discount,
-        })),
+        items: cart.map((i) => {
+          const lot = Number(i.pairsPerCarton) === 16 ? 16 : 12;
+          return {
+            productId: i.productId,
+            name: i.name,
+            article: i.article,
+            quantity: i.quantity,
+            packingType: isWholesaleStore ? 'CARTON' : 'PAIR',
+            cartonQuantity: isWholesaleStore ? Number((i.quantity / lot).toFixed(2)) : 1,
+            pairsPerCarton: isWholesaleStore ? lot : 1,
+            unitPrice: i.unitPrice,
+            discount: i.discount,
+          };
+        }),
         customerId: selectedCustomerId,
-        customerName: customers.find((c: any) => c.id === selectedCustomerId)?.name || undefined,
+        customerName: selectedCustObj?.name || undefined,
+        customerPhone: selectedCustObj?.phone || undefined,
         paymentMethod,
+        splitCashAmount: paymentMethod === 'SPLIT' ? numSplitCash : undefined,
+        splitOnlineAmount: paymentMethod === 'SPLIT' ? numSplitOnline : undefined,
+        splitDigitalType: paymentMethod === 'SPLIT' ? splitDigitalType : undefined,
         transactionId: transactionId.trim() || undefined,
-        cashReceived: Number(effectiveCashReceived) || 0,
-        changeGiven: Number(changeDue) || 0,
+        saleType: isWholesaleStore ? 'WHOLESALE' : 'RETAIL',
+        totalCartons: totalCartonsSum,
+        previousBalance: prevBalance,
+        paidAmount: effectiveTotalTendered,
+        amountReceived: effectiveTotalTendered,
+        remainingBalance,
+        cashReceived: Number(effectivePaidForQueue) || 0,
+        changeGiven: Number(changeGivenDue) || 0,
         notes,
-        totalAmount: netTotalPayable,
+        totalAmount: totalAmountDue,
+        subtotal: grossSubtotal,
+        totalDiscount: totalDiscounts,
+        exchangeCredit: totalExchangeCredit,
+        netDifference,
+        cashierId: currentUser?.id ? Number(currentUser.id) : undefined,
+        cashierName: currentUser?.name || currentUser?.email || 'Counter',
         isMinPriceOverridden: Boolean(adminOverrideCreds || currentUser.role === 'ADMIN'),
         adminOverrideEmail: adminOverrideCreds?.email || undefined,
         adminOverridePassword: adminOverrideCreds?.pass || undefined,
         exchange: activeExchange || null,
       });
 
+      const activeTenantForCache = resolveActiveTenantId();
+      if (isWholesaleStore && selectedCustomerId) {
+        adjustCachedCustomerBalanceOffline(selectedCustomerId, remainingBalance, activeTenantForCache);
+        setCustomers((prev) =>
+          prev.map((c: any) =>
+            Number(c.id) === Number(selectedCustomerId)
+              ? {
+                  ...c,
+                  outstanding_balance: remainingBalance,
+                  outstandingBalance: remainingBalance,
+                  current_balance: remainingBalance,
+                  currentBalance: remainingBalance,
+                  balance: remainingBalance,
+                }
+              : c
+          )
+        );
+      }
+
       playAudioFeedback.saleSuccess();
+
+      const saleItemsForPrint = cart.map((i) => {
+        const lot = Number(i.pairsPerCarton) === 16 ? 16 : 12;
+        const cartonQty = isWholesaleStore ? Number((i.quantity / lot).toFixed(2)) : 1;
+        const lineSub = Math.round((i.quantity * i.unitPrice - i.discount) * 100) / 100;
+        return {
+          ...i,
+          product_id: i.productId,
+          product_name: i.article || i.name,
+          productName: i.article || i.name,
+          unit_price: i.unitPrice,
+          packing_type: isWholesaleStore ? 'CARTON' : 'PAIR',
+          carton_quantity: cartonQty,
+          cartonQuantity: cartonQty,
+          pairs_per_carton: isWholesaleStore ? lot : 1,
+          pairsPerCarton: isWholesaleStore ? lot : 1,
+          subtotal: lineSub,
+          product: { article: i.article, name: i.name },
+        };
+      });
 
       const offlineSaleObj = {
         id: -Date.now(),
+        invoice_number: `${queued.clientTxId} (OFFLINE)`,
         invoiceNumber: `${queued.clientTxId} (OFFLINE)`,
-        totalAmount: netTotalPayable,
+        sale_date: queued.createdAt.slice(0, 10),
+        saleDate: queued.createdAt.slice(0, 10),
+        sale_type: isWholesaleStore ? 'WHOLESALE' : 'RETAIL',
+        saleType: isWholesaleStore ? 'WHOLESALE' : 'RETAIL',
+        total_cartons: totalCartonsSum,
+        subtotal: grossSubtotal,
+        discount: totalDiscounts,
+        total_amount: totalAmountDue,
+        totalAmount: totalAmountDue,
+        previous_balance: prevBalance,
+        paid_amount: effectiveTotalTendered,
+        remaining_balance: remainingBalance,
+        payment_method: paymentMethod,
         paymentMethod,
-        cashReceived: Number(effectiveCashReceived) || 0,
-        changeGiven: Number(changeDue) || 0,
+        transaction_id: transactionId.trim() || undefined,
+        cash_received: Number(effectivePaidForQueue) || 0,
+        cashReceived: Number(effectivePaidForQueue) || 0,
+        change_given: Number(changeGivenDue) || 0,
+        changeGiven: Number(changeGivenDue) || 0,
+        cashier_name: currentUser?.name || 'Counter',
+        cashierName: currentUser?.name || 'Counter',
+        customer_id: selectedCustomerId,
+        customer_name: selectedCustObj?.name || undefined,
+        customer_phone: selectedCustObj?.phone || undefined,
+        customer_shop_name: selectedCustObj?.shop_name || selectedCustObj?.shopName || undefined,
+        customer_market_name: selectedCustObj?.market_name || selectedCustObj?.marketName || undefined,
+        customer_city: selectedCustObj?.city || undefined,
+        customer_type: selectedCustObj?.customer_type || selectedCustObj?.customerType || undefined,
+        customer_ntn: selectedCustObj?.ntn_number || selectedCustObj?.ntnNumber || undefined,
         notes: notes ? `${notes} [Offline Transaction]` : '[Offline Transaction]',
         createdAt: queued.createdAt,
-        items: cart.map((i) => ({
-          ...i,
-          product: { article: i.article, name: i.name },
-        })),
-        customer: customers.find((c: any) => c.id === selectedCustomerId),
+        created_at: queued.createdAt,
+        items: saleItemsForPrint,
+        customer: selectedCustObj,
+        returned_items: activeExchange?.items || [],
+        exchange_credit: totalExchangeCredit,
+        net_difference: netDifference,
+        original_invoice_number: activeExchange?.originalInvoiceNumber,
       };
 
       setCompletedSale(offlineSaleObj);

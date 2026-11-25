@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
 import { MotionConfig } from 'motion/react';
 import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, getAuthToken, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
+import {
+  cacheCompanySettingsOffline,
+  cacheTenantInfoOffline,
+  getCachedCompanySettingsOffline,
+  getCachedTenantInfoOffline,
+} from './utils/offlineDb.ts';
 import { lazyWithRetry } from './utils/lazyWithRetry.ts';
 import { Header } from './components/common/Header.tsx';
 import { Sidebar } from './components/common/Sidebar.tsx';
@@ -400,8 +406,13 @@ function detectInitialRouteFromLocation(): {
 export default function App() {
   const { syncUserThemeFromAuth, restoreGuestThemeOnLogout } = useTheme();
   const initialRoute = detectInitialRouteFromLocation();
+  const initialSession = getValidatedStoredSession();
+  const initialStoredTenantId =
+    Number(initialSession?.user?.tenantId || initialRoute.tenantIdParam || getActiveTenantId() || 0) || null;
   const [saasMode, setSaasMode] = useState<SaasRouteMode>(initialRoute.mode);
-  const [activeTenant, setActiveTenant] = useState<TenantInfo | null>(null);
+  const [activeTenant, setActiveTenant] = useState<TenantInfo | null>(() =>
+    initialSession && initialStoredTenantId ? getCachedTenantInfoOffline(initialStoredTenantId) : null
+  );
   const [availableTenants, setAvailableTenants] = useState<TenantInfo[]>([]);
   const [storeLoginTarget, setStoreLoginTarget] = useState<TenantInfo | null>(null);
   const [tenantIdNotice, setTenantIdNotice] = useState('');
@@ -418,20 +429,35 @@ export default function App() {
   });
 
   const [currentUser, setCurrentUser] = useState<any | null>(() => {
-    const session = getValidatedStoredSession();
-    return session?.user || null;
+    return initialSession?.user || null;
   });
 
-  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(() =>
+    initialSession && initialStoredTenantId ? getCachedCompanySettingsOffline(initialStoredTenantId) : null
+  );
 
-  const [cachedStoreName, setCachedStoreName] = useState<string>('');
+  const [cachedStoreName, setCachedStoreName] = useState<string>(() => {
+    if (!initialSession || !initialStoredTenantId) return '';
+    const cs = getCachedCompanySettingsOffline(initialStoredTenantId);
+    const t = getCachedTenantInfoOffline(initialStoredTenantId);
+    return (
+      cs?.name ||
+      cs?.company_name ||
+      cs?.companyName ||
+      t?.name ||
+      initialSession?.user?.tenantName ||
+      initialSession?.user?.storeName ||
+      ''
+    );
+  });
 
   const [currentTab, setCurrentTab] = useState<string>(() => {
     try {
       const stored = localStorage.getItem('pos_current_user');
       const user = stored ? JSON.parse(stored) : null;
+      const initialSettings = initialSession && initialStoredTenantId ? getCachedCompanySettingsOffline(initialStoredTenantId) : null;
       const subRoute = parseAppSubRoute(window.location.pathname, window.location.search);
-      return resolveTargetTab(subRoute?.tab || undefined, user);
+      return resolveTargetTab(subRoute?.tab || undefined, user, initialSettings);
     } catch {
       return 'dashboard';
     }
@@ -625,6 +651,7 @@ export default function App() {
       } else if (resolution?.tenant) {
         setActiveTenant(resolution.tenant);
         setActiveTenantId(resolution.tenant.id);
+        cacheTenantInfoOffline(resolution.tenant, resolution.tenant.id);
         if (!isPlatformOwner && isUserOnboardingPending(activeSessionUser, resolution.tenant)) {
           setSaasMode('TENANT_ONBOARDING');
           const obTid = Number(resolution.tenant.id || activeSessionUser?.tenantId || 0);
@@ -651,6 +678,7 @@ export default function App() {
         const incomingTenantId = Number(settingsRes.settings.tenantId || settingsRes.settings.tenant_id);
         if (!targetTenantId || !incomingTenantId || incomingTenantId === Number(targetTenantId)) {
           setCompanySettings(settingsRes.settings);
+          cacheCompanySettingsOffline(settingsRes.settings, targetTenantId || incomingTenantId);
           const resolvedName =
             settingsRes.settings.name ||
             settingsRes.settings.company_name ||
@@ -731,6 +759,7 @@ export default function App() {
         const incomingTenantId = Number(settingsRes.settings.tenantId || settingsRes.settings.tenant_id);
         if (!tenantIdForInit || !incomingTenantId || incomingTenantId === Number(tenantIdForInit)) {
           setCompanySettings(settingsRes.settings);
+          cacheCompanySettingsOffline(settingsRes.settings, tenantIdForInit || incomingTenantId);
           const resolvedName =
             settingsRes.settings.name ||
             settingsRes.settings.company_name ||
@@ -807,15 +836,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Warm up Firebase client foreground listener, sync auth context to SW, and preload POS terminal in memory
+  // Warm up Firebase client foreground listener, sync auth context to SW, and preload POS/Returns/Exchange chunks for offline reload resilience
   useEffect(() => {
     if (currentUser?.role) {
       if (
         saasMode === 'TENANT_ACTIVE' &&
-        String(currentUser.role).toUpperCase() === 'CASHIER' &&
         (typeof navigator === 'undefined' || navigator.onLine !== false)
       ) {
         void import('./components/pos/PosTerminal.tsx').catch(() => {});
+        void import('./components/returns/SalesReturnView.tsx').catch(() => {});
+        void import('./components/pos/ShoeExchangeModal.tsx').catch(() => {});
+        void import('./components/pos/InvoicePrintModal.tsx').catch(() => {});
+        void import('./components/pos/OfflineSyncModal.tsx').catch(() => {});
       }
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
         try {
@@ -1956,10 +1988,12 @@ export default function App() {
     try {
       if (updatedSettings) {
         setCompanySettings(updatedSettings);
+        cacheCompanySettingsOffline(updatedSettings, updatedSettings.tenantId || updatedSettings.tenant_id || getActiveTenantId());
       }
       const settingsRes = await api.settings.get().catch(() => null);
       if (settingsRes?.settings) {
         setCompanySettings(settingsRes.settings);
+        cacheCompanySettingsOffline(settingsRes.settings, settingsRes.settings.tenantId || settingsRes.settings.tenant_id || getActiveTenantId());
       }
       emitDataSync(['settings'], { source: 'settings-updated' });
       await refreshTenantDirectory();

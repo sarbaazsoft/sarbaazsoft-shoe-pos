@@ -98,7 +98,9 @@ test('windows packages & service worker assets exist and sw.js compiles cleanly'
   }
 
   const swSource = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
-  assert.equal(/PRECACHE_ASSETS/.test(swSource), false, 'PRECACHE_ASSETS caching should be removed from public/sw.js');
+  assert.ok(swSource.includes('SW_PRECACHE_ASSETS'), 'SW_PRECACHE_ASSETS should be configured in public/sw.js');
+  assert.ok(swSource.includes('SHELL_CACHE'));
+  assert.ok(swSource.includes('APP_SHELL_KEY'));
 
   const corePublicAssets = [
     '/index.html',

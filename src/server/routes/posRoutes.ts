@@ -763,11 +763,22 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
         );
         if (existingSync.rows.length > 0) {
           const saleRow = existingSync.rows[0];
+          const existingItemsRes = await pgClient.query<any>(
+            `SELECT si.*, COALESCE(p.article, si.product_name) as article, COALESCE(p.article, si.product_name) as product_name,
+                    p.barcode as barcode
+             FROM sale_items si
+             LEFT JOIN products p ON si.product_id = p.id
+             WHERE si.sale_id = $1 ORDER BY si.id ASC`,
+            [saleRow.id]
+          );
           return res.status(200).json({
             message: 'Sale previously synchronized.',
             invoiceNumber: saleRow.invoice_number,
             alreadySynced: true,
-            sale: saleRow,
+            sale: {
+              ...saleRow,
+              items: existingItemsRes.rows,
+            },
           });
         }
       }
@@ -1170,11 +1181,13 @@ router.post('/checkout', requireAuth, async (req: AuthenticatedRequest, res: Res
 router.get('/sales', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = extractStrictTenantId(req);
-    const { search, limit = 50 } = req.query;
+    const { search, limit = 50, includeItems } = req.query;
+    const shouldIncludeItems = includeItems === '1' || includeItems === 'true';
     let query = `
-      SELECT s.id, s.invoice_number, s.customer_id, c.name as customer_name, 
-             s.sale_date, s.subtotal, s.discount, s.total_amount, 
-             s.payment_method, s.cash_received, s.change_given, 
+      SELECT s.id, s.invoice_number, s.customer_id, c.name as customer_name, c.phone as customer_phone,
+             s.sale_date, s.sale_type, s.total_cartons, s.subtotal, s.discount, s.total_amount,
+             s.previous_balance, s.paid_amount, s.remaining_balance,
+             s.payment_method, s.cash_received, s.change_given,
              s.created_by, u.name as cashier_name, s.is_min_price_overridden,
              s.notes, s.created_at
       FROM sales s
@@ -1193,7 +1206,47 @@ router.get('/sales', requireAuth, async (req: AuthenticatedRequest, res: Respons
     params.push(parseInt(String(limit), 10) || 50);
 
     const result = await pgClient.query(query, params);
-    res.json({ sales: result.rows });
+    const rows = result.rows as any[];
+
+    if (shouldIncludeItems && rows.length > 0) {
+      const saleIds = rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id) && id > 0);
+      if (saleIds.length > 0) {
+        const itemsRes = await pgClient.query<any>(
+          `SELECT si.*,
+                  COALESCE(p.article, si.product_name) as article,
+                  COALESCE(p.article, si.product_name) as product_name,
+                  p.barcode as barcode,
+                  COALESCE(SUM(ri.quantity), 0)::int as already_returned_quantity
+           FROM sale_items si
+           LEFT JOIN products p ON si.product_id = p.id AND COALESCE(p.tenant_id, 1) = $2
+           LEFT JOIN return_items ri ON si.id = ri.sale_item_id AND COALESCE(ri.tenant_id, 1) = $2
+           WHERE si.sale_id = ANY($1::int[]) AND COALESCE(si.tenant_id, 1) = $2
+           GROUP BY si.id, p.article, p.barcode
+           ORDER BY si.id ASC`,
+          [saleIds, tenantId]
+        );
+        const itemsBySaleId = new Map<number, any[]>();
+        for (const item of itemsRes.rows) {
+          const sid = Number(item.sale_id);
+          const list = itemsBySaleId.get(sid) || [];
+          const soldQty = Number(item.quantity) || 0;
+          const returnedQty = Number(item.already_returned_quantity) || 0;
+          list.push({
+            ...item,
+            soldQuantity: soldQty,
+            alreadyReturnedQuantity: returnedQty,
+            already_returned_qty: returnedQty,
+            returnableQuantity: Math.max(0, soldQty - returnedQty),
+          });
+          itemsBySaleId.set(sid, list);
+        }
+        for (const row of rows) {
+          row.items = itemsBySaleId.get(Number(row.id)) || [];
+        }
+      }
+    }
+
+    res.json({ sales: rows });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to fetch sales: ' + err.message });
   }

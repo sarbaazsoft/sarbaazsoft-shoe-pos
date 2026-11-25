@@ -1,8 +1,31 @@
 // Offline Sales Queue Manager: PWA Background Sync Service, Service Worker bridge, queue status listener, and local fallback
 
 import { api, getAuthToken, subscribeSessionClear } from './api.ts';
-import { QueuedSale, queueOfflineSale, getOfflineSales, getPendingOfflineSalesCount, updateOfflineSaleStatus, deleteOfflineSale, cacheCatalogOffline, resolveActiveTenantId } from '../utils/offlineDb.ts';
-import { buildCheckoutRequestPayload, processOfflineSalesQueue } from './offline/syncEngine.ts';
+import {
+  QueuedReturn,
+  QueuedSale,
+  queueOfflineSale,
+  queueOfflineReturn,
+  getOfflineSales,
+  getOfflineReturns,
+  getPendingOfflineSalesCount,
+  getPendingOfflineReturnsCount,
+  updateOfflineSaleStatus,
+  updateOfflineReturnStatus,
+  deleteOfflineSale,
+  deleteOfflineReturn,
+  cacheCatalogOffline,
+  cacheCustomersOffline,
+  cacheSalesHistoryOffline,
+  upsertSingleCachedSaleOffline,
+  resolveActiveTenantId,
+} from '../utils/offlineDb.ts';
+import {
+  buildCheckoutRequestPayload,
+  buildReturnRequestPayload,
+  processOfflineSalesQueue,
+} from './offline/syncEngine.ts';
+import type { SyncedSaleResolution } from './offline/offlineTypes.ts';
 import { emitDataSync } from '../utils/dataSyncBus.ts';
 
 export const SW_SYNC_TAG = 'pos-offline-transactions-sync';
@@ -112,9 +135,17 @@ class OfflineQueueService {
     };
   }
 
+  private async getCombinedPendingCount(): Promise<number> {
+    const [salesCount, returnsCount] = await Promise.all([
+      getPendingOfflineSalesCount(),
+      getPendingOfflineReturnsCount(),
+    ]);
+    return salesCount + returnsCount;
+  }
+
   private async notify(): Promise<number> {
     try {
-      const count = await getPendingOfflineSalesCount();
+      const count = await this.getCombinedPendingCount();
       this.cachedPendingCount = count;
       for (const fn of this.listeners) {
         fn(count, this.isSyncingState, this.isBackendConnectedState, this.lastSyncedAtState);
@@ -151,7 +182,7 @@ class OfflineQueueService {
         if (syncedCount > 0) {
           this.recordRemoteSave();
           this.primeCatalogCache(true).catch(() => {});
-          emitDataSync(['sales', 'inventory', 'customers', 'notifications'], {
+          emitDataSync(['sales', 'returns', 'inventory', 'customers', 'notifications'], {
             source: 'offline-sync-sw',
             synced: syncedCount,
           });
@@ -288,7 +319,7 @@ class OfflineQueueService {
           console.log('[OfflineSync] Backend reconnected. Initiating automatic background sync...');
           this.syncPendingSales();
         } else {
-          const pendingCount = await getPendingOfflineSalesCount();
+          const pendingCount = await this.getCombinedPendingCount();
           this.cachedPendingCount = pendingCount;
           if (pendingCount > 0 && !this.isSyncingState) {
             this.syncPendingSales();
@@ -402,8 +433,30 @@ class OfflineQueueService {
     }
   }
 
-  private buildCheckoutPayload(sale: QueuedSale): any {
-    return buildCheckoutRequestPayload(sale);
+  private async buildSyncedSaleMap(): Promise<Map<string, SyncedSaleResolution>> {
+    const map = new Map<string, SyncedSaleResolution>();
+    const allSales = await getOfflineSales();
+    for (const s of allSales) {
+      if (s.status === 'SYNCED' && s.syncedSaleId && s.syncedInvoiceNumber) {
+        map.set(s.clientTxId, {
+          saleId: Number(s.syncedSaleId),
+          invoiceNumber: s.syncedInvoiceNumber,
+          items: (s.syncedItems || []).map((i) => ({
+            id: Number(i.id),
+            productId: Number(i.productId),
+            quantity: Number(i.quantity || 0),
+          })),
+        });
+      }
+    }
+    return map;
+  }
+
+  private buildCheckoutPayload(
+    sale: QueuedSale,
+    syncedByClientTxId?: Map<string, SyncedSaleResolution>
+  ): any {
+    return buildCheckoutRequestPayload(sale, syncedByClientTxId);
   }
 
   /**
@@ -436,7 +489,37 @@ class OfflineQueueService {
   }
 
   /**
-   * Synchronize all pending sales in chronological order to PostgreSQL
+   * Save an offline standalone return to IndexedDB and register Service Worker Background Sync
+   */
+  public async enqueueReturn(
+    ret: Omit<QueuedReturn, 'clientReturnId' | 'createdAt' | 'status'>
+  ): Promise<QueuedReturn> {
+    const tenantId = resolveActiveTenantId(ret.tenantId);
+    const authToken = getAuthToken() || ret.authToken;
+    const prefix = tenantId ? `T${tenantId}` : 'OFF';
+    const clientReturnId = `RET-OFFLINE-${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const queued: QueuedReturn = {
+      ...ret,
+      ...(tenantId ? { tenantId } : {}),
+      ...(authToken ? { authToken } : {}),
+      clientReturnId,
+      createdAt: new Date().toISOString(),
+      status: 'PENDING',
+    };
+
+    await queueOfflineReturn(queued, tenantId);
+    await this.registerBackgroundSync();
+    await this.notify();
+
+    if (this.isOnlineState) {
+      setTimeout(() => this.syncPendingSales(), 100);
+    }
+
+    return queued;
+  }
+
+  /**
+   * Synchronize all pending sales & standalone returns in chronological order to PostgreSQL
    */
   public async syncPendingSales(): Promise<{ synced: number; failed: number }> {
     if (this.isSyncingState) {
@@ -461,13 +544,24 @@ class OfflineQueueService {
     this.isSyncingState = true;
     this.notify();
 
+    const activeTenantId = resolveActiveTenantId();
     const result = await processOfflineSalesQueue(
       {
         getSales: () => getOfflineSales(),
         updateSaleStatus: updateOfflineSaleStatus,
+        getReturns: () => getOfflineReturns(),
+        updateReturnStatus: updateOfflineReturnStatus,
       },
       {
-        submitCheckout: (payload) => api.pos.checkout(payload),
+        submitCheckout: async (payload) => {
+          const res = await api.pos.checkout(payload);
+          if (res?.sale) {
+            void upsertSingleCachedSaleOffline(res.sale, activeTenantId);
+          }
+          return res;
+        },
+        submitReturn: (payload) => api.returns.create(payload),
+        verifyInvoice: (inv) => api.returns.verifyInvoice(inv),
       },
       () => this.notify()
     );
@@ -486,9 +580,9 @@ class OfflineQueueService {
       try {
         localStorage.setItem('pos_last_synced_at', this.lastSyncedAtState.toISOString());
       } catch {}
-      // Refresh local product catalog cache with updated server stock levels
+      // Refresh local product catalog & recent invoices cache with updated server stock levels
       this.primeCatalogCache(true).catch(() => {});
-      emitDataSync(['sales', 'inventory', 'customers', 'notifications'], {
+      emitDataSync(['sales', 'returns', 'inventory', 'customers', 'notifications'], {
         source: 'offline-sync-foreground',
         synced,
       });
@@ -507,22 +601,37 @@ class OfflineQueueService {
   }
 
   /**
-   * Helper to refresh offline POS billing catalog in IndexedDB (coalesces concurrent in-flight runs)
+   * Helper to refresh offline POS billing catalog, customers, settings, and recent invoices in IndexedDB
    */
   public async primeCatalogCache(_force: boolean = false): Promise<any[]> {
     const token = getAuthToken();
     if (!token) return [];
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return [];
     if (this.primePromise) return this.primePromise;
     const tenantId = resolveActiveTenantId();
 
     this.primePromise = (async () => {
       try {
-        const res = await api.products.list({ limit: 500 });
-        if (res && Array.isArray(res.products)) {
-          await cacheCatalogOffline(res.products, tenantId);
-          console.log(`[OfflineSync] Synced ${res.products.length} products for offline POS billing.`);
-          return res.products;
+        const [productsResult, customersResult, salesResult] = await Promise.allSettled([
+          api.products.list({ limit: 2000 }),
+          api.customers.list(),
+          api.pos.listSales({ limit: 200, includeItems: true }),
+          api.settings.get(),
+        ]);
+
+        let cachedProducts: any[] = [];
+        if (productsResult.status === 'fulfilled' && productsResult.value && Array.isArray(productsResult.value.products)) {
+          cachedProducts = productsResult.value.products;
+          await cacheCatalogOffline(cachedProducts, tenantId);
+          console.log(`[OfflineSync] Synced ${cachedProducts.length} products for offline POS billing.`);
         }
+        if (customersResult.status === 'fulfilled' && customersResult.value && Array.isArray(customersResult.value.customers)) {
+          cacheCustomersOffline(customersResult.value.customers, tenantId);
+        }
+        if (salesResult.status === 'fulfilled' && salesResult.value && Array.isArray(salesResult.value.sales)) {
+          await cacheSalesHistoryOffline(salesResult.value.sales, tenantId);
+        }
+        return cachedProducts;
       } catch {
         // Ignore transient network blips during background offline catalog sync
       } finally {
@@ -538,8 +647,17 @@ class OfflineQueueService {
     return getOfflineSales();
   }
 
+  public async getReturnsQueue(): Promise<QueuedReturn[]> {
+    return getOfflineReturns();
+  }
+
   public async removeSale(clientTxId: string): Promise<void> {
     await deleteOfflineSale(clientTxId);
+    this.notify();
+  }
+
+  public async removeReturn(clientReturnId: string): Promise<void> {
+    await deleteOfflineReturn(clientReturnId);
     this.notify();
   }
 
@@ -554,17 +672,32 @@ class OfflineQueueService {
       await updateOfflineSaleStatus(sale.clientTxId, 'SYNCING');
       this.notify();
 
-      const payload = this.buildCheckoutPayload(sale);
+      const syncedMap = await this.buildSyncedSaleMap();
+      const payload = this.buildCheckoutPayload(sale, syncedMap);
       const res = await api.pos.checkout(payload);
+      const syncedSaleId = res?.sale?.id ? Number(res.sale.id) : undefined;
+      const syncedItems = Array.isArray(res?.sale?.items)
+        ? res.sale.items
+            .filter((i: any) => i && Number(i.id) > 0 && Number(i.productId ?? i.product_id) > 0)
+            .map((i: any) => ({
+              id: Number(i.id),
+              productId: Number(i.productId ?? i.product_id),
+            }))
+        : undefined;
 
       await updateOfflineSaleStatus(sale.clientTxId, 'SYNCED', {
         syncedInvoiceNumber: res?.sale?.invoiceNumber || res?.invoiceNumber,
+        syncedSaleId,
+        syncedItems,
         syncedAt: new Date().toISOString(),
         errorMessage: undefined,
       });
+      if (res?.sale) {
+        void upsertSingleCachedSaleOffline(res.sale, resolveActiveTenantId(sale.tenantId));
+      }
       this.recordRemoteSave();
       this.primeCatalogCache(true).catch(() => {});
-      emitDataSync(['sales', 'inventory', 'customers', 'notifications'], {
+      emitDataSync(['sales', 'returns', 'inventory', 'customers', 'notifications'], {
         source: 'offline-sync-retry',
         synced: 1,
       });
@@ -580,6 +713,51 @@ class OfflineQueueService {
       const rawMsg = String(err?.message || err || '');
       console.warn(`[OfflineSync] Retry for sale ${sale.clientTxId} notice:`, rawMsg);
       await updateOfflineSaleStatus(sale.clientTxId, 'FAILED', {
+        errorMessage: rawMsg,
+      });
+      this.notify();
+      return false;
+    }
+  }
+
+  public async retrySingleReturn(ret: QueuedReturn): Promise<boolean> {
+    const token = getAuthToken();
+    if (!token) {
+      console.warn('[OfflineSync] Cannot retry return sync: user is not logged in.');
+      return false;
+    }
+
+    try {
+      await updateOfflineReturnStatus(ret.clientReturnId, 'SYNCING');
+      this.notify();
+
+      const syncedMap = await this.buildSyncedSaleMap();
+      const payload = buildReturnRequestPayload(ret, syncedMap);
+      const res = await api.returns.create(payload);
+
+      await updateOfflineReturnStatus(ret.clientReturnId, 'SYNCED', {
+        syncedReturnNumber: res?.returnNumber || res?.return_number,
+        syncedAt: new Date().toISOString(),
+        errorMessage: undefined,
+      });
+      this.recordRemoteSave();
+      this.primeCatalogCache(true).catch(() => {});
+      emitDataSync(['sales', 'returns', 'inventory', 'customers', 'notifications'], {
+        source: 'offline-sync-return-retry',
+        synced: 1,
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('pos:offline-sync-complete', {
+            detail: { synced: 1, failed: 0, source: 'manual-retry', __fromDataSyncBus: true },
+          })
+        );
+      }
+      return true;
+    } catch (err: any) {
+      const rawMsg = String(err?.message || err || '');
+      console.warn(`[OfflineSync] Retry for return ${ret.clientReturnId} notice:`, rawMsg);
+      await updateOfflineReturnStatus(ret.clientReturnId, 'FAILED', {
         errorMessage: rawMsg,
       });
       this.notify();

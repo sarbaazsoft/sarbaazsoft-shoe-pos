@@ -184,7 +184,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             onClick={onActionClick}
             title={actionText}
             aria-label={actionText}
-            className="h-8 sm:h-8.5 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:opacity-95 active:scale-98"
+            className="h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] hover:opacity-95 active:scale-98"
           >
             {actionIcon}
             <span className="hidden sm:inline">{actionText}</span>
@@ -198,7 +198,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             type="button"
             onClick={handleSyncCheck}
             disabled={isCheckingSync}
-            className={`h-8 sm:h-8.5 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold ${
+            className={`h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs font-semibold ${
               syncStatusState === 'just-synced'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-600/60 shadow-xs'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'

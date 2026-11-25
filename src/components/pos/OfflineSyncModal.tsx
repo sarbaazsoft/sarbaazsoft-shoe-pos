@@ -15,9 +15,11 @@ import {
   Cloud,
   ChevronDown,
   ChevronUp,
+  RotateCcw,
+  Repeat,
 } from 'lucide-react';
 import { useOfflineSync } from '../../utils/useOfflineSync.ts';
-import { QueuedSale } from '../../utils/offlineDb.ts';
+import type { QueuedReturn, QueuedSale } from '../../utils/offlineDb.ts';
 import { formatStockPrice } from '../../utils/priceFormat.ts';
 
 interface OfflineSyncModalProps {
@@ -31,9 +33,21 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
   onClose,
   currencySymbol = 'Rs.',
 }) => {
-  const { isOnline, pendingCount, isSyncing, queueList, syncNow, retrySale, removeSale } = useOfflineSync();
+  const {
+    isOnline,
+    pendingCount,
+    isSyncing,
+    queueList,
+    returnsQueueList,
+    syncNow,
+    retrySale,
+    removeSale,
+    retryReturn,
+    removeReturn,
+  } = useOfflineSync();
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
+  const totalQueuedCount = queueList.length + returnsQueueList.length;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -163,7 +177,9 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                 <ShoppingBag className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
                 <div className="min-w-0">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Total Queue</span>
-                  <span className="text-xs font-bold font-mono text-slate-900 dark:text-white">{queueList.length} sales</span>
+                  <span className="text-xs font-bold font-mono text-slate-900 dark:text-white">
+                    {queueList.length} sales{returnsQueueList.length > 0 ? ` • ${returnsQueueList.length} ret` : ''}
+                  </span>
                 </div>
               </div>
 
@@ -203,23 +219,25 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
 
             {/* Queue List Area */}
             <div className="flex-1 overflow-y-auto min-h-[140px] max-h-[300px] space-y-2 pr-1 custom-scrollbar">
-              {queueList.length === 0 ? (
+              {totalQueuedCount === 0 ? (
                 <div className="py-8 text-center text-slate-400 dark:text-slate-500 space-y-2">
                   <Receipt className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 stroke-[1.5]" />
                   <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
                     Offline queue is empty
                   </p>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto">
-                    Any transaction completed while disconnected will appear here and synchronize automatically when reconnected.
+                    Any sale, exchange, or return completed while disconnected will appear here and synchronize automatically when reconnected.
                   </p>
                 </div>
               ) : (
-                queueList.map((sale: QueuedSale) => {
+                <>
+                  {queueList.map((sale: QueuedSale) => {
                   const isPending = sale.status === 'PENDING';
                   const isFailed = sale.status === 'FAILED';
                   const isSynced = sale.status === 'SYNCED';
                   const isSyncingItem = sale.status === 'SYNCING';
                   const isExpanded = expandedTxId === sale.clientTxId;
+                  const hasExchange = Boolean(sale.exchange && Array.isArray(sale.exchange.items) && sale.exchange.items.length > 0);
 
                   return (
                     <div
@@ -232,6 +250,12 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                             <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
                               {sale.clientTxId}
                             </span>
+                            {hasExchange && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                                <Repeat className="w-3 h-3" />
+                                <span>Exchange{sale.exchange?.originalInvoiceNumber ? ` (${sale.exchange.originalInvoiceNumber})` : ''}</span>
+                              </span>
+                            )}
                             {isSynced && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
                                 <CheckCircle2 className="w-3 h-3" />
@@ -335,7 +359,129 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                       )}
                     </div>
                   );
-                })
+                })}
+                  {returnsQueueList.map((ret: QueuedReturn) => {
+                    const isPending = ret.status === 'PENDING';
+                    const isFailed = ret.status === 'FAILED';
+                    const isSynced = ret.status === 'SYNCED';
+                    const isSyncingItem = ret.status === 'SYNCING';
+                    const isExpanded = expandedTxId === ret.clientReturnId;
+
+                    return (
+                      <div
+                        key={ret.clientReturnId}
+                        className="p-3 rounded-xl bg-amber-50/40 dark:bg-[#0A0E1A] border border-amber-200/80 dark:border-amber-900/50 text-xs transition"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                                {ret.clientReturnId}
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Return{ret.originalInvoiceNumber ? ` (${ret.originalInvoiceNumber})` : ''}</span>
+                              </span>
+                              {isSynced && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Synced: {ret.syncedReturnNumber}</span>
+                                </span>
+                              )}
+                              {isPending && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-700 dark:text-primary-300 text-[10px] font-bold">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Queued</span>
+                                </span>
+                              )}
+                              {isSyncingItem && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-700 dark:text-primary-300 text-[10px] font-bold">
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>Syncing...</span>
+                                </span>
+                              )}
+                              {isFailed && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-[10px] font-bold">
+                                  <AlertCircle className="w-3 h-3" />
+                                  <span>Sync Error</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+                              <span>{new Date(ret.createdAt).toLocaleTimeString()}</span>
+                              <span>•</span>
+                              <span>{ret.items.length} item{ret.items.length === 1 ? '' : 's'}</span>
+                              {ret.customerName && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-700 dark:text-slate-300">{ret.customerName}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-right flex items-center gap-2 shrink-0">
+                            <div>
+                              <div className="text-xs font-bold font-mono text-amber-600 dark:text-amber-400">
+                                {currencySymbol} {formatStockPrice(ret.totalRefundAmount)}
+                              </div>
+                              <div className="text-[10px] text-slate-400">Refund</div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {isFailed && (
+                                <button
+                                  type="button"
+                                  onClick={() => retryReturn(ret)}
+                                  title="Retry return synchronization"
+                                  className="p-2 sm:p-1 rounded-lg text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeReturn(ret.clientReturnId)}
+                                title="Delete return from local queue"
+                                className="p-2 sm:p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTxId(isExpanded ? null : ret.clientReturnId)}
+                                className="p-2 sm:p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                                title="Toggle return details"
+                              >
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="mt-2 pt-2 border-t border-amber-200/70 dark:border-slate-800 flex flex-wrap gap-1.5 text-[10px]">
+                            {ret.items.map((item, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-md bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-mono"
+                              >
+                                {item.quantity}x {item.article || item.productName || `Item #${item.productId}`} ({currencySymbol} {formatStockPrice(item.unitRefundPrice)})
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {ret.errorMessage && (
+                          <div className="mt-2 text-[10.5px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-200 dark:border-rose-900/50">
+                            Error: {ret.errorMessage}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </div>
 
@@ -364,7 +510,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                   {isSyncing
                     ? 'Syncing with Server...'
                     : pendingCount > 0
-                    ? `Sync ${pendingCount} Sale${pendingCount === 1 ? '' : 's'}`
+                    ? `Sync ${pendingCount} Tx${pendingCount === 1 ? '' : 's'}`
                     : 'All Synced'}
                 </span>
               </button>

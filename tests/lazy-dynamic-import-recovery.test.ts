@@ -49,11 +49,12 @@ test('bumpLazyRetryGeneration increments generation for TabErrorBoundary manual 
   assert.equal(after, before + 1);
 });
 
-test('Service Worker bypasses Vite dev source modules and ES module scripts while App & TabErrorBoundary wire retry recovery', () => {
+test('Service Worker uses Network-First with retry-stripped cache fallback while App & TabErrorBoundary wire retry recovery', () => {
   const swSrc = readProjectFile('public/sw.js');
-  assert.ok(swSrc.includes("SW_ENV === 'development' && request.mode !== 'navigate'"));
-  assert.ok(swSrc.includes("url.pathname.startsWith('/src/')"));
-  assert.ok(swSrc.includes("request.destination === 'script'"));
+  assert.ok(swSrc.includes('matchCachedWithRetryFallback'));
+  assert.ok(swSrc.includes('stripRetryQueryParam'));
+  assert.ok(swSrc.includes("fetch(request, { cache: 'no-store' })"));
+  assert.ok(swSrc.includes('RUNTIME_CACHE'));
 
   const appSrc = readProjectFile('src/App.tsx');
   assert.ok(appSrc.includes('lazyWithRetry('));

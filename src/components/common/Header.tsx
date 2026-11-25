@@ -822,8 +822,8 @@ export const Header: React.FC<HeaderProps> = ({
             }}
             className={`sm:hidden flex items-center justify-center rounded-lg border border-slate-200/90 dark:border-indigo-500/25 bg-slate-50/90 dark:bg-slate-900/60 text-indigo-600 dark:text-indigo-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-[width,max-width,opacity,visibility] duration-250 ease-out motion-reduce:transition-none cursor-pointer shrink-0 ${
               isMobileSearchExpanded
-                ? 'w-0 max-w-0 h-11 opacity-0 invisible p-0 border-0 overflow-hidden pointer-events-none'
-                : 'w-11 max-w-11 h-11 opacity-100 visible'
+                ? 'w-0 max-w-0 h-10 opacity-0 invisible p-0 border-0 overflow-hidden pointer-events-none'
+                : 'w-10 max-w-10 h-10 opacity-100 visible'
             }`}
             title="Quick price check (Article, Barcode)"
             aria-label="Open quick price search"
@@ -872,7 +872,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }
               }}
               placeholder="Quick price check (Article, Barcode)..."
-              className="h-11 sm:h-8.5 uppercase w-full bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/90 dark:border-indigo-500/20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 pl-8 pr-20 sm:pr-8 py-1 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
+              className="h-10 sm:h-8.5 uppercase w-full bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/90 dark:border-indigo-500/20 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 pl-8 pr-20 sm:pr-8 py-1 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
             />
             <div className="absolute right-1 sm:right-2 flex items-center gap-1">
               {searchQuery && (
@@ -1280,7 +1280,7 @@ export const Header: React.FC<HeaderProps> = ({
               setShowThemeDropdown(false);
               setIsSearching(false);
             }}
-            className={`h-9 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs relative ${
+            className={`h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 flex items-center justify-center sm:justify-start gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs relative ${
               showNotifications
                 ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]'
                 : isBellPulsing
@@ -1755,7 +1755,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setShowThemeDropdown(false);
                 setShowNotifications(false);
               }}
-              className={`h-9 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
+              className={`h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 flex items-center justify-center sm:justify-start gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
                 showUserDropdown
                   ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'

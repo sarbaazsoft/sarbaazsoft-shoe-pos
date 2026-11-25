@@ -2362,7 +2362,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search stores or owners..."
-                  className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-slate-100/90 dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/30 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
+                  className="h-10 sm:h-8.5 w-full pl-9 pr-8 py-1 rounded-xl bg-slate-100/90 dark:bg-[#131B2E] border border-slate-200/90 dark:border-indigo-500/30 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
                 />
                 {searchQuery && (
                   <button
@@ -2378,7 +2378,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           </div>
 
           {/* Right: Actions, Notifications Dropdown, Tools Dropdown, Refresh, Theme, User Profile */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Platform Tools Dropdown (Send Notification, Import Data, Export All Backup) */}
             <div ref={toolsMenuRef} className="relative shrink-0">
               <button
@@ -2388,7 +2388,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                   setShowNotifDropdown(false);
                   setShowUserDropdown(false);
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                className={`h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 inline-flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer border ${
                   showToolsDropdown
                     ? 'bg-purple-100 dark:bg-purple-500/30 text-purple-800 dark:text-white border-purple-300 dark:border-purple-400/50'
                     : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border-slate-200/80 dark:border-indigo-500/20 text-slate-700 dark:text-slate-200'
@@ -2486,7 +2486,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     void loadNotifications();
                   }
                 }}
-                className={`relative p-2 rounded-xl transition cursor-pointer border ${
+                className={`relative h-10 w-10 sm:h-8.5 sm:w-8.5 inline-flex items-center justify-center rounded-lg transition-all duration-200 cursor-pointer border ${
                   showNotifDropdown
                     ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]'
                     : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border-slate-200/80 dark:border-indigo-500/20 text-slate-600 dark:text-slate-200'
@@ -2808,7 +2808,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               onClick={loadOverview}
               disabled={loading}
               title="Refresh platform telemetry"
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border border-slate-200/80 dark:border-indigo-500/20 text-slate-600 dark:text-slate-200 transition cursor-pointer"
+              className="h-10 w-10 sm:h-8.5 sm:w-8.5 inline-flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200/80 dark:bg-[#131B2E] dark:hover:bg-[#1A263D] border border-slate-200/80 dark:border-indigo-500/20 text-slate-600 dark:text-slate-200 transition-all duration-200 cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-purple-600 dark:text-purple-400' : ''}`} />
             </button>
@@ -2834,7 +2834,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 id="superadmin-user-menu-trigger"
                 type="button"
                 onClick={() => setShowUserDropdown((prev) => !prev)}
-                className={`h-8 sm:h-8.5 flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
+                className={`h-10 min-w-[40px] sm:min-w-0 sm:h-8.5 flex items-center justify-center sm:justify-start gap-2 px-2 sm:px-3 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs ${
                   showUserDropdown
                     ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white border-purple-400/50 ring-2 ring-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_16px_rgba(var(--primary-rgb,147,51,234),)]'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:text-purple-200 dark:hover:text-white dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)]'

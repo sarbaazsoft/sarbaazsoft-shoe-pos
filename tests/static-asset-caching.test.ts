@@ -131,10 +131,21 @@ function createMockSwHarness(options?: {
     return new URL(raw, 'https://pos.example.com').href;
   };
 
+  const getOrCreateCache = (name: string) => {
+    if (!store.has(name)) {
+      store.set(name, new Map<string, any>());
+    }
+    const map = store.get(name)!;
+    return {
+      put: async (reqOrUrl: any, res: any) => {
+        map.set(normalizeKey(reqOrUrl), res);
+      },
+      match: async (reqOrUrl: any) => map.get(normalizeKey(reqOrUrl)),
+    };
+  };
+
   const cachesMock = {
-    open: async () => {
-      throw new Error('caches.open should never be called when SW caching is removed');
-    },
+    open: async (name: string) => getOrCreateCache(name),
     keys: async () => Array.from(store.keys()),
     delete: async (name: string) => store.delete(name),
     match: async (reqOrUrl: any) => {
@@ -168,7 +179,7 @@ function createMockSwHarness(options?: {
       function MockResponse(body: any, init: any) {
         return {
           ok: true,
-          status: 200,
+          status: init?.status ?? 200,
           type: 'basic',
           body,
           headers: { get: (k: string) => init?.headers?.[k] || null },
@@ -222,14 +233,14 @@ function createMockSwHarness(options?: {
   };
 }
 
-test('public/sw.js contains zero Cache Storage caching, purges any leftover caches, and fetches no-store', async () => {
+test('public/sw.js precaches app shell, cleans legacy caches, caches prod bundles, and serves offline refreshes without intercepting /api/*', async () => {
   const swSource = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
-  assert.equal(/caches\.open\s*\(/.test(swSource), false);
-  assert.equal(/caches\.put\s*\(/.test(swSource), false);
-  assert.equal(/caches\.match\s*\(/.test(swSource), false);
-  assert.equal(/\bSW_CACHING_PAUSED\b/.test(swSource), false);
+  assert.ok(swSource.includes('SHELL_CACHE'));
+  assert.ok(swSource.includes('RUNTIME_CACHE'));
+  assert.ok(swSource.includes('APP_SHELL_KEY'));
 
   for (const mode of ['production', 'development'] as const) {
+    let networkOnline = true;
     const seenFetchInits: Array<{ url: string; cache?: string }> = [];
     const harness = createMockSwHarness({
       mode,
@@ -246,14 +257,19 @@ test('public/sw.js contains zero Cache Storage caching, purges any leftover cach
         },
       },
       fetchImpl: async (input: any, init?: any) => {
+        if (!networkOnline) {
+          throw new TypeError('Failed to fetch');
+        }
         const url = typeof input === 'string' ? input : input.url;
         seenFetchInits.push({ url, cache: init?.cache });
+        const pathname = new URL(url, 'https://pos.example.com').pathname;
+        const isHtml = pathname === '/' || pathname === '/pos';
         return {
           ok: true,
           status: 200,
           type: 'basic',
-          headers: { get: () => 'application/javascript' },
-          body: 'fresh-network-asset',
+          headers: { get: (k: string) => (k.toLowerCase() === 'content-type' ? (isHtml ? 'text/html; charset=utf-8' : 'application/javascript') : null) },
+          body: isHtml ? '<html>App Shell</html>' : 'fresh-network-asset',
           clone() {
             return this;
           },
@@ -265,14 +281,16 @@ test('public/sw.js contains zero Cache Storage caching, purges any leftover cach
     harness.listeners.get('install')!({ waitUntil: (p: Promise<any>) => (installWait = p) });
     await installWait;
     assert.equal(harness.getSkipWaitingCalls(), 1);
-    assert.equal(harness.store.size, 0);
+    assert.ok(harness.store.has('pos-shell-dev'));
 
     let actWait = Promise.resolve();
     harness.listeners.get('activate')!({ waitUntil: (p: Promise<any>) => (actWait = p) });
     await actWait;
     assert.equal(harness.getClientsClaimCalls(), 1);
-    assert.equal(harness.store.size, 0);
+    assert.equal(harness.store.has('legacy-precache'), false);
+    assert.equal(harness.store.has('legacy-immutable'), false);
 
+    // Online fetch caches script in runtime cache
     let responded: Promise<any> | null = null;
     harness.listeners.get('fetch')!({
       request: { method: 'GET', url: 'https://pos.example.com/assets/js/index-12345678.js', destination: 'script' },
@@ -280,9 +298,28 @@ test('public/sw.js contains zero Cache Storage caching, purges any leftover cach
     });
     const res = await responded!;
     assert.equal(res.body, 'fresh-network-asset');
-    assert.equal(seenFetchInits[0]?.cache, 'no-store');
-    assert.equal(harness.store.size, 0);
+    assert.ok(harness.store.get('pos-runtime-dev')?.has('https://pos.example.com/assets/js/index-12345678.js'));
 
+    // Offline window refresh (navigate) falls back to cached APP_SHELL_KEY instead of failing
+    networkOnline = false;
+    let navOfflineResponded: Promise<any> | null = null;
+    harness.listeners.get('fetch')!({
+      request: { method: 'GET', mode: 'navigate', url: 'https://pos.example.com/pos' },
+      respondWith: (p: Promise<any>) => (navOfflineResponded = p),
+    });
+    const offlineNavRes = await navOfflineResponded!;
+    assert.equal(offlineNavRes.body, '<html>App Shell</html>');
+
+    // Offline asset refresh serves cached asset
+    let assetOfflineResponded: Promise<any> | null = null;
+    harness.listeners.get('fetch')!({
+      request: { method: 'GET', url: 'https://pos.example.com/assets/js/index-12345678.js', destination: 'script' },
+      respondWith: (p: Promise<any>) => (assetOfflineResponded = p),
+    });
+    const offlineAssetRes = await assetOfflineResponded!;
+    assert.equal(offlineAssetRes.body, 'fresh-network-asset');
+
+    // /api/* never intercepted by SW
     let apiIntercepted = false;
     harness.listeners.get('fetch')!({
       request: { method: 'GET', url: 'https://pos.example.com/api/products' },

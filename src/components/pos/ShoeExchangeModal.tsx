@@ -184,11 +184,12 @@ export const ShoeExchangeModal: React.FC<ShoeExchangeModalProps> = ({
 
     const activeExchange: ActiveExchange = {
       originalSaleId: verifiedSale.id,
-      originalInvoiceNumber: verifiedSale.invoiceNumber,
-      originalSaleDate: verifiedSale.saleDate,
-      customerId: verifiedSale.customerId || null,
-      customerName: verifiedSale.customerName,
-      customerPhone: verifiedSale.customerPhone,
+      ...(verifiedSale.originalClientTxId ? { originalClientTxId: verifiedSale.originalClientTxId } : {}),
+      originalInvoiceNumber: verifiedSale.invoiceNumber || verifiedSale.invoice_number,
+      originalSaleDate: verifiedSale.saleDate || verifiedSale.sale_date,
+      customerId: verifiedSale.customerId ?? verifiedSale.customer_id ?? null,
+      customerName: verifiedSale.customerName || verifiedSale.customer_name,
+      customerPhone: verifiedSale.customerPhone || verifiedSale.customer_phone,
       reason: retailReason.trim() || 'Direct Shoe Exchange at POS',
       items: exchangeItems,
     };

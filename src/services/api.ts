@@ -1,11 +1,15 @@
 // Central API service with JWT token injection, tenant isolation, and offline POS fallback
 import {
   cacheCatalogOffline,
+  cacheCompanySettingsOffline,
   cacheCustomersOffline,
   deleteCachedProductOffline,
+  getCachedCompanySettingsOffline,
   getCachedCustomersOffline,
   lookupCachedProductOffline,
   searchCachedProductsOffline,
+  upsertSingleCachedSaleOffline,
+  verifyInvoiceOffline,
 } from '../utils/offlineDb.ts';
 import { isTransientNetworkError } from './offline/syncEngine.ts';
 import { transformKeysToCamelCase } from '../utils/caseTransformer.ts';
@@ -201,12 +205,14 @@ export function clearAllSessionState(): void {
       localStorage.removeItem('pos_last_synced_at');
       localStorage.removeItem('pos_cashier_last_activity_at');
 
-      // Clear any tenant-scoped or user-scoped keys without removing device preferences like pos_theme, remembered accounts, or permanent welcome dismissals
+      // Clear any tenant-scoped or user-scoped keys without removing device preferences like pos_theme, remembered accounts, or offline transaction queues
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
         if (key && (
           key.startsWith('pos_dashboard_visited_') ||
-          key.startsWith('pos_read_notifs_')
+          key.startsWith('pos_read_notifs_') ||
+          key.startsWith('pos_offline_company_settings_tenant:') ||
+          key.startsWith('pos_offline_tenant_info:')
         )) {
           localStorage.removeItem(key);
         }
@@ -278,6 +284,9 @@ export function isStoredTokenValid(token?: string | null): boolean {
     return false;
   }
   if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return true;
+    }
     return false;
   }
   return true;
@@ -1234,9 +1243,15 @@ export const api = {
       apiFetch('/categories', { signal: reqOptions?.signal }),
   },
   pos: {
-    checkout: (saleData: any) => apiFetch('/pos/checkout', { method: 'POST', body: saleData }),
+    checkout: async (saleData: any) => {
+      const res = await apiFetch<any>('/pos/checkout', { method: 'POST', body: saleData });
+      if (res?.sale) {
+        upsertSingleCachedSaleOffline(res.sale, getActiveTenantId()).catch(() => {});
+      }
+      return res;
+    },
     listSales: (
-      params?: { startDate?: string; endDate?: string; search?: string; limit?: number },
+      params?: { startDate?: string; endDate?: string; search?: string; limit?: number; includeItems?: boolean },
       reqOptions?: { signal?: AbortSignal }
     ) => {
       const qs = new URLSearchParams();
@@ -1244,14 +1259,37 @@ export const api = {
       if (params?.endDate) qs.set('endDate', params.endDate);
       if (params?.search) qs.set('search', params.search);
       if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.includeItems) qs.set('includeItems', '1');
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return apiFetch(`/pos/sales${query}`, { signal: reqOptions?.signal });
     },
     getSale: (id: number) => apiFetch(`/pos/sales/${id}`),
   },
   returns: {
-    verifyInvoice: (invoiceNumber: string) =>
-      apiFetch(`/returns/verify-invoice/${encodeURIComponent(invoiceNumber)}`),
+    verifyInvoice: async (invoiceNumber: string) => {
+      const activeTenantId = getActiveTenantId();
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const offlineResult = await verifyInvoiceOffline(invoiceNumber, activeTenantId);
+        if (offlineResult) return offlineResult;
+        throw new Error(`Invoice "${invoiceNumber}" was not found in the local offline cache.`);
+      }
+      try {
+        const res = await apiFetch<any>(`/returns/verify-invoice/${encodeURIComponent(invoiceNumber)}`);
+        if (res?.sale) {
+          upsertSingleCachedSaleOffline(
+            { ...res.sale, items: res.items || res.sale.items || [] },
+            activeTenantId
+          ).catch(() => {});
+        }
+        return res;
+      } catch (err: any) {
+        if (isTransientNetworkError(err)) {
+          const offlineResult = await verifyInvoiceOffline(invoiceNumber, activeTenantId);
+          if (offlineResult) return offlineResult;
+        }
+        throw err;
+      }
+    },
     create: (data: any) => apiFetch('/returns', { method: 'POST', body: data }),
   },
   suppliers: {
@@ -1369,8 +1407,29 @@ export const api = {
       apiFetch('/reports/top-selling', { signal: reqOptions?.signal }),
   },
   settings: {
-    get: (reqOptions?: { signal?: AbortSignal }) =>
-      apiFetch('/settings', { signal: reqOptions?.signal }),
+    get: async (reqOptions?: { signal?: AbortSignal }) => {
+      const activeTenantId = getActiveTenantId();
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const cached = getCachedCompanySettingsOffline(activeTenantId);
+        if (cached) return { settings: cached, offline: true };
+      }
+      try {
+        const res = await apiFetch<any>('/settings', { signal: reqOptions?.signal });
+        if (res?.settings) {
+          cacheCompanySettingsOffline(res.settings, activeTenantId);
+        }
+        return res;
+      } catch (err: any) {
+        if (isAbortError(err) || reqOptions?.signal?.aborted) {
+          throw err;
+        }
+        if (isTransientNetworkError(err)) {
+          const cached = getCachedCompanySettingsOffline(activeTenantId);
+          if (cached) return { settings: cached, offline: true };
+        }
+        throw err;
+      }
+    },
     getAppSettings: () => apiFetch<{ appSettings: Record<string, string>; appSettingsGrouped: Record<string, any[]> }>('/settings/app'),
     saveAppSettings: (appSettings: Record<string, string>) =>
       apiFetch('/settings/app', { method: 'PUT', body: { appSettings } }).catch(() =>

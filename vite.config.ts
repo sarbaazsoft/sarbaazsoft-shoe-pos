@@ -42,10 +42,50 @@ function serviceWorkerBuildPlugin(rootDir: string): Plugin {
       }
       const buildVersion = `${pkgVersion}-${hash.digest('hex').slice(0, 10)}`;
 
+      const collectPrecacheAssets = (dirPath: string, baseRel = ''): string[] => {
+        if (!fs.existsSync(dirPath)) return [];
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        const collected: string[] = [];
+        for (const entry of entries) {
+          const fullPath = path.join(dirPath, entry.name);
+          const relPath = baseRel ? `${baseRel}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) {
+            collected.push(...collectPrecacheAssets(fullPath, relPath));
+            continue;
+          }
+          if (!entry.isFile()) continue;
+          if (
+            relPath === 'sw.js' ||
+            relPath === 'firebase-messaging-sw.js' ||
+            relPath === 'sw-background-sync.js' ||
+            relPath === 'version.json' ||
+            relPath === 'index.html' ||
+            relPath.endsWith('.map') ||
+            relPath.startsWith('assets/windows/') ||
+            relPath.startsWith('assets/android/') ||
+            /\.(?:apk|aab|exe|msix|msixbundle|appx|appxbundle|cer)$/i.test(relPath)
+          ) {
+            continue;
+          }
+          collected.push(`/${relPath.split(path.sep).join('/')}`);
+        }
+        return collected;
+      };
+
+      const precacheAssets = collectPrecacheAssets(outDir);
+
       if (swExists) {
+        swSource = swSource.replace(
+          /const SW_ENV = ['"][^'"]*['"];/,
+          "const SW_ENV = 'production';"
+        );
         swSource = swSource.replace(
           /const SW_BUILD_VERSION = ['"][^'"]*['"];/,
           `const SW_BUILD_VERSION = '${buildVersion}';`
+        );
+        swSource = swSource.replace(
+          /const SW_PRECACHE_ASSETS = \[[\s\S]*?\];/,
+          `const SW_PRECACHE_ASSETS = ${JSON.stringify(precacheAssets)};`
         );
         fs.writeFileSync(swPath, swSource, 'utf8');
       }

@@ -7,6 +7,8 @@ import { toTitleCaseLive, toTitleCaseTrimmed } from '../../utils/textFormat.ts';
 import { calculateReturnNetUnitPrice } from '../../utils/posCalculations.ts';
 import type { ActiveExchange, ExchangeItem } from '../../types.ts';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { offlineQueueService } from '../../services/offlineQueueService.ts';
+import { isTransientNetworkError } from '../../services/offline/syncEngine.ts';
 
 interface SalesReturnViewProps {
   currentUser?: any;
@@ -161,8 +163,54 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
       return setErrorMessage('Select at least one shoe item quantity to return.');
     }
 
+    const enqueueOfflineReturnAndFinish = async () => {
+      const enrichedItems = itemsToReturn.map((ri) => {
+        const matched = saleItems.find((i: any) => Number(i.id) === Number(ri.saleItemId));
+        return {
+          ...ri,
+          article: matched?.article || matched?.productName || matched?.product_name,
+          productName: matched?.productName || matched?.product_name || matched?.article,
+          subtotal: Math.round(ri.quantity * ri.unitRefundPrice * 100) / 100,
+        };
+      });
+
+      const queued = await offlineQueueService.enqueueReturn({
+        originalSaleId: Number(verifiedSale.id) > 0 ? Number(verifiedSale.id) : 0,
+        originalClientTxId: verifiedSale.originalClientTxId || null,
+        originalInvoiceNumber: verifiedSale.invoiceNumber || verifiedSale.invoice_number,
+        customerId: verifiedSale.customerId ?? verifiedSale.customer_id ?? null,
+        customerName: verifiedSale.customerName || verifiedSale.customer_name || undefined,
+        reason: toTitleCaseTrimmed(reason) || 'Customer Return',
+        items: enrichedItems,
+        totalRefundAmount: Math.round(totalRefundAmount * 100) / 100,
+      });
+
+      playAudioFeedback.saleSuccess();
+      setReturnSuccess({
+        offline: true,
+        returnNumber: `${queued.clientReturnId} (OFFLINE)`,
+        totalRefundAmount: queued.totalRefundAmount,
+      });
+      setVerifiedSale(null);
+      setInvoiceSearch('');
+    };
+
     setIsSubmitting(true);
     setErrorMessage(null);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      try {
+        await enqueueOfflineReturnAndFinish();
+        return;
+      } catch (queueErr: any) {
+        playAudioFeedback.warning();
+        setErrorMessage(queueErr?.message || 'Failed to save offline return.');
+        return;
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+
     try {
       const res = await api.returns.create({
         originalSaleId: verifiedSale.id,
@@ -179,6 +227,16 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
         source: 'sales-return',
       });
     } catch (err: any) {
+      if (isTransientNetworkError(err)) {
+        try {
+          await enqueueOfflineReturnAndFinish();
+          return;
+        } catch (queueErr: any) {
+          playAudioFeedback.warning();
+          setErrorMessage(queueErr?.message || 'Failed to save offline return.');
+          return;
+        }
+      }
       playAudioFeedback.warning();
       setErrorMessage(err.message || 'Failed to process return.');
     } finally {
@@ -247,9 +305,14 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
           <div className="flex items-center space-x-3 text-emerald-800 dark:text-emerald-300">
             <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <div>
-              <h3 className="text-sm font-bold text-emerald-950 dark:text-emerald-200">Return Processed Successfully!</h3>
+              <h3 className="text-sm font-bold text-emerald-950 dark:text-emerald-200">
+                {returnSuccess.offline ? 'Offline Return Queued Successfully!' : 'Return Processed Successfully!'}
+              </h3>
               <p className="text-emerald-700 dark:text-emerald-300/80 text-xs">
-                Return Number: <strong className="font-mono font-bold">{returnSuccess.returnNumber}</strong> • Stock has been returned to store inventory
+                Return Number: <strong className="font-mono font-bold">{returnSuccess.returnNumber}</strong> •{' '}
+                {returnSuccess.offline
+                  ? 'Saved locally and stock restocked — will auto-sync to server once connection returns'
+                  : 'Stock has been returned to store inventory'}
               </p>
             </div>
           </div>
@@ -462,6 +525,7 @@ export const SalesReturnView: React.FC<SalesReturnViewProps> = ({
 
                     onStartExchange({
                       originalSaleId: verifiedSale.id,
+                      ...(verifiedSale.originalClientTxId ? { originalClientTxId: verifiedSale.originalClientTxId } : {}),
                       originalInvoiceNumber: verifiedSale.invoiceNumber || verifiedSale.invoice_number,
                       originalSaleDate: verifiedSale.saleDate || verifiedSale.sale_date,
                       customerId: verifiedSale.customerId ?? verifiedSale.customer_id ?? null,

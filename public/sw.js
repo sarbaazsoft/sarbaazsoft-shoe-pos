@@ -10,22 +10,88 @@
 
 const SW_ENV = 'development';
 const SW_BUILD_VERSION = 'dev';
+const SW_PRECACHE_ASSETS = [];
+const SHELL_CACHE = `pos-shell-${SW_BUILD_VERSION}`;
+const RUNTIME_CACHE = `pos-runtime-${SW_BUILD_VERSION}`;
+const APP_SHELL_KEY = '/__app_shell__';
 const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
 const SW_SYNC_TAG = 'pos-offline-transactions-sync';
 const SW_PERIODIC_SYNC_TAG = 'pos-offline-periodic-sync';
 const DB_NAME = 'ShoePosOfflineDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE_SALES = 'offline_sales_queue';
+const STORE_RETURNS = 'offline_returns_queue';
+const STORE_SALES_CACHE = 'cached_sales_by_store';
 const BROADCAST_CHANNEL_NAME = 'pos_background_sync_channel';
 
 const BINARY_INSTALLER_EXT_RE = /\.(?:apk|aab|exe|msix|msixbundle|appx|appxbundle|cer)$/i;
+const CONTENT_HASHED_ASSET_RE = /^\/assets\/(?:js|css|fonts|media)\/.*-[A-Za-z0-9_-]{6,}\.[a-z0-9]+$/i;
 
-function purgeAllSwCaches() {
-  if (typeof caches === 'undefined') return Promise.resolve();
-  return caches
-    .keys()
-    .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-    .catch(() => {});
+const OFFLINE_FALLBACK_HTML =
+  '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline Node - SarbaazSoft Shoe POS</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;padding:20px}.card{max-width:420px;width:100%;background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:24px;box-shadow:0 10px 25px rgba(15,23,42,.06);text-align:center}.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#FEF3C7;color:#B45309;margin-bottom:12px}h2{margin:0 0 8px;font-size:18px}p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5}.queue{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;font-size:12px;color:#334155;margin-bottom:16px}button{border:0;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#9333EA,#4F46E5);cursor:pointer}</style></head><body><div class="card"><div class="badge">OFFLINE WORKER READY</div><h2>SarbaazSoft Shoe POS</h2><p>Internet connection is currently offline. Open the app once while online so this device caches the offline shell, or wait for automatic reconnection.</p><div id="q" class="queue">Checking local offline queue...</div><button type="button" onclick="window.location.reload()">Reconnect Now</button></div><script>(function(){function show(n){var el=document.getElementById("q");if(el)el.textContent="Pending offline sales queued locally: "+n;}try{var req=indexedDB.open("ShoePosOfflineDB");req.onsuccess=function(){var db=req.result;if(!db.objectStoreNames.contains("offline_sales_queue")){show(0);return;}var tx=db.transaction("offline_sales_queue","readonly");var all=tx.objectStore("offline_sales_queue").getAll();all.onsuccess=function(){var rows=all.result||[];show(rows.filter(function(r){return r&&(r.status==="PENDING"||r.status==="FAILED");}).length);};all.onerror=function(){show(0);};};req.onerror=function(){show(0);};}catch(e){show(0);}window.addEventListener("online",function(){window.location.reload();});})();</script></body></html>';
+
+async function precacheShellAssets() {
+  if (typeof caches === 'undefined' || typeof caches.open !== 'function') return;
+  try {
+    const cache = await caches.open(SHELL_CACHE);
+    const urls = Array.from(
+      new Set(['/', '/manifest.webmanifest', ...(Array.isArray(SW_PRECACHE_ASSETS) ? SW_PRECACHE_ASSETS : [])])
+    );
+    await Promise.allSettled(
+      urls.map(async (assetUrl) => {
+        try {
+          const res = await fetch(assetUrl, { cache: 'no-store' });
+          if (res && res.ok) {
+            await cache.put(assetUrl, res.clone());
+            if (assetUrl === '/') {
+              await cache.put(APP_SHELL_KEY, res.clone());
+            }
+          }
+        } catch {
+          // Ignore individual asset failure during install precache
+        }
+      })
+    );
+  } catch {
+    // Ignore cache storage errors
+  }
+}
+
+async function cleanupStaleCaches() {
+  if (typeof caches === 'undefined' || typeof caches.keys !== 'function') return;
+  try {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((k) => k !== SHELL_CACHE && k !== RUNTIME_CACHE)
+        .map((k) => caches.delete(k))
+    );
+  } catch {
+    // Ignore cache cleanup errors
+  }
+}
+
+function stripRetryQueryParam(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (!u.searchParams.has('retry')) return null;
+    u.searchParams.delete('retry');
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function matchCachedWithRetryFallback(request) {
+  if (typeof caches === 'undefined' || typeof caches.match !== 'function') return undefined;
+  const exact = await caches.match(request);
+  if (exact) return exact;
+  const reqUrl = typeof request === 'string' ? request : request && request.url;
+  const stripped = reqUrl ? stripRetryQueryParam(reqUrl) : null;
+  if (stripped) {
+    return caches.match(stripped);
+  }
+  return undefined;
 }
 
 // -------------------------------------------------------------------------
@@ -33,19 +99,19 @@ function purgeAllSwCaches() {
 // -------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(purgeAllSwCaches());
+  event.waitUntil(precacheShellAssets());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    purgeAllSwCaches()
+    cleanupStaleCaches()
       .then(() => self.clients.claim())
       .catch(() => self.clients.claim())
   );
 });
 
 // -------------------------------------------------------------------------
-// 2. Network-Only Fetch Handler (No App or Asset Caching)
+// 2. Offline-Capable Fetch Handler (Shell + Runtime Cache)
 // -------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
   const request = event.request;
@@ -56,58 +122,121 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never intercept non-navigation fetches in Vite development mode;
-  // let the browser and Vite middleware fetch /src/*.tsx, deps, and modules directly.
-  if (SW_ENV === 'development' && request.mode !== 'navigate') {
+  if (request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
     return;
   }
 
-  // Pass-through API calls, version probe, service worker scripts, binary installers,
-  // ES modules/source files, and Vite dev internals directly to network
+  // Pass-through API calls, version probe, service worker scripts, HMR updates, and binary installers
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname === '/version.json' ||
-    url.pathname.startsWith('/@') ||
-    url.pathname.startsWith('/src/') ||
-    url.pathname.startsWith('/node_modules') ||
-    url.pathname.startsWith('/assets/js/') ||
-    url.pathname.startsWith('/assets/css/') ||
     url.pathname.includes('hot-update') ||
     url.pathname === '/sw.js' ||
     url.pathname === '/firebase-messaging-sw.js' ||
     url.pathname === '/sw-background-sync.js' ||
     url.pathname.startsWith('/assets/windows/') ||
     url.pathname.startsWith('/assets/android/') ||
-    /\.(?:ts|tsx|jsx|mjs)(?:$|\?)/i.test(url.pathname) ||
-    request.destination === 'script' ||
-    request.destination === 'style' ||
     BINARY_INSTALLER_EXT_RE.test(url.pathname)
   ) {
     return;
   }
 
-  if (request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
+  // Google Fonts: Cache-First with network fallback
+  if (url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com') {
+    event.respondWith(
+      (async () => {
+        const cached = await matchCachedWithRetryFallback(request);
+        if (cached) return cached;
+        try {
+          const res = await fetch(request);
+          if (res && (res.ok || res.type === 'opaque')) {
+            const cache = await caches.open(RUNTIME_CACHE);
+            await cache.put(request, res.clone());
+          }
+          return res;
+        } catch {
+          return cached || Response.error();
+        }
+      })()
+    );
     return;
   }
 
+  // Navigation requests: Network-First, caching shell under both URL and APP_SHELL_KEY
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request, { cache: 'no-store' }).catch(
-        () =>
-          new Response(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline Node - SarbaazSoft Shoe POS</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;padding:20px}.card{max-width:420px;width:100%;background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:24px;box-shadow:0 10px 25px rgba(15,23,42,.06);text-align:center}.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#FEF3C7;color:#B45309;margin-bottom:12px}h2{margin:0 0 8px;font-size:18px}p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.5}.queue{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;font-size:12px;color:#334155;margin-bottom:16px}button{border:0;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#9333EA,#4F46E5);cursor:pointer}</style></head><body><div class="card"><div class="badge">OFFLINE WORKER READY</div><h2>SarbaazSoft Shoe POS</h2><p>Internet connection is currently offline. Your locally queued sales remain safely stored and will sync automatically when reconnected.</p><div id="q" class="queue">Checking local offline queue...</div><button type="button" onclick="window.location.reload()">Reconnect Now</button></div><script>(function(){function show(n){var el=document.getElementById("q");if(el)el.textContent="Pending offline sales queued locally: "+n;}try{var req=indexedDB.open("ShoePosOfflineDB");req.onsuccess=function(){var db=req.result;if(!db.objectStoreNames.contains("offline_sales_queue")){show(0);return;}var tx=db.transaction("offline_sales_queue","readonly");var all=tx.objectStore("offline_sales_queue").getAll();all.onsuccess=function(){var rows=all.result||[];show(rows.filter(function(r){return r&&(r.status==="PENDING"||r.status==="FAILED");}).length);};all.onerror=function(){show(0);};};req.onerror=function(){show(0);};}catch(e){show(0);}window.addEventListener("online",function(){window.location.reload();});})();</script></body></html>',
-            { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-          )
-      )
+      (async () => {
+        try {
+          const res = await fetch(request, { cache: 'no-store' });
+          if (res && res.ok) {
+            const ct = String((res.headers && res.headers.get('content-type')) || '').toLowerCase();
+            if (!ct || ct.includes('text/html')) {
+              const cache = await caches.open(SHELL_CACHE);
+              await Promise.allSettled([
+                cache.put(request, res.clone()),
+                cache.put(APP_SHELL_KEY, res.clone()),
+              ]);
+            }
+          }
+          return res;
+        } catch {
+          const cached =
+            (await caches.match(request)) ||
+            (await caches.match(APP_SHELL_KEY)) ||
+            (await caches.match('/'));
+          if (cached) return cached;
+          return new Response(OFFLINE_FALLBACK_HTML, {
+            status: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          });
+        }
+      })()
     );
     return;
   }
 
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      fetch(request, { cache: 'no-store' }).catch(() => Response.error())
-    );
+  if (url.origin !== self.location.origin) {
+    return;
   }
+
+  // Production immutable content-hashed bundles: Cache-First
+  if (SW_ENV === 'production' && CONTENT_HASHED_ASSET_RE.test(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        const cached = await matchCachedWithRetryFallback(request);
+        if (cached) return cached;
+        try {
+          const res = await fetch(request, { cache: 'no-store' });
+          if (res && res.ok) {
+            const cache = await caches.open(RUNTIME_CACHE);
+            await cache.put(request, res.clone());
+          }
+          return res;
+        } catch {
+          return cached || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // Dev source modules (/src/*, /@*, /node_modules/*) & mutable same-origin assets: Network-First with offline cache fallback
+  event.respondWith(
+    (async () => {
+      try {
+        const res = await fetch(request, { cache: 'no-store' });
+        if (res && res.ok) {
+          const cache = await caches.open(RUNTIME_CACHE);
+          await cache.put(request, res.clone());
+        }
+        return res;
+      } catch {
+        const cached = await matchCachedWithRetryFallback(request);
+        if (cached) return cached;
+        return Response.error();
+      }
+    })()
+  );
 });
 
 // -------------------------------------------------------------------------
@@ -1011,6 +1140,16 @@ function applySwOfflineSchema(db) {
     catalogStore.createIndex('tenantId', 'tenantId', { unique: false });
     catalogStore.createIndex('barcode', 'barcode', { unique: false });
   }
+  if (!db.objectStoreNames.contains(STORE_RETURNS)) {
+    const returnsStore = db.createObjectStore(STORE_RETURNS, { keyPath: 'clientReturnId' });
+    returnsStore.createIndex('status', 'status', { unique: false });
+    returnsStore.createIndex('createdAt', 'createdAt', { unique: false });
+  }
+  if (!db.objectStoreNames.contains(STORE_SALES_CACHE)) {
+    const salesCacheStore = db.createObjectStore(STORE_SALES_CACHE, { keyPath: 'cacheKey' });
+    salesCacheStore.createIndex('tenantId', 'tenantId', { unique: false });
+    salesCacheStore.createIndex('invoiceNumber', 'invoiceNumber', { unique: false });
+  }
 }
 
 function attachSwDbVersionChange(db) {
@@ -1110,6 +1249,52 @@ function updateQueuedSaleInIDB(db, clientTxId, updates) {
   });
 }
 
+function getAllQueuedReturnsFromIDB(db) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (!db.objectStoreNames.contains(STORE_RETURNS)) {
+        resolve([]);
+        return;
+      }
+      const tx = db.transaction(STORE_RETURNS, 'readonly');
+      const store = tx.objectStore(STORE_RETURNS);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function updateQueuedReturnInIDB(db, clientReturnId, updates) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (!db.objectStoreNames.contains(STORE_RETURNS)) {
+        resolve(null);
+        return;
+      }
+      const tx = db.transaction(STORE_RETURNS, 'readwrite');
+      const store = tx.objectStore(STORE_RETURNS);
+      const getReq = store.get(clientReturnId);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (!existing) {
+          resolve(null);
+          return;
+        }
+        const updated = Object.assign({}, existing, updates);
+        const putReq = store.put(updated);
+        putReq.onsuccess = () => resolve(updated);
+        putReq.onerror = () => reject(putReq.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 async function isServerHealthy() {
   try {
     const controller = new AbortController();
@@ -1124,6 +1309,57 @@ async function isServerHealthy() {
   } catch {
     return false;
   }
+}
+
+function resolveSwSyncedSaleItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((i) => i && Number(i.id) > 0 && Number(i.productId || i.product_id) > 0)
+    .map((i) => ({
+      id: Number(i.id),
+      productId: Number(i.productId || i.product_id),
+    }));
+}
+
+function buildSwResolvedReturnItems(items, clientTxRef, origInv, syncedMap) {
+  const refKey =
+    clientTxRef ||
+    (typeof origInv === 'string' && origInv.startsWith('OFFLINE-')
+      ? origInv.replace(/\s*\(OFFLINE\)\s*$/i, '').trim()
+      : '');
+  const resolved = refKey ? syncedMap.get(refKey) : undefined;
+  return {
+    resolved,
+    items: (items || []).map((ri) => {
+      const pid = Number(ri.productId);
+      const matched = resolved ? resolved.items.find((si) => si.productId === pid) : undefined;
+      return {
+        saleItemId: matched ? matched.id : ri.saleItemId && Number(ri.saleItemId) > 0 ? Number(ri.saleItemId) : null,
+        productId: pid,
+        productName: ri.productName || ri.article,
+        article: ri.article || ri.productName,
+        quantity: Number(ri.quantity),
+        unitRefundPrice: Number(ri.unitRefundPrice || 0),
+        subtotal: ri.subtotal !== undefined ? ri.subtotal : Number(ri.quantity) * Number(ri.unitRefundPrice || 0),
+      };
+    }),
+  };
+}
+
+function isSwNetworkError(err) {
+  const msg = String((err && err.message) || err || 'Background sync error');
+  const lower = msg.toLowerCase();
+  return (
+    msg.includes('Failed to fetch') ||
+    msg.includes('Load failed') ||
+    msg.includes('NetworkError') ||
+    msg.includes('ERR_CONNECTION') ||
+    lower.includes('temporarily reconnecting') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('504') ||
+    msg.includes('abort')
+  );
 }
 
 async function processOfflineQueueFromSW(triggerSource) {
@@ -1158,92 +1394,225 @@ async function processOfflineQueueFromSW(triggerSource) {
 
   try {
     db = await openOfflineDB();
-    const allSales = await getAllQueuedSalesFromIDB(db);
-    const pendingSales = allSales
-      .filter((s) => s && (s.status === 'PENDING' || s.status === 'FAILED'))
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const [allSales, allReturns] = await Promise.all([
+      getAllQueuedSalesFromIDB(db),
+      getAllQueuedReturnsFromIDB(db),
+    ]);
 
-    if (pendingSales.length === 0) {
+    const syncedByClientTxId = new Map();
+    for (const s of allSales) {
+      if (s && s.status === 'SYNCED' && s.syncedSaleId) {
+        syncedByClientTxId.set(s.clientTxId, {
+          saleId: Number(s.syncedSaleId),
+          invoiceNumber: s.syncedInvoiceNumber,
+          items: resolveSwSyncedSaleItems(s.syncedItems),
+        });
+      }
+    }
+
+    const tasks = [
+      ...allSales
+        .filter((s) => s && (s.status === 'PENDING' || s.status === 'FAILED'))
+        .map((sale) => ({ kind: 'SALE', createdAt: new Date(sale.createdAt).getTime(), sale })),
+      ...allReturns
+        .filter((r) => r && (r.status === 'PENDING' || r.status === 'FAILED'))
+        .map((ret) => ({ kind: 'RETURN', createdAt: new Date(ret.createdAt).getTime(), ret })),
+    ].sort((a, b) => a.createdAt - b.createdAt);
+
+    if (tasks.length === 0) {
       return;
     }
 
-    for (const sale of pendingSales) {
-      const authToken = sale.authToken || cachedAuthContext.token;
-      if (!authToken) continue;
+    for (const task of tasks) {
+      if (task.kind === 'SALE') {
+        const sale = task.sale;
+        const authToken = sale.authToken || cachedAuthContext.token;
+        if (!authToken) continue;
 
-      try {
-        await updateQueuedSaleInIDB(db, sale.clientTxId, { status: 'SYNCING' });
+        try {
+          await updateQueuedSaleInIDB(db, sale.clientTxId, { status: 'SYNCING' });
 
-        const headers = {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-          'X-Auth-Token': authToken,
-        };
-        const targetTenantId = sale.tenantId || cachedAuthContext.tenantId;
-        if (targetTenantId) {
-          headers['X-Tenant-Id'] = String(targetTenantId);
+          const headers = {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+            'X-Auth-Token': authToken,
+          };
+          const targetTenantId = sale.tenantId || cachedAuthContext.tenantId;
+          if (targetTenantId) {
+            headers['X-Tenant-Id'] = String(targetTenantId);
+          }
+
+          let exchangePayload = null;
+          if (sale.exchange && Array.isArray(sale.exchange.items) && sale.exchange.items.length > 0) {
+            const ex = sale.exchange;
+            const resolvedEx = buildSwResolvedReturnItems(
+              ex.items,
+              ex.originalClientTxId,
+              ex.originalInvoiceNumber,
+              syncedByClientTxId
+            );
+            exchangePayload = {
+              originalSaleId: resolvedEx.resolved
+                ? resolvedEx.resolved.saleId
+                : ex.originalSaleId && Number(ex.originalSaleId) > 0
+                ? Number(ex.originalSaleId)
+                : 0,
+              originalInvoiceNumber: (resolvedEx.resolved && resolvedEx.resolved.invoiceNumber) || ex.originalInvoiceNumber,
+              originalSaleDate: ex.originalSaleDate,
+              customerId: ex.customerId ?? null,
+              mode: ex.mode,
+              reason: ex.reason,
+              isExchange: ex.isExchange,
+              isStandaloneExchange: ex.isStandaloneExchange,
+              items: resolvedEx.items,
+            };
+          }
+
+          const payload = {
+            clientTxId: sale.clientTxId,
+            saleDate: sale.createdAt,
+            items: (sale.items || []).map((i) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              discount: i.discount,
+              ...(i.packingType ? { packingType: i.packingType } : {}),
+              ...(i.cartonQuantity !== undefined ? { cartonQuantity: i.cartonQuantity } : {}),
+              ...(i.pairsPerCarton !== undefined ? { pairsPerCarton: i.pairsPerCarton } : {}),
+            })),
+            customerId: sale.customerId,
+            paymentMethod: sale.paymentMethod,
+            ...(sale.splitCashAmount !== undefined ? { splitCashAmount: sale.splitCashAmount } : {}),
+            ...(sale.splitOnlineAmount !== undefined ? { splitOnlineAmount: sale.splitOnlineAmount } : {}),
+            ...(sale.splitDigitalType ? { splitDigitalType: sale.splitDigitalType } : {}),
+            transactionId: sale.transactionId,
+            ...(sale.saleType ? { saleType: sale.saleType } : {}),
+            ...(sale.totalCartons !== undefined ? { totalCartons: sale.totalCartons } : {}),
+            ...(sale.previousBalance !== undefined ? { previousBalance: sale.previousBalance } : {}),
+            ...(sale.paidAmount !== undefined ? { paidAmount: sale.paidAmount } : {}),
+            ...(sale.amountReceived !== undefined ? { amountReceived: sale.amountReceived } : {}),
+            ...(sale.remainingBalance !== undefined ? { remainingBalance: sale.remainingBalance } : {}),
+            cashReceived: sale.cashReceived,
+            changeGiven: sale.changeGiven,
+            notes: sale.notes,
+            isMinPriceOverridden: Boolean(sale.isMinPriceOverridden),
+            adminOverrideEmail: sale.adminOverrideEmail || null,
+            adminOverridePassword: sale.adminOverridePassword || null,
+            exchange: exchangePayload,
+          };
+
+          const res = await fetch('/api/pos/checkout', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          const syncedInvoice = (data && data.sale && data.sale.invoiceNumber) || (data && data.sale && data.sale.invoice_number) || data.invoiceNumber;
+          const syncedSaleId = data && data.sale && data.sale.id ? Number(data.sale.id) : undefined;
+          const syncedItems = resolveSwSyncedSaleItems((data && data.sale && data.sale.items) || []);
+          if (syncedSaleId) {
+            syncedByClientTxId.set(sale.clientTxId, {
+              saleId: syncedSaleId,
+              invoiceNumber: syncedInvoice,
+              items: syncedItems,
+            });
+          }
+
+          await updateQueuedSaleInIDB(db, sale.clientTxId, {
+            status: 'SYNCED',
+            syncedInvoiceNumber: syncedInvoice,
+            syncedSaleId,
+            syncedItems,
+            syncedAt: new Date().toISOString(),
+            errorMessage: undefined,
+          });
+          synced++;
+        } catch (err) {
+          const msg = String((err && err.message) || err || 'Background sync error');
+          const isNetErr = isSwNetworkError(err);
+          await updateQueuedSaleInIDB(db, sale.clientTxId, {
+            status: isNetErr ? 'PENDING' : 'FAILED',
+            errorMessage: isNetErr ? 'Server offline (will auto-retry on reconnect)' : msg,
+          });
+          failed++;
+          if (isNetErr) {
+            throw err;
+          }
         }
+      } else {
+        const ret = task.ret;
+        const authToken = ret.authToken || cachedAuthContext.token;
+        if (!authToken) continue;
 
-        const payload = {
-          clientTxId: sale.clientTxId,
-          saleDate: sale.createdAt,
-          items: (sale.items || []).map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            discount: i.discount,
-          })),
-          customerId: sale.customerId,
-          paymentMethod: sale.paymentMethod,
-          transactionId: sale.transactionId,
-          cashReceived: sale.cashReceived,
-          changeGiven: sale.changeGiven,
-          notes: sale.notes,
-          isMinPriceOverridden: Boolean(sale.isMinPriceOverridden),
-          adminOverrideEmail: sale.adminOverrideEmail || null,
-          adminOverridePassword: sale.adminOverridePassword || null,
-          exchange: sale.exchange || null,
-        };
+        try {
+          await updateQueuedReturnInIDB(db, ret.clientReturnId, { status: 'SYNCING' });
 
-        const res = await fetch('/api/pos/checkout', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload),
-        });
+          const headers = {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+            'X-Auth-Token': authToken,
+          };
+          const targetTenantId = ret.tenantId || cachedAuthContext.tenantId;
+          if (targetTenantId) {
+            headers['X-Tenant-Id'] = String(targetTenantId);
+          }
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
-        }
+          const resolvedRet = buildSwResolvedReturnItems(
+            ret.items,
+            ret.originalClientTxId,
+            ret.originalInvoiceNumber,
+            syncedByClientTxId
+          );
+          const originalSaleId = resolvedRet.resolved
+            ? resolvedRet.resolved.saleId
+            : ret.originalSaleId && Number(ret.originalSaleId) > 0
+            ? Number(ret.originalSaleId)
+            : null;
 
-        const data = await res.json();
-        await updateQueuedSaleInIDB(db, sale.clientTxId, {
-          status: 'SYNCED',
-          syncedInvoiceNumber: (data && data.sale && data.sale.invoiceNumber) || data.invoiceNumber,
-          syncedAt: new Date().toISOString(),
-          errorMessage: undefined,
-        });
-        synced++;
-      } catch (err) {
-        const msg = String((err && err.message) || err || 'Background sync error');
-        const lower = msg.toLowerCase();
-        const isNetErr =
-          msg.includes('Failed to fetch') ||
-          msg.includes('Load failed') ||
-          msg.includes('NetworkError') ||
-          msg.includes('ERR_CONNECTION') ||
-          lower.includes('temporarily reconnecting') ||
-          msg.includes('502') ||
-          msg.includes('503') ||
-          msg.includes('504') ||
-          msg.includes('abort');
-        await updateQueuedSaleInIDB(db, sale.clientTxId, {
-          status: isNetErr ? 'PENDING' : 'FAILED',
-          errorMessage: isNetErr ? 'Server offline (will auto-retry on reconnect)' : msg,
-        });
-        failed++;
-        if (isNetErr) {
-          throw err;
+          const res = await fetch('/api/returns', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              originalSaleId,
+              saleId: originalSaleId,
+              customerId: ret.customerId ?? null,
+              customerName: ret.customerName,
+              paymentMethod: ret.paymentMethod,
+              reason: ret.reason || 'Customer Return',
+              items: resolvedRet.items,
+            }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          await updateQueuedReturnInIDB(db, ret.clientReturnId, {
+            status: 'SYNCED',
+            syncedReturnNumber: data && (data.returnNumber || data.return_number),
+            syncedAt: new Date().toISOString(),
+            errorMessage: undefined,
+          });
+          synced++;
+        } catch (err) {
+          const msg = String((err && err.message) || err || 'Background sync error');
+          const isNetErr = isSwNetworkError(err);
+          await updateQueuedReturnInIDB(db, ret.clientReturnId, {
+            status: isNetErr ? 'PENDING' : 'FAILED',
+            errorMessage: isNetErr ? 'Server offline (will auto-retry on reconnect)' : msg,
+          });
+          failed++;
+          if (isNetErr) {
+            throw err;
+          }
         }
       }
     }

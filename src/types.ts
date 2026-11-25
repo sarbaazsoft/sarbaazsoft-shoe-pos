@@ -518,6 +518,7 @@ export interface ExchangeItem {
 
 export interface ActiveExchange {
   originalSaleId: number;
+  originalClientTxId?: string | null;
   originalInvoiceNumber: string;
   originalSaleDate?: string;
   customerId?: number | null;

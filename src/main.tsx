@@ -8,13 +8,6 @@ import { registerViteChunkErrorRecovery } from './utils/swUpdate.ts';
 registerViteChunkErrorRecovery();
 
 if (typeof window !== 'undefined') {
-  // Always clear any leftover Service Worker Cache Storage buckets so assets remain uncached
-  if ('caches' in window && typeof window.caches?.keys === 'function') {
-    window.caches
-      .keys()
-      .then((keys) => Promise.all(keys.map((k) => window.caches.delete(k))))
-      .catch(() => {});
-  }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
       .then((reg) => {
