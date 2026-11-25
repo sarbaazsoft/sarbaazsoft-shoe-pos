@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette, FileText } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette, FileText, RotateCcw } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { LicenseAgreementModal } from '../common/LicenseAgreementModal.tsx';
 import { lazyWithRetry } from '../../utils/lazyWithRetry.ts';
@@ -17,9 +17,15 @@ import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator.t
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip.tsx';
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 const NotificationAlertProvidersSettings = lazyWithRetry(() => import('./NotificationAlertProvidersSettings.tsx'), (m) => m.NotificationAlertProvidersSettings, '/src/components/settings/NotificationAlertProvidersSettings.tsx');
+import type { FcmProviderSettingsState } from './NotificationAlertProvidersSettings.tsx';
 const StoreNotificationPreferencesCard = lazyWithRetry(() => import('./StoreNotificationPreferencesCard.tsx'), (m) => m.StoreNotificationPreferencesCard, '/src/components/settings/StoreNotificationPreferencesCard.tsx');
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
+import {
+  useUnsavedChanges,
+  useRegisterUnsavedScope,
+  areSnapshotsEqual,
+} from '../../context/UnsavedChangesContext.tsx';
 import { CenteredLoadingSpinner, SettingsTabSkeleton } from '../common/RouteSkeletons.tsx';
 import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
 import {
@@ -221,6 +227,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const isCashier = userRole === 'CASHIER';
   const isAdmin = isStoreAdmin;
 
+  const { dirtyScopes, requestNavigation, isDialogOpen: isUnsavedDialogOpen } = useUnsavedChanges();
+
   // Strict role-based active tab initialization:
   // - Platform Owner (SUPERADMIN): app-level configs + notifications + appearance
   // - Store Owner (ADMIN): store management tabs + notifications + appearance
@@ -244,77 +252,125 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
     return 'store';
   });
+  const activeTabRef = useRef<SettingsTabId>(activeTab);
+  activeTabRef.current = activeTab;
+  const isRouteActiveRef = useRef(isRouteActive);
+  isRouteActiveRef.current = isRouteActive;
+  const isUnsavedDialogOpenRef = useRef(isUnsavedDialogOpen);
+  isUnsavedDialogOpenRef.current = isUnsavedDialogOpen;
+
   const settingsTabDirection = useTabDirection(
     activeTab,
     ['store', 'users', 'app_settings', 'notifications', 'appearance', 'backup', 'install', 'printers'] as const
   );
 
-  const handleSelectTab = (tab: SettingsTabId) => {
+  const resolveSettingsTabForRole = useCallback((tab: SettingsTabId): SettingsTabId => {
     if (isSuperAdmin) {
       if (tab === 'appearance' || ['app_settings', 'notifications', 'backup', 'install'].includes(tab)) {
-        setActiveTab(tab);
-      } else {
-        setActiveTab('app_settings');
+        return tab;
       }
-      return;
+      return 'app_settings';
     }
     if (isCashier) {
-      setActiveTab(tab === 'appearance' ? 'appearance' : 'printers');
-      return;
+      return tab === 'appearance' ? 'appearance' : 'printers';
     }
-    // Store Admin (ADMIN)
     if (tab === 'appearance' || ['store', 'users', 'notifications', 'printers'].includes(tab)) {
-      setActiveTab(tab);
-    } else {
-      setActiveTab('store');
+      return tab;
     }
-  };
+    return 'store';
+  }, [isSuperAdmin, isCashier]);
+
+  const applySelectTab = useCallback((tab: SettingsTabId) => {
+    setActiveTab(resolveSettingsTabForRole(tab));
+  }, [resolveSettingsTabForRole]);
+
+  const handleSelectTab = useCallback((tab: SettingsTabId) => {
+    const resolved = resolveSettingsTabForRole(tab);
+    if (resolved === activeTabRef.current) return;
+    void requestNavigation(() => {
+      setActiveTab(resolved);
+    });
+  }, [resolveSettingsTabForRole, requestNavigation]);
 
   const { containerRef: settingsTabContainerRef } = useScrollActiveTab<HTMLDivElement>(activeTab, {
     padding: 16,
     behavior: 'smooth',
   });
 
+  const prevInitialTabRef = useRef(initialTab);
   useEffect(() => {
+    const prevInitial = prevInitialTabRef.current;
+    prevInitialTabRef.current = initialTab;
+    const initialChanged = prevInitial !== initialTab;
+
     if (isSuperAdmin) {
       if (initialTab && (initialTab === 'appearance' || ['app_settings', 'notifications', 'backup', 'install'].includes(initialTab))) {
-        setActiveTab(initialTab);
-      } else if (activeTab !== 'appearance' && !['app_settings', 'notifications', 'backup', 'install'].includes(activeTab)) {
+        if (initialChanged && initialTab !== activeTabRef.current) {
+          if (isRouteActiveRef.current && !isUnsavedDialogOpenRef.current) {
+            void requestNavigation(() => setActiveTab(initialTab));
+          } else if (!isRouteActiveRef.current) {
+            setActiveTab(initialTab);
+          }
+        }
+      } else if (activeTabRef.current !== 'appearance' && !['app_settings', 'notifications', 'backup', 'install'].includes(activeTabRef.current)) {
         setActiveTab('app_settings');
       }
     } else if (isCashier) {
-      if (initialTab === 'appearance') {
-        setActiveTab('appearance');
-      } else if (activeTab !== 'printers' && activeTab !== 'appearance') {
+      if (initialTab === 'appearance' || initialTab === 'printers') {
+        if (initialChanged && initialTab !== activeTabRef.current) {
+          if (isRouteActiveRef.current && !isUnsavedDialogOpenRef.current) {
+            void requestNavigation(() => setActiveTab(initialTab));
+          } else if (!isRouteActiveRef.current) {
+            setActiveTab(initialTab);
+          }
+        }
+      } else if (activeTabRef.current !== 'printers' && activeTabRef.current !== 'appearance') {
         setActiveTab('printers');
       }
     } else {
       // Store Admin (ADMIN)
       if (initialTab && (initialTab === 'appearance' || ['store', 'users', 'notifications', 'printers'].includes(initialTab))) {
-        setActiveTab(initialTab);
-      } else if (activeTab !== 'appearance' && !['store', 'users', 'notifications', 'printers'].includes(activeTab)) {
+        if (initialChanged && initialTab !== activeTabRef.current) {
+          if (isRouteActiveRef.current && !isUnsavedDialogOpenRef.current) {
+            void requestNavigation(() => setActiveTab(initialTab));
+          } else if (!isRouteActiveRef.current) {
+            setActiveTab(initialTab);
+          }
+        }
+      } else if (activeTabRef.current !== 'appearance' && !['store', 'users', 'notifications', 'printers'].includes(activeTabRef.current)) {
         setActiveTab('store');
       }
     }
-  }, [isSuperAdmin, isStoreAdmin, isCashier, initialTab]);
+  }, [isSuperAdmin, isStoreAdmin, isCashier, initialTab, requestNavigation]);
 
   useEffect(() => {
     const handleNavigateSettingsTab = (event: any) => {
       const requested = event?.detail?.tab as SettingsTabId | undefined;
       if (!requested) return;
-      if (requested === 'appearance') {
-        setActiveTab('appearance');
-        return;
+      if (requested !== 'appearance') {
+        if (isSuperAdmin && !['app_settings', 'notifications', 'backup', 'install'].includes(requested)) {
+          return;
+        }
+        if (isStoreAdmin && !['store', 'users', 'notifications', 'printers'].includes(requested)) {
+          return;
+        }
+        if (isCashier && requested !== 'printers') {
+          return;
+        }
       }
-      if (isSuperAdmin && ['app_settings', 'notifications', 'backup', 'install'].includes(requested)) {
-        setActiveTab(requested);
-      } else if (isStoreAdmin && ['store', 'users', 'notifications', 'printers'].includes(requested)) {
-        setActiveTab(requested);
+      const resolved = resolveSettingsTabForRole(requested);
+      if (resolved === activeTabRef.current) return;
+      if (isRouteActiveRef.current) {
+        if (!isUnsavedDialogOpenRef.current) {
+          void requestNavigation(() => setActiveTab(resolved));
+        }
+      } else {
+        setActiveTab(resolved);
       }
     };
     window.addEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
     return () => window.removeEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
-  }, [isSuperAdmin, isStoreAdmin]);
+  }, [isSuperAdmin, isStoreAdmin, isCashier, resolveSettingsTabForRole, requestNavigation]);
 
   // Store Subscription Info State
   const extractSubInfo = (src: any) => {
@@ -530,39 +586,82 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   // Store Settings Form
-  const [formData, setFormData] = useState({
-    company_name: companySettings?.company_name || companySettings?.companyName || companySettings?.name || '',
-    company_phone: companySettings?.company_phone || companySettings?.companyPhone || companySettings?.phone || '',
-    company_email: companySettings?.company_email || companySettings?.companyEmail || companySettings?.email || '',
-    company_address: companySettings?.company_address || companySettings?.companyAddress || companySettings?.address || '',
-    strn: companySettings?.strn || '',
-    tax_id: companySettings?.tax_id || companySettings?.taxId || companySettings?.tax_number || companySettings?.taxNumber || '',
-    website: companySettings?.website || '',
-    logo: companySettings?.logo || '',
-    show_receipt_logo: Boolean(companySettings?.show_receipt_logo ?? companySettings?.showReceiptLogo ?? false),
-    receipt_logo: companySettings?.receipt_logo || companySettings?.receiptLogo || companySettings?.logo || '',
+  const STORE_EDITABLE_KEYS = [
+    'company_name',
+    'company_phone',
+    'company_email',
+    'company_address',
+    'strn',
+    'tax_id',
+    'website',
+    'logo',
+    'show_receipt_logo',
+    'receipt_logo',
+    'currency_name',
+    'currency_symbol',
+    'currency',
+    'business_type',
+    'allow_half_carton',
+    'invoice_footer',
+    'low_stock_threshold',
+    'pricingMode',
+  ] as const;
 
-    currency_name: companySettings?.currency_name || companySettings?.currencyName || 'Pakistani Rupee',
-    currency_symbol: companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.',
-
-
-    currency: companySettings?.currency || 'PKR',
-    business_type: String(companySettings?.business_type || companySettings?.businessType || 'RETAIL').toUpperCase() as 'RETAIL' | 'WHOLESALE',
+  const buildStoreFormState = (src: any, sub: ReturnType<typeof extractSubInfo>, defaultFooter = '') => ({
+    company_name: src?.company_name || src?.companyName || src?.name || '',
+    company_phone: src?.company_phone || src?.companyPhone || src?.phone || '',
+    company_email: src?.company_email || src?.companyEmail || src?.email || '',
+    company_address: src?.company_address || src?.companyAddress || src?.address || '',
+    strn: src?.strn || '',
+    tax_id: src?.tax_id || src?.taxId || src?.tax_number || src?.taxNumber || '',
+    website: src?.website || '',
+    logo: src?.logo || '',
+    show_receipt_logo: Boolean(src?.show_receipt_logo ?? src?.showReceiptLogo ?? false),
+    receipt_logo: src?.receipt_logo || src?.receiptLogo || src?.logo || '',
+    currency_name: src?.currency_name || src?.currencyName || 'Pakistani Rupee',
+    currency_symbol: src?.currency_symbol || src?.currencySymbol || 'Rs.',
+    currency: src?.currency || 'PKR',
+    business_type: (
+      String(src?.business_type || src?.businessType || 'RETAIL').toUpperCase() === 'WHOLESALE'
+        ? 'WHOLESALE'
+        : 'RETAIL'
+    ) as 'RETAIL' | 'WHOLESALE',
     allow_half_carton: (
-      companySettings?.allow_half_carton !== undefined
-        ? Boolean(companySettings.allow_half_carton)
-        : (companySettings?.allowHalfCarton !== undefined
-            ? Boolean(companySettings.allowHalfCarton)
+      src?.allow_half_carton !== undefined
+        ? Boolean(src.allow_half_carton)
+        : (src?.allowHalfCarton !== undefined
+            ? Boolean(src.allowHalfCarton)
             : true)
     ),
-    invoice_footer: companySettings?.invoice_footer || companySettings?.invoiceFooter || 'Exchanges accepted within 7 days with original sales receipt. Thank you for shopping with us!',
-    low_stock_threshold: Number(companySettings?.low_stock_threshold ?? companySettings?.lowStockThreshold ?? 5) || 5,
-    pricingMode: (companySettings?.pricingMode || 'FIXED').toUpperCase(),
-    subscription_plan: extractSubInfo(companySettings).subscriptionPlan,
-    subscription_start_date: extractSubInfo(companySettings).subscriptionStartDate,
-    subscription_end_date: extractSubInfo(companySettings).subscriptionEndDate,
-    subscription_status: extractSubInfo(companySettings).subscriptionStatus,
+    invoice_footer: src?.invoice_footer || src?.invoiceFooter || defaultFooter,
+    low_stock_threshold: Number(src?.low_stock_threshold ?? src?.lowStockThreshold ?? 5) || 5,
+    pricingMode: String(src?.pricingMode || 'FIXED').toUpperCase(),
+    subscription_plan: sub.subscriptionPlan,
+    subscription_start_date: sub.subscriptionStartDate,
+    subscription_end_date: sub.subscriptionEndDate,
+    subscription_status: sub.subscriptionStatus,
   });
+
+  const [formData, setFormData] = useState(() =>
+    buildStoreFormState(
+      companySettings,
+      extractSubInfo(companySettings),
+      'Exchanges accepted within 7 days with original sales receipt. Thank you for shopping with us!'
+    )
+  );
+  const [savedStoreForm, setSavedStoreForm] = useState(() =>
+    buildStoreFormState(
+      companySettings,
+      extractSubInfo(companySettings),
+      'Exchanges accepted within 7 days with original sales receipt. Thank you for shopping with us!'
+    )
+  );
+  const isStoreDirty = useMemo(
+    () => STORE_EDITABLE_KEYS.some((key) => !areSnapshotsEqual(formData[key], savedStoreForm[key])),
+    [formData, savedStoreForm]
+  );
+  const isStoreDirtyRef = useRef(isStoreDirty);
+  isStoreDirtyRef.current = isStoreDirty;
   const [isCorePosLocked, setIsCorePosLocked] = useState<boolean>(
     Boolean(companySettings?.onboardingCompleted ?? true)
   );
@@ -583,39 +682,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSubscriptionInfo(mergedSub);
 
       if (s) {
-        setFormData({
-          company_name: s?.company_name || s?.companyName || s?.name || '',
-          company_phone: s?.company_phone || s?.companyPhone || s?.phone || '',
-          company_email: s?.company_email || s?.companyEmail || s?.email || '',
-          company_address: s?.company_address || s?.companyAddress || s?.address || '',
-          strn: s?.strn || '',
-          tax_id: s?.tax_id || s?.taxId || s?.tax_number || s?.taxNumber || '',
-          website: s?.website || '',
-          logo: s?.logo || '',
-          show_receipt_logo: Boolean(s?.show_receipt_logo ?? s?.showReceiptLogo ?? false),
-          receipt_logo: s?.receipt_logo || s?.receiptLogo || s?.logo || '',
-
-          currency_name: s?.currency_name || s?.currencyName || 'Pakistani Rupee',
-          currency_symbol: s?.currency_symbol || s?.currencySymbol || 'Rs.',
-
-
-          currency: s?.currency || 'PKR',
-          business_type: String(s?.business_type || s?.businessType || 'RETAIL').toUpperCase() as 'RETAIL' | 'WHOLESALE',
-          allow_half_carton: (
-            s?.allow_half_carton !== undefined
-              ? Boolean(s.allow_half_carton)
-              : (s?.allowHalfCarton !== undefined
-                  ? Boolean(s.allowHalfCarton)
-                  : true)
-          ),
-          invoice_footer: s?.invoice_footer || s?.invoiceFooter || '',
-          low_stock_threshold: Number(s?.low_stock_threshold ?? s?.lowStockThreshold ?? 5) || 5,
-          pricingMode: (s?.pricingMode || 'FIXED').toUpperCase(),
-          subscription_plan: mergedSub.subscriptionPlan,
-          subscription_start_date: mergedSub.subscriptionStartDate,
-          subscription_end_date: mergedSub.subscriptionEndDate,
-          subscription_status: mergedSub.subscriptionStatus,
-        });
+        const nextForm = buildStoreFormState(s, mergedSub, '');
+        setSavedStoreForm(nextForm);
+        if (!isStoreDirtyRef.current) {
+          setFormData(nextForm);
+        }
         setIsCorePosLocked(Boolean(s?.onboardingCompleted ?? true));
       }
     });
@@ -629,47 +700,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const nextSub = extractSubInfo(companySettings);
       setSubscriptionInfo(nextSub);
       setIsCorePosLocked(Boolean(companySettings?.onboardingCompleted ?? true));
-      setFormData({
-        company_name: companySettings?.company_name || companySettings?.companyName || companySettings?.name || '',
-        company_phone: companySettings?.company_phone || companySettings?.companyPhone || companySettings?.phone || '',
-        company_email: companySettings?.company_email || companySettings?.companyEmail || companySettings?.email || '',
-        company_address: companySettings?.company_address || companySettings?.companyAddress || companySettings?.address || '',
-        strn: companySettings?.strn || '',
-        tax_id: companySettings?.tax_id || companySettings?.taxId || companySettings?.tax_number || companySettings?.taxNumber || '',
-        website: companySettings?.website || '',
-        logo: companySettings?.logo || '',
-        show_receipt_logo: Boolean(companySettings?.show_receipt_logo ?? companySettings?.showReceiptLogo ?? false),
-        receipt_logo: companySettings?.receipt_logo || companySettings?.receiptLogo || companySettings?.logo || '',
-
-        currency_name: companySettings?.currency_name || companySettings?.currencyName || 'Pakistani Rupee',
-        currency_symbol: companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.',
-
-
-        currency: companySettings?.currency || 'PKR',
-        business_type: String(
-          companySettings?.business_type || companySettings?.businessType || 'RETAIL'
-        ).toUpperCase() === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL',
-        allow_half_carton: (
-          companySettings?.allow_half_carton !== undefined
-            ? Boolean(companySettings.allow_half_carton)
-            : (companySettings?.allowHalfCarton !== undefined
-                ? Boolean(companySettings.allowHalfCarton)
-                : true)
-        ),
-        invoice_footer: companySettings?.invoice_footer || companySettings?.invoiceFooter || '',
-        low_stock_threshold: Number(companySettings?.low_stock_threshold ?? companySettings?.lowStockThreshold ?? 5) || 5,
-        pricingMode: String(companySettings?.pricingMode || 'FIXED').toUpperCase(),
-        subscription_plan: nextSub.subscriptionPlan,
-        subscription_start_date: nextSub.subscriptionStartDate,
-        subscription_end_date: nextSub.subscriptionEndDate,
-        subscription_status: nextSub.subscriptionStatus,
-      });
+      const nextForm = buildStoreFormState(companySettings, nextSub, '');
+      setSavedStoreForm(nextForm);
+      if (!isStoreDirtyRef.current) {
+        setFormData(nextForm);
+      }
     }
   }, [companySettings]);
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   // Active Free Trial Determination
   const effectiveSubPlan =
@@ -836,9 +878,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [usersList, setUsersList] = useState<any[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isAddUserModalDirty, setIsAddUserModalDirty] = useState(false);
+  const [pendingUserEdits, setPendingUserEdits] = useState<
+    Record<number, { role?: 'ADMIN' | 'CASHIER'; status?: 'APPROVED' | 'PENDING' }>
+  >({});
+  const [isSavingStaffChanges, setIsSavingStaffChanges] = useState(false);
+  const [staffSaveError, setStaffSaveError] = useState<string | null>(null);
+  const [staffSaveSuccess, setStaffSaveSuccess] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [deleteUserError, setDeleteUserError] = useState<string | null>(null);
+
+  const isStaffDirty = useMemo(
+    () => Object.keys(pendingUserEdits).length > 0 || isAddUserModalDirty,
+    [pendingUserEdits, isAddUserModalDirty]
+  );
 
   // Server Installation Status & Lockdown
   const [installStatus, setInstallStatus] = useState<any | null>(null);
@@ -849,10 +903,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isResettingInstall, setIsResettingInstall] = useState(false);
   const [isLockingInstall, setIsLockingInstall] = useState(false);
   const [dropTablesOnUnlock, setDropTablesOnUnlock] = useState(false);
+  const [isDropConfirmPending, setIsDropConfirmPending] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const isInstallDirty = resetPasswordInput.length > 0 || dropTablesOnUnlock;
 
   // Overall settings refresh state & guards
-  const [appSettingsForm, setAppSettingsForm] = useState<Record<string, string>>({
+  const SUPERADMIN_NOTIF_TRIGGER_KEYS = [
+    'SUPERADMIN_PUSH_ON_NEW_TRIAL',
+    'SUPERADMIN_PUSH_ON_RENEWAL',
+    'SUPERADMIN_PUSH_ON_EXPIRED_STORE',
+    'SUPERADMIN_PUSH_ON_SECURITY_ALERT',
+    'SUPERADMIN_PUSH_ON_SALES',
+  ] as const;
+
+  const SUPERADMIN_APP_CONFIG_KEYS = [
+    'ACTIVE_EMAIL_PROVIDER',
+    'RESEND_API_KEY',
+    'RESEND_FROM',
+    'RESEND_FROM_EMAIL',
+    'GMAIL_USER',
+    'GMAIL_FROM_NAME',
+    'GMAIL_APP_PASSWORD',
+    'EMAIL_WEBHOOK_URL',
+    'RESEND_WEBHOOK_URL',
+    'REQUIRE_EMAIL_VERIFICATION_FOR_FREE_TRIAL',
+    'EMAIL_POS_ALERTS_ENABLED',
+    'EMAIL_SUPERADMIN_ON_SALES',
+    'FCM_PROJECT_ID',
+    'FCM_CLIENT_EMAIL',
+    'FCM_PRIVATE_KEY',
+    'FCM_API_KEY',
+    'FCM_MESSAGING_SENDER_ID',
+    'FCM_APP_ID',
+    'FCM_MEASUREMENT_ID',
+    'FCM_VAPID_KEY',
+    'DISABLE_HMR',
+  ] as const;
+
+  const DEFAULT_APP_SETTINGS_FORM: Record<string, string> = {
     ACTIVE_EMAIL_PROVIDER: 'resend',
     RESEND_API_KEY: '',
     RESEND_FROM: 'SarbaazSoft Shoe POS Security <onboarding@resend.dev>',
@@ -879,7 +967,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     FCM_MEASUREMENT_ID: '',
     FCM_VAPID_KEY: '',
     DISABLE_HMR: 'false',
-  });
+  };
+
+  const [appSettingsForm, setAppSettingsForm] = useState<Record<string, string>>(() => ({
+    ...DEFAULT_APP_SETTINGS_FORM,
+  }));
+  const [savedAppSettings, setSavedAppSettings] = useState<Record<string, string>>(() => ({
+    ...DEFAULT_APP_SETTINGS_FORM,
+  }));
+
+  const isAppConfigDirty = useMemo(
+    () =>
+      SUPERADMIN_APP_CONFIG_KEYS.some(
+        (key) => String(appSettingsForm[key] ?? '') !== String(savedAppSettings[key] ?? '')
+      ),
+    [appSettingsForm, savedAppSettings]
+  );
+
+  const isSuperAdminNotifDirty = useMemo(
+    () =>
+      SUPERADMIN_NOTIF_TRIGGER_KEYS.some(
+        (key) => String(appSettingsForm[key] ?? '') !== String(savedAppSettings[key] ?? '')
+      ),
+    [appSettingsForm, savedAppSettings]
+  );
+
+  const fcmDraftSnapshot = useMemo<FcmProviderSettingsState>(
+    () => ({
+      FCM_PROJECT_ID: appSettingsForm.FCM_PROJECT_ID ?? '',
+      FCM_CLIENT_EMAIL: appSettingsForm.FCM_CLIENT_EMAIL ?? '',
+      FCM_PRIVATE_KEY: appSettingsForm.FCM_PRIVATE_KEY ?? '',
+      FCM_API_KEY: appSettingsForm.FCM_API_KEY ?? '',
+      FCM_MESSAGING_SENDER_ID: appSettingsForm.FCM_MESSAGING_SENDER_ID ?? '',
+      FCM_APP_ID: appSettingsForm.FCM_APP_ID ?? '',
+      FCM_MEASUREMENT_ID: appSettingsForm.FCM_MEASUREMENT_ID ?? '',
+      FCM_VAPID_KEY: appSettingsForm.FCM_VAPID_KEY ?? '',
+    }),
+    [appSettingsForm]
+  );
+
+  const savedFcmSnapshot = useMemo<FcmProviderSettingsState>(
+    () => ({
+      FCM_PROJECT_ID: savedAppSettings.FCM_PROJECT_ID ?? '',
+      FCM_CLIENT_EMAIL: savedAppSettings.FCM_CLIENT_EMAIL ?? '',
+      FCM_PRIVATE_KEY: savedAppSettings.FCM_PRIVATE_KEY ?? '',
+      FCM_API_KEY: savedAppSettings.FCM_API_KEY ?? '',
+      FCM_MESSAGING_SENDER_ID: savedAppSettings.FCM_MESSAGING_SENDER_ID ?? '',
+      FCM_APP_ID: savedAppSettings.FCM_APP_ID ?? '',
+      FCM_MEASUREMENT_ID: savedAppSettings.FCM_MEASUREMENT_ID ?? '',
+      FCM_VAPID_KEY: savedAppSettings.FCM_VAPID_KEY ?? '',
+    }),
+    [savedAppSettings]
+  );
+
   const [servicesIntegrationsTab, setServicesIntegrationsTab] = useState<'email' | 'fcm'>('email');
   const servicesTabDirection = useTabDirection(servicesIntegrationsTab, ['email', 'fcm'] as const);
   const [emailProviderTab, setEmailProviderTab] = useState<'resend' | 'gmail'>('resend');
@@ -940,28 +1080,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setRevealedSecrets((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const normalizeLoadedAppSettings = (prev: Record<string, string>, incoming: Record<string, any>) => {
+    const active =
+      (incoming.ACTIVE_EMAIL_PROVIDER || incoming.active_email_provider || 'resend').toLowerCase() === 'gmail'
+        ? 'gmail'
+        : 'resend';
+    const emailFromEnvOrDb =
+      incoming.RESEND_FROM_EMAIL ||
+      (incoming.RESEND_FROM?.match(/<([^>]+)>/)?.[1] || incoming.RESEND_FROM || 'onboarding@resend.dev').trim();
+    const fullFrom = incoming.RESEND_FROM || `SarbaazSoft Shoe POS Security <${emailFromEnvOrDb}>`;
+    return {
+      nextState: {
+        ...prev,
+        ...incoming,
+        ACTIVE_EMAIL_PROVIDER: active,
+        RESEND_API_KEY: incoming.RESEND_API_KEY || incoming.resend_api_key || '',
+        GMAIL_USER: incoming.GMAIL_USER || 'sarbaazsoft@gmail.com',
+        GMAIL_FROM_NAME: incoming.GMAIL_FROM_NAME || 'superadmin',
+        GMAIL_APP_PASSWORD: incoming.GMAIL_APP_PASSWORD || '',
+        RESEND_FROM: fullFrom,
+        RESEND_FROM_EMAIL: emailFromEnvOrDb,
+      },
+      activeProvider: active as 'resend' | 'gmail',
+    };
+  };
+
   const loadAppSettings = async () => {
     setIsLoadingAppSettings(true);
     setAppSettingsError(null);
     try {
       const res = await api.settings.getAppSettings();
       if (res?.appSettings) {
-        const active = (res.appSettings.ACTIVE_EMAIL_PROVIDER || res.appSettings.active_email_provider || 'resend').toLowerCase() === 'gmail' ? 'gmail' : 'resend';
-        setEmailProviderTab(active);
-        const emailFromEnvOrDb = res.appSettings.RESEND_FROM_EMAIL ||
-          (res.appSettings.RESEND_FROM?.match(/<([^>]+)>/)?.[1] || res.appSettings.RESEND_FROM || 'onboarding@resend.dev').trim();
-        const fullFrom = res.appSettings.RESEND_FROM || `SarbaazSoft Shoe POS Security <${emailFromEnvOrDb}>`;
-        setAppSettingsForm((prev) => ({
-          ...prev,
-          ...res.appSettings,
-          ACTIVE_EMAIL_PROVIDER: active,
-          RESEND_API_KEY: res.appSettings.RESEND_API_KEY || res.appSettings.resend_api_key || '',
-          GMAIL_USER: res.appSettings.GMAIL_USER || 'sarbaazsoft@gmail.com',
-          GMAIL_FROM_NAME: res.appSettings.GMAIL_FROM_NAME || 'superadmin',
-          GMAIL_APP_PASSWORD: res.appSettings.GMAIL_APP_PASSWORD || '',
-          RESEND_FROM: fullFrom,
-          RESEND_FROM_EMAIL: emailFromEnvOrDb,
-        }));
+        const { nextState, activeProvider } = normalizeLoadedAppSettings(
+          DEFAULT_APP_SETTINGS_FORM,
+          res.appSettings
+        );
+        setEmailProviderTab(activeProvider);
+        setAppSettingsForm(nextState);
+        setSavedAppSettings(nextState);
       }
       if (res?.appSettingsGrouped) {
         setAppSettingsGrouped(res.appSettingsGrouped);
@@ -972,22 +1128,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       try {
         const fullRes = await api.settings.get();
         if (fullRes?.appSettings) {
-          const active = (fullRes.appSettings.ACTIVE_EMAIL_PROVIDER || fullRes.appSettings.active_email_provider || 'resend').toLowerCase() === 'gmail' ? 'gmail' : 'resend';
-          setEmailProviderTab(active);
-          const emailFromEnvOrDb = fullRes.appSettings.RESEND_FROM_EMAIL ||
-            (fullRes.appSettings.RESEND_FROM?.match(/<([^>]+)>/)?.[1] || fullRes.appSettings.RESEND_FROM || 'onboarding@resend.dev').trim();
-          const fullFrom = fullRes.appSettings.RESEND_FROM || `SarbaazSoft Shoe POS Security <${emailFromEnvOrDb}>`;
-          setAppSettingsForm((prev) => ({
-            ...prev,
-            ...fullRes.appSettings,
-            ACTIVE_EMAIL_PROVIDER: active,
-            RESEND_API_KEY: fullRes.appSettings.RESEND_API_KEY || fullRes.appSettings.resend_api_key || '',
-            GMAIL_USER: fullRes.appSettings.GMAIL_USER || 'sarbaazsoft@gmail.com',
-            GMAIL_FROM_NAME: fullRes.appSettings.GMAIL_FROM_NAME || 'superadmin',
-            GMAIL_APP_PASSWORD: fullRes.appSettings.GMAIL_APP_PASSWORD || '',
-            RESEND_FROM: fullFrom,
-            RESEND_FROM_EMAIL: emailFromEnvOrDb,
-          }));
+          const { nextState, activeProvider } = normalizeLoadedAppSettings(
+            DEFAULT_APP_SETTINGS_FORM,
+            fullRes.appSettings
+          );
+          setEmailProviderTab(activeProvider);
+          setAppSettingsForm(nextState);
+          setSavedAppSettings(nextState);
         }
         if (fullRes?.appSettingsGrouped) {
           setAppSettingsGrouped(fullRes.appSettingsGrouped);
@@ -1001,7 +1148,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleSaveAppSettings = async (e?: React.FormEvent, onlyNotificationTriggers = false) => {
+  const handleSaveAppSettings = async (
+    e?: React.FormEvent,
+    onlyNotificationTriggers = false
+  ): Promise<boolean> => {
     if (e) e.preventDefault();
     setIsSavingAppSettings(true);
     setAppSettingsSuccess(false);
@@ -1035,27 +1185,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       const res = await api.settings.saveAppSettings(payload);
       setAppSettingsSuccess(true);
-      if (res?.appSettings) {
-        setAppSettingsForm((prev) => ({
-          ...prev,
-          ...res.appSettings,
-          ACTIVE_EMAIL_PROVIDER: res.appSettings.ACTIVE_EMAIL_PROVIDER || prev.ACTIVE_EMAIL_PROVIDER || activeProvider,
-          RESEND_API_KEY: res.appSettings.RESEND_API_KEY ?? prev.RESEND_API_KEY,
-          GMAIL_USER: res.appSettings.GMAIL_USER ?? prev.GMAIL_USER,
-          GMAIL_FROM_NAME: res.appSettings.GMAIL_FROM_NAME ?? prev.GMAIL_FROM_NAME,
-          GMAIL_APP_PASSWORD: res.appSettings.GMAIL_APP_PASSWORD ?? prev.GMAIL_APP_PASSWORD,
-          RESEND_FROM: res.appSettings.RESEND_FROM || prev.RESEND_FROM || fromValue,
-          RESEND_FROM_EMAIL: res.appSettings.RESEND_FROM_EMAIL || prev.RESEND_FROM_EMAIL || emailValue,
-        }));
+
+      const keysToSync = onlyNotificationTriggers
+        ? SUPERADMIN_NOTIF_TRIGGER_KEYS
+        : SUPERADMIN_APP_CONFIG_KEYS;
+
+      const resolvedUpdates: Record<string, string> = {};
+      keysToSync.forEach((k) => {
+        const serverVal = res?.appSettings?.[k];
+        if (serverVal !== undefined && serverVal !== null) {
+          resolvedUpdates[k] = String(serverVal);
+        } else if (payload[k] !== undefined) {
+          resolvedUpdates[k] = String(payload[k]);
+        } else {
+          resolvedUpdates[k] = String(appSettingsForm[k] ?? '');
+        }
+      });
+      if (!onlyNotificationTriggers) {
+        resolvedUpdates.ACTIVE_EMAIL_PROVIDER = res?.appSettings?.ACTIVE_EMAIL_PROVIDER || activeProvider;
+        resolvedUpdates.RESEND_FROM = res?.appSettings?.RESEND_FROM || fromValue;
+        resolvedUpdates.RESEND_FROM_EMAIL = res?.appSettings?.RESEND_FROM_EMAIL || emailValue;
       }
+
+      setAppSettingsForm((prev) => ({ ...prev, ...resolvedUpdates }));
+      setSavedAppSettings((prev) => ({ ...prev, ...resolvedUpdates }));
+
       setTimeout(() => setAppSettingsSuccess(false), 4500);
       onSettingsUpdated();
+      return true;
     } catch (err: any) {
       setAppSettingsError(err.message || 'Failed to save application settings.');
+      return false;
     } finally {
       setIsSavingAppSettings(false);
     }
   };
+
+  const handleDiscardAppConfigChanges = useCallback(() => {
+    setAppSettingsForm((prev) => {
+      const next = { ...prev };
+      SUPERADMIN_APP_CONFIG_KEYS.forEach((k) => {
+        next[k] = savedAppSettings[k] ?? DEFAULT_APP_SETTINGS_FORM[k] ?? '';
+      });
+      next.active_email_provider = next.ACTIVE_EMAIL_PROVIDER || 'resend';
+      return next;
+    });
+    const savedProvider =
+      (savedAppSettings.ACTIVE_EMAIL_PROVIDER || 'resend').toLowerCase() === 'gmail'
+        ? 'gmail'
+        : 'resend';
+    setEmailProviderTab(savedProvider);
+    setAppSettingsError(null);
+    setAppSettingsSuccess(false);
+  }, [savedAppSettings]);
+
+  const handleDiscardSuperAdminNotifChanges = useCallback(() => {
+    setAppSettingsForm((prev) => {
+      const next = { ...prev };
+      SUPERADMIN_NOTIF_TRIGGER_KEYS.forEach((k) => {
+        next[k] = savedAppSettings[k] ?? DEFAULT_APP_SETTINGS_FORM[k] ?? '';
+      });
+      return next;
+    });
+    setAppSettingsError(null);
+    setAppSettingsSuccess(false);
+  }, [savedAppSettings]);
 
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const isRefreshingAllRef = useRef(false);
@@ -1121,23 +1315,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleDropTablesAndReinstall = async () => {
     const cleanPassword = resetPasswordInput.trim();
     if (!cleanPassword) {
-      alert('Please enter your Admin / Store Owner password in the password field first to confirm this action.');
+      setResetMessage({
+        type: 'error',
+        text: 'Please enter your Admin / Store Owner password in the password field first to confirm this action.',
+      });
       return;
     }
-    if (
-      !window.confirm(
-        '⚠️ CRITICAL WARNING: This will completely reset all system data and configurations!\n\nAll store records, catalogs, transactions, and settings will be permanently erased for a fresh reinstall.\n\nAre you sure you want to proceed?'
-      )
-    ) {
+    if (!isDropConfirmPending) {
+      setIsDropConfirmPending(true);
+      setResetMessage({
+        type: 'error',
+        text: 'Warning: Dropping tables will permanently erase all store records, catalogs, transactions, and settings. Click "Confirm Drop & Reinstall" again to proceed.',
+      });
       return;
     }
 
     setIsResettingInstall(true);
+    setIsDropConfirmPending(false);
     setResetMessage(null);
     try {
       const res = await api.install.dropTables(cleanPassword);
       setResetMessage({ type: 'success', text: res.message });
       setResetPasswordInput('');
+      setDropTablesOnUnlock(false);
       await loadInstallStatus();
       onSettingsUpdated();
       if (onOpenInstallWizard) {
@@ -1176,7 +1376,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsLoadingUsers(true);
     try {
       const res = await api.settings.getUsers();
-      setUsersList(res.users || []);
+      const loadedUsers = res.users || [];
+      setUsersList(loadedUsers);
+      setPendingUserEdits((prev) => {
+        const next: typeof prev = {};
+        loadedUsers.forEach((user: any) => {
+          const edit = prev[user.id];
+          if (!edit) return;
+          const kept: { role?: 'ADMIN' | 'CASHIER'; status?: 'APPROVED' | 'PENDING' } = {};
+          if (edit.role && String(user.role).toUpperCase() !== edit.role) kept.role = edit.role;
+          if (edit.status && String(user.status).toUpperCase() !== edit.status) kept.status = edit.status;
+          if (kept.role || kept.status) next[user.id] = kept;
+        });
+        return next;
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -1213,8 +1426,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveSettings = async (e?: React.FormEvent): Promise<boolean> => {
+    if (e) e.preventDefault();
     const errors: Record<string, string> = {};
 
     if (!formData.company_name.trim()) {
@@ -1234,14 +1447,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       errors.currency_symbol = 'Currency symbol is required (e.g., "Rs.", "$", "PKR").';
     }
 
-setFormErrors(errors);
+    setFormErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      return;
+      setSettingsError('Please resolve the highlighted validation errors before saving.');
+      return false;
     }
 
     setIsSavingSettings(true);
     setSettingsSuccess(false);
+    setSettingsError(null);
     try {
       const sanitizedFormData: any = {
         ...formData,
@@ -1265,37 +1480,201 @@ setFormErrors(errors);
         delete sanitizedFormData.appSettings;
       }
       const updateRes = await api.settings.update(sanitizedFormData);
+      const nextSavedSnapshot = buildStoreFormState(
+        {
+          ...formData,
+          ...sanitizedFormData,
+          ...(updateRes?.settings || {}),
+        },
+        subscriptionInfo,
+        ''
+      );
+      setFormData(nextSavedSnapshot);
+      setSavedStoreForm(nextSavedSnapshot);
       setSettingsSuccess(true);
       await Promise.resolve(onSettingsUpdated(updateRes?.settings));
       setTimeout(() => setSettingsSuccess(false), 3500);
+      return true;
     } catch (err: any) {
-      alert(err.message || 'Failed to update settings');
+      setSettingsError(err.message || 'Failed to update settings.');
+      return false;
     } finally {
       setIsSavingSettings(false);
     }
   };
 
-  const handleUpdateUserStatus = async (id: number, status: 'APPROVED' | 'PENDING') => {
+  const handleDiscardStoreChanges = useCallback(() => {
+    setFormData(savedStoreForm);
+    setFormErrors({});
+    setSettingsError(null);
+    setSettingsSuccess(false);
+  }, [savedStoreForm]);
+
+  const handleStageUserStatus = (id: number, status: 'APPROVED' | 'PENDING') => {
+    setStaffSaveError(null);
+    setStaffSaveSuccess(false);
+    const savedUser = usersList.find((u) => Number(u.id) === Number(id));
+    setPendingUserEdits((prev) => {
+      const currentEdit = prev[id] || {};
+      const nextEdit: { role?: 'ADMIN' | 'CASHIER'; status?: 'APPROVED' | 'PENDING' } = {
+        ...currentEdit,
+        status,
+      };
+      if (savedUser && String(savedUser.status).toUpperCase() === status) {
+        delete nextEdit.status;
+      }
+      const next = { ...prev };
+      if (!nextEdit.role && !nextEdit.status) {
+        delete next[id];
+      } else {
+        next[id] = nextEdit;
+      }
+      return next;
+    });
+  };
+
+  const handleStageUserRole = (id: number, role: 'ADMIN' | 'CASHIER') => {
+    setStaffSaveError(null);
+    setStaffSaveSuccess(false);
+    const savedUser = usersList.find((u) => Number(u.id) === Number(id));
+    setPendingUserEdits((prev) => {
+      const currentEdit = prev[id] || {};
+      const nextEdit: { role?: 'ADMIN' | 'CASHIER'; status?: 'APPROVED' | 'PENDING' } = {
+        ...currentEdit,
+        role,
+      };
+      if (savedUser && String(savedUser.role).toUpperCase() === role) {
+        delete nextEdit.role;
+      }
+      const next = { ...prev };
+      if (!nextEdit.role && !nextEdit.status) {
+        delete next[id];
+      } else {
+        next[id] = nextEdit;
+      }
+      return next;
+    });
+  };
+
+  const handleSaveStaffChanges = async (): Promise<boolean> => {
+    const editEntries = Object.entries(pendingUserEdits);
+    if (editEntries.length === 0) {
+      if (isAddUserModalDirty) {
+        setStaffSaveError(
+          'Please save or close the open Add Staff dialog before leaving.'
+        );
+        return false;
+      }
+      return true;
+    }
+
+    setIsSavingStaffChanges(true);
+    setStaffSaveError(null);
+    setStaffSaveSuccess(false);
+    const remainingEdits: typeof pendingUserEdits = { ...pendingUserEdits };
     try {
-      await api.settings.updateUserStatus(id, status);
-      loadUsers();
+      for (const [idStr, edit] of editEntries) {
+        const id = Number(idStr);
+        if (edit.role) {
+          await api.settings.updateUserRole(id, edit.role);
+          delete remainingEdits[id]?.role;
+        }
+        if (edit.status) {
+          await api.settings.updateUserStatus(id, edit.status);
+          delete remainingEdits[id]?.status;
+        }
+        if (remainingEdits[id] && !remainingEdits[id].role && !remainingEdits[id].status) {
+          delete remainingEdits[id];
+        }
+      }
+      setPendingUserEdits({});
+      await loadUsers();
+
+      if (isAddUserModalDirty) {
+        setStaffSaveError(
+          'Pending role/status edits were saved, but the Add Staff dialog still has unsaved input. Save or close it first.'
+        );
+        return false;
+      }
+
+      setStaffSaveSuccess(true);
+      setTimeout(() => setStaffSaveSuccess(false), 3500);
+      return true;
     } catch (err: any) {
-      alert(err.message || 'Failed to update user status');
+      setPendingUserEdits(remainingEdits);
+      setStaffSaveError(err?.message || 'Failed to save staff changes.');
+      return false;
+    } finally {
+      setIsSavingStaffChanges(false);
     }
   };
 
-  const handleUpdateUserRole = async (id: number, role: 'ADMIN' | 'CASHIER') => {
-    try {
-      await api.settings.updateUserRole(id, role);
-      loadUsers();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update user role');
-    }
-  };
+  const handleDiscardStaffChanges = useCallback(() => {
+    setPendingUserEdits({});
+    setIsAddUserModalOpen(false);
+    setIsAddUserModalDirty(false);
+    setStaffSaveError(null);
+    setStaffSaveSuccess(false);
+  }, []);
 
   const handleOpenAddUserModal = () => {
+    setIsAddUserModalDirty(false);
     setIsAddUserModalOpen(true);
   };
+
+  useRegisterUnsavedScope('settings:store', {
+    label: 'Store Settings',
+    isDirty: isStoreAdmin ? isStoreDirty : false,
+    isActive: isStoreAdmin && isRouteActive && activeTab === 'store',
+    save: () => handleSaveSettings(),
+    discard: handleDiscardStoreChanges,
+  });
+
+  useRegisterUnsavedScope('settings:users', {
+    label: 'Staff Settings',
+    isDirty: isStoreAdmin ? isStaffDirty : false,
+    isActive: isStoreAdmin && isRouteActive && activeTab === 'users',
+    save: handleSaveStaffChanges,
+    discard: handleDiscardStaffChanges,
+  });
+
+  useRegisterUnsavedScope('settings:app_settings', {
+    label: 'App Configuration',
+    isDirty: isSuperAdmin ? isAppConfigDirty : false,
+    isActive: isSuperAdmin && isRouteActive && activeTab === 'app_settings',
+    save: () => handleSaveAppSettings(undefined, false),
+    discard: handleDiscardAppConfigChanges,
+  });
+
+  useRegisterUnsavedScope(
+    isSuperAdmin ? 'settings:notifications' : 'settings:notifications_superadmin_inactive',
+    {
+      label: 'Notification Settings',
+      isDirty: isSuperAdmin ? isSuperAdminNotifDirty : false,
+      isActive: isSuperAdmin && isRouteActive && activeTab === 'notifications',
+      save: () => handleSaveAppSettings(undefined, true),
+      discard: handleDiscardSuperAdminNotifChanges,
+    }
+  );
+
+  useRegisterUnsavedScope('settings:install', {
+    label: 'Installer Settings',
+    isDirty: isSuperAdmin ? isInstallDirty : false,
+    isActive: isSuperAdmin && isRouteActive && activeTab === 'install',
+    save: () => {
+      setResetMessage({
+        type: 'error',
+        text: 'Installer security actions require explicit password verification. Submit the unlock action or discard your input before leaving.',
+      });
+      return false;
+    },
+    discard: () => {
+      setResetPasswordInput('');
+      setDropTablesOnUnlock(false);
+      setIsDropConfirmPending(false);
+      setResetMessage(null);
+    },
+  });
 
   const handleConfirmDeleteUser = async () => {
     if (!userToDelete) return;
@@ -1676,6 +2055,9 @@ setFormErrors(errors);
           >
             <Store className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'store' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>Store</span>
+            {dirtyScopes['settings:store'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {activeTab === 'store' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
@@ -1710,6 +2092,9 @@ setFormErrors(errors);
                 {usersList.length}
               </span>
             )}
+            {dirtyScopes['settings:users'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {activeTab === 'users' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
@@ -1735,6 +2120,9 @@ setFormErrors(errors);
           >
             <Sliders className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'app_settings' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>App Config</span>
+            {dirtyScopes['settings:app_settings'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {activeTab === 'app_settings' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
@@ -1760,6 +2148,9 @@ setFormErrors(errors);
           >
             <BellRing className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'notifications' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>Notifications</span>
+            {dirtyScopes['settings:notifications'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {isNotifBlocked && (
               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Notification permission blocked" />
             )}
@@ -1787,6 +2178,9 @@ setFormErrors(errors);
         >
           <Palette className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'appearance' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
           <span>Appearance</span>
+          {dirtyScopes['settings:appearance'] && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+          )}
           {activeTab === 'appearance' && (
             <motion.div
               layoutId="settingsActiveUnderline"
@@ -1811,6 +2205,9 @@ setFormErrors(errors);
           >
             <Save className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'backup' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>Backup</span>
+            {dirtyScopes['settings:backup'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {activeTab === 'backup' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
@@ -1836,6 +2233,9 @@ setFormErrors(errors);
           >
             <ShieldCheck className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'install' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>Installer</span>
+            {dirtyScopes['settings:install'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {activeTab === 'install' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
@@ -1861,6 +2261,9 @@ setFormErrors(errors);
           >
             <Printer className={`w-4 h-4 transition-colors duration-200 ${activeTab === 'printers' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`} />
             <span>Printers</span>
+            {dirtyScopes['settings:printers'] && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" />
+            )}
             {activeTab === 'printers' && (
               <motion.div
                 layoutId="settingsActiveUnderline"
@@ -1888,6 +2291,13 @@ setFormErrors(errors);
                   Company profile and store settings have been updated successfully.
                 </p>
               </div>
+            </div>
+          )}
+
+          {settingsError && (
+            <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center space-x-3 shadow-xs">
+              <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+              <span className="font-semibold text-xs">{settingsError}</span>
             </div>
           )}
 
@@ -2833,28 +3243,49 @@ setFormErrors(errors);
 
           {/* Action Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
               <span>Fields marked with</span>
               <span className="text-rose-500 font-bold">*</span>
               <span>are strictly required before saving.</span>
-            </div>
-            <button
-              type="submit"
-              disabled={isSavingSettings}
-              className="w-full sm:w-auto bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
-            >
-              {isSavingSettings ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Saving Settings...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Save Company &amp; Prefix Settings</span>
-                </>
+              {isStoreDirty && (
+                <span
+                  data-testid="store-unsaved-badge"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                >
+                  Unsaved Changes
+                </span>
               )}
-            </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+              <button
+                id="store-discard-changes-btn"
+                type="button"
+                onClick={handleDiscardStoreChanges}
+                disabled={!isStoreDirty || isSavingSettings}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Discard</span>
+              </button>
+              <button
+                id="store-save-settings-btn"
+                type="submit"
+                disabled={isSavingSettings}
+                className="w-full sm:w-auto bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 dark:from-purple-600 dark:to-indigo-600 text-white border border-purple-400/40 dark:border-purple-400/50 shadow-md shadow-purple-600/25 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] font-bold text-xs px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
+              >
+                {isSavingSettings ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Saving Settings...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Save Company &amp; Prefix Settings</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       )}
@@ -2868,7 +3299,17 @@ setFormErrors(errors);
                 <Users className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Staff Management</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap">
+                  <span>Staff Management</span>
+                  {isStaffDirty && (
+                    <span
+                      data-testid="staff-unsaved-badge"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                    >
+                      Unsaved Changes
+                    </span>
+                  )}
+                </h3>
                 <p className="text-slate-500 dark:text-purple-200/70 text-xs mt-0.5">
                   Authorized Administrators can create and provision cashier or admin accounts directly, and manage active staff permissions.
                 </p>
@@ -2898,6 +3339,20 @@ setFormErrors(errors);
             </div>
           </div>
 
+          {staffSaveSuccess && (
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5 text-xs font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>Staff permissions updated successfully.</span>
+            </div>
+          )}
+
+          {staffSaveError && (
+            <div className="p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 flex items-center gap-2.5 text-xs font-semibold">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>{staffSaveError}</span>
+            </div>
+          )}
+
           <div className="border border-slate-200 dark:border-purple-800/60 rounded-xl overflow-hidden shadow-2xs">
             {/* Mobile Stacked Cards (< 640px) */}
             <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -2909,7 +3364,11 @@ setFormErrors(errors);
                 </div>
               ) : (
                 usersList.map((u) => {
-                  const isPending = u.status === 'PENDING';
+                  const staged = pendingUserEdits[u.id];
+                  const effectiveRole = (staged?.role ?? u.role) as 'ADMIN' | 'CASHIER';
+                  const effectiveStatus = (staged?.status ?? u.status) as 'APPROVED' | 'PENDING';
+                  const isPending = effectiveStatus === 'PENDING';
+                  const isRowDirty = Boolean(staged?.role || staged?.status);
                   const isSelf =
                     (currentUser?.id && u.id && Number(currentUser.id) === Number(u.id)) ||
                     (currentUser?.email && u.email && currentUser.email.trim().toLowerCase() === u.email.trim().toLowerCase());
@@ -2921,11 +3380,18 @@ setFormErrors(errors);
                           <UserAvatar
                             name={u.name}
                             avatarUrl={u.avatarUrl || u.avatar_url}
-                            role={u.role}
+                            role={effectiveRole}
                             size="sm"
                           />
                           <div className="min-w-0">
-                            <p className="font-bold text-slate-900 dark:text-white text-xs truncate">{u.name}</p>
+                            <p className="font-bold text-slate-900 dark:text-white text-xs truncate flex items-center gap-1.5">
+                              <span className="truncate">{u.name}</span>
+                              {isRowDirty && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[9px] font-bold">
+                                  Edited
+                                </span>
+                              )}
+                            </p>
                             <p className="font-mono text-[11px] text-slate-600 dark:text-purple-200/80 truncate">{u.email}</p>
                             {u.phone && (
                               <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{u.phone}</p>
@@ -2939,14 +3405,14 @@ setFormErrors(errors);
                               : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                           }`}
                         >
-                          {u.status}
+                          {effectiveStatus}
                         </span>
                       </div>
 
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/70">
                         <select
-                          value={u.role}
-                          onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
+                          value={effectiveRole}
+                          onChange={(e) => handleStageUserRole(u.id, e.target.value as any)}
                           className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
                         >
                           <option value="CASHIER" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">CASHIER</option>
@@ -2957,7 +3423,7 @@ setFormErrors(errors);
                           {isPending ? (
                             <button
                               type="button"
-                              onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')}
+                              onClick={() => handleStageUserStatus(u.id, 'APPROVED')}
                               className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-sm transition-all active:scale-95"
                             >
                               Approve
@@ -2965,7 +3431,7 @@ setFormErrors(errors);
                           ) : (
                             <button
                               type="button"
-                              onClick={() => handleUpdateUserStatus(u.id, 'PENDING')}
+                              onClick={() => handleStageUserStatus(u.id, 'PENDING')}
                               className="bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 text-slate-700 dark:text-purple-200 border border-slate-200 dark:border-purple-800/60 px-3 py-1.5 font-semibold rounded-lg cursor-pointer text-xs transition-colors"
                             >
                               Suspend
@@ -3030,7 +3496,11 @@ setFormErrors(errors);
                     </tr>
                   ) : (
                     usersList.map((u) => {
-                    const isPending = u.status === 'PENDING';
+                    const staged = pendingUserEdits[u.id];
+                    const effectiveRole = (staged?.role ?? u.role) as 'ADMIN' | 'CASHIER';
+                    const effectiveStatus = (staged?.status ?? u.status) as 'APPROVED' | 'PENDING';
+                    const isPending = effectiveStatus === 'PENDING';
+                    const isRowDirty = Boolean(staged?.role || staged?.status);
 
                     return (
                       <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-purple-950/30 transition-colors">
@@ -3039,18 +3509,23 @@ setFormErrors(errors);
                             <UserAvatar
                               name={u.name}
                               avatarUrl={u.avatarUrl || u.avatar_url}
-                              role={u.role}
+                              role={effectiveRole}
                               size="sm"
                             />
                             <span className="truncate">{u.name}</span>
+                            {isRowDirty && (
+                              <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[9px] font-bold shrink-0">
+                                Unsaved
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 font-mono text-slate-600 dark:text-purple-200/80">{u.email}</td>
                         <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-mono text-xs">{u.phone || '-'}</td>
                         <td className="py-3 px-4">
                           <select
-                            value={u.role}
-                            onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
+                            value={effectiveRole}
+                            onChange={(e) => handleStageUserRole(u.id, e.target.value as any)}
                             className="px-2.5 py-1.5 bg-slate-50 dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 text-slate-900 dark:text-purple-200 hover:bg-slate-100 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-lg font-semibold text-xs focus:border-blue-500 dark:focus:border-purple-400 outline-none cursor-pointer"
                           >
                             <option value="CASHIER" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">CASHIER</option>
@@ -3065,7 +3540,7 @@ setFormErrors(errors);
                                 : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                             }`}
                           >
-                            {u.status}
+                            {effectiveStatus}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -3073,7 +3548,7 @@ setFormErrors(errors);
                             {isPending ? (
                               <button
                                 type="button"
-                                onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')}
+                                onClick={() => handleStageUserStatus(u.id, 'APPROVED')}
                                 className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 px-3 py-1.5 font-bold rounded-lg cursor-pointer text-xs shadow-md shadow-purple-600/25 dark:shadow-[0_0_12px_rgba(var(--primary-rgb,147,51,234),)] transition-all hover:scale-105 active:scale-95"
                               >
                                 Approve
@@ -3081,7 +3556,7 @@ setFormErrors(errors);
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => handleUpdateUserStatus(u.id, 'PENDING')}
+                                onClick={() => handleStageUserStatus(u.id, 'PENDING')}
                                 className="bg-slate-100 hover:bg-slate-200 dark:bg-purple-950/40 text-slate-700 dark:text-purple-200 hover:text-slate-900 border border-slate-200 dark:border-purple-800/60 px-3 py-1.5 font-semibold rounded-lg cursor-pointer text-xs transition-colors"
                               >
                                 Suspend
@@ -3126,14 +3601,55 @@ setFormErrors(errors);
             </div>
           </div>
 
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 dark:border-purple-900/40">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              {Object.keys(pendingUserEdits).length > 0
+                ? `${Object.keys(pendingUserEdits).length} staff account edit(s) pending confirmation.`
+                : 'Adjust staff roles or access status above, then click Save Changes to apply.'}
+            </span>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <button
+                id="staff-discard-changes-btn"
+                type="button"
+                onClick={handleDiscardStaffChanges}
+                disabled={!isStaffDirty || isSavingStaffChanges}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Discard</span>
+              </button>
+              <button
+                id="staff-save-changes-btn"
+                type="button"
+                onClick={() => void handleSaveStaffChanges()}
+                disabled={Object.keys(pendingUserEdits).length === 0 || isSavingStaffChanges}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white text-xs font-bold shadow-md shadow-purple-600/20 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingStaffChanges ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                <span>{isSavingStaffChanges ? 'Saving Changes...' : 'Save Staff Changes'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Add Staff / Cashier Modal */}
           <AnimatePresence>
             {isAddUserModalOpen && (
               <Suspense fallback={<CenteredLoadingSpinner variant="modal" label="Loading..." />}>
                 <CreateStaffModal
                   isOpen={isAddUserModalOpen}
-                  onClose={() => setIsAddUserModalOpen(false)}
-                  onUserCreated={loadUsers}
+                  onClose={() => {
+                    setIsAddUserModalDirty(false);
+                    setIsAddUserModalOpen(false);
+                  }}
+                  onUserCreated={() => {
+                    setIsAddUserModalDirty(false);
+                    void loadUsers();
+                  }}
+                  onDirtyChange={setIsAddUserModalDirty}
                 />
               </Suspense>
             )}
@@ -3294,11 +3810,19 @@ setFormErrors(errors);
                 <Sliders className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap">
                   <span>System &amp; Platform Configuration</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
                     Platform Settings
                   </span>
+                  {isAppConfigDirty && (
+                    <span
+                      data-testid="app-config-unsaved-badge"
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                    >
+                      Unsaved Changes
+                    </span>
+                  )}
                 </h3>
                 <p className="text-slate-500 dark:text-purple-200/70 text-xs mt-0.5 font-normal">
                   Configure transactional email delivery (Resend API key &amp; verified sender), Web Push notification keys, and system environment policies dynamically.
@@ -3315,6 +3839,17 @@ setFormErrors(errors);
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAppSettings ? 'animate-spin text-purple-600' : ''}`} />
                 <span>{isLoadingAppSettings ? 'Reloading...' : 'Reload Settings'}</span>
+              </button>
+
+              <button
+                id="app-config-discard-changes-btn"
+                type="button"
+                onClick={handleDiscardAppConfigChanges}
+                disabled={!isAppConfigDirty || isSavingAppSettings}
+                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Discard</span>
               </button>
 
               <button
@@ -3984,8 +4519,16 @@ setFormErrors(errors);
               <Suspense fallback={<SettingsTabSkeleton tab="integrations" />}>
                 <NotificationAlertProvidersSettings
                   embedded={true}
-                  onSaveSuccess={() => {
-                    loadAppSettings();
+                  isActive={isSuperAdmin && isRouteActive && activeTab === 'app_settings'}
+                  fcmDraft={fcmDraftSnapshot}
+                  savedFcmBaseline={savedFcmSnapshot}
+                  onFcmDraftChange={(nextFcm) => {
+                    setAppSettingsForm((prev) => ({ ...prev, ...nextFcm }));
+                  }}
+                  onFcmSaved={(savedFcm) => {
+                    setAppSettingsForm((prev) => ({ ...prev, ...savedFcm }));
+                    setSavedAppSettings((prev) => ({ ...prev, ...savedFcm }));
+                    onSettingsUpdated();
                   }}
                 />
               </Suspense>
@@ -4056,14 +4599,26 @@ setFormErrors(errors);
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSavingAppSettings}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-md shadow-purple-600/25 active:scale-95 cursor-pointer shrink-0 disabled:opacity-50"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSavingAppSettings ? 'Saving...' : 'Save All Changes'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardAppConfigChanges}
+                disabled={!isAppConfigDirty || isSavingAppSettings}
+                className="px-4 py-2.5 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Discard</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSavingAppSettings}
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-md shadow-purple-600/25 active:scale-95 cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSavingAppSettings ? 'Saving...' : 'Save All Changes'}</span>
+              </button>
+            </div>
           </div>
         </form>
       )}
@@ -4072,7 +4627,7 @@ setFormErrors(errors);
       {!isSuperAdmin && activeTab === 'printers' && (
         <div className="bg-white dark:bg-[#131B2E] p-3.5 sm:p-6 rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm transition-colors">
           <Suspense fallback={<SettingsTabSkeleton tab="printers" />}>
-            <PrinterHardwareSettings />
+            <PrinterHardwareSettings isActive={!isSuperAdmin && isRouteActive && activeTab === 'printers'} />
           </Suspense>
         </div>
       )}
@@ -4087,7 +4642,7 @@ setFormErrors(errors);
           </p>
           <button
             type="button"
-            onClick={() => setActiveTab('printers')}
+            onClick={() => handleSelectTab('printers')}
             className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-bold cursor-pointer"
           >
             Open Printer Settings
@@ -4268,6 +4823,7 @@ setFormErrors(errors);
           <Suspense fallback={isStoreAdmin ? <SettingsTabSkeleton tab="notifications_prefs" /> : null}>
             {isStoreAdmin && (
               <StoreNotificationPreferencesCard
+                isActive={isStoreAdmin && isRouteActive && activeTab === 'notifications'}
                 refreshTrigger={notifPrefsRefreshKey}
                 isDeviceSubscribed={isNotifSubscribed}
                 onNavigateToStoreProfile={() => handleSelectTab('store')}
@@ -4292,6 +4848,14 @@ setFormErrors(errors);
                       <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
                         Category: notifications
                       </span>
+                      {isSuperAdminNotifDirty && (
+                        <span
+                          data-testid="superadmin-notif-unsaved-badge"
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                        >
+                          Unsaved Changes
+                        </span>
+                      )}
                     </h4>
                     <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
                       Toggle which platform lifecycle events, customer upgrade requests, and merchant registrations trigger native device push notifications for SuperAdmin.
@@ -4628,7 +5192,17 @@ setFormErrors(errors);
               </div>
 
               {/* Bottom Section Action Button */}
-              <div className="pt-3 border-t border-slate-100 dark:border-purple-900/40 flex items-center justify-end">
+              <div className="pt-3 border-t border-slate-100 dark:border-purple-900/40 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  id="superadmin-notif-discard-changes-btn"
+                  type="button"
+                  onClick={handleDiscardSuperAdminNotifChanges}
+                  disabled={!isSuperAdminNotifDirty || isSavingAppSettings}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Discard</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => void handleSaveAppSettings(undefined, true)}
@@ -4655,8 +5229,10 @@ setFormErrors(errors);
           {isSuperAdmin && (
             <SuperAdminTestNotificationCard
               onOpenFcmConfig={() => {
-                setServicesIntegrationsTab('fcm');
-                handleSelectTab('app_settings');
+                void requestNavigation(() => {
+                  setServicesIntegrationsTab('fcm');
+                  applySelectTab('app_settings');
+                });
               }}
             />
           )}
@@ -4684,7 +5260,7 @@ setFormErrors(errors);
           </p>
           <button
             type="button"
-            onClick={() => setActiveTab('app_settings')}
+            onClick={() => handleSelectTab('app_settings')}
             className="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-bold cursor-pointer"
           >
             Open App Config
@@ -4696,6 +5272,7 @@ setFormErrors(errors);
       {activeTab === 'backup' && isSuperAdmin && (
         <Suspense fallback={<SettingsTabSkeleton tab="backup" />}>
           <DataBackupRestore
+            isActive={isSuperAdmin && isRouteActive && activeTab === 'backup'}
             currentUser={currentUser}
             companySettings={companySettings}
             onDataRestored={() => {
@@ -4725,7 +5302,17 @@ setFormErrors(errors);
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Server Commissioning &amp; Route Lockout Security</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 flex-wrap">
+                  <span>Server Commissioning &amp; Route Lockout Security</span>
+                  {isInstallDirty && (
+                    <span
+                      data-testid="install-unsaved-badge"
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                    >
+                      Pending Input
+                    </span>
+                  )}
+                </h3>
                 <p className="text-slate-500 dark:text-purple-200/70 text-xs mt-0.5">
                   Manage first-time setup installer state, route lockdown guard, and store recommissioning.
                 </p>
@@ -4929,8 +5516,25 @@ setFormErrors(errors);
                     className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Drop Tables &amp; Fresh Reinstall</span>
+                    <span>{isDropConfirmPending ? 'Confirm Drop & Reinstall' : 'Drop Tables & Fresh Reinstall'}</span>
                   </button>
+
+                  {isInstallDirty && (
+                    <button
+                      id="install-discard-changes-btn"
+                      type="button"
+                      onClick={() => {
+                        setResetPasswordInput('');
+                        setDropTablesOnUnlock(false);
+                        setIsDropConfirmPending(false);
+                        setResetMessage(null);
+                      }}
+                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Discard Input</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -4962,7 +5566,10 @@ setFormErrors(errors);
                         type={showResetPassword ? 'text' : 'password'}
                         placeholder="Enter Store Owner / Admin password"
                         value={resetPasswordInput}
-                        onChange={(e) => setResetPasswordInput(e.target.value)}
+                        onChange={(e) => {
+                          setResetPasswordInput(e.target.value);
+                          setIsDropConfirmPending(false);
+                        }}
                         className={`w-full h-11 pl-3.5 pr-16 bg-slate-50 dark:bg-slate-900 border rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none transition ${
                           resetPasswordInput
                             ? evaluatePasswordStrength(resetPasswordInput, { minChars: 6 }).borderColorClass
@@ -5006,7 +5613,10 @@ setFormErrors(errors);
                     <input
                       type="checkbox"
                       checked={dropTablesOnUnlock}
-                      onChange={(e) => setDropTablesOnUnlock(e.target.checked)}
+                      onChange={(e) => {
+                        setDropTablesOnUnlock(e.target.checked);
+                        setIsDropConfirmPending(false);
+                      }}
                       className="w-4 h-4 rounded-full text-rose-600 border-slate-300 dark:border-slate-700 focus:ring-0 cursor-pointer"
                     />
                     <span className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1 font-medium">
@@ -5015,15 +5625,34 @@ setFormErrors(errors);
                     </span>
                   </label>
 
-                  <button
-                    type="button"
-                    onClick={handleDropTablesAndReinstall}
-                    disabled={isResettingInstall || !resetPasswordInput}
-                    className="text-[11px] font-bold text-rose-600 hover:text-rose-500 disabled:opacity-40 transition flex items-center gap-1 cursor-pointer self-start sm:self-auto"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Direct Drop &amp; Reinstall</span>
-                  </button>
+                  <div className="flex items-center gap-3 self-start sm:self-auto">
+                    {isInstallDirty && (
+                      <button
+                        id="install-discard-changes-btn"
+                        type="button"
+                        onClick={() => {
+                          setResetPasswordInput('');
+                          setDropTablesOnUnlock(false);
+                          setIsDropConfirmPending(false);
+                          setResetMessage(null);
+                        }}
+                        className="text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Discard</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleDropTablesAndReinstall}
+                      disabled={isResettingInstall || !resetPasswordInput}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-500 disabled:opacity-40 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{isDropConfirmPending ? 'Confirm Drop & Reinstall' : 'Direct Drop & Reinstall'}</span>
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

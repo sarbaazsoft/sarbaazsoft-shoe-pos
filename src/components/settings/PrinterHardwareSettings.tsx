@@ -1,33 +1,146 @@
-import React, { useState, useEffect } from 'react';
-import { Printer, Usb, CheckCircle2, Scissors, DollarSign, Tag, Zap, Info, Sliders, Sparkles } from 'lucide-react';
-import { getSavedPrinterSettings, savePrinterSettings, pairUsbPrinter, isWebUsbSupported, executeTestReceipt, executeTestSticker, PrinterHardwareSettings as IPrinterSettings } from '../../utils/printer/printerManager.ts';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Printer,
+  Usb,
+  CheckCircle2,
+  AlertCircle,
+  Scissors,
+  DollarSign,
+  Tag,
+  Zap,
+  Info,
+  Sliders,
+  Sparkles,
+  Save,
+  RotateCcw,
+} from 'lucide-react';
+import {
+  getSavedPrinterSettings,
+  savePrinterSettings,
+  pairUsbPrinter,
+  isWebUsbSupported,
+  executeTestReceipt,
+  executeTestSticker,
+  PrinterHardwareSettings as IPrinterSettings,
+} from '../../utils/printer/printerManager.ts';
+import {
+  areSnapshotsEqual,
+  useRegisterUnsavedScope,
+} from '../../context/UnsavedChangesContext.tsx';
 
-export const PrinterHardwareSettings: React.FC = () => {
-  const [settings, setSettings] = useState<IPrinterSettings>(getSavedPrinterSettings());
+interface PrinterHardwareSettingsProps {
+  isActive?: boolean;
+}
+
+export const PrinterHardwareSettings: React.FC<PrinterHardwareSettingsProps> = ({
+  isActive = true,
+}) => {
+  const [savedSettings, setSavedSettings] = useState<IPrinterSettings>(() =>
+    getSavedPrinterSettings()
+  );
+  const [settings, setSettings] = useState<IPrinterSettings>(() =>
+    getSavedPrinterSettings()
+  );
   const [isPairingReceipt, setIsPairingReceipt] = useState(false);
   const [isPairingSticker, setIsPairingSticker] = useState(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
   const webUsbAvailable = isWebUsbSupported();
 
   useEffect(() => {
-    setSettings(getSavedPrinterSettings());
+    const initial = getSavedPrinterSettings();
+    setSavedSettings(initial);
+    setSettings(initial);
   }, []);
 
+  const isDirty = useMemo(
+    () => !areSnapshotsEqual(settings, savedSettings),
+    [settings, savedSettings]
+  );
+
   const handleUpdate = (patch: Partial<IPrinterSettings>) => {
-    const updated = savePrinterSettings(patch);
-    setSettings(updated);
+    setSaveFeedback(null);
+    setSettings((prev) => ({ ...prev, ...patch }));
   };
+
+  const handleSavePrinterSettings = useCallback(async (): Promise<boolean> => {
+    const width = Number(settings.stickerWidthMm);
+    const height = Number(settings.stickerHeightMm);
+    if (!Number.isFinite(width) || width < 20 || width > 120) {
+      setSaveFeedback({
+        type: 'error',
+        text: 'Label width must be between 20mm and 120mm before saving.',
+      });
+      return false;
+    }
+    if (!Number.isFinite(height) || height < 15 || height > 100) {
+      setSaveFeedback({
+        type: 'error',
+        text: 'Label height must be between 15mm and 100mm before saving.',
+      });
+      return false;
+    }
+
+    try {
+      const normalizedSettings: IPrinterSettings = {
+        ...settings,
+        stickerWidthMm: Math.round(width),
+        stickerHeightMm: Math.round(height),
+      };
+      const persisted = savePrinterSettings(normalizedSettings);
+      setSavedSettings(persisted);
+      setSettings(persisted);
+      setSaveFeedback({
+        type: 'success',
+        text: 'Printer hardware settings saved.',
+      });
+      return true;
+    } catch (err: any) {
+      setSaveFeedback({
+        type: 'error',
+        text: err?.message || 'Failed to save printer hardware settings.',
+      });
+      return false;
+    }
+  }, [settings]);
+
+  const handleDiscardPrinterSettings = useCallback(() => {
+    setSettings(savedSettings);
+    setSaveFeedback(null);
+    setTestStatus(null);
+  }, [savedSettings]);
+
+  useRegisterUnsavedScope('settings:printers', {
+    label: 'Printer Hardware Settings',
+    isDirty,
+    isActive,
+    save: handleSavePrinterSettings,
+    discard: handleDiscardPrinterSettings,
+  });
 
   const handlePairReceipt = async () => {
     setIsPairingReceipt(true);
     setTestStatus(null);
+    setSaveFeedback(null);
     try {
-      const res = await pairUsbPrinter('receipt');
+      const res = await pairUsbPrinter('receipt', { persist: false });
       if (res.success) {
-        setSettings(getSavedPrinterSettings());
-        setTestStatus(`Receipt Printer connected: ${res.deviceName}`);
+        setSettings((prev) => ({
+          ...prev,
+          receiptMode: 'webusb',
+          receiptDeviceName: res.deviceName,
+          receiptVendorId: res.vendorId,
+          receiptProductId: res.productId,
+          silentReceipt: true,
+        }));
+        setTestStatus(
+          `Receipt Printer staged: ${res.deviceName}. Click Save Printer Settings to apply.`
+        );
       } else {
         setTestStatus(`Receipt pairing cancelled or failed: ${res.error}`);
       }
@@ -39,11 +152,21 @@ export const PrinterHardwareSettings: React.FC = () => {
   const handlePairSticker = async () => {
     setIsPairingSticker(true);
     setTestStatus(null);
+    setSaveFeedback(null);
     try {
-      const res = await pairUsbPrinter('sticker');
+      const res = await pairUsbPrinter('sticker', { persist: false });
       if (res.success) {
-        setSettings(getSavedPrinterSettings());
-        setTestStatus(`Sticker Printer connected: ${res.deviceName}`);
+        setSettings((prev) => ({
+          ...prev,
+          stickerMode: 'webusb',
+          stickerDeviceName: res.deviceName,
+          stickerVendorId: res.vendorId,
+          stickerProductId: res.productId,
+          silentSticker: true,
+        }));
+        setTestStatus(
+          `Sticker Printer staged: ${res.deviceName}. Click Save Printer Settings to apply.`
+        );
       } else {
         setTestStatus(`Sticker pairing cancelled or failed: ${res.error}`);
       }
@@ -56,7 +179,7 @@ export const PrinterHardwareSettings: React.FC = () => {
     setIsTesting(true);
     setTestStatus(null);
     try {
-      const res = await executeTestReceipt();
+      const res = await executeTestReceipt(settings);
       if (res.success) {
         setTestStatus('Test receipt sent successfully.');
       } else {
@@ -71,7 +194,7 @@ export const PrinterHardwareSettings: React.FC = () => {
     setIsTesting(true);
     setTestStatus(null);
     try {
-      const res = await executeTestSticker();
+      const res = await executeTestSticker(settings);
       if (res.success) {
         setTestStatus('Test barcode sticker sent successfully.');
       } else {
@@ -83,7 +206,90 @@ export const PrinterHardwareSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div id="printer-settings-panel" className="space-y-4 sm:space-y-6">
+      {/* Unsaved Changes & Explicit Save Action Bar */}
+      <div
+        className={`rounded-2xl border p-4 sm:p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+          isDirty
+            ? 'bg-amber-50/90 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700/70'
+            : 'bg-white dark:bg-[#131B2E] border-slate-200 dark:border-purple-800/60'
+        }`}
+      >
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Hardware Printer Configuration
+            </h3>
+            {isDirty ? (
+              <span
+                data-testid="printers-unsaved-badge"
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+              >
+                Unsaved changes
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                All changes saved
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Changes remain in draft until you click Save Printer Settings.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {isDirty && (
+            <button
+              id="printer-discard-changes-btn"
+              type="button"
+              onClick={handleDiscardPrinterSettings}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Discard Changes</span>
+            </button>
+          )}
+          <button
+            id="printer-save-settings-btn"
+            type="button"
+            disabled={!isDirty}
+            onClick={() => void handleSavePrinterSettings()}
+            className="btn-primary px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-45"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>Save Printer Settings</span>
+          </button>
+        </div>
+      </div>
+
+      {saveFeedback && (
+        <div
+          role={saveFeedback.type === 'error' ? 'alert' : 'status'}
+          className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 ${
+            saveFeedback.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {saveFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            )}
+            <span>{saveFeedback.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSaveFeedback(null)}
+            className="text-xs underline hover:no-underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header Banner with Bilingual Explanation */}
       <div className="rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900/60 dark:via-indigo-950/80 dark:to-slate-900 relative overflow-hidden transition-colors">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -463,13 +669,18 @@ export const PrinterHardwareSettings: React.FC = () => {
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">Width (چوڑائی):</span>
                   <div className="flex items-center space-x-2 mt-1">
                     <input
+                      id="printer-sticker-width-input"
                       type="number"
                       min="20"
                       max="120"
                       value={settings.stickerWidthMm}
-                      onChange={(e) =>
-                        handleUpdate({ stickerWidthMm: parseInt(e.target.value, 10) || 50 })
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const parsed = parseInt(raw, 10);
+                        handleUpdate({
+                          stickerWidthMm: Number.isNaN(parsed) ? 0 : parsed,
+                        });
+                      }}
                       className="w-full h-10 px-3 border border-slate-300 dark:border-purple-800/60 rounded-xl text-xs font-bold bg-slate-50 dark:bg-[#060B18] text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-purple-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-purple-500/20 outline-none"
                     />
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">mm</span>
@@ -479,13 +690,18 @@ export const PrinterHardwareSettings: React.FC = () => {
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">Height (اونچائی):</span>
                   <div className="flex items-center space-x-2 mt-1">
                     <input
+                      id="printer-sticker-height-input"
                       type="number"
                       min="15"
                       max="100"
                       value={settings.stickerHeightMm}
-                      onChange={(e) =>
-                        handleUpdate({ stickerHeightMm: parseInt(e.target.value, 10) || 30 })
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const parsed = parseInt(raw, 10);
+                        handleUpdate({
+                          stickerHeightMm: Number.isNaN(parsed) ? 0 : parsed,
+                        });
+                      }}
                       className="w-full h-10 px-3 border border-slate-300 dark:border-purple-800/60 rounded-xl text-xs font-bold bg-slate-50 dark:bg-[#060B18] text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-purple-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-purple-500/20 outline-none"
                     />
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">mm</span>

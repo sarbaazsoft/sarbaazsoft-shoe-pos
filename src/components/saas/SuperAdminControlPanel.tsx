@@ -28,6 +28,7 @@ import {
   FocusedUtilitySkeleton,
 } from '../common/RouteSkeletons';
 import { useTheme } from '../../context/ThemeContext';
+import { useUnsavedChanges } from '../../context/UnsavedChangesContext';
 import { toTitleCaseLive, toTitleCaseTrimmed, toLowerTrimmed } from '../../utils/textFormat';
 import { PasswordStrengthIndicator } from '../common/PasswordStrengthIndicator';
 import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsTooltip';
@@ -94,6 +95,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
   layoutMeta: layoutMetaOverride,
 }) => {
   const { theme, toggleTheme, accentPalette, syncUserThemeFromAuth, backdropStyle } = useTheme();
+  const { requestNavigation, hasDirtyMatchingScopes } = useUnsavedChanges();
   const isDarkMode = theme === 'dark';
   const isSolidBackdrop = backdropStyle === 'solid';
   const isSolidLight = isSolidBackdrop && !isDarkMode;
@@ -211,7 +213,20 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     return 'dashboard';
   };
   const [activeTab, setActiveTabState] = useState<SuperAdminTab>(getInitialSuperAdminTab);
-  const setActiveTab = useCallback((nextTab: SuperAdminTab) => {
+  const activeTabRef = useRef<SuperAdminTab>(activeTab);
+  activeTabRef.current = activeTab;
+  const lastSettledSuperAdminPathRef = useRef<string>(
+    typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+      : '/admin'
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    lastSettledSuperAdminPathRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }, [activeTab]);
+
+  const setActiveTabRaw = useCallback((nextTab: SuperAdminTab) => {
     setActiveTabState(nextTab);
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -225,18 +240,42 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
     }
   }, []);
 
+  const setActiveTab = useCallback((nextTab: SuperAdminTab) => {
+    if (nextTab === activeTabRef.current) return;
+    void requestNavigation(() => setActiveTabRaw(nextTab));
+  }, [requestNavigation, setActiveTabRaw]);
+
   useEffect(() => {
-    const handlePopState = () => {
-      const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+    const applySuperAdminPopState = (rawUrl: string) => {
+      const parsed = new URL(rawUrl, window.location.origin);
+      const normalizedPath = parsed.pathname.replace(/\/+$/, '');
       if (normalizedPath === '/admin/free-trials' || normalizedPath === '/admin/trials') {
         setActiveTabState('trials');
       } else if (normalizedPath === '/admin' || normalizedPath === '') {
         setActiveTabState((prev) => (prev === 'trials' || prev === 'requests' ? 'dashboard' : prev));
       }
     };
+
+    const handlePopState = () => {
+      const targetUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const prevUrl = lastSettledSuperAdminPathRef.current;
+
+      if (hasDirtyMatchingScopes() && targetUrl !== prevUrl) {
+        window.history.pushState(null, '', prevUrl);
+        void requestNavigation(() => {
+          window.history.replaceState(null, '', targetUrl);
+          lastSettledSuperAdminPathRef.current = targetUrl;
+          applySuperAdminPopState(targetUrl);
+        });
+        return;
+      }
+
+      lastSettledSuperAdminPathRef.current = targetUrl;
+      applySuperAdminPopState(targetUrl);
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [hasDirtyMatchingScopes, requestNavigation]);
 
   const normalizedWorkspaceTab = activeTab === 'requests' ? 'trials' : activeTab;
   const workspaceTabDirection = useTabDirection(
@@ -2617,13 +2656,15 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setShowNotifDropdown(false);
-                                setSuperAdminSettingsTab('notifications');
-                                window.dispatchEvent(
-                                  new CustomEvent('pos:navigate-settings-tab', {
-                                    detail: { tab: 'notifications' },
-                                  })
-                                );
-                                setActiveTab('settings');
+                                void requestNavigation(() => {
+                                  setSuperAdminSettingsTab('notifications');
+                                  window.dispatchEvent(
+                                    new CustomEvent('pos:navigate-settings-tab', {
+                                      detail: { tab: 'notifications' },
+                                    })
+                                  );
+                                  setActiveTab('settings');
+                                });
                               }}
                               className={`mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-bold text-white transition cursor-pointer shadow-2xs ${
                                 isPermissionDenied
@@ -2818,13 +2859,15 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                 setShowUserDropdown(false);
                 setShowNotifDropdown(false);
                 setShowToolsDropdown(false);
-                setSuperAdminSettingsTab('appearance');
-                window.dispatchEvent(
-                  new CustomEvent('pos:navigate-settings-tab', {
-                    detail: { tab: 'appearance' },
-                  })
-                );
-                setActiveTab('settings');
+                void requestNavigation(() => {
+                  setSuperAdminSettingsTab('appearance');
+                  window.dispatchEvent(
+                    new CustomEvent('pos:navigate-settings-tab', {
+                      detail: { tab: 'appearance' },
+                    })
+                  );
+                  setActiveTab('settings');
+                });
               }}
             />
 
@@ -2926,13 +2969,15 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                       id="superadmin-app-settings-btn"
                       onClick={() => {
                         setShowUserDropdown(false);
-                        setSuperAdminSettingsTab('app_settings');
-                        window.dispatchEvent(
-                          new CustomEvent('pos:navigate-settings-tab', {
-                            detail: { tab: 'app_settings' },
-                          })
-                        );
-                        setActiveTab('settings');
+                        void requestNavigation(() => {
+                          setSuperAdminSettingsTab('app_settings');
+                          window.dispatchEvent(
+                            new CustomEvent('pos:navigate-settings-tab', {
+                              detail: { tab: 'app_settings' },
+                            })
+                          );
+                          setActiveTab('settings');
+                        });
                       }}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition cursor-pointer text-slate-700 dark:text-purple-200 hover:bg-gradient-to-r hover:from-purple-600 hover:via-indigo-600 hover:to-purple-700 hover:text-white dark:hover:text-white dark:hover:bg-purple-500/25 group border border-transparent"
                     >

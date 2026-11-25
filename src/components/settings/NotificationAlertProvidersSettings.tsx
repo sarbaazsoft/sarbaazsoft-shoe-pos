@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import {
   Flame,
   Key,
@@ -9,6 +9,7 @@ import {
   Smartphone,
   Save,
   RefreshCw,
+  RotateCcw,
   Send,
   X,
   BellRing,
@@ -25,33 +26,65 @@ import {
   triggerTestNotificationShadeFallback,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
+import {
+  areSnapshotsEqual,
+  useRegisterUnsavedScope,
+} from '../../context/UnsavedChangesContext.tsx';
+
+export interface FcmProviderSettingsState {
+  FCM_PROJECT_ID: string;
+  FCM_CLIENT_EMAIL: string;
+  FCM_PRIVATE_KEY: string;
+  FCM_API_KEY: string;
+  FCM_MESSAGING_SENDER_ID: string;
+  FCM_APP_ID: string;
+  FCM_MEASUREMENT_ID: string;
+  FCM_VAPID_KEY: string;
+}
+
+const EMPTY_FCM_SETTINGS: FcmProviderSettingsState = {
+  FCM_PROJECT_ID: '',
+  FCM_CLIENT_EMAIL: '',
+  FCM_PRIVATE_KEY: '',
+  FCM_API_KEY: '',
+  FCM_MESSAGING_SENDER_ID: '',
+  FCM_APP_ID: '',
+  FCM_MEASUREMENT_ID: '',
+  FCM_VAPID_KEY: '',
+};
 
 interface NotificationAlertProvidersSettingsProps {
   formData?: any;
   setFormData?: React.Dispatch<React.SetStateAction<any>>;
   isEmbeddedInForm?: boolean;
   embedded?: boolean;
+  isActive?: boolean;
+  fcmDraft?: FcmProviderSettingsState;
+  savedFcmBaseline?: FcmProviderSettingsState;
+  onFcmDraftChange?: (next: FcmProviderSettingsState) => void;
+  onFcmSaved?: (saved: FcmProviderSettingsState) => void;
   onSaveSuccess?: (updated?: any) => void;
   onClose?: () => void;
 }
 
 export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvidersSettingsProps> = ({
   embedded = false,
+  isActive = true,
+  fcmDraft,
+  savedFcmBaseline,
+  onFcmDraftChange,
+  onFcmSaved,
   onSaveSuccess,
   onClose,
 }) => {
-  const [fcmSettings, setFcmSettings] = useState({
-    FCM_PROJECT_ID: '',
-    FCM_CLIENT_EMAIL: '',
-    FCM_PRIVATE_KEY: '',
-    FCM_API_KEY: '',
-    FCM_MESSAGING_SENDER_ID: '',
-    FCM_APP_ID: '',
-    FCM_MEASUREMENT_ID: '',
-    FCM_VAPID_KEY: '',
-  });
+  const isControlled = Boolean(fcmDraft && onFcmDraftChange);
+  const [savedLocalFcm, setSavedLocalFcm] = useState<FcmProviderSettingsState>(EMPTY_FCM_SETTINGS);
+  const [localFcmSettings, setLocalFcmSettings] = useState<FcmProviderSettingsState>(EMPTY_FCM_SETTINGS);
 
-  const [loading, setLoading] = useState(true);
+  const fcmSettings = isControlled && fcmDraft ? fcmDraft : localFcmSettings;
+  const effectiveSavedFcm = isControlled && savedFcmBaseline ? savedFcmBaseline : savedLocalFcm;
+
+  const [loading, setLoading] = useState(!isControlled);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -79,6 +112,11 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     tokensByRole: {},
   });
 
+  const isFcmDirty = useMemo(
+    () => !loading && !areSnapshotsEqual(fcmSettings, effectiveSavedFcm),
+    [loading, fcmSettings, effectiveSavedFcm]
+  );
+
   const getActiveUserRole = (): string => {
     try {
       const raw = localStorage.getItem('pos_current_user');
@@ -95,19 +133,19 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     setThisDeviceSubscribed(snap.effectiveStatus === 'granted' && snap.canReceiveSystemNotifications);
   };
 
-  // Load app settings from server
-  const loadSettings = async () => {
-    setLoading(true);
+  // Load app settings / device stats from server
+  const loadSettings = useCallback(async (syncCredentials = !isControlled) => {
+    if (!isControlled) setLoading(true);
     try {
       const [appSettingsRes, statsRes, permSnap] = await Promise.all([
-        api.settings.getAppSettings().catch(() => null),
+        syncCredentials ? api.settings.getAppSettings().catch(() => null) : Promise.resolve(null),
         api.notifications.getFcmStats().catch(() => null),
         getDetailedPushPermissionStatus().catch(() => null),
       ]);
 
-      if (appSettingsRes?.appSettings) {
+      if (syncCredentials && appSettingsRes?.appSettings) {
         const s = appSettingsRes.appSettings;
-        setFcmSettings({
+        const loaded: FcmProviderSettingsState = {
           FCM_PROJECT_ID: s.FCM_PROJECT_ID || '',
           FCM_CLIENT_EMAIL: s.FCM_CLIENT_EMAIL || '',
           FCM_PRIVATE_KEY: s.FCM_PRIVATE_KEY || '',
@@ -116,7 +154,9 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           FCM_APP_ID: s.FCM_APP_ID || '',
           FCM_MEASUREMENT_ID: s.FCM_MEASUREMENT_ID || '',
           FCM_VAPID_KEY: s.FCM_VAPID_KEY || '',
-        });
+        };
+        setSavedLocalFcm(loaded);
+        setLocalFcmSettings(loaded);
       }
 
       if (statsRes) {
@@ -131,56 +171,89 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     } finally {
       setLoading(false);
     }
-  };
+  }, [isControlled]);
 
   useEffect(() => {
-    void loadSettings();
+    void loadSettings(!isControlled);
     const cleanup = watchNotificationPermissionChanges((snap) => {
       applyPermissionSnapshot(snap);
     });
     return () => {
       cleanup();
     };
-  }, []);
+  }, [isControlled, loadSettings]);
 
-  const handleChange = (key: keyof typeof fcmSettings, value: string) => {
-    setFcmSettings((prev) => ({ ...prev, [key]: value }));
+  const handleChange = (key: keyof FcmProviderSettingsState, value: string) => {
+    setSaveMessage(null);
+    if (isControlled && onFcmDraftChange && fcmDraft) {
+      onFcmDraftChange({ ...fcmDraft, [key]: value });
+    } else {
+      setLocalFcmSettings((prev) => ({ ...prev, [key]: value }));
+    }
   };
 
-  const handleSave = async (e?: React.FormEvent) => {
+  const handleDiscardFcm = useCallback(() => {
+    setSaveMessage(null);
+    if (isControlled && onFcmDraftChange && savedFcmBaseline) {
+      onFcmDraftChange({ ...savedFcmBaseline });
+    } else {
+      setLocalFcmSettings({ ...savedLocalFcm });
+    }
+  }, [isControlled, onFcmDraftChange, savedFcmBaseline, savedLocalFcm]);
+
+  const handleSave = useCallback(async (e?: React.FormEvent): Promise<boolean> => {
     if (e) e.preventDefault();
     setIsSaving(true);
     setSaveMessage(null);
 
+    const payload: FcmProviderSettingsState = {
+      FCM_PROJECT_ID: fcmSettings.FCM_PROJECT_ID.trim(),
+      FCM_CLIENT_EMAIL: fcmSettings.FCM_CLIENT_EMAIL.trim(),
+      FCM_PRIVATE_KEY: fcmSettings.FCM_PRIVATE_KEY.trim(),
+      FCM_API_KEY: fcmSettings.FCM_API_KEY.trim(),
+      FCM_MESSAGING_SENDER_ID: fcmSettings.FCM_MESSAGING_SENDER_ID.trim(),
+      FCM_APP_ID: fcmSettings.FCM_APP_ID.trim(),
+      FCM_MEASUREMENT_ID: fcmSettings.FCM_MEASUREMENT_ID.trim(),
+      FCM_VAPID_KEY: fcmSettings.FCM_VAPID_KEY.trim(),
+    };
+
     try {
-      await api.settings.saveAppSettings({
-        FCM_PROJECT_ID: fcmSettings.FCM_PROJECT_ID.trim(),
-        FCM_CLIENT_EMAIL: fcmSettings.FCM_CLIENT_EMAIL.trim(),
-        FCM_PRIVATE_KEY: fcmSettings.FCM_PRIVATE_KEY.trim(),
-        FCM_API_KEY: fcmSettings.FCM_API_KEY.trim(),
-        FCM_MESSAGING_SENDER_ID: fcmSettings.FCM_MESSAGING_SENDER_ID.trim(),
-        FCM_APP_ID: fcmSettings.FCM_APP_ID.trim(),
-        FCM_MEASUREMENT_ID: fcmSettings.FCM_MEASUREMENT_ID.trim(),
-        FCM_VAPID_KEY: fcmSettings.FCM_VAPID_KEY.trim(),
-      });
+      await api.settings.saveAppSettings({ ...payload } as Record<string, string>);
+
+      if (isControlled) {
+        onFcmSaved?.(payload);
+      } else {
+        setSavedLocalFcm(payload);
+        setLocalFcmSettings(payload);
+      }
 
       setSaveMessage({
         type: 'success',
         text: 'Firebase Cloud Messaging credentials saved successfully!',
       });
 
-      await loadSettings();
-      if (onSaveSuccess) onSaveSuccess();
+      await loadSettings(false);
+      if (onSaveSuccess) onSaveSuccess(payload);
       setTimeout(() => setSaveMessage(null), 4000);
+      return true;
     } catch (err: any) {
       setSaveMessage({
         type: 'error',
         text: err?.message || 'Failed to save Firebase configuration.',
       });
+      return false;
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [fcmSettings, isControlled, loadSettings, onFcmSaved, onSaveSuccess]);
+
+  useRegisterUnsavedScope('settings:app_settings_fcm', {
+    label: 'Firebase Push Configuration',
+    isDirty: !isControlled && isFcmDirty,
+    isActive: !isControlled && isActive,
+    save: () => handleSave(),
+    discard: handleDiscardFcm,
+  });
 
   const isSuperAdminUser = getActiveUserRole() === 'SUPERADMIN';
 
@@ -599,10 +672,22 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {isFcmDirty && (
+            <button
+              id="fcm-discard-changes-btn"
+              type="button"
+              onClick={handleDiscardFcm}
+              disabled={isSaving}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Discard Changes</span>
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => handleSave()}
+            onClick={() => void handleSave()}
             disabled={isSaving}
             className="w-full sm:w-auto px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-md shadow-purple-600/25 active:scale-95"
           >

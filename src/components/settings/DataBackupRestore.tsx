@@ -1,14 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { Download, Upload, FileText, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw, ShieldCheck, HardDrive, ArrowDownToLine, Check, ShoppingBag, Receipt, FileCheck, TrendingUp, Activity, Terminal, Play, Trash2, X, Database, Lock } from 'lucide-react';
+import { Download, Upload, FileText, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw, ShieldCheck, HardDrive, ArrowDownToLine, Check, ShoppingBag, Receipt, FileCheck, TrendingUp, Activity, Terminal, Play, Trash2, X, Database, Lock, Save, RotateCcw } from 'lucide-react';
 import { api, getAuthToken } from '../../services/api.ts';
 import { AnimatedCounter, triggerStatRecount } from '../common/StatCard.tsx';
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
+import { useRegisterUnsavedScope } from '../../context/UnsavedChangesContext.tsx';
+
+const SQL_DRAFT_STORAGE_KEY = 'shoepos_superadmin_sql_draft';
+
+function readSavedSqlDraft(): string {
+  try {
+    return window.localStorage?.getItem(SQL_DRAFT_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
 
 interface DataBackupRestoreProps {
   currentUser: any;
   companySettings: any;
   onDataRestored?: () => void;
+  isActive?: boolean;
 }
 
 interface BackupStats {
@@ -40,6 +52,7 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
   currentUser,
   companySettings,
   onDataRestored,
+  isActive = true,
 }) => {
   const [stats, setStats] = useState<BackupStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -67,7 +80,9 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
   // SuperAdmin Direct SQL Query Console State
   const isSuperAdmin =
     String(currentUser?.originalRole || currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
-  const [sqlQueryText, setSqlQueryText] = useState<string>('');
+  const [savedSqlDraft, setSavedSqlDraft] = useState<string>(() => readSavedSqlDraft());
+  const [sqlQueryText, setSqlQueryText] = useState<string>(() => readSavedSqlDraft());
+  const [sqlDraftSavedNotice, setSqlDraftSavedNotice] = useState<string | null>(null);
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
   const [showSqlConfirmModal, setShowSqlConfirmModal] = useState(false);
   const [sqlExecResult, setSqlExecResult] = useState<{
@@ -93,6 +108,64 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sqlFileInputRef = useRef<HTMLInputElement>(null);
   const isRefreshingStatsRef = useRef(false);
+
+  const isSqlDraftDirty = isSuperAdmin && sqlQueryText !== savedSqlDraft;
+  const hasStagedRestore = inspectedBackup !== null || selectedSqlFile !== null;
+  const isBackupDirty = isSqlDraftDirty || hasStagedRestore;
+
+  const handleSaveSqlDraft = useCallback((): boolean => {
+    try {
+      window.localStorage?.setItem(SQL_DRAFT_STORAGE_KEY, sqlQueryText);
+      setSavedSqlDraft(sqlQueryText);
+      setSqlDraftSavedNotice('SQL query draft saved locally.');
+      setTimeout(() => setSqlDraftSavedNotice(null), 3500);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [sqlQueryText]);
+
+  const handleSaveBackupScope = useCallback(async (): Promise<boolean> => {
+    if (inspectedBackup !== null) {
+      setRestoreError(
+        'A backup file is currently staged for restore. Execute Store Restore explicitly or choose Discard Changes to clear it.'
+      );
+      return false;
+    }
+    if (selectedSqlFile !== null) {
+      setSqlImportError(
+        'An SQL import file is currently staged. Click Import & Apply Records explicitly or choose Discard Changes to clear it.'
+      );
+      return false;
+    }
+    return handleSaveSqlDraft();
+  }, [handleSaveSqlDraft, inspectedBackup, selectedSqlFile]);
+
+  const handleDiscardBackupChanges = useCallback(() => {
+    setInspectedBackup(null);
+    setConfirmRestore(false);
+    setRestoreError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setSelectedSqlFile(null);
+    setSqlFileContent('');
+    setSqlImportError(null);
+    if (sqlFileInputRef.current) {
+      sqlFileInputRef.current.value = '';
+    }
+    setSqlQueryText(savedSqlDraft);
+    setSqlDraftSavedNotice(null);
+    setShowSqlConfirmModal(false);
+  }, [savedSqlDraft]);
+
+  useRegisterUnsavedScope('settings:backup', {
+    label: 'Backup & Restore',
+    isDirty: isBackupDirty,
+    isActive,
+    save: handleSaveBackupScope,
+    discard: handleDiscardBackupChanges,
+  });
 
   useEffect(() => {
     loadStats();
@@ -430,22 +503,45 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
             <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">Store Backup &amp; Safety Restore (بیک اپ اور بحالی)</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">Store Backup &amp; Safety Restore (بیک اپ اور بحالی)</h3>
+              {isBackupDirty && (
+                <span
+                  data-testid="backup-unsaved-badge"
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700"
+                >
+                  {hasStagedRestore ? 'Pending staged import' : 'Unsaved SQL draft'}
+                </span>
+              )}
+            </div>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
               Safeguard your wholesale shoe store by creating snapshot backups and restoring store records anytime.
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={loadStats}
-          disabled={isLoadingStats}
-          className="btn-outline-landing self-start sm:self-auto px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStats ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
-          <span>Refresh Live Stats</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          {isBackupDirty && (
+            <button
+              id="backup-discard-changes-btn"
+              type="button"
+              onClick={handleDiscardBackupChanges}
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Discard Changes</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={loadStats}
+            disabled={isLoadingStats}
+            className="btn-outline-landing px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 dark:text-purple-200 dark:hover:text-white dark:border-purple-400/40 dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStats ? 'animate-spin text-blue-600 dark:text-purple-300' : 'text-blue-600 dark:text-purple-300'}`} />
+            <span>Refresh Live Stats</span>
+          </button>
+        </div>
       </div>
 
       {/* Live Store Storage Overview KPI Cards with Sparkline Visuals */}
@@ -1012,7 +1108,19 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
                 <span>Direct SQL queries run against live platform tables. Review statements carefully before confirming.</span>
               </div>
 
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                {isSqlDraftDirty && (
+                  <button
+                    id="backup-save-sql-draft-btn"
+                    type="button"
+                    onClick={handleSaveSqlDraft}
+                    disabled={isExecutingQuery}
+                    className="h-10 px-3.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save Draft</span>
+                  </button>
+                )}
                 {(sqlQueryText || sqlExecResult || sqlExecError) && (
                   <button
                     type="button"
@@ -1041,6 +1149,13 @@ export const DataBackupRestore: React.FC<DataBackupRestoreProps> = ({
                 </button>
               </div>
             </div>
+
+            {sqlDraftSavedNotice && (
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{sqlDraftSavedNotice}</span>
+              </div>
+            )}
 
             {/* Execution Error Feedback */}
             {sqlExecError && (

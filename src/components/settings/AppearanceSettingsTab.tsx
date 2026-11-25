@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -25,6 +25,8 @@ import {
   X,
 } from 'lucide-react';
 import { useTheme, type ThemeMode } from '../../context/ThemeContext.tsx';
+import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
+import { useRegisterUnsavedScope } from '../../context/UnsavedChangesContext.tsx';
 import {
   ACCENT_THEME_LIST,
   CURATED_APPEARANCE_PALETTES,
@@ -47,11 +49,16 @@ import defaultShowroomBg from '../../assets/images/shoe_store_blurred_bg_1790706
 
 interface AppearanceSettingsTabProps {
   currentUser: any;
+  isActive?: boolean;
 }
 
 const SHADE_PREVIEW_STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
 
-export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ currentUser }) => {
+export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({
+  currentUser,
+  isActive,
+}) => {
+  const { isActive: isRouteActive } = useRouteActivity();
   const {
     theme,
     themeMode,
@@ -66,6 +73,7 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     isSavingAppearance,
     appearanceSaveError,
     clearAppearanceSaveError,
+    committedPreferences,
     updatePreview,
     cancelPreview,
     applyAndSaveAppearance,
@@ -169,10 +177,10 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     }
   };
 
-  const handleApplyAndSave = async () => {
+  const handleApplyAndSave = useCallback(async (): Promise<boolean> => {
     if (hexError) {
       setLocalErrorMsg('Fix the invalid HEX color before saving.');
-      return;
+      return false;
     }
     setLocalErrorMsg(null);
     setSaveSuccessMsg(null);
@@ -184,10 +192,12 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
           : 'Appearance saved to browser guest storage.'
       );
       setTimeout(() => setSaveSuccessMsg(null), 5000);
+      return true;
     } catch (err: any) {
       setLocalErrorMsg(err?.message || 'Failed to save changes.');
+      return false;
     }
-  };
+  }, [applyAndSaveAppearance, canManageScreenImages, hexError, isAuthenticatedSession]);
 
   const handleApplyToAllStaff = async () => {
     if (!canApplyToAllStaff) return;
@@ -212,13 +222,15 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setHexError(null);
+    setHexDraft(normalizeHexColor(committedPreferences.customAccentHex));
     setLocalErrorMsg(null);
     setExternalUrlError(null);
     setSaveSuccessMsg(null);
+    clearAppearanceSaveError();
     cancelPreview();
-  };
+  }, [cancelPreview, clearAppearanceSaveError, committedPreferences.customAccentHex]);
 
   const handleResetDefault = () => {
     setHexError(null);
@@ -227,6 +239,14 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({ cu
     clearAppearanceSaveError();
     void resetAppearanceToDefault({ persistImmediately: false });
   };
+
+  useRegisterUnsavedScope('settings:appearance', {
+    label: 'Appearance & Color Studio',
+    isDirty: isPreviewActive || Boolean(hexError),
+    isActive: isActive !== undefined ? isActive : isRouteActive,
+    save: handleApplyAndSave,
+    discard: handleCancel,
+  });
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

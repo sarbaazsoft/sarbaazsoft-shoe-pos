@@ -22,6 +22,7 @@ import { resolveRouteLayoutMetadata, type SaasRouteMode } from './config/routeLa
 import { emitDataSync } from './utils/dataSyncBus.ts';
 import { useTheme } from './context/ThemeContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
+import { useUnsavedChanges } from './context/UnsavedChangesContext.tsx';
 
 const PosTerminal = lazyWithRetry(() => import('./components/pos/PosTerminal.tsx'), (m) => memo(m.PosTerminal), '/src/components/pos/PosTerminal.tsx');
 const ProductManagement = lazyWithRetry(() => import('./components/inventory/ProductManagement.tsx'), (m) => memo(m.ProductManagement), '/src/components/inventory/ProductManagement.tsx');
@@ -405,6 +406,7 @@ function detectInitialRouteFromLocation(): {
 
 export default function App() {
   const { syncUserThemeFromAuth, restoreGuestThemeOnLogout } = useTheme();
+  const { requestNavigation, hasDirtyMatchingScopes } = useUnsavedChanges();
   const initialRoute = detectInitialRouteFromLocation();
   const initialSession = getValidatedStoredSession();
   const initialStoredTenantId =
@@ -464,13 +466,26 @@ export default function App() {
   });
 
   const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'users' | 'notifications' | 'app_settings' | 'printers' | 'backup' | 'install' | 'appearance' | undefined>(undefined);
+  const currentTabRef = useRef(currentTab);
+  currentTabRef.current = currentTab;
+  const saasModeRef = useRef(saasMode);
+  saasModeRef.current = saasMode;
+  const lastSettledUrlRef = useRef<string>(
+    typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+      : '/'
+  );
 
   useEffect(() => {
     const handleNavigateSettingsTab = (event: any) => {
       const requested = event?.detail?.tab;
-      if (requested) {
-        setSettingsInitialTab(requested);
+      if (!requested) return;
+      // When SettingsView is already mounted & active, SettingsView's own listener
+      // handles tab changes through requestNavigation without triggering duplicate initialTab sync.
+      if (saasModeRef.current === 'TENANT_ACTIVE' && currentTabRef.current === 'settings') {
+        return;
       }
+      setSettingsInitialTab(requested);
     };
     window.addEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
     return () => window.removeEventListener('pos:navigate-settings-tab', handleNavigateSettingsTab);
@@ -1117,11 +1132,17 @@ export default function App() {
     return () => window.removeEventListener('auth:require-email-verification', handleRequireVerification);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    lastSettledUrlRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }, [saasMode, currentTab, isLoginModalOpen, tenantIdParam, activeTenant?.id]);
+
   // Handle popstate so browser back/forward stays in sync with login modal / protected route guards
   useEffect(() => {
-    const handlePopState = () => {
-      const sp = new URLSearchParams(window.location.search);
-      const pathname = window.location.pathname;
+    const applyPopState = (rawUrl: string) => {
+      const parsed = new URL(rawUrl, window.location.origin);
+      const sp = parsed.searchParams;
+      const pathname = parsed.pathname;
       const pathMatch = pathname.match(/^\/(?:store|stores|tenant|t|directory)\/([a-zA-Z0-9_-]+)/i);
       const explicitTid =
         sp.get('tenantId') ||
@@ -1176,7 +1197,7 @@ export default function App() {
         return;
       }
 
-      const popSubRoute = parseAppSubRoute(pathname, window.location.search);
+      const popSubRoute = parseAppSubRoute(pathname, parsed.search);
       if (popSubRoute && APP_TAB_ROUTES.has(popSubRoute.tab)) {
         if (currentUser) {
           const valid = resolveTargetTab(popSubRoute.tab, currentUser, companySettings);
@@ -1226,9 +1247,27 @@ export default function App() {
       setTenantIdParam(tid);
       setIsLoginModalOpen(Boolean(explicitTid || mode === 'login' || isAuthPath));
     };
+
+    const handlePopState = () => {
+      const targetUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const prevUrl = lastSettledUrlRef.current;
+
+      if (hasDirtyMatchingScopes() && targetUrl !== prevUrl) {
+        window.history.pushState({}, '', prevUrl);
+        void requestNavigation(() => {
+          window.history.replaceState({}, '', targetUrl);
+          lastSettledUrlRef.current = targetUrl;
+          applyPopState(targetUrl);
+        });
+        return;
+      }
+
+      lastSettledUrlRef.current = targetUrl;
+      applyPopState(targetUrl);
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [currentUser, companySettings, activeTenant]);
+  }, [currentUser, companySettings, activeTenant, hasDirtyMatchingScopes, requestNavigation]);
 
   // Explicit clearance of unauthenticated tenant scope
   const handleClearTenantScope = useCallback(() => {
@@ -1298,7 +1337,7 @@ export default function App() {
   }, [tenantIdParam, currentUser, availableTenants]);
 
   // Navigate between the shared portal and tenant paths.
-  const handleNavigateDomain = async (target: {
+  const executeNavigateDomain = async (target: {
     mode: 'LANDING' | 'SUPERADMIN' | 'TENANT' | 'NOT_FOUND' | 'ONBOARDING' | 'AUTH';
     tenantId?: number;
     authenticated?: boolean;
@@ -1471,6 +1510,19 @@ export default function App() {
     }
   };
 
+  const handleNavigateDomain = useCallback(
+    async (target: {
+      mode: 'LANDING' | 'SUPERADMIN' | 'TENANT' | 'NOT_FOUND' | 'ONBOARDING' | 'AUTH';
+      tenantId?: number;
+      authenticated?: boolean;
+      tab?: string;
+    }) => {
+      await requestNavigation(() => executeNavigateDomain(target));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [requestNavigation, currentUser, activeTenant, availableTenants, companySettings, currentTab, tenantIdParam]
+  );
+
   const handleTabChange = useCallback((targetTab: string) => {
     if (isUserOnboardingPending(currentUser, activeTenant)) {
       const obTid = Number(activeTenant?.id || currentUser?.tenantId || 0);
@@ -1481,9 +1533,14 @@ export default function App() {
       return;
     }
     const valid = resolveTargetTab(targetTab, currentUser, companySettings);
-    setCurrentTab(valid);
-    window.history.replaceState({}, '', appPathForTab(valid));
-  }, [currentUser, companySettings, activeTenant]);
+    if (valid === currentTabRef.current) {
+      return;
+    }
+    void requestNavigation(() => {
+      setCurrentTab(valid);
+      window.history.replaceState({}, '', appPathForTab(valid));
+    });
+  }, [currentUser, companySettings, activeTenant, requestNavigation]);
 
   useEffect(() => {
     const role = (currentUser?.role || '').toLowerCase();
@@ -1604,76 +1661,86 @@ export default function App() {
         return;
       }
 
-      const roleUpper = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
-      if (saasMode === 'SUPERADMIN' && roleUpper === 'SUPERADMIN') {
-        if (rawUrl && (rawUrl.startsWith('/admin') || /^https?:\/\/[^/]+\/admin/i.test(rawUrl))) {
-          navigateToParsedRoute(rawUrl);
+      const executeAuthenticatedDeepLink = () => {
+        const roleUpper = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
+        if (saasMode === 'SUPERADMIN' && roleUpper === 'SUPERADMIN') {
+          if (rawUrl && (rawUrl.startsWith('/admin') || /^https?:\/\/[^/]+\/admin/i.test(rawUrl))) {
+            navigateToParsedRoute(rawUrl);
+            return;
+          }
+          // Keep SuperAdmin portal intact without forcing broken tenant routes
           return;
         }
-        // Keep SuperAdmin portal intact without forcing broken tenant routes
-        return;
-      }
 
-      if (isUserOnboardingPending(currentUser, activeTenant)) {
-        const obTid = Number(activeTenant?.id || currentUser?.tenantId || 0);
-        setSaasMode('TENANT_ONBOARDING');
-        if (obTid > 0) {
-          window.history.replaceState({}, '', `/onboarding?tenantId=${encodeURIComponent(obTid)}`);
+        if (isUserOnboardingPending(currentUser, activeTenant)) {
+          const obTid = Number(activeTenant?.id || currentUser?.tenantId || 0);
+          setSaasMode('TENANT_ONBOARDING');
+          if (obTid > 0) {
+            window.history.replaceState({}, '', `/onboarding?tenantId=${encodeURIComponent(obTid)}`);
+          }
+          return;
         }
-        return;
-      }
 
-      if (saasMode !== 'TENANT_ACTIVE') {
-        if (rawUrl) {
-          window.location.assign(rawUrl);
+        if (saasMode !== 'TENANT_ACTIVE') {
+          if (rawUrl) {
+            window.location.assign(rawUrl);
+          }
+          return;
         }
-        return;
-      }
 
-      if (rawUrl && (rawUrl.startsWith('/') || /^https?:\/\//i.test(rawUrl)) && navigateToParsedRoute(rawUrl)) {
-        return;
-      }
-
-      const type = String(detail.type || '').toUpperCase();
-      const itemType = String(detail.itemType || '').toUpperCase();
-      const invoice = detail.invoiceId || detail.invoiceNumber || detail.invoice;
-      const returnNum = detail.returnNumber;
-      const announcementId = detail.announcementId || detail.notificationId;
-
-      if (type === 'STOCK' || type === 'LOW_STOCK' || itemType === 'LOW_STOCK' || detail.lowStockOnly === 'true' || detail.actionTab === 'inventory') {
-        pushClientPathIfChanged('/inventory?filter=low-stock');
-        setCurrentTab('inventory');
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
-        }, 120);
-      } else if (announcementId || type === 'ANNOUNCEMENT' || itemType === 'ANNOUNCEMENT') {
-        if (announcementId) {
-          pushClientPathIfChanged(`/announcements/${encodeURIComponent(String(announcementId))}`);
-        } else {
-          pushClientPathIfChanged('/notifications');
+        if (rawUrl && (rawUrl.startsWith('/') || /^https?:\/\//i.test(rawUrl)) && navigateToParsedRoute(rawUrl)) {
+          return;
         }
-        setCurrentTab('notifications');
-        if (announcementId) {
+
+        const type = String(detail.type || '').toUpperCase();
+        const itemType = String(detail.itemType || '').toUpperCase();
+        const invoice = detail.invoiceId || detail.invoiceNumber || detail.invoice;
+        const returnNum = detail.returnNumber;
+        const announcementId = detail.announcementId || detail.notificationId;
+
+        if (type === 'STOCK' || type === 'LOW_STOCK' || itemType === 'LOW_STOCK' || detail.lowStockOnly === 'true' || detail.actionTab === 'inventory') {
+          pushClientPathIfChanged('/inventory?filter=low-stock');
+          setCurrentTab('inventory');
           setTimeout(() => {
-            window.dispatchEvent(
-              new CustomEvent('pos:open-announcement', { detail: { announcementId: String(announcementId) } })
-            );
+            window.dispatchEvent(new CustomEvent('inventory:filter-low-stock'));
           }, 120);
-        }
-      } else if (type === 'RETURN') {
-        const valid = resolveTargetTab('returns', currentUser, companySettings);
-        const returnPath =
-          valid === 'returns' && invoice
-            ? `/returns?invoice=${encodeURIComponent(String(invoice))}`
-            : appPathForTab(valid);
-        pushClientPathIfChanged(returnPath);
-        setCurrentTab(valid);
-        if (valid === 'returns' && invoice) {
-          setTimeout(() => {
-            window.dispatchEvent(
-              new CustomEvent('returns:inspect-invoice', { detail: { invoice, returnNumber: returnNum } })
-            );
-          }, 120);
+        } else if (announcementId || type === 'ANNOUNCEMENT' || itemType === 'ANNOUNCEMENT') {
+          if (announcementId) {
+            pushClientPathIfChanged(`/announcements/${encodeURIComponent(String(announcementId))}`);
+          } else {
+            pushClientPathIfChanged('/notifications');
+          }
+          setCurrentTab('notifications');
+          if (announcementId) {
+            setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent('pos:open-announcement', { detail: { announcementId: String(announcementId) } })
+              );
+            }, 120);
+          }
+        } else if (type === 'RETURN') {
+          const valid = resolveTargetTab('returns', currentUser, companySettings);
+          const returnPath =
+            valid === 'returns' && invoice
+              ? `/returns?invoice=${encodeURIComponent(String(invoice))}`
+              : appPathForTab(valid);
+          pushClientPathIfChanged(returnPath);
+          setCurrentTab(valid);
+          if (valid === 'returns' && invoice) {
+            setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent('returns:inspect-invoice', { detail: { invoice, returnNumber: returnNum } })
+              );
+            }, 120);
+          } else if (invoice) {
+            pushClientPathIfChanged(`/invoices/${encodeURIComponent(String(invoice))}`);
+            setCurrentTab('reports');
+            setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invoice } })
+              );
+            }, 120);
+          }
         } else if (invoice) {
           pushClientPathIfChanged(`/invoices/${encodeURIComponent(String(invoice))}`);
           setCurrentTab('reports');
@@ -1682,20 +1749,14 @@ export default function App() {
               new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invoice } })
             );
           }, 120);
+        } else if (detail.actionTab) {
+          const valid = resolveTargetTab(detail.actionTab, currentUser, companySettings);
+          pushClientPathIfChanged(appPathForTab(valid));
+          setCurrentTab(valid);
         }
-      } else if (invoice) {
-        pushClientPathIfChanged(`/invoices/${encodeURIComponent(String(invoice))}`);
-        setCurrentTab('reports');
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('pos:open-receipt', { detail: { invoiceNumber: invoice } })
-          );
-        }, 120);
-      } else if (detail.actionTab) {
-        const valid = resolveTargetTab(detail.actionTab, currentUser, companySettings);
-        pushClientPathIfChanged(appPathForTab(valid));
-        setCurrentTab(valid);
-      }
+      };
+
+      void requestNavigation(executeAuthenticatedDeepLink);
     };
 
     const onCustomDeepLink = (e: any) => {
@@ -1752,7 +1813,7 @@ export default function App() {
       window.removeEventListener('message', onSwMessage);
       swContainer?.removeEventListener('message', onSwMessage as EventListener);
     };
-  }, [currentUser, companySettings, saasMode, handleTabChange]);
+  }, [currentUser, companySettings, saasMode, handleTabChange, requestNavigation]);
 
   const handleAuthSuccess = useCallback((user: any) => {
     clearStoredUnauthTenantId();
@@ -1890,17 +1951,10 @@ export default function App() {
     [handleNavigateDomain, refreshTenantDirectory, syncUserThemeFromAuth]
   );
 
-  const handleLogout = (options?: { reason?: 'idle' | 'manual' } | unknown) => {
-    // Immediate logout, no prompt. The remembered login email is stored under its own key
-    // (see utils/rememberedAccount.ts) and is intentionally NOT cleared here; only the
-    // "Forget this account" action on the sign-in screen removes it.
-    // Capture the tenant id BEFORE the session/tenant state is cleared.
-    const isIdleLogout =
-      typeof options === 'object' &&
-      options !== null &&
-      'reason' in options &&
-      (options as { reason?: string }).reason === 'idle';
-
+  const executeLogout = (isIdleLogout: boolean) => {
+    // Immediate logout when triggered by idle timer or after unsaved-changes confirmation.
+    // The remembered login email is stored under its own key (see utils/rememberedAccount.ts)
+    // and is intentionally NOT cleared here. Capture the tenant id BEFORE clearing state.
     const rawLogoutId =
       activeTenant?.id ||
       currentUser?.tenantId ||
@@ -1947,6 +2001,23 @@ export default function App() {
     window.history.replaceState({}, '', authUrl);
   };
 
+  const handleLogout = (options?: { reason?: 'idle' | 'manual' } | unknown) => {
+    const isIdleLogout =
+      typeof options === 'object' &&
+      options !== null &&
+      'reason' in options &&
+      (options as { reason?: string }).reason === 'idle';
+
+    if (isIdleLogout) {
+      executeLogout(true);
+      return;
+    }
+
+    void requestNavigation(() => {
+      executeLogout(false);
+    });
+  };
+
   const cashierIdleTimerEnabled = isCashierIdleTimerEnabled(currentUser, saasMode);
   const {
     isWarningOpen: isCashierIdleWarningOpen,
@@ -1960,28 +2031,32 @@ export default function App() {
   });
 
   const handleSwitchRole = (newRole: 'ADMIN' | 'CASHIER') => {
-    setCurrentUser((prev: any) => {
-      if (!prev) return prev;
-      const trueRole = (prev.originalRole || prev.role || '').toUpperCase();
-      if (trueRole !== 'ADMIN' && trueRole !== 'SUPERADMIN') {
-        return prev;
+    void requestNavigation(() => {
+      setCurrentUser((prev: any) => {
+        if (!prev) return prev;
+        const trueRole = (prev.originalRole || prev.role || '').toUpperCase();
+        if (trueRole !== 'ADMIN' && trueRole !== 'SUPERADMIN') {
+          return prev;
+        }
+        const updated = {
+          ...prev,
+          role: newRole,
+          originalRole: trueRole,
+          isSimulatedCashier: newRole === 'CASHIER',
+        };
+        try {
+          localStorage.setItem('pos_current_user', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+      if (newRole === 'CASHIER') {
+        setCurrentTab('pos');
+        window.history.replaceState({}, '', appPathForTab('pos'));
+      } else {
+        setCurrentTab('dashboard');
+        window.history.replaceState({}, '', appPathForTab('dashboard'));
       }
-      const updated = {
-        ...prev,
-        role: newRole,
-        originalRole: trueRole,
-        isSimulatedCashier: newRole === 'CASHIER',
-      };
-      try {
-        localStorage.setItem('pos_current_user', JSON.stringify(updated));
-      } catch {}
-      return updated;
     });
-    if (newRole === 'CASHIER') {
-      setCurrentTab('pos');
-    } else {
-      setCurrentTab('dashboard');
-    }
   };
 
   const handleSettingsUpdated = useCallback(async (updatedSettings?: any) => {
@@ -2062,7 +2137,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeys);
     return () => window.removeEventListener('keydown', handleGlobalKeys);
-  }, [currentUser, saasMode, currentTab]);
+  }, [currentUser, saasMode, currentTab, activeTenant, handleTabChange]);
 
   const scrollContainerRef = useRef<HTMLElement | null>(null);
 

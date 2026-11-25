@@ -1856,8 +1856,8 @@ export const Header: React.FC<HeaderProps> = ({
                                       }
                                     }
                                   } catch {}
+                                  onTabChange?.('pos');
                                 }
-                                onTabChange?.('pos');
                               }}
                               className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-semibold transition shadow-2xs cursor-pointer"
                               title="Browse as cashier to operate POS terminal"

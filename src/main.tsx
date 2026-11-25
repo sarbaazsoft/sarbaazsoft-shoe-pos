@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { ThemeProvider } from './context/ThemeContext.tsx';
+import { UnsavedChangesProvider } from './context/UnsavedChangesContext.tsx';
 import { registerViteChunkErrorRecovery } from './utils/swUpdate.ts';
 
 registerViteChunkErrorRecovery();
@@ -35,7 +36,9 @@ if (typeof window !== 'undefined' && window.localStorage) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <App />
+      <UnsavedChangesProvider>
+        <App />
+      </UnsavedChangesProvider>
     </ThemeProvider>
   </StrictMode>
 );

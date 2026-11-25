@@ -62,8 +62,15 @@ export function isWebUsbSupported(): boolean {
 
 // Pair a USB printer via WebUSB browser selector
 export async function pairUsbPrinter(
-  target: 'receipt' | 'sticker'
-): Promise<{ success: boolean; deviceName?: string; error?: string }> {
+  target: 'receipt' | 'sticker',
+  options?: { persist?: boolean }
+): Promise<{
+  success: boolean;
+  deviceName?: string;
+  vendorId?: number;
+  productId?: number;
+  error?: string;
+}> {
   if (!isWebUsbSupported()) {
     return {
       success: false,
@@ -80,26 +87,29 @@ export async function pairUsbPrinter(
     const deviceName = device.productName || `${target.toUpperCase()} USB Printer`;
     const vendorId = device.vendorId;
     const productId = device.productId;
+    const shouldPersist = options?.persist !== false;
 
-    if (target === 'receipt') {
-      savePrinterSettings({
-        receiptMode: 'webusb',
-        receiptDeviceName: deviceName,
-        receiptVendorId: vendorId,
-        receiptProductId: productId,
-        silentReceipt: true,
-      });
-    } else {
-      savePrinterSettings({
-        stickerMode: 'webusb',
-        stickerDeviceName: deviceName,
-        stickerVendorId: vendorId,
-        stickerProductId: productId,
-        silentSticker: true,
-      });
+    if (shouldPersist) {
+      if (target === 'receipt') {
+        savePrinterSettings({
+          receiptMode: 'webusb',
+          receiptDeviceName: deviceName,
+          receiptVendorId: vendorId,
+          receiptProductId: productId,
+          silentReceipt: true,
+        });
+      } else {
+        savePrinterSettings({
+          stickerMode: 'webusb',
+          stickerDeviceName: deviceName,
+          stickerVendorId: vendorId,
+          stickerProductId: productId,
+          silentSticker: true,
+        });
+      }
     }
 
-    return { success: true, deviceName };
+    return { success: true, deviceName, vendorId, productId };
   } catch (err: any) {
     if (err.name === 'NotFoundError') {
       return { success: false, error: 'No device selected.' };
@@ -340,8 +350,10 @@ export async function executePrintBatchStickers(
 }
 
 // Test Receipts & Stickers
-export async function executeTestReceipt(): Promise<{ success: boolean; error?: string }> {
-  const settings = getSavedPrinterSettings();
+export async function executeTestReceipt(
+  overrideSettings?: Partial<PrinterHardwareSettings>
+): Promise<{ success: boolean; error?: string }> {
+  const settings = { ...getSavedPrinterSettings(), ...overrideSettings };
   if (settings.receiptMode === 'webusb' && settings.receiptVendorId && settings.receiptProductId) {
     try {
       const device = await getConnectedUsbDevice(settings.receiptVendorId, settings.receiptProductId);
@@ -358,8 +370,10 @@ export async function executeTestReceipt(): Promise<{ success: boolean; error?: 
   }
 }
 
-export async function executeTestSticker(): Promise<{ success: boolean; error?: string }> {
-  const settings = getSavedPrinterSettings();
+export async function executeTestSticker(
+  overrideSettings?: Partial<PrinterHardwareSettings>
+): Promise<{ success: boolean; error?: string }> {
+  const settings = { ...getSavedPrinterSettings(), ...overrideSettings };
   if (settings.stickerMode === 'webusb' && settings.stickerVendorId && settings.stickerProductId) {
     try {
       const device = await getConnectedUsbDevice(settings.stickerVendorId, settings.stickerProductId);

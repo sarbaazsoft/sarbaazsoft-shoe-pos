@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { UserPlus, X, Check, ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, User, Mail, Phone, ShieldCheck, Lock, Eye, EyeOff, RefreshCw, KeyRound, Store, Shield, ExternalLink, Terminal, Copy } from 'lucide-react';
 import { api } from '../../services/api.ts';
@@ -12,12 +12,14 @@ interface CreateStaffModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUserCreated: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
   isOpen,
   onClose,
   onUserCreated,
+  onDirtyChange,
 }) => {
   const isDesktop = useIsDesktop();
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -46,6 +48,40 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
     previewUrl?: string | null;
     emailDelivered?: boolean;
   } | null>(null);
+
+  const isModalDirty = Boolean(
+    isOpen &&
+      !createdResult &&
+      (formData.name.trim() ||
+        formData.email.trim() ||
+        formData.phone.trim() ||
+        formData.password ||
+        formData.confirmPassword ||
+        formData.role !== 'CASHIER' ||
+        formData.status !== 'APPROVED')
+  );
+
+  useEffect(() => {
+    onDirtyChange?.(isModalDirty);
+  }, [isModalDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'CASHIER',
+        status: 'APPROVED',
+        password: '',
+        confirmPassword: '',
+      });
+      setCurrentStep(1);
+      setCreatedResult(null);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -103,6 +139,7 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
     setCreatedResult(null);
     setErrorMessage(null);
     setSuccessMessage(null);
+    onDirtyChange?.(false);
     onClose();
   };
 
