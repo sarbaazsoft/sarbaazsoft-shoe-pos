@@ -202,9 +202,11 @@ export function getStoredUnauthTenantId(): string {
 
 export function setStoredUnauthTenantId(tenantId: string | number | null | undefined) {
   try {
-    const num = Number(tenantId);
-    if (Number.isSafeInteger(num) && num > 0) {
-      sessionStorage.setItem(UNAUTH_TENANT_STORAGE_KEY, String(num));
+    if (tenantId !== '' && tenantId !== null && tenantId !== undefined) {
+      const num = Number(tenantId);
+      if (Number.isSafeInteger(num) && num >= 0) {
+        sessionStorage.setItem(UNAUTH_TENANT_STORAGE_KEY, String(num));
+      }
     }
     localStorage.removeItem(UNAUTH_TENANT_STORAGE_KEY);
   } catch {}
@@ -269,9 +271,9 @@ function detectInitialRouteFromLocation(): {
   const isSuperAdminStored = hasAuthToken && storedRole === 'SUPERADMIN';
   const isStoreUserStored = hasAuthToken && Boolean(storedUser) && !isSuperAdminStored && storedTenantId > 0;
 
-  // 3. Unauthenticated tenant scope (only from explicit URL params > 0; never auto-resurrect stale storage on / or /auth)
+  // 3. Unauthenticated tenant scope (only from explicit URL params: '0' = SuperAdmin, '>= 1' = Store; never auto-resurrect stale storage on / or /auth)
   const rawExplicitTenantId = (queryTenantId || pathTenantId || '').trim();
-  const explicitTenantId = rawExplicitTenantId && rawExplicitTenantId !== '0' ? rawExplicitTenantId : '';
+  const explicitTenantId = rawExplicitTenantId;
   const isExplicitAuthRoute =
     pathname === '/auth' ||
     pathname.startsWith('/auth/') ||
@@ -280,7 +282,7 @@ function detectInitialRouteFromLocation(): {
     searchParams.get('mode') === 'login';
   const tenantIdParam = isSuperAdminStored ? '' : explicitTenantId;
   if (!hasAuthToken) {
-    if (explicitTenantId && Number(explicitTenantId) > 0) {
+    if (explicitTenantId === '0' || Number(explicitTenantId) > 0) {
       setStoredUnauthTenantId(explicitTenantId);
     } else if (pathname === '/' || isExplicitAuthRoute) {
       clearStoredUnauthTenantId();
@@ -310,9 +312,6 @@ function detectInitialRouteFromLocation(): {
     if (isSuperAdminStored) {
       try { window.history.replaceState({}, '', '/admin'); } catch {}
       return { mode: 'SUPERADMIN', tenantIdParam: '' };
-    }
-    if (!explicitTenantId && rawExplicitTenantId === '0') {
-      try { window.history.replaceState({}, '', '/auth'); } catch {}
     }
     return { mode: 'AUTH', tenantIdParam };
   }
@@ -514,9 +513,12 @@ export default function App() {
   // resolved against the current tenant directory, cached settings belong to an
   // unknown (possibly previous) store and must not be used by the login UI.
   const hasStoredAuthToken = isStoredTokenValid();
-  const isRequestedTenantVerified = !tenantIdParam || Boolean(
-    storeLoginTarget && Number(storeLoginTarget.id) === Number(tenantIdParam)
-  );
+  const isSuperAdminUnauthScope =
+    (saasMode === 'LANDING' || saasMode === 'AUTH') && tenantIdParam === '0';
+  const isRequestedTenantVerified =
+    !tenantIdParam ||
+    tenantIdParam === '0' ||
+    Boolean(storeLoginTarget && Number(storeLoginTarget.id) === Number(tenantIdParam));
 
   const currentRoleUpperInit = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
   const currentTargetTenantId =
@@ -532,6 +534,7 @@ export default function App() {
 
   const effectiveStoreName = (() => {
     if (saasMode === 'SUPERADMIN') return 'POS Admin';
+    if (isSuperAdminUnauthScope) return 'SuperAdmin Control Panel';
     if ((saasMode === 'LANDING' || saasMode === 'AUTH') && !tenantIdParam) return 'SarbaazSoft Shoe POS';
 
     if (
@@ -585,19 +588,20 @@ export default function App() {
       getStandardDocumentTitle({
         saasMode,
         role: currentUser?.role,
-        isSuperAdmin: saasMode === 'SUPERADMIN',
-        platformName: PLATFORM_DOCUMENT_NAME,
+        isSuperAdmin: saasMode === 'SUPERADMIN' || isSuperAdminUnauthScope,
+        platformName: isSuperAdminUnauthScope ? 'SuperAdmin Control Panel' : PLATFORM_DOCUMENT_NAME,
         storeName: effectiveStoreName,
         currentTab,
         isAuthModalOpen: isLoginModalOpen,
       }),
-    [saasMode, currentUser?.role, effectiveStoreName, currentTab, isLoginModalOpen]
+    [saasMode, currentUser?.role, isSuperAdminUnauthScope, effectiveStoreName, currentTab, isLoginModalOpen]
   );
 
   // Synchronize PWA manifest link and installation shortcut meta tags strictly by active role & view state
   usePwaManifest({
     role: currentUser?.role,
     saasMode,
+    isSuperAdmin: saasMode === 'SUPERADMIN' || isSuperAdminUnauthScope,
     pathname: typeof window !== 'undefined' ? window.location.pathname : '/',
   });
 
@@ -926,6 +930,11 @@ export default function App() {
   // public tenant directory before presenting a tenant-scoped sign-in.
   useEffect(() => {
     if (!tenantIdParam || isInitializing || (saasMode !== 'LANDING' && saasMode !== 'AUTH')) return;
+    if (tenantIdParam === '0') {
+      setStoreLoginTarget(null);
+      setTenantIdNotice('');
+      return;
+    }
     const requestedId = Number(tenantIdParam);
     const target = Number.isSafeInteger(requestedId) && requestedId > 0
       ? availableTenants.find((tenant) => Number(tenant.id) === requestedId)
@@ -1213,7 +1222,7 @@ export default function App() {
         (pathMatch ? pathMatch[1] : '') ||
         ''
       ).trim();
-      const explicitTid = rawExplicitTid && rawExplicitTid !== '0' ? rawExplicitTid : '';
+      const explicitTid = rawExplicitTid;
       const mode = sp.get('mode');
       const isAuthPath =
         pathname === '/auth' ||
@@ -1236,7 +1245,7 @@ export default function App() {
         return;
       }
 
-      if (explicitTid && Number(explicitTid) > 0 && !currentUser) {
+      if ((explicitTid === '0' || Number(explicitTid) > 0) && !currentUser) {
         setStoredUnauthTenantId(explicitTid);
       } else if (!explicitTid && !currentUser && (isAuthPath || pathname === '/')) {
         clearStoredUnauthTenantId();
@@ -1384,22 +1393,28 @@ export default function App() {
     window.history.pushState({}, '', '/auth');
   }, []);
 
-  // When clicking Store Directory from /auth, only retain tenantId when actively scoped to a store (>= 1)
+  // When clicking Store Directory from /auth, retain active store (>= 1) or SuperAdmin ('0') scope
   const handleBackToStoreDirectory = useCallback(() => {
-    const activeUnauthId = !currentUser && Number(tenantIdParam) > 0 ? tenantIdParam : null;
+    const activeUnauthId =
+      !currentUser && (tenantIdParam === '0' || Number(tenantIdParam) > 0) ? tenantIdParam : null;
     setAuthSessionNotice(null);
     setIsLoginModalOpen(false);
     setTenantIdNotice('');
     setSaasMode('LANDING');
 
-    if (activeUnauthId) {
+    if (activeUnauthId !== null) {
       // Retain and pass along tenantId rather than stripping it out
       setTenantIdParam(String(activeUnauthId));
       setStoredUnauthTenantId(String(activeUnauthId));
-      const match = availableTenants.find((t) => Number(t.id) === Number(activeUnauthId));
-      if (match) {
-        setActiveTenant(match);
-        setStoreLoginTarget(match);
+      if (Number(activeUnauthId) > 0) {
+        const match = availableTenants.find((t) => Number(t.id) === Number(activeUnauthId));
+        if (match) {
+          setActiveTenant(match);
+          setStoreLoginTarget(match);
+        }
+      } else {
+        setActiveTenant(null);
+        setStoreLoginTarget(null);
       }
       try {
         window.history.pushState({}, '', `/?tenantId=${encodeURIComponent(activeUnauthId)}#shops`);
@@ -1432,20 +1447,32 @@ export default function App() {
   }) => {
     const isSuperAdmin = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase() === 'SUPERADMIN';
     if (target.mode === 'LANDING') {
-      const explicitTargetTid = target.tenantId && Number(target.tenantId) > 0 ? String(target.tenantId) : '';
-      const activeUnauthId = !currentUser ? (explicitTargetTid || (Number(tenantIdParam) > 0 ? tenantIdParam : '')) : null;
+      const explicitTargetTid =
+        target.tenantId === 0
+          ? '0'
+          : target.tenantId && Number(target.tenantId) > 0
+            ? String(target.tenantId)
+            : '';
+      const activeUnauthId = !currentUser
+        ? (explicitTargetTid || (tenantIdParam === '0' || Number(tenantIdParam) > 0 ? tenantIdParam : ''))
+        : null;
       setSaasMode('LANDING');
       setIsLoginModalOpen(false);
       setTenantIdNotice('');
 
-      if (activeUnauthId && Number(activeUnauthId) > 0) {
+      if (activeUnauthId && (activeUnauthId === '0' || Number(activeUnauthId) > 0)) {
         // Retain and pass along tenantId rather than stripping it out
         setTenantIdParam(String(activeUnauthId));
         setStoredUnauthTenantId(String(activeUnauthId));
-        const match = availableTenants.find((t) => Number(t.id) === Number(activeUnauthId));
-        if (match) {
-          setActiveTenant(match);
-          setStoreLoginTarget(match);
+        if (Number(activeUnauthId) > 0) {
+          const match = availableTenants.find((t) => Number(t.id) === Number(activeUnauthId));
+          if (match) {
+            setActiveTenant(match);
+            setStoreLoginTarget(match);
+          }
+        } else {
+          setActiveTenant(null);
+          setStoreLoginTarget(null);
         }
         window.history.pushState({}, '', `/?tenantId=${encodeURIComponent(activeUnauthId)}`);
         return;
@@ -1462,21 +1489,29 @@ export default function App() {
 
     if (target.mode === 'AUTH') {
       const targetId =
-        target.tenantId && Number.isSafeInteger(Number(target.tenantId)) && Number(target.tenantId) > 0
-          ? Number(target.tenantId)
-          : null;
+        target.tenantId === 0
+          ? 0
+          : target.tenantId && Number.isSafeInteger(Number(target.tenantId)) && Number(target.tenantId) > 0
+            ? Number(target.tenantId)
+            : null;
       setSaasMode('AUTH');
       setIsLoginModalOpen(true);
       setTenantIdNotice('');
-      if (targetId) {
+      if (targetId !== null) {
         setTenantIdParam(String(targetId));
         setStoredUnauthTenantId(String(targetId));
-        setActiveTenantId(targetId);
-        const match = availableTenants.find((t) => Number(t.id) === targetId);
-        if (match) {
-          setActiveTenant(match);
-          setStoreLoginTarget(match);
+        if (targetId > 0) {
+          setActiveTenantId(targetId);
+          const match = availableTenants.find((t) => Number(t.id) === targetId);
+          if (match) {
+            setActiveTenant(match);
+            setStoreLoginTarget(match);
+          } else {
+            setActiveTenant(null);
+            setStoreLoginTarget(null);
+          }
         } else {
+          setActiveTenantId(null);
           setActiveTenant(null);
           setStoreLoginTarget(null);
         }
@@ -1955,6 +1990,10 @@ export default function App() {
       void import('./components/dashboard/DashboardOverview.tsx').catch(() => {});
     }
     if (role === 'SUPERADMIN') {
+      setTenantIdParam('');
+      setStoreLoginTarget(null);
+      setTenantIdNotice('');
+      setIsLoginModalOpen(false);
       setActiveTenant(null);
       setActiveTenantId(null);
       setSaasMode('SUPERADMIN');
@@ -2090,7 +2129,15 @@ export default function App() {
     setAuthSessionNotice(isIdleLogout ? CASHIER_IDLE_LOGOUT_NOTICE : null);
     setCurrentTab('dashboard');
 
-    if (currentLogoutID > 0) {
+    if (isSuperAdminLogout) {
+      setActiveTenant(null);
+      setStoreLoginTarget(null);
+      setStoredUnauthTenantId('0');
+      setTenantIdParam('0');
+      setIsLoginModalOpen(true);
+      setSaasMode('AUTH');
+      window.history.replaceState({}, '', '/auth?tenantId=0');
+    } else if (currentLogoutID > 0) {
       const tenant =
         availableTenants.find((t) => Number(t.id) === currentLogoutID) ||
         (activeTenant && Number(activeTenant.id) === currentLogoutID ? activeTenant : null);
@@ -2554,13 +2601,15 @@ export default function App() {
             <AuthModal
               layoutMeta={activeRouteLayoutMeta}
               companySettings={
-                Number(tenantIdParam) > 0
-                  ? (storeLoginTarget && Number(storeLoginTarget.id) === Number(tenantIdParam)
-                      ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
-                      : (activeTenant && Number(activeTenant.id) === Number(tenantIdParam)
-                          ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
-                          : { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }))
-                  : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }
+                tenantIdParam === '0'
+                  ? { tenant_id: 0, tenantId: 0, id: 0, name: 'SuperAdmin Control Panel', logo: '/admin/pwa-192x192.png' }
+                  : Number(tenantIdParam) > 0
+                    ? (storeLoginTarget && Number(storeLoginTarget.id) === Number(tenantIdParam)
+                        ? { ...storeLoginTarget, tenant_id: storeLoginTarget.id, name: storeLoginTarget.name, logo: (storeLoginTarget as any).logo || (storeLoginTarget as any).logo_url || storeLoginTarget.logoUrl || '/pwa-192x192.png' }
+                        : (activeTenant && Number(activeTenant.id) === Number(tenantIdParam)
+                            ? { ...activeTenant, tenant_id: activeTenant.id, name: activeTenant.name, logo: (activeTenant as any).logo || (activeTenant as any).logo_url || activeTenant.logoUrl || '/pwa-192x192.png' }
+                            : { tenant_id: Number(tenantIdParam), name: effectiveStoreName || '', logo: '/pwa-192x192.png' }))
+                    : { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' }
               }
               onBack={handleBackToStoreDirectory}
               onClearTenantScope={handleClearAuthTenantScope}
@@ -2575,13 +2624,17 @@ export default function App() {
             <SaasLandingPage
               layoutMeta={activeRouteLayoutMeta}
               availableTenants={availableTenants}
-              unauthTenantId={Number(tenantIdParam) > 0 ? tenantIdParam : ''}
+              unauthTenantId={tenantIdParam === '0' || Number(tenantIdParam) > 0 ? tenantIdParam : ''}
               onClearTenantScope={handleClearTenantScope}
               onGlobalLogin={() => {
-                const activeScopeId = Number(tenantIdParam) > 0 ? tenantIdParam : '';
-                if (activeScopeId) {
-                  const targetStore = availableTenants.find((t) => Number(t.id) === Number(activeScopeId)) || null;
-                  setStoreLoginTarget(targetStore);
+                const activeScopeId = tenantIdParam === '0' || Number(tenantIdParam) > 0 ? tenantIdParam : '';
+                if (activeScopeId !== '') {
+                  if (Number(activeScopeId) > 0) {
+                    const targetStore = availableTenants.find((t) => Number(t.id) === Number(activeScopeId)) || null;
+                    setStoreLoginTarget(targetStore);
+                  } else {
+                    setStoreLoginTarget(null);
+                  }
                   setTenantIdParam(String(activeScopeId));
                   setStoredUnauthTenantId(String(activeScopeId));
                   setIsLoginModalOpen(true);

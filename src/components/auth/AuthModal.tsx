@@ -11,7 +11,7 @@ import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../conf
 import { getRememberedEmail, saveRememberedEmail, forgetRememberedEmail } from '../../utils/rememberedAccount.ts';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle.ts';
-import { getStandardDocumentTitle } from '../../utils/documentTitle.ts';
+import { getStandardDocumentTitle, PLATFORM_DOCUMENT_NAME } from '../../utils/documentTitle.ts';
 import { FreeTrialOnboardingModal } from '../saas/FreeTrialOnboardingModal.tsx';
 import { usePasswordReset } from '../../hooks/usePasswordReset.ts';
 import { PasswordResetFlow } from './PasswordResetFlow.tsx';
@@ -47,11 +47,52 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showFreeTrialModal, setShowFreeTrialModal] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Check GET payload query parameters (?tenantId=... or ?storeId=...) or path segments
+  const queryTenantNum = (() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const pathMatch = window.location.pathname.match(/^\/(?:store|stores|tenant|t|directory|auth|login)\/([a-zA-Z0-9_-]+)/i);
+      const val = (
+        sp.get('tenantId') ||
+        sp.get('storeId') ||
+        sp.get('tenant_id') ||
+        sp.get('store_id') ||
+        (pathMatch ? pathMatch[1] : '') ||
+        ''
+      ).trim();
+      if (!val) return null;
+      const num = Number(val);
+      return Number.isSafeInteger(num) && num >= 0 ? num : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const propTenantRaw =
+    companySettings?.tenant_id ??
+    companySettings?.tenantId ??
+    companySettings?.id;
+  const propTenantNum =
+    propTenantRaw !== undefined && propTenantRaw !== null && String(propTenantRaw).trim() !== ''
+      ? Number(propTenantRaw)
+      : null;
+
+  const resolvedScopeTenantId =
+    propTenantNum !== null && Number.isSafeInteger(propTenantNum) && propTenantNum >= 0
+      ? propTenantNum
+      : queryTenantNum;
+
+  const isSuperAdminScope = resolvedScopeTenantId === 0;
+  const activeTenantId =
+    resolvedScopeTenantId !== null && resolvedScopeTenantId > 0 ? resolvedScopeTenantId : null;
+  const rememberScope = isSuperAdminScope ? 'platform' : 'store';
+
   // Form states with email retrieval from localStorage
-  const [email, setEmail] = useState(() => getRememberedEmail('store') ?? '');
+  const [email, setEmail] = useState(() => getRememberedEmail(rememberScope) ?? '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(() => Boolean(getRememberedEmail('store')));
+  const [rememberMe, setRememberMe] = useState(() => Boolean(getRememberedEmail(rememberScope)));
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [loginPasteBlocked, setLoginPasteBlocked] = useState(false);
 
@@ -60,40 +101,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [matchingStores, setMatchingStores] = useState<Array<{ tenantId: number; name: string }>>([]);
 
-  // Check GET payload query parameters (?tenantId=... or ?storeId=...) or path segments
-  const queryTenantId = (() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      const pathMatch = window.location.pathname.match(/^\/(?:store|stores|tenant|t|directory|auth|login)\/([a-zA-Z0-9_-]+)/i);
-      const val =
-        sp.get('tenantId') ||
-        sp.get('storeId') ||
-        sp.get('tenant_id') ||
-        sp.get('store_id') ||
-        (pathMatch ? pathMatch[1] : '') ||
-        '';
-      const num = Number(val);
-      return Number.isSafeInteger(num) && num > 0 ? num : null;
-    } catch {
-      return null;
-    }
-  })();
-
-  const rawTenantId = Number(
-    companySettings?.tenant_id ??
-    companySettings?.tenantId ??
-    companySettings?.id ??
-    queryTenantId ??
-    0
-  );
-  const activeTenantId = Number.isSafeInteger(rawTenantId) && rawTenantId > 0 ? rawTenantId : null;
-
   const passwordReset = usePasswordReset({
     email,
     onEmailChange: setEmail,
     tenantId: activeTenantId,
-    roleScope: activeTenantId ? 'STORE' : 'ALL',
+    roleScope: isSuperAdminScope ? 'SUPERADMIN' : activeTenantId ? 'STORE' : 'ALL',
     enabled: tab === 'reset',
     onResetSuccess: (message, resetEmail) => {
       setErrorMessage(null);
@@ -105,8 +117,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   });
 
   const initialStoreTitle = (() => {
+    if (isSuperAdminScope) return '';
     const raw = companySettings?.name || companySettings?.company_name || companySettings?.companyName || '';
-    if (raw && raw !== 'SarbaazSoft Shoe POS' && raw !== 'Shoe POS & Inventory') {
+    if (raw && raw !== 'SarbaazSoft Shoe POS' && raw !== 'Shoe POS & Inventory' && raw !== 'SuperAdmin Control Panel') {
       return raw;
     }
     return '';
@@ -117,48 +130,55 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // If activeTenantId is present from GET payload or props, resolve store name
   useEffect(() => {
     let isMounted = true;
+    if (isSuperAdminScope || !activeTenantId) {
+      setStoreTitle('');
+      return () => {
+        isMounted = false;
+      };
+    }
+
     const provided = companySettings?.name || companySettings?.company_name || companySettings?.companyName;
-    if (provided && provided !== 'SarbaazSoft Shoe POS' && provided !== 'Shoe POS & Inventory') {
+    if (provided && provided !== 'SarbaazSoft Shoe POS' && provided !== 'Shoe POS & Inventory' && provided !== 'SuperAdmin Control Panel') {
       setStoreTitle(provided);
       return;
     }
-    if (!activeTenantId) {
-      setStoreTitle('');
-    }
 
-    if (activeTenantId) {
-      api.saas.resolve(activeTenantId).then((res) => {
-        if (!isMounted) return;
-        const target = res?.availableTenants?.find((t: any) => Number(t.id) === activeTenantId);
-        const resolved =
-          target ||
-          (res?.resolution?.tenant && Number(res.resolution.tenant.id) === activeTenantId
-            ? res.resolution.tenant
-            : null);
-        if (resolved?.name) {
-          setStoreTitle(resolved.name);
-          onTenantResolved?.(resolved);
-        }
-      }).catch(() => {});
-    }
+    api.saas.resolve(activeTenantId).then((res) => {
+      if (!isMounted) return;
+      const target = res?.availableTenants?.find((t: any) => Number(t.id) === activeTenantId);
+      const resolved =
+        target ||
+        (res?.resolution?.tenant && Number(res.resolution.tenant.id) === activeTenantId
+          ? res.resolution.tenant
+          : null);
+      if (resolved?.name) {
+        setStoreTitle(resolved.name);
+        onTenantResolved?.(resolved);
+      }
+    }).catch(() => {});
 
     return () => {
       isMounted = false;
     };
-  }, [activeTenantId, companySettings, onTenantResolved]);
+  }, [activeTenantId, isSuperAdminScope, companySettings, onTenantResolved]);
 
-  const effectiveStoreName =
-    storeTitle ||
-    (companySettings?.name && companySettings.name !== 'SarbaazSoft Shoe POS' && companySettings.name !== 'Shoe POS & Inventory' ? companySettings.name : '') ||
-    (activeTenantId ? `Store #${activeTenantId}` : 'SarbaazSoft Shoe POS');
+  const effectiveStoreName = isSuperAdminScope
+    ? 'SuperAdmin Control Panel'
+    : (
+        storeTitle ||
+        (companySettings?.name && companySettings.name !== 'SarbaazSoft Shoe POS' && companySettings.name !== 'Shoe POS & Inventory' ? companySettings.name : '') ||
+        (activeTenantId ? `Store #${activeTenantId}` : 'SarbaazSoft Shoe POS')
+      );
 
-  const isStoreSpecific = Boolean(activeTenantId || storeTitle);
+  const isStoreSpecific = !isSuperAdminScope && Boolean(activeTenantId || storeTitle);
   const storeName = effectiveStoreName;
 
   useDocumentTitle(
     () =>
       getStandardDocumentTitle({
         saasMode: 'AUTH',
+        isSuperAdmin: isSuperAdminScope,
+        platformName: isSuperAdminScope ? 'SuperAdmin Control Panel' : PLATFORM_DOCUMENT_NAME,
         isAuthModalOpen: true,
         authSubTab:
           tab === 'login'
@@ -168,7 +188,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             : 'reset',
         storeName,
       }),
-    [tab, passwordReset.step, storeName]
+    [tab, passwordReset.step, storeName, isSuperAdminScope]
   );
 
   // Hidden by default for a few ms, then fades in smoothly
@@ -187,7 +207,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const isVerifiedRedirect =
       searchParams.get('verified') === '1' || searchParams.get('verified') === 'true';
 
-    const savedEmail = getRememberedEmail('store') ?? '';
+    const savedEmail = getRememberedEmail(rememberScope) ?? '';
     const initialLoginEmail = urlEmail || savedEmail;
     setEmail(initialLoginEmail);
     setRememberMe(Boolean(savedEmail || urlEmail));
@@ -206,7 +226,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTenantId]);
+  }, [activeTenantId, isSuperAdminScope]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,10 +244,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setAuthSession(res.token, res.user);
 
       // Save or remove remembered email according to Remember Me checkbox
+      const loginRoleUpper = String(res.user?.originalRole || res.user?.role || '').toUpperCase();
+      const targetRememberScope = loginRoleUpper === 'SUPERADMIN' ? 'platform' : rememberScope;
       if (rememberMe) {
-        saveRememberedEmail(res.user?.email || loginEmail, 'store');
+        saveRememberedEmail(res.user?.email || loginEmail, targetRememberScope);
       } else {
-        forgetRememberedEmail('store');
+        forgetRememberedEmail(targetRememberScope);
       }
 
       onSuccess(res.user);
@@ -285,15 +307,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       backdrop={<ShowroomBackground />}
       header={
         <PublicHeader
-          storeName={storeName}
-          logoSrc={companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png'}
+          isSuperAdmin={isSuperAdminScope}
+          storeName={isSuperAdminScope ? 'SuperAdmin Control Panel' : storeName}
+          subtitle={isSuperAdminScope ? 'SuperAdmin Control Plane' : undefined}
+          logoSrc={isSuperAdminScope ? '/admin/pwa-192x192.png' : (companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png')}
           actionText={onBack ? 'Store Directory' : undefined}
           actionIcon={<Store className="w-3.5 h-3.5" />}
           onActionClick={onBack}
         />
       }
       topBanner={
-        activeTenantId ? (
+        isSuperAdminScope || activeTenantId ? (
           <div
             id="auth-tenant-scope-banner"
             className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-1.5 sm:py-2 px-3 sm:px-4 text-xs select-none"
@@ -301,9 +325,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
               <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse shrink-0" />
-                <span>
-                  Active Store Scope: <strong>{effectiveStoreName}</strong> (Tenant #{activeTenantId})
-                </span>
+                {isSuperAdminScope ? (
+                  <span>
+                    Active System Scope: <strong>SuperAdmin Control Panel</strong> (Tenant #0)
+                  </span>
+                ) : (
+                  <span>
+                    Active Store Scope: <strong>{effectiveStoreName}</strong> (Tenant #{activeTenantId})
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {onBack && (
@@ -312,7 +342,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onClick={onBack}
                     className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
                   >
-                    Change Store
+                    {isSuperAdminScope ? 'Store Directory' : 'Change Store'}
                   </button>
                 )}
                 <button
@@ -325,9 +355,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onClearTenantScope?.();
                   }}
                   className="px-2.5 py-1 rounded-md bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-700 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border border-purple-400/70 shadow-sm hover:shadow-md"
-                  title="Clear tenant scope and sign in without a store lock"
+                  title={isSuperAdminScope ? 'Reset scope to null and sign in without system lock' : 'Clear tenant scope and sign in without a store lock'}
                 >
-                  Clear Store Scope
+                  {isSuperAdminScope ? 'Clear Scope' : 'Clear Store Scope'}
                 </button>
               </div>
             </div>
@@ -372,25 +402,66 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   : 'bg-white border-purple-200/90 shadow-2xl shadow-purple-950/10 text-slate-800'
               }`}
             >
-              {/* Store Icon Header matching store sidebar top */}
+              {/* Brand / Store Icon Header */}
               <div className="text-center mb-3.5 sm:mb-5">
                 <div className="w-14 h-14 sm:w-20 sm:h-20 mx-auto mb-2.5 sm:mb-3 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-lg shadow-purple-600/20 dark:shadow-[0_0_20px_rgba(var(--primary-rgb,147,51,234),)] border border-indigo-500/25 overflow-hidden">
-                  <ShoeIcon src={companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png'} alt={`${effectiveStoreName} Logo`} className="w-full h-full object-cover rounded-2xl" />
+                  {isSuperAdminScope ? (
+                    <img
+                      src="/admin/pwa-192x192.png"
+                      alt="SuperAdmin Control Panel Logo"
+                      className="w-full h-full object-contain rounded-2xl p-1.5"
+                    />
+                  ) : (
+                    <ShoeIcon
+                      src={isStoreSpecific ? (companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png') : '/pwa-192x192.png'}
+                      alt={`${effectiveStoreName} Logo`}
+                      className="w-full h-full object-cover rounded-2xl"
+                    />
+                  )}
                 </div>
-                <div
-                  id="auth-card-heading"
-                  className="text-[11px] font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-0.5 sm:mb-1"
-                >
-                  SarbaazSoft Shoe POS
-                </div>
-                <h2 id="auth-store-name" className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {effectiveStoreName}
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-0.5 sm:mt-1 font-medium">
-                  {isStoreSpecific
-                    ? `Sign in to continue to ${effectiveStoreName}`
-                    : 'Sign in to continue to store terminal'}
-                </p>
+                {isSuperAdminScope ? (
+                  <>
+                    <div
+                      id="auth-card-heading"
+                      className="text-[11px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 mb-0.5 sm:mb-1"
+                    >
+                      SarbaazSoft AdminPOS
+                    </div>
+                    <h2 id="auth-store-name" className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      SuperAdmin Control Panel
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-0.5 sm:mt-1 font-medium">
+                      Sign in to continue to SuperAdmin Control Panel
+                    </p>
+                  </>
+                ) : isStoreSpecific ? (
+                  <>
+                    <div
+                      id="auth-card-heading"
+                      className="text-[11px] font-bold uppercase tracking-wider text-slate-900 dark:text-white mb-0.5 sm:mb-1"
+                    >
+                      SarbaazSoft Shoe POS
+                    </div>
+                    <h2 id="auth-store-name" className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      {effectiveStoreName}
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-0.5 sm:mt-1 font-medium">
+                      Sign in to continue to {effectiveStoreName}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2
+                      id="auth-card-heading"
+                      className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight"
+                    >
+                      SarbaazSoft Shoe POS
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-0.5 sm:mt-1 font-medium">
+                      Sign in to continue to store terminal
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Login Alerts */}
@@ -608,7 +679,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       </>
                     ) : (
                       <>
-                        <span>Sign In to Terminal</span>
+                        <span>{isSuperAdminScope ? 'Sign In to Control Panel' : 'Sign In to Terminal'}</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -636,7 +707,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <PasswordResetFlow
                   idPrefix="store-auth"
                   controller={passwordReset}
-                  roleScope={activeTenantId ? 'STORE' : 'ALL'}
+                  roleScope={isSuperAdminScope ? 'SUPERADMIN' : activeTenantId ? 'STORE' : 'ALL'}
                   onBackToLogin={() => {
                     passwordReset.resetFlow('request');
                     setTab('login');

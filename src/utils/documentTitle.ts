@@ -87,6 +87,7 @@ export function getStandardDocumentTitle(options: StandardTitleOptions = {}): st
       return `${cleanPlatformName} | ${resolveAuthLabel(authSubTab)}`;
     }
     const adminBase = 'SuperAdmin Control Panel';
+    if (modeUpper === 'LANDING') return adminBase;
     if (cleanModal) return `${adminBase} | ${cleanModal}`;
     if (tabLabel) return `${adminBase} | ${tabLabel}`;
     return `${adminBase} | Dashboard`;

@@ -684,12 +684,12 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     setActiveNav(navKey);
     const cleanId = id.replace(/^#/, '');
     const searchParams = new URLSearchParams(window.location.search);
-    const rawCurrentTid = searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId || '';
-    const numCurrentTid = Number(rawCurrentTid);
-    const currentTid = Number.isSafeInteger(numCurrentTid) && numCurrentTid > 0 ? String(numCurrentTid) : '';
+    const rawCurrentTid = String(searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId || '').trim();
+    const numCurrentTid = rawCurrentTid !== '' ? Number(rawCurrentTid) : NaN;
+    const currentTid = Number.isSafeInteger(numCurrentTid) && numCurrentTid >= 0 ? String(numCurrentTid) : '';
     const isTopTarget = cleanId === 'top' || cleanId === 'home';
     const hash = isTopTarget ? '' : `#${cleanId}`;
-    if (currentTid) {
+    if (currentTid !== '') {
       window.history.replaceState({}, '', `/?tenantId=${encodeURIComponent(currentTid)}${hash}`);
     } else if (hash) {
       window.history.replaceState({}, '', `/${hash}`);
@@ -874,7 +874,10 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     onStoreCreated?.(tenantId, loginUrl, user, token);
   };
 
-  const numericUnauthTid = Number(unauthTenantId);
+  const hasExplicitUnauthScope =
+    unauthTenantId !== null && unauthTenantId !== undefined && String(unauthTenantId).trim() !== '';
+  const numericUnauthTid = hasExplicitUnauthScope ? Number(unauthTenantId) : NaN;
+  const isSuperAdminUnauthScope = Number.isSafeInteger(numericUnauthTid) && numericUnauthTid === 0;
   const validUnauthTenantId =
     Number.isSafeInteger(numericUnauthTid) && numericUnauthTid > 0 ? numericUnauthTid : null;
 
@@ -906,14 +909,20 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         />
       }
       topBanner={
-        validUnauthTenantId ? (
+        isSuperAdminUnauthScope || validUnauthTenantId ? (
           <div id="unauth-tenant-scope-banner" className="bg-purple-950/90 lt:bg-purple-100 border-b border-purple-800/60 lt:border-purple-300 py-2 px-4 text-xs select-none">
             <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-purple-200 lt:text-purple-900 font-medium">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>
-                  Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${validUnauthTenantId}`}</strong> (Tenant #{validUnauthTenantId})
-                </span>
+                {isSuperAdminUnauthScope ? (
+                  <span>
+                    Active System Scope: <strong>SuperAdmin Control Panel</strong> (Tenant #0)
+                  </span>
+                ) : (
+                  <span>
+                    Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${validUnauthTenantId}`}</strong> (Tenant #{validUnauthTenantId})
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -921,16 +930,16 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
                   onClick={onGlobalLogin}
                   className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
                 >
-                  Sign In to {matchedScopedStore?.name || 'Store'}
+                  {isSuperAdminUnauthScope ? 'Sign In to Control Panel' : `Sign In to ${matchedScopedStore?.name || 'Store'}`}
                 </button>
                 {onClearTenantScope && (
                   <button
                     type="button"
                     onClick={onClearTenantScope}
                     className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 lt:bg-white lt:hover:bg-slate-200 text-purple-200 lt:text-purple-900 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
-                    title="Clear tenant scope and view all stores"
+                    title={isSuperAdminUnauthScope ? 'Reset scope to null and view all stores' : 'Clear tenant scope and view all stores'}
                   >
-                    Clear Store Scope
+                    {isSuperAdminUnauthScope ? 'Clear Scope' : 'Clear Store Scope'}
                   </button>
                 )}
               </div>

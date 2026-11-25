@@ -368,8 +368,8 @@ test('Frontend api.ts prevents stale tenantId leakage on / and /auth across Supe
   });
 });
 
-test('Public SSR views & routing guards on / and /auth never default to tenant 1 or leak stale storage scope', async () => {
-  // 1. AuthModal on unscoped /auth even if stale pos_unauth_scoped_tenant_id exists in storage
+test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantId=0 (SuperAdmin), and tenantId>=1 (Store)', async () => {
+  // 1. AuthModal on unscoped /auth (tenantId = null) even if stale pos_unauth_scoped_tenant_id exists in storage -> NO scope banner & NO personalized title
   await withBrowserEnv({ pathname: '/auth', search: '' }, ({ localStorage, sessionStorage }) => {
     localStorage.setItem('pos_unauth_scoped_tenant_id', '1');
     sessionStorage.setItem('pos_unauth_scoped_tenant_id', '1');
@@ -385,10 +385,12 @@ test('Public SSR views & routing guards on / and /auth never default to tenant 1
       )
     );
     assert.equal(html.includes('id="auth-tenant-scope-banner"'), false);
+    assert.equal(html.includes('id="auth-store-name"'), false);
     assert.equal(html.includes('Tenant #1'), false);
+    assert.equal(html.includes('/admin/pwa-192x192.png'), false);
   });
 
-  // 2. AuthModal with ?tenantId=0 treats 0 as system/unscoped, never Tenant #0 or #1
+  // 2. AuthModal with ?tenantId=0 treats 0 as SuperAdmin scope: shows S icon, personalized SuperAdmin title, and Tenant #0 banner (never Tenant #1)
   await withBrowserEnv({ pathname: '/auth', search: '?tenantId=0' }, () => {
     const html = renderToStaticMarkup(
       React.createElement(
@@ -396,17 +398,38 @@ test('Public SSR views & routing guards on / and /auth never default to tenant 1
         null,
         React.createElement(AuthModal, {
           onSuccess: () => {},
-          companySettings: { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' },
+          companySettings: { tenant_id: 0, name: 'SuperAdmin Control Panel', logo: '/admin/pwa-192x192.png' },
         })
       )
     );
-    assert.equal(html.includes('id="auth-tenant-scope-banner"'), false);
-    assert.equal(html.includes('Tenant #0'), false);
+    assert.equal(html.includes('id="auth-tenant-scope-banner"'), true);
+    assert.equal(html.includes('Tenant #0'), true);
+    assert.equal(html.includes('Tenant #1'), false);
+    assert.equal(html.includes('id="auth-store-name"'), true);
+    assert.equal(html.includes('SuperAdmin Control Panel'), true);
+    assert.equal(html.includes('SarbaazSoft AdminPOS'), true);
+    assert.equal(html.includes('/admin/pwa-192x192.png'), true);
   });
 
-  // 3. SaasLandingPage ignores non-positive unauthTenantId='0'
+  // 3. SaasLandingPage with unauthTenantId='' shows NO banner, while unauthTenantId='0' shows SuperAdmin Control Panel (Tenant #0) banner
+  await withBrowserEnv({ pathname: '/', search: '' }, () => {
+    const unscopedHtml = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(SaasLandingPage, {
+          availableTenants: [{ id: 1, name: 'Test Store 1' } as any],
+          unauthTenantId: '',
+          onGlobalLogin: () => {},
+          onOpenSuperAdmin: () => {},
+        })
+      )
+    );
+    assert.equal(unscopedHtml.includes('id="unauth-tenant-scope-banner"'), false);
+  });
+
   await withBrowserEnv({ pathname: '/', search: '?tenantId=0' }, () => {
-    const html = renderToStaticMarkup(
+    const adminScopedHtml = renderToStaticMarkup(
       React.createElement(
         ThemeProvider,
         null,
@@ -418,8 +441,10 @@ test('Public SSR views & routing guards on / and /auth never default to tenant 1
         })
       )
     );
-    assert.equal(html.includes('id="unauth-tenant-scope-banner"'), false);
-    assert.equal(html.includes('Tenant #0'), false);
+    assert.equal(adminScopedHtml.includes('id="unauth-tenant-scope-banner"'), true);
+    assert.equal(adminScopedHtml.includes('SuperAdmin Control Panel'), true);
+    assert.equal(adminScopedHtml.includes('Tenant #0'), true);
+    assert.equal(adminScopedHtml.includes('Tenant #1'), false);
   });
 
   // 4. Static invariants on public route logic in App.tsx, AuthModal.tsx, PublicHeader.tsx
@@ -431,6 +456,11 @@ test('Public SSR views & routing guards on / and /auth never default to tenant 1
     appSrc.includes("availableTenants[0]?.id ? Number(availableTenants[0].id) : null"),
     false,
     'App.tsx must never default unscoped /auth or logout redirect to availableTenants[0]'
+  );
+  assert.equal(
+    appSrc.includes("window.history.replaceState({}, '', '/auth?tenantId=0')"),
+    true,
+    'App.tsx must redirect SuperAdmin logout to /auth?tenantId=0'
   );
   const detectFnStart = appSrc.indexOf('function detectInitialRouteFromLocation()');
   const appFnStart = appSrc.indexOf('export default function App()');
