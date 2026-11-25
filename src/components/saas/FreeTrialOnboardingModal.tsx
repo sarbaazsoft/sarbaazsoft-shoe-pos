@@ -218,7 +218,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
     }
 
     if (!acceptedLicense) {
-      setErrorMessage('Please accept the Free Trial Software License Agreement to continue.');
+      setErrorMessage('Please accept the Software License Agreement to continue.');
       return;
     }
 
@@ -941,14 +941,14 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
                           : 'text-indigo-600 hover:text-indigo-800'
                       }`}
                     >
-                      Free Trial Software License Agreement
+                      Software License Agreement
                     </button>
                     <span className="text-purple-500 font-bold ml-0.5">*</span>
                   </span>
                 </label>
                 {touched.license && !acceptedLicense && (
                   <p className="mt-1.5 pl-6 text-[11px] text-rose-500 font-medium">
-                    You must accept the Free Trial Software License Agreement to activate.
+                    You must accept the Software License Agreement to continue.
                   </p>
                 )}
               </div>
@@ -978,7 +978,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
                 <button
                   type="submit"
                   disabled={isLoading || !acceptedLicense || (touched.email && emailAvailable === false)}
-                  title={!acceptedLicense ? 'Please accept the Free Trial Software License Agreement to continue' : undefined}
+                  title={!acceptedLicense ? 'Please accept the Software License Agreement to continue' : undefined}
                   className="btn-primary px-5 py-2.5 text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md font-bold disabled:opacity-50 disabled:cursor-not-allowed transition active:scale-[0.99]"
                 >
                   {isLoading ? (
@@ -1007,15 +1007,13 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
       <LicenseAgreementModal
         isOpen={isLicenseModalOpen}
         onClose={() => setIsLicenseModalOpen(false)}
-        initialLicenseType="free_trial"
-        allowSwitch={true}
         theme={isDark ? 'dark' : 'light'}
         onAccept={() => {
           setAcceptedLicense(true);
           setTouched((prev) => ({ ...prev, license: true }));
           setIsLicenseModalOpen(false);
         }}
-        acceptLabel="Accept Free Trial License"
+        acceptLabel="Accept License"
       />
     </>
   );

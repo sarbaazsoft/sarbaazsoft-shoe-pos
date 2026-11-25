@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { APP_VERSION } from '../../version.ts';
 import { LicenseAgreementModal } from './LicenseAgreementModal.tsx';
-import type { LicenseAgreementType } from '../../data/licenseAgreements.ts';
 
 export interface PublicFooterProps {
   storeName?: string;
@@ -15,7 +14,7 @@ export interface PublicFooterProps {
  */
 export const PublicFooter: React.FC<PublicFooterProps> = () => {
   const currentYear = new Date().getFullYear();
-  const [licenseModalType, setLicenseModalType] = useState<LicenseAgreementType | null>(null);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
 
   return (
     <>
@@ -39,18 +38,10 @@ export const PublicFooter: React.FC<PublicFooterProps> = () => {
           <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
             <button
               type="button"
-              onClick={() => setLicenseModalType('free_trial')}
+              onClick={() => setIsLicenseModalOpen(true)}
               className="hover:text-indigo-600 dark:hover:text-indigo-300 underline-offset-2 hover:underline transition-colors cursor-pointer whitespace-nowrap"
             >
-              Free Trial License
-            </button>
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              onClick={() => setLicenseModalType('premium')}
-              className="hover:text-indigo-600 dark:hover:text-indigo-300 underline-offset-2 hover:underline transition-colors cursor-pointer whitespace-nowrap"
-            >
-              Premium License
+              Software License
             </button>
             <span aria-hidden="true">·</span>
             <span>
@@ -61,12 +52,9 @@ export const PublicFooter: React.FC<PublicFooterProps> = () => {
       </footer>
 
       <LicenseAgreementModal
-        isOpen={licenseModalType !== null}
-        onClose={() => setLicenseModalType(null)}
-        initialLicenseType={licenseModalType || 'free_trial'}
-        allowSwitch={true}
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
       />
     </>
   );
 };
-

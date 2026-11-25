@@ -531,7 +531,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const handleRequestUpgrade = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!acceptedPremiumLicense) {
-      setUpgradeErrorMessage('Please accept the Premium Subscription Software License Agreement before submitting.');
+      setUpgradeErrorMessage('Please accept the Software License Agreement before submitting.');
       return;
     }
     setIsSubmittingUpgrade(true);
@@ -2794,7 +2794,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                             }}
                             className="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 cursor-pointer"
                           >
-                            Premium Subscription Software License Agreement
+                            Software License Agreement
                           </button>
                           <span className="text-rose-500 font-bold ml-0.5">*</span>
                         </span>
@@ -2827,7 +2827,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         type="button"
                         onClick={handleRequestUpgrade}
                         disabled={isSubmittingUpgrade || !acceptedPremiumLicense}
-                        title={!acceptedPremiumLicense ? 'Please accept the Premium Subscription Software License Agreement first' : undefined}
+                        title={!acceptedPremiumLicense ? 'Please accept the Software License Agreement first' : undefined}
                         className="btn-primary px-4 sm:px-5 py-2.5 text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md font-bold disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px] flex-1 sm:flex-initial"
                       >
                         {isSubmittingUpgrade ? (
@@ -2862,13 +2862,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       <LicenseAgreementModal
         isOpen={isPremiumLicenseOpen}
         onClose={() => setIsPremiumLicenseOpen(false)}
-        initialLicenseType="premium"
-        allowSwitch={true}
         onAccept={() => {
           setAcceptedPremiumLicense(true);
           setIsPremiumLicenseOpen(false);
         }}
-        acceptLabel="Accept Premium License"
+        acceptLabel="Accept License"
       />
     </div>
   );

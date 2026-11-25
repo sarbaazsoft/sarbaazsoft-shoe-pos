@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Store, Users, Globe, Trash2, CheckCircle2, AlertCircle, ExternalLink, Printer, Building2, Phone, Mail, MapPin, Coins, Hash, Link, ShieldCheck, ShieldAlert, Lock, Server, RefreshCw, Sparkles, Eye, EyeOff, Unlock, UserPlus, X, TrendingUp, Camera, Upload, Image as ImageIcon, Calendar, Sliders, Cpu, KeyRound, Save, Send, Check, Bell, BellRing, Radio, Loader2, CreditCard, ShoppingBag, AlertTriangle, Layers, Flame, Palette, FileText } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { LicenseAgreementModal } from '../common/LicenseAgreementModal.tsx';
-import type { LicenseAgreementType } from '../../data/licenseAgreements.ts';
 import { lazyWithRetry } from '../../utils/lazyWithRetry.ts';
 const PrinterHardwareSettings = lazyWithRetry(() => import('./PrinterHardwareSettings.tsx'), (m) => m.PrinterHardwareSettings, '/src/components/settings/PrinterHardwareSettings.tsx');
 const DataBackupRestore = lazyWithRetry(() => import('./DataBackupRestore.tsx'), (m) => m.DataBackupRestore, '/src/components/settings/DataBackupRestore.tsx');
@@ -425,7 +424,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isSubmittingRenewal, setIsSubmittingRenewal] = useState(false);
   const [renewalSuccessMessage, setRenewalSuccessMessage] = useState<string | null>(null);
   const [renewalErrorMessage, setRenewalErrorMessage] = useState<string | null>(null);
-  const [licenseModalType, setLicenseModalType] = useState<LicenseAgreementType | null>(null);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [acceptedPremiumLicense, setAcceptedPremiumLicense] = useState(false);
   const hasAutoPromptedExpiredRef = useRef(false);
 
@@ -493,7 +492,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleRequestSubscriptionRenewal = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!acceptedPremiumLicense) {
-      setRenewalErrorMessage('Please accept the Premium Subscription Software License Agreement before submitting.');
+      setRenewalErrorMessage('Please accept the Software License Agreement before submitting.');
       return;
     }
     setIsSubmittingRenewal(true);
@@ -2098,17 +2097,17 @@ setFormErrors(errors);
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 Applicable terms:{' '}
                 <strong className="text-slate-700 dark:text-slate-200">
-                  {isTrialActive ? 'Free Trial Software License Agreement' : 'Premium Subscription Software License Agreement'}
+                  Software License Agreement
                 </strong>
               </span>
               <button
                 id="settings-view-license-agreement-btn"
                 type="button"
-                onClick={() => setLicenseModalType(isTrialActive ? 'free_trial' : 'premium')}
+                onClick={() => setIsLicenseModalOpen(true)}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 underline underline-offset-2 transition-colors cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 shrink-0" />
-                <span>View Active Software License</span>
+                <span>View Software License</span>
               </button>
             </div>
           </div>
@@ -5406,11 +5405,11 @@ setFormErrors(errors);
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setLicenseModalType('premium');
+                              setIsLicenseModalOpen(true);
                             }}
                             className="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 cursor-pointer"
                           >
-                            Premium Subscription Software License Agreement
+                            Software License Agreement
                           </button>
                           <span className="text-rose-500 font-bold ml-0.5">*</span>
                         </span>
@@ -5432,7 +5431,7 @@ setFormErrors(errors);
                       type="button"
                       onClick={handleRequestSubscriptionRenewal}
                       disabled={isSubmittingRenewal || !acceptedPremiumLicense}
-                      title={!acceptedPremiumLicense ? 'Please accept the Premium Subscription Software License Agreement first' : undefined}
+                      title={!acceptedPremiumLicense ? 'Please accept the Software License Agreement first' : undefined}
                       className="btn-primary px-5 py-2.5 text-xs flex items-center gap-2 cursor-pointer shadow-md font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSubmittingRenewal ? 'animate-spin' : ''}`} />
@@ -5523,19 +5522,17 @@ setFormErrors(errors);
       )}
 
       <LicenseAgreementModal
-        isOpen={licenseModalType !== null}
-        onClose={() => setLicenseModalType(null)}
-        initialLicenseType={licenseModalType || (isTrialActive ? 'free_trial' : 'premium')}
-        allowSwitch={true}
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
         onAccept={
           isRenewModalOpen
             ? () => {
                 setAcceptedPremiumLicense(true);
-                setLicenseModalType(null);
+                setIsLicenseModalOpen(false);
               }
             : undefined
         }
-        acceptLabel="Accept Premium License"
+        acceptLabel="Accept License"
       />
     </div>
   );

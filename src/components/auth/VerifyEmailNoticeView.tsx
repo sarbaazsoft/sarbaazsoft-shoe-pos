@@ -301,7 +301,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
                 onClick={() => setIsLicenseModalOpen(true)}
                 className="text-indigo-600 dark:text-indigo-400 hover:underline underline-offset-2 font-medium cursor-pointer"
               >
-                Free Trial License
+                Software License
               </button>
             </div>
           </div>
@@ -310,8 +310,6 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
       <LicenseAgreementModal
         isOpen={isLicenseModalOpen}
         onClose={() => setIsLicenseModalOpen(false)}
-        initialLicenseType="free_trial"
-        allowSwitch={true}
       />
     </PublicLayout>
   );

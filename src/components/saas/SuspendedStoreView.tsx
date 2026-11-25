@@ -6,7 +6,6 @@ import { BodyLayoutWrapper } from '../common/BodyLayoutWrapper';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../config/routeLayoutMetadata';
 import { LicenseAgreementModal } from '../common/LicenseAgreementModal';
-import type { LicenseAgreementType } from '../../data/licenseAgreements';
 
 interface SuspendedStoreViewProps {
   tenant: TenantInfo | null;
@@ -47,7 +46,7 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
     ? '6 Months'
     : 'Yearly';
 
-  const [licenseModalType, setLicenseModalType] = useState<LicenseAgreementType | null>(null);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
 
   const statusLayoutMeta = resolveRouteLayoutMetadata(
     expired ? 'TENANT_EXPIRED' : 'TENANT_SUSPENDED',
@@ -118,21 +117,12 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
             <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setLicenseModalType(isTrialPlan ? 'free_trial' : 'premium')}
+                onClick={() => setIsLicenseModalOpen(true)}
                 className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200 underline underline-offset-2 transition-colors cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 shrink-0" />
-                <span>View Applicable License Agreement</span>
+                <span>View Software License Agreement</span>
               </button>
-              {expired && (
-                <button
-                  type="button"
-                  onClick={() => setLicenseModalType('premium')}
-                  className="text-[11px] font-semibold text-purple-300 hover:text-purple-200 underline underline-offset-2 transition-colors cursor-pointer"
-                >
-                  View Premium Renewal Terms
-                </button>
-              )}
             </div>
           </div>
         )}
@@ -172,10 +162,8 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
       </div>
 
       <LicenseAgreementModal
-        isOpen={licenseModalType !== null}
-        onClose={() => setLicenseModalType(null)}
-        initialLicenseType={licenseModalType || (isTrialPlan ? 'free_trial' : 'premium')}
-        allowSwitch={true}
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
         theme="dark"
       />
     </BodyLayoutWrapper>
