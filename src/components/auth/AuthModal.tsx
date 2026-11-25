@@ -60,7 +60,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [matchingStores, setMatchingStores] = useState<Array<{ tenantId: number; name: string }>>([]);
 
-  // Check GET payload query parameters (?tenantId=... or ?storeId=...) or path segments / unauth storage
+  // Check GET payload query parameters (?tenantId=... or ?storeId=...) or path segments
   const queryTenantId = (() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -72,8 +72,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         sp.get('tenant_id') ||
         sp.get('store_id') ||
         (pathMatch ? pathMatch[1] : '') ||
-        sessionStorage.getItem('pos_unauth_scoped_tenant_id') ||
-        localStorage.getItem('pos_unauth_scoped_tenant_id') ||
         '';
       const num = Number(val);
       return Number.isSafeInteger(num) && num > 0 ? num : null;

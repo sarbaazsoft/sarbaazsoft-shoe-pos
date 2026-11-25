@@ -45,22 +45,43 @@ function decodeTokenPayload(token: string): any | null {
   }
 }
 
+function isPublicOrPlatformPath(pathname: string): boolean {
+  return (
+    pathname === '/' ||
+    pathname === '/auth' ||
+    pathname.startsWith('/auth/') ||
+    pathname === '/login' ||
+    pathname.startsWith('/login/') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname === '/install' ||
+    pathname.startsWith('/install/')
+  );
+}
+
 export function getActiveTenantId(): number | null {
-  if (typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/'))) {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     return null;
   }
   const token = getAuthToken();
-  const payload = token ? decodeTokenPayload(token) : null;
+  const hasValidToken = Boolean(token && isStoredTokenValid(token));
+  const payload = hasValidToken && token ? decodeTokenPayload(token) : null;
   const tokenRole = String(payload?.role || '').toUpperCase();
   const tokenTenantId = Number(payload?.tenantId ?? payload?.tenant_id);
-  if (tokenRole && tokenRole !== 'SUPERADMIN' && Number.isSafeInteger(tokenTenantId) && tokenTenantId > 0) {
+  if (hasValidToken && tokenRole && tokenRole !== 'SUPERADMIN' && Number.isSafeInteger(tokenTenantId) && tokenTenantId > 0) {
     return tokenTenantId;
   }
-  const storedUser = getStoredUser();
+  const storedUser = hasValidToken ? getStoredUser() : null;
   const storedRole = String(storedUser?.originalRole || storedUser?.role || '').toUpperCase();
   const storedTenantId = Number(storedUser?.tenantId ?? storedUser?.tenant_id);
-  if (storedRole && storedRole !== 'SUPERADMIN' && Number.isSafeInteger(storedTenantId) && storedTenantId > 0) {
+  if (hasValidToken && storedRole && storedRole !== 'SUPERADMIN' && Number.isSafeInteger(storedTenantId) && storedTenantId > 0) {
     return storedTenantId;
+  }
+  const effectiveSuperAdmin =
+    hasValidToken && (tokenRole === 'SUPERADMIN' || storedRole === 'SUPERADMIN');
+  if (effectiveSuperAdmin && typeof window !== 'undefined' && isPublicOrPlatformPath(pathname)) {
+    return null;
   }
   const queryId = (() => {
     if (typeof window === 'undefined') return 0;
@@ -70,7 +91,7 @@ export function getActiveTenantId(): number | null {
     return Number.isSafeInteger(num) && num > 0 ? num : 0;
   })();
   if (queryId > 0) return queryId;
-  const selectedId = tokenRole === 'SUPERADMIN' ? Number(localStorage.getItem(ACTIVE_TENANT_ID_KEY)) : 0;
+  const selectedId = effectiveSuperAdmin ? Number(localStorage.getItem(ACTIVE_TENANT_ID_KEY)) : 0;
   return Number.isSafeInteger(selectedId) && selectedId > 0 ? selectedId : null;
 }
 
@@ -147,7 +168,7 @@ function notifyTenantChanged(nextTenantId: number | null) {
 
 export function setActiveTenantId(tenantId: number | null) {
   const token = getAuthToken();
-  const payload = token ? decodeTokenPayload(token) : null;
+  const payload = token && isStoredTokenValid(token) ? decodeTokenPayload(token) : null;
   const prevTenantId = lastTrackedTenantId ?? getActiveTenantId();
   let resolvedNext: number | null = null;
 
@@ -184,12 +205,20 @@ export function removeAuthToken() {
 
 export function setAuthSession(token: string, user: any) {
   setAuthToken(token);
-  if (String(user?.role || '').toUpperCase() !== 'SUPERADMIN') {
+  const roleUpper = String(user?.originalRole || user?.role || '').toUpperCase();
+  if (roleUpper === 'SUPERADMIN') {
+    localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+    try {
+      localStorage.removeItem('pos_unauth_scoped_tenant_id');
+      sessionStorage.removeItem('pos_unauth_scoped_tenant_id');
+    } catch {}
+    setActiveTenantId(null);
+  } else {
     setActiveTenantId(Number(user?.tenantId || 0) || null);
   }
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   localStorage.setItem(ALT_USER_KEY, JSON.stringify(user));
-  notifyTenantChanged(getActiveTenantId());
+  notifyTenantChanged(roleUpper === 'SUPERADMIN' ? null : getActiveTenantId());
 }
 
 export function clearAllSessionState(): void {
@@ -198,6 +227,7 @@ export function clearAllSessionState(): void {
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+      localStorage.removeItem('pos_unauth_scoped_tenant_id');
       localStorage.removeItem('pos_read_notifications');
       localStorage.removeItem('pos_superadmin_read_notifs');
       localStorage.removeItem('sammi_chat_history');
@@ -315,6 +345,7 @@ interface RequestOptions extends RequestInit {
   body?: any;
   idempotent?: boolean;
   skipKeyTransform?: boolean;
+  omitTenantHeader?: boolean;
 }
 
 export function createAbortError(message = 'The operation was aborted.'): Error {
@@ -361,7 +392,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     throw createAbortError();
   }
 
-  const activeTenantId = getActiveTenantId();
+  const activeTenantId = options.omitTenantHeader ? null : getActiveTenantId();
   const token = getAuthToken();
 
   const headers: Record<string, string> = {
@@ -373,9 +404,9 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
     headers['X-Auth-Token'] = token;
   }
 
-  if (activeTenantId) headers['X-Tenant-Id'] = String(activeTenantId);
+  if (activeTenantId && !headers['X-Tenant-Id']) headers['X-Tenant-Id'] = String(activeTenantId);
 
-  const { body: rawBody, idempotent, skipKeyTransform, ...restOptions } = options;
+  const { body: rawBody, idempotent, skipKeyTransform, omitTenantHeader: _omitTenantHeader, ...restOptions } = options;
   const method = (restOptions.method || 'GET').toUpperCase();
   const isIdempotentRequest = method === 'GET' || method === 'HEAD' || Boolean(idempotent);
 
@@ -587,12 +618,22 @@ export const api = {
   saas: {
     resolve: (targetTenantId?: number | string | null, reqOptions?: { signal?: AbortSignal }) => {
       let q = '';
-      if (targetTenantId) {
-        q = `?tenantId=${encodeURIComponent(targetTenantId)}&storeId=${encodeURIComponent(targetTenantId)}`;
-      } else if (typeof window !== 'undefined' && window.location.search) {
+      const hasExplicitSystemScope =
+        targetTenantId === null || targetTenantId === 0 || targetTenantId === '0';
+      const numericTid =
+        targetTenantId !== undefined && targetTenantId !== null && String(targetTenantId).trim() !== ''
+          ? Number(targetTenantId)
+          : 0;
+      const hasPositiveExplicitTid = Number.isSafeInteger(numericTid) && numericTid > 0;
+      if (hasPositiveExplicitTid) {
+        q = `?tenantId=${encodeURIComponent(numericTid)}&storeId=${encodeURIComponent(numericTid)}`;
+      } else if (!hasExplicitSystemScope && typeof window !== 'undefined' && window.location.search) {
         q = window.location.search;
       }
-      return apiFetch(`/saas/resolve${q}`, { signal: reqOptions?.signal });
+      return apiFetch(`/saas/resolve${q}`, {
+        signal: reqOptions?.signal,
+        omitTenantHeader: !hasPositiveExplicitTid && hasExplicitSystemScope,
+      });
     },
     getOnboarding: (tenantId?: number) => {
       const query = tenantId ? `?tenantId=${encodeURIComponent(String(tenantId))}` : '';
@@ -859,12 +900,18 @@ export const api = {
     login: (credentials: any) => {
       const rawTid = Number(credentials?.tenantId ?? credentials?.tenant_id ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
+      const bodyPayload: Record<string, any> = { ...credentials };
+      if (cleanTenantId) {
+        bodyPayload.tenantId = cleanTenantId;
+        bodyPayload.tenant_id = cleanTenantId;
+      } else {
+        delete bodyPayload.tenantId;
+        delete bodyPayload.tenant_id;
+      }
       return apiFetch('/auth/login', {
         method: 'POST',
-        body: {
-          ...credentials,
-          ...(cleanTenantId ? { tenantId: cleanTenantId, tenant_id: cleanTenantId } : {}),
-        },
+        body: bodyPayload,
+        omitTenantHeader: !cleanTenantId,
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },
@@ -875,7 +922,8 @@ export const api = {
       isResend?: boolean;
     }) => {
       const isSuperAdminScope = data.roleScope === 'SUPERADMIN';
-      const rawTid = isSuperAdminScope ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
+      const hasExplicitNoTenant = data.tenantId === null || data.tenantId === 0 || (data.roleScope === 'ALL' && !data.tenantId);
+      const rawTid = isSuperAdminScope || hasExplicitNoTenant ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
       return apiFetch<{
         success: boolean;
@@ -900,6 +948,7 @@ export const api = {
           isResend: Boolean(data.isResend),
           ...(cleanTenantId ? { tenantId: cleanTenantId } : {}),
         },
+        omitTenantHeader: !cleanTenantId,
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },
@@ -925,7 +974,9 @@ export const api = {
       roleScope?: 'ALL' | 'STORE' | 'SUPERADMIN';
     }) => {
       const isSuperAdminScope = data.roleScope === 'SUPERADMIN';
-      const rawTid = isSuperAdminScope ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
+      const hasExplicitNoTenant =
+        data.tenantId === null || data.tenantId === 0 || (data.roleScope === 'ALL' && !data.tenantId);
+      const rawTid = isSuperAdminScope || hasExplicitNoTenant ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
       return apiFetch<{
         valid: boolean;
@@ -941,6 +992,7 @@ export const api = {
           roleScope: data.roleScope || 'ALL',
           ...(cleanTenantId ? { tenantId: cleanTenantId } : {}),
         },
+        omitTenantHeader: !cleanTenantId,
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },
@@ -953,7 +1005,9 @@ export const api = {
       roleScope?: 'ALL' | 'STORE' | 'SUPERADMIN';
     }) => {
       const isSuperAdminScope = data.roleScope === 'SUPERADMIN';
-      const rawTid = isSuperAdminScope ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
+      const hasExplicitNoTenant =
+        data.tenantId === null || data.tenantId === 0 || (data.roleScope === 'ALL' && !data.tenantId);
+      const rawTid = isSuperAdminScope || hasExplicitNoTenant ? 0 : Number(data?.tenantId ?? getActiveTenantId() ?? 0);
       const cleanTenantId = Number.isInteger(rawTid) && rawTid > 0 ? rawTid : undefined;
       return apiFetch<{
         success: boolean;
@@ -968,6 +1022,7 @@ export const api = {
           roleScope: data.roleScope || 'ALL',
           ...(cleanTenantId ? { tenantId: cleanTenantId } : {}),
         },
+        omitTenantHeader: !cleanTenantId,
         ...(cleanTenantId ? { headers: { 'X-Tenant-Id': String(cleanTenantId) } } : {}),
       });
     },

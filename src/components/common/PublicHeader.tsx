@@ -131,9 +131,10 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
           }
           try {
             const sp = new URLSearchParams(window.location.search);
-            const tid = sp.get('tenantId') || sp.get('storeId') || sessionStorage.getItem('pos_unauth_scoped_tenant_id') || localStorage.getItem('pos_unauth_scoped_tenant_id');
-            if (tid) {
-              window.history.pushState({}, '', `/?tenantId=${encodeURIComponent(tid)}`);
+            const rawTid = sp.get('tenantId') || sp.get('storeId') || '';
+            const numTid = Number(rawTid);
+            if (Number.isSafeInteger(numTid) && numTid > 0) {
+              window.history.pushState({}, '', `/?tenantId=${encodeURIComponent(numTid)}`);
             } else {
               window.history.pushState({}, '', '/');
             }

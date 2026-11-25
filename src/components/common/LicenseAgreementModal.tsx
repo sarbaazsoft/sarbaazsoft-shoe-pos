@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, FileText, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { SOFTWARE_LICENSE_AGREEMENT } from '../../data/licenseAgreements.ts';
@@ -33,29 +34,40 @@ export const LicenseAgreementModal: React.FC<LicenseAgreementModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const doc = SOFTWARE_LICENSE_AGREEMENT;
 
   const modalMarkup = (
-    <div
-      id="software-license-agreement-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="license-agreement-modal-title"
-      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/65 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className={`relative w-full max-w-2xl rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90dvh] ${
-          isDark
-            ? 'bg-[#0F1629] border-indigo-500/30 text-slate-100'
-            : 'bg-white border-slate-200 text-slate-900'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="software-license-agreement-modal"
+          data-motion-modal="true"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          id="software-license-agreement-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="license-agreement-modal-title"
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/65 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            data-motion-modal="true"
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className={`relative w-full max-w-2xl rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90dvh] ${
+              isDark
+                ? 'bg-[#0F1629] border-indigo-500/30 text-slate-100'
+                : 'bg-white border-slate-200 text-slate-900'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Header */}
         <div
           className={`px-4 sm:px-5 py-3.5 border-b flex items-center justify-between gap-3 shrink-0 ${
@@ -243,8 +255,10 @@ export const LicenseAgreementModal: React.FC<LicenseAgreementModalProps> = ({
             </button>
           )}
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   if (typeof document !== 'undefined' && document.body) {

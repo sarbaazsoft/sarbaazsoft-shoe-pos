@@ -591,8 +591,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     ];
 
     for (const t of registeredSources) {
+      const tid = Number(t?.id);
       const key = (t.name || '').toLowerCase().trim();
-      if (key && !seen.has(key)) {
+      if (Number.isSafeInteger(tid) && tid > 0 && key && !seen.has(key)) {
         registeredList.push({
           ...t,
           isRegistered: true,
@@ -608,8 +609,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) {
           for (const t of parsed) {
+            const tid = Number(t?.id);
             const key = (t.name || '').toLowerCase().trim();
-            if (key && !seen.has(key)) {
+            if (Number.isSafeInteger(tid) && tid > 0 && key && !seen.has(key)) {
               registeredList.push({
                 ...t,
                 isRegistered: true,
@@ -682,7 +684,9 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     setActiveNav(navKey);
     const cleanId = id.replace(/^#/, '');
     const searchParams = new URLSearchParams(window.location.search);
-    const currentTid = searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId;
+    const rawCurrentTid = searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId || '';
+    const numCurrentTid = Number(rawCurrentTid);
+    const currentTid = Number.isSafeInteger(numCurrentTid) && numCurrentTid > 0 ? String(numCurrentTid) : '';
     const isTopTarget = cleanId === 'top' || cleanId === 'home';
     const hash = isTopTarget ? '' : `#${cleanId}`;
     if (currentTid) {
@@ -870,11 +874,15 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     onStoreCreated?.(tenantId, loginUrl, user, token);
   };
 
+  const numericUnauthTid = Number(unauthTenantId);
+  const validUnauthTenantId =
+    Number.isSafeInteger(numericUnauthTid) && numericUnauthTid > 0 ? numericUnauthTid : null;
+
   const matchedScopedStore = React.useMemo(() => {
-    if (!unauthTenantId) return null;
+    if (!validUnauthTenantId) return null;
     const all = [...(storeDirectory || []), ...(availableTenants || [])];
-    return all.find((t) => String(t.id) === String(unauthTenantId)) || null;
-  }, [unauthTenantId, storeDirectory, availableTenants]);
+    return all.find((t) => Number(t.id) === validUnauthTenantId) || null;
+  }, [validUnauthTenantId, storeDirectory, availableTenants]);
 
   const landingLayoutMeta = resolveRouteLayoutMetadata('LANDING', {
     overrides: layoutMetaOverride,
@@ -898,13 +906,13 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         />
       }
       topBanner={
-        unauthTenantId ? (
+        validUnauthTenantId ? (
           <div id="unauth-tenant-scope-banner" className="bg-purple-950/90 lt:bg-purple-100 border-b border-purple-800/60 lt:border-purple-300 py-2 px-4 text-xs select-none">
             <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-purple-200 lt:text-purple-900 font-medium">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>
-                  Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${unauthTenantId}`}</strong> (Tenant #{unauthTenantId})
+                  Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${validUnauthTenantId}`}</strong> (Tenant #{validUnauthTenantId})
                 </span>
               </div>
               <div className="flex items-center gap-2">

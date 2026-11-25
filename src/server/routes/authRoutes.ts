@@ -49,13 +49,20 @@ async function handleStoreOrPlatformLogin(req: Request, res: Response) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
+    const hasExplicitBodyTenantNullOrZero =
+      body &&
+      ((Object.prototype.hasOwnProperty.call(body, 'tenantId') &&
+        (body.tenantId === null || body.tenantId === 0 || body.tenantId === '0')) ||
+        (Object.prototype.hasOwnProperty.call(body, 'tenant_id') &&
+          (body.tenant_id === null || body.tenant_id === 0 || body.tenant_id === '0')));
     const rawTid =
       req.query?.tenantId ??
       req.query?.tenant_id ??
-      req.body?.tenantId ??
-      req.body?.tenant_id ??
-      req.headers['x-tenant-id'] ??
-      (req as any).tenantResolution?.tenant?.id;
+      body?.tenantId ??
+      body?.tenant_id ??
+      (hasExplicitBodyTenantNullOrZero
+        ? undefined
+        : req.headers['x-tenant-id'] ?? (req as any).tenantResolution?.tenant?.id);
     const explicitTenantId = Number(rawTid);
     const hasExplicitTenantId = Number.isInteger(explicitTenantId) && explicitTenantId > 0;
 
@@ -762,7 +769,14 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
       },
     });
   } catch {
-    res.json({ user: req.user });
+    res.json({
+      user: req.user
+        ? {
+            ...req.user,
+            tenantId: String(req.user.role || '').toUpperCase() === 'SUPERADMIN' ? 0 : req.user.tenantId,
+          }
+        : req.user,
+    });
   }
 });
 

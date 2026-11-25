@@ -68,6 +68,7 @@ router.get('/saas/resolve', async (req: Request, res: Response) => {
               COALESCE(cs.currency, 'PKR') AS currency
        FROM tenants t
        LEFT JOIN company_settings cs ON cs.tenant_id = t.id
+       WHERE t.id > 0
        ORDER BY t.id ASC`
     );
 
