@@ -5,6 +5,7 @@ import { executePrintReceipt, getSavedPrinterSettings } from '../../utils/printe
 import { buildWhatsAppInvoiceText, buildSmsInvoiceText, buildWhatsAppLink, buildSmsLink } from '../../utils/receiptText.ts';
 import { PLATFORM_DOCUMENT_NAME } from '../../utils/documentTitle.ts';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
+import { formatReceiptPaymentMethodLabel } from '../../utils/notificationFormatters.ts';
 
 interface InvoicePrintModalProps {
   sale: any;
@@ -69,16 +70,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
   const [printerSettings] = useState(getSavedPrinterSettings());
   const [isPrintingDirect, setIsPrintingDirect] = useState(false);
   const [directFeedback, setDirectFeedback] = useState<string | null>(null);
-
-  const formatPaymentMethod = (method?: string) => {
-    if (!method) return 'Cash';
-    const m = String(method).toUpperCase();
-    if (m === 'KHATA') return 'Khata';
-    if (m === 'SPLIT') return 'Split (Cash + Digital)';
-    if (m === 'BANK_TRANSFER') return 'Bank Transfer';
-    if (m === 'ONLINE') return 'Online';
-    return method;
-  };
 
   // Identify whether customer is a registered profile customer (not walk-in) with a set phone number
   const customerName = String(sale.customer_name || sale.customer?.name || '').trim();
@@ -698,7 +689,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 )}
                 <div className="flex justify-between">
                   <span>Payment:</span>
-                  <span className="font-semibold text-gray-900 dark:text-slate-100">{formatPaymentMethod(sale.payment_method)}</span>
+                  <span className="font-semibold text-gray-900 dark:text-slate-100">{formatReceiptPaymentMethodLabel(sale.payment_method)}</span>
                 </div>
               </div>
 
@@ -854,7 +845,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                   <p className="text-gray-800 dark:text-slate-200">
                     <span className="font-medium">Payment Mode:</span>{' '}
                     <strong className="text-gray-950 dark:text-white font-bold">
-                      {formatPaymentMethod(sale.payment_method)}
+                      {formatReceiptPaymentMethodLabel(sale.payment_method)}
                     </strong>
                   </p>
                   <p className="text-gray-800 dark:text-slate-200 mt-0.5">
@@ -1155,7 +1146,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Payment:</span>
-                <strong>{formatPaymentMethod(sale.payment_method)}</strong>
+                <strong>{formatReceiptPaymentMethodLabel(sale.payment_method)}</strong>
               </div>
             </div>
 
@@ -1293,7 +1284,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 {dealerNtn && <div>NTN: {dealerNtn}</div>}
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div><strong>Payment:</strong> {formatPaymentMethod(sale.payment_method)}</div>
+                <div><strong>Payment:</strong> {formatReceiptPaymentMethodLabel(sale.payment_method)}</div>
                 <div><strong>Cashier / Dispatch:</strong> {sale.cashier_name || 'Counter Operator'}</div>
               </div>
             </div>

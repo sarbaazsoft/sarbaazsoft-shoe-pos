@@ -21,29 +21,16 @@ import type {
   StoreNotificationEventId,
   StoreNotificationPreferences,
 } from '../utils/notificationPreferences.ts';
-
-const TOKEN_KEY = 'pos_auth_token';
-const ALT_TOKEN_KEY = 'shoe_pos_jwt_token';
-const USER_KEY = 'pos_current_user';
-const ALT_USER_KEY = 'shoe_pos_user';
-const ACTIVE_TENANT_ID_KEY = 'shoe_pos_active_tenant_id';
-
-function decodeTokenPayload(token: string): any | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
+import {
+  ACTIVE_TENANT_STORAGE_KEY,
+  AUTH_ALT_TOKEN_STORAGE_KEY,
+  AUTH_ALT_USER_STORAGE_KEY,
+  AUTH_TOKEN_STORAGE_KEY,
+  AUTH_USER_STORAGE_KEY,
+  decodeJwtPayload,
+  getStoredAuthToken,
+  isJwtTokenValid,
+} from '../utils/authStorage.ts';
 
 function isPublicOrPlatformPath(pathname: string): boolean {
   return (
@@ -66,7 +53,7 @@ export function getActiveTenantId(): number | null {
   }
   const token = getAuthToken();
   const hasValidToken = Boolean(token && isStoredTokenValid(token));
-  const payload = hasValidToken && token ? decodeTokenPayload(token) : null;
+  const payload = hasValidToken && token ? decodeJwtPayload(token) : null;
   const tokenRole = String(payload?.role || '').toUpperCase();
   const tokenTenantId = Number(payload?.tenantId ?? payload?.tenant_id);
   if (hasValidToken && tokenRole && tokenRole !== 'SUPERADMIN' && Number.isSafeInteger(tokenTenantId) && tokenTenantId > 0) {
@@ -91,7 +78,7 @@ export function getActiveTenantId(): number | null {
     return Number.isSafeInteger(num) && num > 0 ? num : 0;
   })();
   if (queryId > 0) return queryId;
-  const selectedId = effectiveSuperAdmin ? Number(localStorage.getItem(ACTIVE_TENANT_ID_KEY)) : 0;
+  const selectedId = effectiveSuperAdmin ? Number(localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY)) : 0;
   return Number.isSafeInteger(selectedId) && selectedId > 0 ? selectedId : null;
 }
 
@@ -168,16 +155,16 @@ function notifyTenantChanged(nextTenantId: number | null) {
 
 export function setActiveTenantId(tenantId: number | null) {
   const token = getAuthToken();
-  const payload = token && isStoredTokenValid(token) ? decodeTokenPayload(token) : null;
+  const payload = token && isStoredTokenValid(token) ? decodeJwtPayload(token) : null;
   const prevTenantId = lastTrackedTenantId ?? getActiveTenantId();
   let resolvedNext: number | null = null;
 
   if (String(payload?.role || '').toUpperCase() === 'SUPERADMIN' && Number.isSafeInteger(tenantId) && Number(tenantId) > 0) {
-    localStorage.setItem(ACTIVE_TENANT_ID_KEY, String(tenantId));
+    localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, String(tenantId));
     resolvedNext = Number(tenantId);
   } else {
     // Store users get tenant context from JWT; unauthenticated PWA launches use URL tenantId.
-    localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+    localStorage.removeItem(ACTIVE_TENANT_STORAGE_KEY);
     resolvedNext = getActiveTenantId();
   }
 
@@ -188,26 +175,26 @@ export function setActiveTenantId(tenantId: number | null) {
 }
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(ALT_TOKEN_KEY);
+  return getStoredAuthToken();
 }
 
 export function setAuthToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(ALT_TOKEN_KEY, token);
+  localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  localStorage.setItem(AUTH_ALT_TOKEN_STORAGE_KEY, token);
 }
 
 export function removeAuthToken() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(ALT_TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(ALT_USER_KEY);
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(AUTH_ALT_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  localStorage.removeItem(AUTH_ALT_USER_STORAGE_KEY);
 }
 
 export function setAuthSession(token: string, user: any) {
   setAuthToken(token);
   const roleUpper = String(user?.originalRole || user?.role || '').toUpperCase();
   if (roleUpper === 'SUPERADMIN') {
-    localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+    localStorage.removeItem(ACTIVE_TENANT_STORAGE_KEY);
     try {
       localStorage.removeItem('pos_unauth_scoped_tenant_id');
       sessionStorage.removeItem('pos_unauth_scoped_tenant_id');
@@ -216,8 +203,8 @@ export function setAuthSession(token: string, user: any) {
   } else {
     setActiveTenantId(Number(user?.tenantId || 0) || null);
   }
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
-  localStorage.setItem(ALT_USER_KEY, JSON.stringify(user));
+  localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  localStorage.setItem(AUTH_ALT_USER_STORAGE_KEY, JSON.stringify(user));
   notifyTenantChanged(roleUpper === 'SUPERADMIN' ? null : getActiveTenantId());
 }
 
@@ -226,7 +213,7 @@ export function clearAllSessionState(): void {
   lastTrackedTenantId = null;
   if (typeof localStorage !== 'undefined') {
     try {
-      localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
+      localStorage.removeItem(ACTIVE_TENANT_STORAGE_KEY);
       localStorage.removeItem('pos_unauth_scoped_tenant_id');
       localStorage.removeItem('pos_read_notifications');
       localStorage.removeItem('pos_superadmin_read_notifs');
@@ -295,7 +282,7 @@ export function revokeSessionOnServer(): void {
 }
 
 function getStoredUser() {
-  const raw = localStorage.getItem(USER_KEY) || localStorage.getItem(ALT_USER_KEY);
+  const raw = localStorage.getItem(AUTH_USER_STORAGE_KEY) || localStorage.getItem(AUTH_ALT_USER_STORAGE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -306,20 +293,7 @@ function getStoredUser() {
 
 export function isStoredTokenValid(token?: string | null): boolean {
   const candidate = token !== undefined ? token : getAuthToken();
-  if (!candidate || candidate === 'null' || candidate === 'undefined') {
-    return false;
-  }
-  const payload = decodeTokenPayload(candidate);
-  if (!payload || typeof payload !== 'object') {
-    return false;
-  }
-  if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      return true;
-    }
-    return false;
-  }
-  return true;
+  return isJwtTokenValid(candidate, { allowExpiredOffline: true });
 }
 
 export function getValidatedStoredSession(): { token: string; user: any } | null {

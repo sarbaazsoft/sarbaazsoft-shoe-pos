@@ -11,6 +11,7 @@ import {
   type TransactionReturnedItem,
   type TransactionSaleRecord,
 } from './transactionReceiptTemplate.ts';
+import { escapeHtml } from '../../utils/htmlEscape.ts';
 
 export { buildTransactionReceiptEmailHtml };
 
@@ -294,15 +295,6 @@ export interface SuperAdminEmailAlertPayload {
   timestamp?: string;
 }
 
-function escapeEmailHtml(value: string): string {
-  if (!value) return '';
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 export function buildSuperAdminAlertEmailHtml(
   payload: SuperAdminEmailAlertPayload,
   consoleHref: string
@@ -331,7 +323,7 @@ export function buildSuperAdminAlertEmailHtml(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeEmailHtml(subject)}</title>
+  <title>${escapeHtml(subject)}</title>
 </head>
 <body style="margin:0;padding:24px 16px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
@@ -345,17 +337,17 @@ export function buildSuperAdminAlertEmailHtml(
       <td style="padding:28px;">
         <div style="margin-bottom:14px;">
           <span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;background-color:${badgeColors.bg};color:${badgeColors.text};border:1px solid ${badgeColors.border};">
-            ${escapeEmailHtml(alertType)}
+            ${escapeHtml(alertType)}
           </span>
-          <span style="font-size:12px;color:#64748b;margin-left:10px;">${escapeEmailHtml(timestampStr)}</span>
+          <span style="font-size:12px;color:#64748b;margin-left:10px;">${escapeHtml(timestampStr)}</span>
         </div>
-        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">${escapeEmailHtml(title)}</h2>
+        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">${escapeHtml(title)}</h2>
         <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-line;">
-          ${escapeEmailHtml(message)}
+          ${escapeHtml(message)}
         </div>
         <div style="text-align:center;margin:26px 0 8px;">
-          <a href="${escapeEmailHtml(consoleHref)}" style="display:inline-block;background-color:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:10px;">
-            ${escapeEmailHtml(actionLabel)}
+          <a href="${escapeHtml(consoleHref)}" style="display:inline-block;background-color:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:10px;">
+            ${escapeHtml(actionLabel)}
           </a>
         </div>
       </td>
@@ -492,13 +484,13 @@ export function buildStoreNoticeEmailHtml(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeEmailHtml(subject)}</title>
+  <title>${escapeHtml(subject)}</title>
 </head>
 <body style="margin:0;padding:24px 16px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(15,23,42,0.06);">
     <tr>
       <td style="background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 100%);padding:22px 26px;color:#ffffff;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;opacity:0.9;">${escapeEmailHtml(storeName)}</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.3px;opacity:0.9;">${escapeHtml(storeName)}</div>
         <div style="font-size:19px;font-weight:800;margin-top:6px;">Store Notification Alert</div>
       </td>
     </tr>
@@ -506,17 +498,17 @@ export function buildStoreNoticeEmailHtml(
       <td style="padding:26px;">
         <div style="margin-bottom:12px;">
           <span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;background-color:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe;">
-            ${escapeEmailHtml(alertType)}
+            ${escapeHtml(alertType)}
           </span>
-          <span style="font-size:12px;color:#64748b;margin-left:10px;">${escapeEmailHtml(timestampStr)}</span>
+          <span style="font-size:12px;color:#64748b;margin-left:10px;">${escapeHtml(timestampStr)}</span>
         </div>
-        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">${escapeEmailHtml(title)}</h2>
+        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">${escapeHtml(title)}</h2>
         <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;color:#334155;white-space:pre-line;">
-          ${escapeEmailHtml(message)}
+          ${escapeHtml(message)}
         </div>
         <div style="text-align:center;margin:24px 0 8px;">
-          <a href="${escapeEmailHtml(actionHref)}" style="display:inline-block;background-color:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:10px;">
-            ${escapeEmailHtml(actionLabel)}
+          <a href="${escapeHtml(actionHref)}" style="display:inline-block;background-color:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 24px;border-radius:10px;">
+            ${escapeHtml(actionLabel)}
           </a>
         </div>
       </td>

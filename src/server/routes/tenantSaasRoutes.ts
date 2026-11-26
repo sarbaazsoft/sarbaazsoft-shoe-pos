@@ -15,6 +15,9 @@ import { recordInitialAuthSend } from '../services/authResendRateLimitService.ts
 import { issueEmailVerificationCode } from '../services/emailVerificationService.ts';
 import { resolveTenantContext, isTenantOnlineInMiddleware, getTenantMiddlewareLastSeen, removeTenantMiddlewarePresence } from '../middleware/tenantMiddleware.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
+import type { TrialTrackingEventType } from '../../types.ts';
+
+export type { TrialTrackingEventType };
 
 const router = Router();
 
@@ -366,15 +369,6 @@ router.post('/saas/store-request', async (req: Request, res: Response) => {
  * Helper to record and log every user who activates or achieves a trial,
  * storing their details alongside their email address for tracking & analytics.
  */
-export type TrialTrackingEventType =
-  | 'ACTIVATED'
-  | 'EMAIL_VERIFIED'
-  | 'EXTENDED'
-  | 'EXPIRED'
-  | 'SUSPENDED'
-  | 'REACTIVATED'
-  | 'CONVERTED'
-  | 'EDITED';
 
 export async function logTrialTrackingEvent(data: {
   trialId?: number | null;

@@ -1,5 +1,9 @@
 import { formatStockPrice } from '../../utils/priceFormat.ts';
+import { escapeHtml } from '../../utils/htmlEscape.ts';
+import { formatReceiptPaymentMethodLabel } from '../../utils/notificationFormatters.ts';
 import type { PosActionNotification } from '../pushNotificationService.ts';
+
+export { escapeHtml };
 
 export interface TransactionReceiptItem {
   product_id?: number;
@@ -105,16 +109,6 @@ export interface TransactionReceiptEmailOutput {
   text: string;
 }
 
-export function escapeHtml(str: unknown): string {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 export function sanitizeStoreName(name?: string | null): string {
   if (!name) return '';
   const trimmed = name.trim();
@@ -161,14 +155,7 @@ export function sanitizeInvoiceFooter(footer?: string | null): string {
 }
 
 export function formatPaymentMethodLabel(method?: string | null): string {
-  if (!method) return 'Cash';
-  const m = String(method).trim().toUpperCase();
-  if (m === 'CASH') return 'Cash';
-  if (m === 'KHATA') return 'Khata';
-  if (m === 'SPLIT') return 'Split (Cash + Digital)';
-  if (m === 'BANK_TRANSFER') return 'Bank Transfer';
-  if (m === 'ONLINE') return 'Online';
-  return String(method).trim();
+  return formatReceiptPaymentMethodLabel(method);
 }
 
 export function resolveIsWholesaleTransaction(

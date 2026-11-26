@@ -1,6 +1,12 @@
 import { pgClient } from '../../db/index.ts';
+import type { AppSettingCategory, AppSettingItem } from '../../types.ts';
+import {
+  buildUnifiedScreenImagesMap,
+  type ScreenImageSlot,
+  type ScreenImagesMap,
+} from '../../utils/screenImages.ts';
 
-export type AppSettingCategory = 'billing' | 'email' | 'notifications' | 'system';
+export type { AppSettingCategory, AppSettingItem, ScreenImageSlot, ScreenImagesMap };
 
 export interface AppSettingDefinition {
   key: string;
@@ -310,9 +316,6 @@ export const SCREEN_IMAGE_KEYS = {
   loading: 'SCREEN_BG_LOADING',
 } as const;
 
-export type ScreenImageSlot = keyof typeof SCREEN_IMAGE_KEYS;
-export type ScreenImagesMap = Record<ScreenImageSlot, string>;
-
 const MAX_SCREEN_IMAGE_DATA_URI_LENGTH = 4_500_000;
 const MAX_SCREEN_IMAGE_URL_LENGTH = 2048;
 
@@ -345,15 +348,6 @@ export function validateScreenImageInput(raw: unknown): { valid: boolean; value:
   } catch {
     return { valid: false, value: '', error: 'Please enter a valid http(s) image URL or upload an image file.' };
   }
-}
-
-export interface AppSettingItem {
-  key: string;
-  value: string;
-  category: AppSettingCategory;
-  description: string;
-  isSecret: boolean;
-  updatedAt?: string;
 }
 
 let schemaInitPromise: Promise<void> | null = null;
@@ -680,17 +674,6 @@ export async function updateAppSettings(
   }
 
   return cleanUpdates;
-}
-
-function buildUnifiedScreenImagesMap(url: string): ScreenImagesMap {
-  const clean = String(url || '').trim();
-  return {
-    backdrop: clean,
-    login: clean,
-    registration: clean,
-    auth: clean,
-    loading: clean,
-  };
 }
 
 export async function getScreenImageSettings(): Promise<ScreenImagesMap> {

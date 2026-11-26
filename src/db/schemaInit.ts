@@ -4,6 +4,12 @@ import bcrypt from 'bcryptjs';
 import { pgClient } from './index.ts';
 import { ensureAppSettingsSchema } from '../server/services/appSettingsService.ts';
 import { resetSchemaColumnSyncState, syncMissingSchemaColumns } from './schemaSync.ts';
+import {
+  calculateDaysLeft,
+  daysLeft,
+  normalizeSubscriptionPlan,
+  normalizeSubscriptionType,
+} from '../utils/subscription.ts';
 
 let saasControlPlaneInitialized = false;
 let saasControlPlanePromise: Promise<void> | null = null;
@@ -37,41 +43,12 @@ export function resetSaasControlPlaneState(): void {
   resetSchemaColumnSyncState();
 }
 
-/**
- * Normalizes subscription plan / type to 'free_tier', '6_MONTHS' or 'YEARLY'
- */
-export function normalizeSubscriptionPlan(plan?: string | null): 'free_tier' | '6_MONTHS' | 'YEARLY' {
-  const clean = String(plan || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (
-    clean === 'free_tier' ||
-    clean === 'freetier' ||
-    clean === 'free' ||
-    clean === 'trial' ||
-    clean === 'free_trial' ||
-    clean === '30_day_trial' ||
-    clean === '30_days' ||
-    clean === 'pro_trial' ||
-    !clean
-  ) {
-    return 'free_tier';
-  }
-  if (clean === '6_months' || clean === '6_month' || clean === 'six_months' || clean.startsWith('6_month')) {
-    return '6_MONTHS';
-  }
-  if (clean === '1_year' || clean === 'yearly' || clean === 'year' || clean === '1year' || clean === 'one_year') {
-    return 'YEARLY';
-  }
-  return 'free_tier';
-}
-
-export function normalizeSubscriptionType(plan?: string | null): 'free_tier' | '6_months' | '1_year' {
-  const norm = normalizeSubscriptionPlan(plan);
-  if (norm === '6_MONTHS') return '6_months';
-  if (norm === 'YEARLY') return '1_year';
-  return 'free_tier';
-}
-
-export { calculateDaysLeft, daysLeft } from '../utils/subscription.ts';
+export {
+  calculateDaysLeft,
+  daysLeft,
+  normalizeSubscriptionPlan,
+  normalizeSubscriptionType,
+};
 
 /**
  * Calculates subscriptionEndDate automatically based on plan ('free_tier' => +30 days, '6_MONTHS' => +6 months, 'YEARLY' => +1 year)

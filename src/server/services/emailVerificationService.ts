@@ -1,13 +1,11 @@
 import { ensureEmailVerificationSchema } from '../../db/schemaInit.ts';
 import {
-  SIX_DIGIT_CODE_LENGTH,
   MAX_VERIFICATION_CODE_ATTEMPTS,
   generateSixDigitVerificationCode,
   timingSafeCodeMatch,
   issueStoredSixDigitCode,
 } from './verificationCodeCore.ts';
 
-export const EMAIL_VERIFICATION_CODE_LENGTH = SIX_DIGIT_CODE_LENGTH;
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 export { MAX_VERIFICATION_CODE_ATTEMPTS, generateSixDigitVerificationCode, timingSafeCodeMatch };
 

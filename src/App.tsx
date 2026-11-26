@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
 import { MotionConfig } from 'motion/react';
-import { api, setAuthSession, removeAuthToken, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, getAuthToken, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
+import { api, setAuthSession, clearAllSessionState, revokeSessionOnServer, setActiveTenantId, getActiveTenantId, getAuthToken, isStoredTokenValid, getValidatedStoredSession } from './services/api.ts';
 import {
   cacheCompanySettingsOffline,
   cacheTenantInfoOffline,

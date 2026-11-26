@@ -402,7 +402,7 @@ export interface Supplier {
 
 export interface CartItem {
   productId: number;
-  article?: string;
+  article: string;
   name?: string;
   productName?: string;
   brandName?: string;
@@ -412,6 +412,8 @@ export interface CartItem {
   pairsPerCarton?: number;
   allowHalfCarton?: boolean;
   allow_half_carton?: boolean;
+  minSaleQuantity?: number;
+  min_sale_quantity?: number;
   unitPrice: number;
   sellingPrice?: number;
   minPrice?: number;
@@ -421,7 +423,7 @@ export interface CartItem {
   maxSalePrice?: number;
   costPrice: number;
   discount: number;
-  subtotal?: number;
+  subtotal: number;
   total?: number;
   totalStock: number;
   isPriceOverridden?: boolean;
@@ -528,6 +530,8 @@ export interface ActiveExchange {
   reason: string;
   items: ExchangeItem[];
 }
+
+export type PasswordResetRoleScope = 'ALL' | 'STORE' | 'SUPERADMIN';
 
 export type AppSettingCategory = 'billing' | 'email' | 'notifications' | 'system';
 

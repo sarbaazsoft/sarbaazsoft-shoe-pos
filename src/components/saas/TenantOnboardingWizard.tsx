@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Check, CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Smartphone, Package, Upload, ReceiptText, Barcode, Percent, MapPin, Phone, Mail, ShieldCheck, Sparkles, Lock, UserCheck, Users, Eye, EyeOff, UserPlus, SkipForward } from 'lucide-react';
+import { Building2, Check, CheckCircle2, ArrowRight, Plus, Trash2, Smartphone, Package, Upload, ReceiptText, Barcode, Percent, MapPin, Phone, Mail, ShieldCheck, Sparkles, Lock, UserCheck, Users, Eye, EyeOff, UserPlus, SkipForward } from 'lucide-react';
 import { api, setAuthSession } from '../../services/api';
 import { ShowroomBackground } from '../common/ShowroomBackground';
 import { PublicHeader } from '../common/PublicHeader';

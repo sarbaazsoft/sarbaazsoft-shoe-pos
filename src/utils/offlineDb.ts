@@ -5,6 +5,13 @@ import type {
   QueuedSale,
   QueuedSaleItem,
 } from '../services/offline/offlineTypes.ts';
+import {
+  ACTIVE_TENANT_STORAGE_KEY,
+  AUTH_ALT_USER_STORAGE_KEY,
+  AUTH_USER_STORAGE_KEY,
+  decodeJwtPayload,
+  getStoredAuthToken,
+} from './authStorage.ts';
 export type { QueuedReturn, QueuedReturnItem, QueuedSale, QueuedSaleItem };
 
 const DB_NAME = 'ShoePosOfflineDB';
@@ -14,23 +21,6 @@ const STORE_RETURNS = 'offline_returns_queue';
 const STORE_SALES_CACHE = 'cached_sales_by_store';
 const STORE_CATALOG_LEGACY = 'cached_products';
 const STORE_CATALOG = 'cached_products_by_store';
-
-function decodeJwtPayload(token: string): any | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
 
 function parseValidTenantId(value: unknown): number | null {
   if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
@@ -52,9 +42,7 @@ export function resolveActiveTenantId(explicitTenantId?: number | string | null)
   const explicit = parseValidTenantId(explicitTenantId);
 
   if (typeof localStorage !== 'undefined') {
-    const token =
-      localStorage.getItem('pos_auth_token') ||
-      localStorage.getItem('shoe_pos_jwt_token');
+    const token = getStoredAuthToken();
     const payload = token ? decodeJwtPayload(token) : null;
     const tokenRole = String(payload?.role || '').toUpperCase();
     const tokenTenantId = parseValidTenantId(payload?.tenantId ?? payload?.tenant_id);
@@ -64,8 +52,8 @@ export function resolveActiveTenantId(explicitTenantId?: number | string | null)
     }
 
     const userRaw =
-      localStorage.getItem('pos_current_user') ||
-      localStorage.getItem('shoe_pos_user');
+      localStorage.getItem(AUTH_USER_STORAGE_KEY) ||
+      localStorage.getItem(AUTH_ALT_USER_STORAGE_KEY);
     if (userRaw) {
       try {
         const parsed = JSON.parse(userRaw);
@@ -84,7 +72,7 @@ export function resolveActiveTenantId(explicitTenantId?: number | string | null)
       return explicit;
     }
 
-    const selectedTenantId = parseValidTenantId(localStorage.getItem('shoe_pos_active_tenant_id'));
+    const selectedTenantId = parseValidTenantId(localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY));
     if (selectedTenantId) {
       return selectedTenantId;
     }
@@ -101,9 +89,7 @@ function verifyOfflineTenantId(explicitTenantId?: number | string | null): numbe
   const activeTenantId = resolveActiveTenantId(explicitTenantId);
 
   if (typeof localStorage !== 'undefined') {
-    const token =
-      localStorage.getItem('pos_auth_token') ||
-      localStorage.getItem('shoe_pos_jwt_token');
+    const token = getStoredAuthToken();
     const payload = token ? decodeJwtPayload(token) : null;
     const tokenRole = String(payload?.role || '').toUpperCase();
     const tokenTenantId = parseValidTenantId(payload?.tenantId ?? payload?.tenant_id);
@@ -122,8 +108,8 @@ function verifyOfflineTenantId(explicitTenantId?: number | string | null): numbe
     }
 
     const userRaw =
-      localStorage.getItem('pos_current_user') ||
-      localStorage.getItem('shoe_pos_user');
+      localStorage.getItem(AUTH_USER_STORAGE_KEY) ||
+      localStorage.getItem(AUTH_ALT_USER_STORAGE_KEY);
     if (userRaw) {
       try {
         const parsed = JSON.parse(userRaw);
@@ -966,16 +952,6 @@ export async function adjustCachedProductStockOffline(
   } catch {
     // Ignore IDB errors
   }
-}
-
-/**
- * Deduct stock locally in the tenant-scoped offline catalog cache when an offline bill is created
- */
-export async function deductCachedProductStockOffline(
-  items: Array<{ productId: number; quantity: number }>,
-  explicitTenantId?: number | string | null
-): Promise<void> {
-  return adjustCachedProductStockOffline(items, -1, explicitTenantId);
 }
 
 /**

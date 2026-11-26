@@ -4,11 +4,10 @@ import express from 'express';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import bcrypt from 'bcryptjs';
 
 import { pgClient } from '../src/db/index.ts';
 import { ensureSaasControlPlane } from '../src/db/schemaInit.ts';
-import { generateToken, verifySuperAdminRequest } from '../src/server/auth.ts';
+import { generateToken } from '../src/server/auth.ts';
 import { tenantRoutingMiddleware } from '../src/server/middleware/tenantMiddleware.ts';
 import authRoutes from '../src/server/routes/authRoutes.ts';
 import tenantSaasRoutes from '../src/server/routes/tenantSaasRoutes.ts';

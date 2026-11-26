@@ -24,6 +24,7 @@ import {
   type StoreNotificationPreferences,
 } from '../utils/notificationPreferences.ts';
 import { normalizeVapidPublicKey } from '../utils/vapid.ts';
+import { NOTIFICATION_BADGE_ICON } from '../utils/notificationShade.ts';
 import {
   isOwnerRole,
   hasFreshOwnerHeartbeat,
@@ -32,7 +33,7 @@ import {
   registerSuperAdminSseChecker,
 } from './services/ownerPresenceService.ts';
 
-export { normalizeVapidPublicKey };
+export { normalizeVapidPublicKey, NOTIFICATION_BADGE_ICON };
 
 // ============================================================================
 // FIREBASE ADMIN SDK SINGLETON & DYNAMIC INITIALIZATION
@@ -383,7 +384,6 @@ export async function getFcmStats(): Promise<{
 
 export const DEFAULT_NOTIFICATION_ICON = '/pwa-192x192.png';
 export const ADMIN_NOTIFICATION_ICON = '/admin/pwa-192x192.png';
-export const NOTIFICATION_BADGE_ICON = '/icons/badge-favicon.png';
 
 export interface FcmDispatchResult {
   success: boolean;

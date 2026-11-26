@@ -11,18 +11,14 @@ import {
   resetResendCooldown,
 } from './authResendRateLimitService.ts';
 import {
-  SIX_DIGIT_CODE_LENGTH,
-  MAX_VERIFICATION_CODE_ATTEMPTS,
   issueStoredSixDigitCode,
   verifyStoredSixDigitCode,
   clearStoredVerificationCodesForUser,
 } from './verificationCodeCore.ts';
+import type { PasswordResetRoleScope } from '../../types.ts';
 
-export const PASSWORD_RESET_CODE_LENGTH = SIX_DIGIT_CODE_LENGTH;
+export type { PasswordResetRoleScope };
 export const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000; // 15 minutes
-export const MAX_PASSWORD_RESET_ATTEMPTS = MAX_VERIFICATION_CODE_ATTEMPTS;
-
-export type PasswordResetRoleScope = 'ALL' | 'STORE' | 'SUPERADMIN';
 
 export interface PasswordResetAccount {
   id: number;

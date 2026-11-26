@@ -10,11 +10,6 @@ import { extractTokenFromRequest, getJwtSecret } from '../auth.ts';
 
 const router = Router();
 
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-}
-
 const CODEBASE_TOPIC_MAP: Array<{
   keywords: string[];
   files: string[];

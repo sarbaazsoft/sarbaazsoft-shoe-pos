@@ -41,6 +41,3 @@ export const supplierOpeningBalanceSchema = z.object({
   openingBalance: amountField.default(0),
   openingBalanceType: z.enum(SUPPLIER_OPENING_BALANCE_TYPES).default('PAYABLE'),
 });
-
-export type CustomerOpeningBalanceInput = z.infer<typeof customerOpeningBalanceSchema>;
-export type SupplierOpeningBalanceInput = z.infer<typeof supplierOpeningBalanceSchema>;

@@ -121,6 +121,18 @@ export function formatPaymentMethodLabel(paymentMethod?: string | null): string 
   return cleanPaymentMethod(paymentMethod) || 'Cash';
 }
 
+export function formatReceiptPaymentMethodLabel(method?: string | null): string {
+  if (!method) return 'Cash';
+  const trimmed = String(method).trim();
+  const upper = trimmed.toUpperCase();
+  if (upper === 'CASH') return 'Cash';
+  if (upper === 'KHATA') return 'Khata';
+  if (upper === 'SPLIT') return 'Split (Cash + Digital)';
+  if (upper === 'BANK_TRANSFER') return 'Bank Transfer';
+  if (upper === 'ONLINE') return 'Online';
+  return trimmed;
+}
+
 export function normalizeQuantityUnit(unit?: string | null): { singular: string; plural: string } {
   const cleaned = (cleanOptionalText(unit) || 'pair').toLowerCase();
   switch (cleaned) {

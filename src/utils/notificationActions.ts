@@ -1,3 +1,5 @@
+import { hasValidStoredAuthToken } from './authStorage.ts';
+
 export type NotificationActionKey =
   | 'view_invoice'
   | 'view_purchase'
@@ -247,33 +249,6 @@ export function buildPushNotificationActions(
       action: btn.action,
       title: btn.label,
     }));
-}
-
-function hasValidStoredAuthToken(): boolean {
-  try {
-    if (typeof localStorage === 'undefined') return false;
-    const token =
-      localStorage.getItem('pos_auth_token') ||
-      localStorage.getItem('shoe_pos_jwt_token');
-    if (!token || token === 'null' || token === 'undefined') return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    const payload = JSON.parse(json);
-    if (!payload || typeof payload !== 'object') return false;
-    if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

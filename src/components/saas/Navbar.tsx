@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShoeIcon, TinyShoeIcon } from '../common/ShoeIcon.tsx';
 import { ShowroomBackground } from '../common/ShowroomBackground.tsx';
 import { ThemeDropdown } from '../common/ThemeDropdown.tsx';
+import { renderBrandName } from '../common/PublicHeader.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
 import { APP_VERSION } from '../../version.ts';
 
@@ -97,14 +98,6 @@ function resolveMobileSubtitle(fullSubtitle: string, explicitMobileSubtitle?: st
   }
   return clean.length > 22 ? `${clean.slice(0, 20).trim()}…` : clean;
 }
-
-const renderBrandName = (name: string) => {
-  return (
-    <span className="font-bold text-slate-900 dark:text-white tracking-tight">
-      {name}
-    </span>
-  );
-};
 
 export const Navbar: React.FC<NavbarProps> = ({
   storeName = 'SarbaazSoft Shoe POS',

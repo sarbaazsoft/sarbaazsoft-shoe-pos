@@ -11,6 +11,7 @@ import { getTenantNotificationPreferences } from './notificationPreferencesServi
 import { getApplicationBaseUrl } from './welcomeService.ts';
 import { sendEmail, type SendEmailOptions, type SendEmailResult } from '../utils/email.ts';
 import type { StoreNotificationPreferences } from '../../utils/notificationPreferences.ts';
+import { escapeHtml } from '../../utils/htmlEscape.ts';
 
 export interface LowStockBatchItem {
   productId: number;
@@ -122,15 +123,6 @@ export function evaluateLowStockTransition(input: LowStockEvaluationInput): LowS
       lowStockThreshold: threshold,
     },
   };
-}
-
-function escapeHtml(value: string): string {
-  if (!value) return '';
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function buildConsolidatedCopy(

@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
 import { api } from '../services/api.ts';
 import { useResendCooldown } from './useResendCooldown.ts';
+import type { PasswordResetRoleScope } from '../types.ts';
 
+export type { PasswordResetRoleScope };
 export type PasswordResetStep = 'request' | 'verify' | 'confirm';
-export type PasswordResetRoleScope = 'ALL' | 'STORE' | 'SUPERADMIN';
 
 export interface UsePasswordResetOptions {
   email: string;

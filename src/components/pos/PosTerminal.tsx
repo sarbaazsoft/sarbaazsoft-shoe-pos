@@ -9,7 +9,8 @@ const ShoeExchangeModal = lazy(() => import('./ShoeExchangeModal.tsx').then((m) 
 import { formatStockPrice, cleanStockPriceInput, getProductRetailPrice, getProductMinFloorPrice } from '../../utils/priceFormat.ts';
 import { isHalfCartonAllowed } from '../../utils/footwear.ts';
 import { reconcileInvoiceBalance } from '../../utils/posCalculations.ts';
-import type { ActiveExchange } from '../../types.ts';
+import type { ActiveExchange, CartItem } from '../../types.ts';
+export type { CartItem };
 import { offlineQueueService } from '../../services/offlineQueueService.ts';
 import { isTransientNetworkError } from '../../services/offline/syncEngine.ts';
 import { adjustCachedCustomerBalanceOffline, cacheCatalogOffline, lookupCachedProductOffline, searchCachedProductsOffline, resolveActiveTenantId } from '../../utils/offlineDb.ts';
@@ -29,31 +30,6 @@ import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { setHoldSwUpdate } from '../../utils/swUpdate.ts';
 import { LazyProductImage } from '../common/LazyProductImage.tsx';
 import { useIsDesktop } from '../../hooks/useIsDesktop.ts';
-
-export interface CartItem {
-  productId: number;
-  article: string;
-  name?: string;
-  brandName?: string;
-  brandLogo?: string;
-  barcode: string;
-  totalStock: number;
-  costPrice: number;
-  salePrice?: number;
-  minSalePrice: number;
-  maxSalePrice?: number;
-  unitPrice: number;
-  pairsPerCarton?: number;
-  allowHalfCarton?: boolean;
-  allow_half_carton?: boolean;
-  minSaleQuantity?: number;
-  min_sale_quantity?: number;
-  quantity: number;
-  discount: number;
-  subtotal: number;
-  isPriceOverridden?: boolean;
-  originalPrice?: number;
-}
 
 interface PosTerminalProps {
   currentUser: any;

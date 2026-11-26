@@ -3,8 +3,7 @@ import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import { pgClient } from '../../db/index.ts';
 import { getAppSetting } from '../services/appSettingsService.ts';
-
-export type EmailProvider = 'resend' | 'gmail';
+import { escapeHtml } from '../../utils/htmlEscape.ts';
 
 export const DEFAULT_FROM_ADDRESS = 'SarbaazSoft Shoe POS Security <onboarding@resend.dev>';
 
@@ -516,15 +515,6 @@ export interface SendResetEmailResult {
   sandboxRecipient?: string;
 }
 
-function escapeEmailHtml(raw: string): string {
-  return String(raw || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function resolveAccountRoleLabel(role?: string): string {
   const upper = String(role || '').trim().toUpperCase();
   if (upper === 'SUPERADMIN') return 'Super Admin';
@@ -533,11 +523,11 @@ function resolveAccountRoleLabel(role?: string): string {
 }
 
 function buildResetCodeEmailHtml(opts: SendResetCodeEmailOptions): string {
-  const displayStore = escapeEmailHtml(opts.storeName || 'SarbaazSoft Shoe POS');
-  const displayName = escapeEmailHtml(opts.userName || opts.to);
-  const displayEmail = escapeEmailHtml(opts.to);
-  const roleLabel = escapeEmailHtml(resolveAccountRoleLabel(opts.role));
-  const formattedCode = escapeEmailHtml(String(opts.code || '').trim());
+  const displayStore = escapeHtml(opts.storeName || 'SarbaazSoft Shoe POS');
+  const displayName = escapeHtml(opts.userName || opts.to);
+  const displayEmail = escapeHtml(opts.to);
+  const roleLabel = escapeHtml(resolveAccountRoleLabel(opts.role));
+  const formattedCode = escapeHtml(String(opts.code || '').trim());
 
   return `
 <!DOCTYPE html>
