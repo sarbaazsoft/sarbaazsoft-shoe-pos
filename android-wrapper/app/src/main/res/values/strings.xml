@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SarbaazSoft POS</string>
+    <string name="offline_title">Connection Offline</string>
+    <string name="offline_subtitle">Check your internet connection and tap Retry to reload SarbaazSoft POS.</string>
+    <string name="retry_label">Retry</string>
+</resources>

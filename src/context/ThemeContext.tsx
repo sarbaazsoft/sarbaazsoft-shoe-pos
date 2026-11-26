@@ -40,6 +40,7 @@ import {
   serializeUserThemePreference,
   setLastAuthUserId,
   setLoggedOutThemeOverride,
+  updatePwaThemeColorMeta,
 } from '../utils/themePalettes.ts';
 import {
   type ScreenImageSlot,
@@ -324,12 +325,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           body.style.colorScheme = 'light';
         }
       }
+      const activeThemeHex = resolveAccentPalette(
+        accentThemeRef.current,
+        customAccentHexRef.current
+      ).baseHex;
+      updatePwaThemeColorMeta(activeThemeHex, { resolvedTheme: resolved });
+
       window.dispatchEvent(
         new CustomEvent('pos:theme-changed', {
           detail: {
             theme: resolved,
             accentTheme: accentThemeRef.current,
-            pwaThemeColor: resolveAccentPalette(accentThemeRef.current, customAccentHexRef.current).baseHex,
+            pwaThemeColor: activeThemeHex,
           },
         })
       );
@@ -820,10 +827,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [themeMode, applyThemeToDOM]);
 
-  // Apply accent CSS variables + PWA meta[name="theme-color"] whenever effective accent/custom HEX changes
+  // Apply accent CSS variables + PWA/Android system bar colors & contrast whenever accent, custom HEX, or light/dark theme changes
   useEffect(() => {
-    applyAccentThemeToDOM(accentTheme, customAccentHex);
-  }, [accentTheme, customAccentHex]);
+    applyAccentThemeToDOM(accentTheme, customAccentHex, theme);
+  }, [accentTheme, customAccentHex, theme]);
 
   // Apply backdrop style & darkness attributes + CSS variables to DOM whenever effective backdrop changes
   useEffect(() => {

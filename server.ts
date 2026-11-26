@@ -265,18 +265,37 @@ function extractRequestPwaBrandingInput(req: express.Request): PwaBrandingInput 
   };
 }
 
+function extractRequestThemeColor(req: express.Request): string | undefined {
+  const raw = typeof req.query.themeColor === 'string' ? req.query.themeColor.trim() : '';
+  if (!raw) return undefined;
+  const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+  return /^#[0-9A-F]{3}(?:[0-9A-F]{3})?$/i.test(normalized) ? normalized : undefined;
+}
+
 // Dynamic Role-Based PWA Manifest Route (`/api/pwa/manifest.webmanifest`, `/api/pwa/manifest.json`)
 app.get(['/api/pwa/manifest.webmanifest', '/api/pwa/manifest.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  return res.status(200).send(JSON.stringify(buildPwaManifest(extractRequestPwaBrandingInput(req))));
+  return res.status(200).send(
+    JSON.stringify(
+      buildPwaManifest(extractRequestPwaBrandingInput(req), {
+        themeColor: extractRequestThemeColor(req),
+      })
+    )
+  );
 });
 
 // Dedicated Store & SuperAdmin PWA Manifests (`/manifest.webmanifest`, `/manifest.json`, `/admin/manifest.*`)
 app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  return res.status(200).send(JSON.stringify(buildPwaManifest(extractRequestPwaBrandingInput(req))));
+  return res.status(200).send(
+    JSON.stringify(
+      buildPwaManifest(extractRequestPwaBrandingInput(req), {
+        themeColor: extractRequestThemeColor(req),
+      })
+    )
+  );
 });
 
 // Dynamic Desktop Setup Installer (.EXE) Download Endpoint
@@ -442,10 +461,16 @@ app.get('/.well-known/assetlinks.json', async (_req, res) => {
   return res.json(statements);
 });
 
-app.get(['/admin/manifest.webmanifest', '/admin/manifest.json'], (_req, res) => {
+app.get(['/admin/manifest.webmanifest', '/admin/manifest.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  return res.status(200).send(JSON.stringify(buildPwaManifest('SUPERADMIN')));
+  return res.status(200).send(
+    JSON.stringify(
+      buildPwaManifest('SUPERADMIN', {
+        themeColor: extractRequestThemeColor(req),
+      })
+    )
+  );
 });
 
 // Initialize PostgreSQL schema + SaaS Multi-Tenant Control Plane on cold start

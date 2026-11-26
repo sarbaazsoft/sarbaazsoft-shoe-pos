@@ -170,9 +170,15 @@ export function resolvePwaBranding(input?: PwaBrandingInput | string | null): Pw
  */
 export function buildPwaManifest(
   input?: PwaBrandingInput | string | null,
-  overrides?: { id?: string; startUrl?: string }
+  overrides?: { id?: string; startUrl?: string; themeColor?: string }
 ): WebAppManifest {
   const branding = resolvePwaBranding(input);
+  const rawThemeColor = typeof overrides?.themeColor === 'string' ? overrides.themeColor.trim() : '';
+  const normalizedThemeColor = /^#[0-9A-F]{6}$/i.test(rawThemeColor)
+    ? rawThemeColor.toUpperCase()
+    : /^#[0-9A-F]{3}$/i.test(rawThemeColor)
+    ? `#${rawThemeColor[1]}${rawThemeColor[1]}${rawThemeColor[2]}${rawThemeColor[2]}${rawThemeColor[3]}${rawThemeColor[3]}`.toUpperCase()
+    : branding.themeColor;
 
   if (branding.isSuperAdmin) {
     return {
@@ -185,7 +191,7 @@ export function buildPwaManifest(
       display: 'standalone',
       display_override: ['standalone', 'minimal-ui'],
       orientation: 'any',
-      theme_color: branding.themeColor,
+      theme_color: normalizedThemeColor,
       background_color: branding.backgroundColor,
       prefer_related_applications: false,
       categories: ['business', 'productivity', 'finance'],
@@ -242,7 +248,7 @@ export function buildPwaManifest(
     display: 'standalone',
     display_override: ['standalone', 'minimal-ui'],
     orientation: 'any',
-    theme_color: branding.themeColor,
+    theme_color: normalizedThemeColor,
     background_color: branding.backgroundColor,
     prefer_related_applications: false,
     categories: ['business', 'productivity', 'shopping'],

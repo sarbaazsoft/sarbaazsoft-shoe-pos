@@ -99,6 +99,11 @@
   --color-primary-950: #3B0764;
   --color-purple-950: #3B0764;
   --color-indigo-950: #1E1B4B;
+  --pwa-theme-color: #9333EA;
+  --android-status-bar-color: #9333EA;
+  --android-nav-bar-color: #9333EA;
+  --android-nav-bar-icon-color: #FFFFFF;
+  --android-nav-bar-divider-color: rgba(255, 255, 255, 0.2);
 }
 
 :root[data-accent-theme="purple"] {
@@ -1744,6 +1749,11 @@ body,
 html,
 body {
   background-color: #ffffff;
+}
+
+html.dark,
+html.dark body {
+  background-color: #0a0e1a;
 }
 
 #root {
@@ -4422,12 +4432,40 @@ html.dark .saas-panel .app-stat-card.app-stat-card:hover {
     overflow-x: clip;
   }
 
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: env(safe-area-inset-bottom, 0px);
+    overflow: hidden;
+    background-color: var(--android-nav-bar-color, var(--pwa-theme-color, var(--primary, #9333EA)));
+    box-shadow: inset 0 1px 0 var(--android-nav-bar-divider-color, transparent);
+    pointer-events: none;
+    z-index: 2147483647;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
   button,
   [role="button"],
   a,
   select,
   input {
     touch-action: manipulation;
+  }
+}
+
+@media print {
+  body {
+    padding-bottom: 0 !important;
+  }
+  body::after {
+    display: none !important;
   }
 }
 
