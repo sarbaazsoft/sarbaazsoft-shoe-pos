@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SarbaazSoft Shoe POS</title>
     <meta name="description" content="Dual-engine retail and wholesale footwear POS with offline-first billing, carton and pair inventory, customer and supplier khata, direct WebUSB printing, push and email alerts, Sammi AI Assistant, and installable PWA apps for Android, iOS, and Windows." />
     <meta property="og:title" content="SarbaazSoft Shoe POS" />
@@ -15,12 +15,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courgette&family=Inter:wght@300;400;500;600&family=Montserrat:wght@600;700;800&display=swap" />
 
-    <!-- PWA & Mobile Meta Tags (Dynamically synchronized to Primary Theme Color before hydration) -->
+    <!-- PWA & Mobile Meta Tags (App Primary Purple Theme) -->
     <meta name="theme-color" content="#9333EA" />
-    <meta name="msapplication-navbutton-color" content="#9333EA" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="SarbaazSoft ShoePOS" />
     <meta name="application-name" content="SarbaazSoft ShoePOS" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -31,46 +30,13 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/admin/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Prevent flash during bootstrap with solid white/dark background & edge-to-edge system bar inset -->
+    <!-- Prevent flash during bootstrap with solid white/dark background -->
     <style>
-      :root {
-        --pwa-theme-color: #9333EA;
-        --android-status-bar-color: #9333EA;
-        --android-nav-bar-color: #9333EA;
-        --android-nav-bar-icon-color: #FFFFFF;
-        --android-nav-bar-divider-color: rgba(255, 255, 255, 0.2);
-      }
       html, body {
         background-color: #FFFFFF;
       }
       html.dark, html.dark body {
         background-color: #0A0E1A;
-      }
-      @media screen {
-        body {
-          padding-bottom: env(safe-area-inset-bottom, 0px);
-        }
-        body::after {
-          content: '';
-          position: fixed;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          height: env(safe-area-inset-bottom, 0px);
-          overflow: hidden;
-          background-color: var(--android-nav-bar-color, var(--pwa-theme-color, var(--primary, #9333EA)));
-          box-shadow: inset 0 1px 0 var(--android-nav-bar-divider-color, transparent);
-          pointer-events: none;
-          z-index: 2147483647;
-        }
-      }
-      @media print {
-        body {
-          padding-bottom: 0 !important;
-        }
-        body::after {
-          display: none !important;
-        }
       }
     </style>
 
@@ -140,60 +106,11 @@
             activeAccent = mappedAccent;
             activeHex = accentMetaColors[mappedAccent];
           }
-          const root = document.documentElement;
-          root.setAttribute('data-accent-theme', activeAccent);
-
-          // Compute WCAG contrast for Android system bar icons (light vs dark icons)
-          const clean = activeHex.slice(1);
-          const toLin = function (v) {
-            const n = v / 255;
-            return n <= 0.03928 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4);
-          };
-          const lum = 0.2126 * toLin(parseInt(clean.slice(0, 2), 16))
-            + 0.7152 * toLin(parseInt(clean.slice(2, 4), 16))
-            + 0.0722 * toLin(parseInt(clean.slice(4, 6), 16));
-          const whiteContrast = 1.05 / (lum + 0.05);
-          const darkContrast = (lum + 0.05) / (0.0152 + 0.05);
-          const useLightIcons = whiteContrast >= 3.0 || whiteContrast >= darkContrast;
-          const isLightNavBg = !useLightIcons;
-          const iconColor = useLightIcons ? '#FFFFFF' : '#0F172A';
-          const dividerColor = isDark
-            ? 'rgba(255, 255, 255, 0.16)'
-            : (isLightNavBg ? 'rgba(15, 23, 42, 0.14)' : 'rgba(255, 255, 255, 0.20)');
-
-          root.style.setProperty('--pwa-theme-color', activeHex);
-          root.style.setProperty('--android-status-bar-color', activeHex);
-          root.style.setProperty('--android-nav-bar-color', activeHex);
-          root.style.setProperty('--android-nav-bar-icon-color', iconColor);
-          root.style.setProperty('--android-nav-bar-divider-color', dividerColor);
-          root.setAttribute('data-nav-bar-contrast', isLightNavBg ? 'dark' : 'light');
-          root.setAttribute('data-android-nav-bar-color', activeHex);
-
+          document.documentElement.setAttribute('data-accent-theme', activeAccent);
           const metaTheme = document.querySelector('meta[name="theme-color"]');
           if (metaTheme) {
             metaTheme.setAttribute('content', activeHex);
           }
-          const metaNavButton = document.querySelector('meta[name="msapplication-navbutton-color"]');
-          if (metaNavButton) {
-            metaNavButton.setAttribute('content', activeHex);
-          }
-          const metaAppleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-          if (metaAppleStatus) {
-            metaAppleStatus.setAttribute('content', isLightNavBg ? 'default' : 'black-translucent');
-          }
-          try {
-            if (window.AndroidNavigationBar && typeof window.AndroidNavigationBar.setSystemBarsColor === 'function') {
-              window.AndroidNavigationBar.setSystemBarsColor(activeHex, activeHex, isLightNavBg);
-            } else if (window.AndroidNavigationBar && typeof window.AndroidNavigationBar.setNavigationBarColor === 'function') {
-              window.AndroidNavigationBar.setNavigationBarColor(activeHex, isLightNavBg);
-            }
-            if (window.Android && typeof window.Android.setSystemBarsColor === 'function') {
-              window.Android.setSystemBarsColor(activeHex, activeHex, isLightNavBg);
-            } else if (window.Android && typeof window.Android.setNavigationBarColor === 'function') {
-              window.Android.setNavigationBarColor(activeHex, isLightNavBg);
-            }
-          } catch (bridgeErr) {}
-
           const rawBackdropStyle = localStorage.getItem('pos_backdrop_style') || localStorage.getItem('pos_guest_backdrop_style');
           const backdropStyle = rawBackdropStyle === 'showroom' ? 'showroom' : 'solid';
           const rawDarknessPrimary = localStorage.getItem('pos_backdrop_darkness');

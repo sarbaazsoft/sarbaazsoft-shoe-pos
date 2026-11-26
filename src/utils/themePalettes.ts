@@ -677,178 +677,28 @@ export function persistAccentTheme(accentId: AccentThemeId): AccentThemeId {
   return valid;
 }
 
-export interface SystemBarContrastInfo {
-  colorHex: string;
-  iconPolarity: 'light' | 'dark';
-  iconColor: '#FFFFFF' | '#0F172A';
-  isLightBackground: boolean;
-  dividerColor: string;
-  appleStatusBarStyle: 'default' | 'black-translucent';
-}
-
 /**
- * Computes WCAG contrast polarity for Android Status & Navigation bar icons so
- * navigation glyphs remain legible across light, dark, and bright/dark custom themes.
+ * Dynamically updates <meta name="theme-color"> (creating it if absent) so the
+ * PWA/browser chrome reflects the active primary color theme, while keeping
+ * static web app manifests untouched as a fallback.
  */
-export function resolveSystemBarContrast(
-  colorHex: string,
-  resolvedTheme?: 'light' | 'dark'
-): SystemBarContrastInfo {
-  const defaultHex = ACCENT_THEME_PALETTES[DEFAULT_ACCENT_THEME as PresetAccentThemeId].baseHex;
-  const normalizedHex = normalizeHexColor(colorHex, defaultHex);
-  const whiteContrast = getWcagContrastRatio(normalizedHex, '#FFFFFF');
-  const darkContrast = getWcagContrastRatio(normalizedHex, '#0F172A');
-  const useLightIcons = whiteContrast >= 3.0 || whiteContrast >= darkContrast;
-  const isLightBackground = !useLightIcons;
-
-  return {
-    colorHex: normalizedHex,
-    iconPolarity: useLightIcons ? 'light' : 'dark',
-    iconColor: useLightIcons ? '#FFFFFF' : '#0F172A',
-    isLightBackground,
-    dividerColor:
-      resolvedTheme === 'dark'
-        ? 'rgba(255, 255, 255, 0.16)'
-        : isLightBackground
-        ? 'rgba(15, 23, 42, 0.14)'
-        : 'rgba(255, 255, 255, 0.20)',
-    appleStatusBarStyle: isLightBackground ? 'default' : 'black-translucent',
-  };
-}
-
-function upsertSystemBarMetaTag(name: string, content: string): void {
-  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
-  let el = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
-  if (!el && document.head && typeof document.createElement === 'function') {
-    el = document.createElement('meta');
-    el.setAttribute('name', name);
-    document.head.appendChild(el);
-  }
-  if (el && el.getAttribute?.('content') !== content) {
-    el.setAttribute('content', content);
-  }
-}
-
-/**
- * Notifies any native Android WebView / TWA / Capacitor / ReactNative host bridge
- * so native system navigation and status bars synchronize immediately without restart.
- */
-export function syncNativeAndroidSystemBars(
-  info: SystemBarContrastInfo,
-  resolvedTheme?: 'light' | 'dark'
-): void {
-  if (typeof window === 'undefined') return;
-  const win = window as unknown as Record<string, any>;
-
-  try {
-    const androidNav = win.AndroidNavigationBar;
-    if (androidNav) {
-      if (typeof androidNav.setSystemBarsColor === 'function') {
-        androidNav.setSystemBarsColor(info.colorHex, info.colorHex, info.isLightBackground);
-      } else if (typeof androidNav.setNavigationBarColor === 'function') {
-        androidNav.setNavigationBarColor(info.colorHex, info.isLightBackground);
-      }
-    }
-
-    const androidBridge = win.Android;
-    if (androidBridge) {
-      if (typeof androidBridge.setSystemBarsColor === 'function') {
-        androidBridge.setSystemBarsColor(info.colorHex, info.colorHex, info.isLightBackground);
-      } else if (typeof androidBridge.setNavigationBarColor === 'function') {
-        androidBridge.setNavigationBarColor(info.colorHex, info.isLightBackground);
-      } else if (typeof androidBridge.updateThemeColor === 'function') {
-        androidBridge.updateThemeColor(info.colorHex, info.isLightBackground);
-      }
-    }
-
-    const capPlugins = win.Capacitor?.Plugins;
-    if (capPlugins?.NavigationBar?.setColor) {
-      void Promise.resolve(
-        capPlugins.NavigationBar.setColor({
-          color: info.colorHex,
-          darkButtons: info.isLightBackground,
-        })
-      ).catch(() => {});
-    }
-    if (capPlugins?.StatusBar?.setBackgroundColor) {
-      void Promise.resolve(
-        capPlugins.StatusBar.setBackgroundColor({ color: info.colorHex })
-      ).catch(() => {});
-    }
-
-    if (typeof win.ReactNativeWebView?.postMessage === 'function') {
-      win.ReactNativeWebView.postMessage(
-        JSON.stringify({
-          type: 'SYSTEM_BAR_THEME',
-          statusBarColor: info.colorHex,
-          navigationBarColor: info.colorHex,
-          lightNavigationBarIcons: info.isLightBackground,
-          iconPolarity: info.iconPolarity,
-          resolvedTheme: resolvedTheme ?? 'light',
-        })
-      );
-    }
-
-    if (typeof CustomEvent === 'function' && typeof window.dispatchEvent === 'function') {
-      window.dispatchEvent(
-        new CustomEvent('pos:system-bars-changed', {
-          detail: {
-            statusBarColor: info.colorHex,
-            navigationBarColor: info.colorHex,
-            iconPolarity: info.iconPolarity,
-            iconColor: info.iconColor,
-            isLightBackground: info.isLightBackground,
-            dividerColor: info.dividerColor,
-            resolvedTheme: resolvedTheme ?? 'light',
-          },
-        })
-      );
-    }
-  } catch {
-    // Ignore native bridge invocation errors in standard browser contexts
-  }
-}
-
-/**
- * Dynamically updates <meta name="theme-color"> (preserving existing status bar behavior)
- * while synchronizing Android Navigation Bar CSS variables, icon contrast attributes,
- * navbutton/tile metas, and native WebView/TWA bridges to the active primary theme color.
- */
-export function updatePwaThemeColorMeta(
-  colorHex: string,
-  options?: { resolvedTheme?: 'light' | 'dark' }
-): void {
+export function updatePwaThemeColorMeta(colorHex: string): void {
   if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
 
-  const root = document.documentElement;
-  const inferredDark = Boolean(
-    root &&
-      ((typeof root.classList?.contains === 'function' && root.classList.contains('dark')) ||
-        (typeof root.getAttribute === 'function' && root.getAttribute('data-theme') === 'dark'))
-  );
-  const resolvedTheme = options?.resolvedTheme ?? (inferredDark ? 'dark' : 'light');
-  const contrast = resolveSystemBarContrast(colorHex, resolvedTheme);
-
-  upsertSystemBarMetaTag('theme-color', contrast.colorHex);
-  upsertSystemBarMetaTag('msapplication-TileColor', contrast.colorHex);
-  upsertSystemBarMetaTag('msapplication-navbutton-color', contrast.colorHex);
-  upsertSystemBarMetaTag('apple-mobile-web-app-status-bar-style', contrast.appleStatusBarStyle);
-
-  if (root) {
-    if (typeof root.setAttribute === 'function') {
-      root.setAttribute('data-nav-bar-contrast', contrast.iconPolarity === 'dark' ? 'dark' : 'light');
-      root.setAttribute('data-android-nav-bar-color', contrast.colorHex);
-    }
-    if (root.style && typeof root.style.setProperty === 'function') {
-      root.style.setProperty('--pwa-theme-color', contrast.colorHex);
-      root.style.setProperty('--android-status-bar-color', contrast.colorHex);
-      root.style.setProperty('--android-nav-bar-color', contrast.colorHex);
-      root.style.setProperty('--android-nav-bar-icon-color', contrast.iconColor);
-      root.style.setProperty('--android-nav-bar-divider-color', contrast.dividerColor);
-    }
+  let metaThemeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!metaThemeColor && document.head && typeof document.createElement === 'function') {
+    metaThemeColor = document.createElement('meta');
+    metaThemeColor.setAttribute('name', 'theme-color');
+    document.head.appendChild(metaThemeColor);
+  }
+  if (metaThemeColor && metaThemeColor.getAttribute?.('content') !== colorHex) {
+    metaThemeColor.setAttribute('content', colorHex);
   }
 
-  syncNativeAndroidSystemBars(contrast, resolvedTheme);
+  const tileMeta = document.querySelector<HTMLMetaElement>('meta[name="msapplication-TileColor"]');
+  if (tileMeta && tileMeta.getAttribute?.('content') !== colorHex) {
+    tileMeta.setAttribute('content', colorHex);
+  }
 }
 
 export function getActivePwaThemeColor(
@@ -882,12 +732,11 @@ const SHADE_KEYS: Array<keyof ShadeScale> = [50, 100, 200, 300, 400, 500, 600, 7
 /**
  * Applies the selected accent palette dynamically to `:root` so both custom CSS variables
  * and Tailwind v4 utility classes (primary-*, from-purple-*, via-indigo-*, bg-purple-*, text-purple-*, etc.)
- * adapt seamlessly in real time across buttons, card headers, footers, inputs, and Android system bars.
+ * adapt seamlessly in real time across buttons, card headers, footers, inputs, and PWA theme-color.
  */
 export function applyAccentThemeToDOM(
   accentId: AccentThemeId,
-  customHex?: string | null,
-  resolvedTheme?: 'light' | 'dark'
+  customHex?: string | null
 ): AccentThemePalette {
   const palette = resolveAccentPalette(accentId, customHex);
   if (typeof document === 'undefined') return palette;
@@ -956,8 +805,8 @@ export function applyAccentThemeToDOM(
     root.style.setProperty(`--color-indigo-${shade}`, c[shade]);
   }
 
-  // Dynamically update PWA/Android Status & Navigation Bar colors + icon contrast
-  updatePwaThemeColorMeta(palette.baseHex, { resolvedTheme });
+  // Dynamically update PWA/browser theme-color meta tag
+  updatePwaThemeColorMeta(palette.baseHex);
 
   return palette;
 }

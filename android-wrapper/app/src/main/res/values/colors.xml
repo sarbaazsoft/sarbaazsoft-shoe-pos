@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Neutral surface background used only on first millisecond before saved/live theme sync -->
-    <color name="window_surface_bg">#FFFFFF</color>
-    <color name="launcher_icon_bg">#0F172A</color>
-</resources>

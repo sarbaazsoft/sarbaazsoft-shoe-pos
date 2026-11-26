@@ -48,7 +48,7 @@ function upsertManifestLink(href: string): void {
  */
 export function syncPwaMetadataToDocument(
   branding: PwaBrandingConfig,
-  options?: { themeColor?: string; resolvedTheme?: 'light' | 'dark' }
+  options?: { themeColor?: string }
 ): void {
   if (typeof document === 'undefined') return;
 
@@ -62,10 +62,7 @@ export function syncPwaMetadataToDocument(
     { name: 'application-name' },
     branding.applicationName
   );
-  updatePwaThemeColorMeta(
-    options?.themeColor || getActivePwaThemeColor(branding.themeColor),
-    options?.resolvedTheme ? { resolvedTheme: options.resolvedTheme } : undefined
-  );
+  updatePwaThemeColorMeta(options?.themeColor || getActivePwaThemeColor(branding.themeColor));
 
   upsertManifestLink(branding.manifestUrl);
 
@@ -98,7 +95,7 @@ export function syncPwaMetadataToDocument(
  * strictly synchronized with the user's active role, SuperAdmin view state, and primary theme color.
  */
 export function usePwaManifest(input: PwaBrandingInput): PwaBrandingConfig {
-  const { pwaThemeColor, theme } = useTheme();
+  const { pwaThemeColor } = useTheme();
   const branding = useMemo(
     () =>
       resolvePwaBranding({
@@ -111,8 +108,8 @@ export function usePwaManifest(input: PwaBrandingInput): PwaBrandingConfig {
   );
 
   useEffect(() => {
-    syncPwaMetadataToDocument(branding, { themeColor: pwaThemeColor, resolvedTheme: theme });
-  }, [branding, pwaThemeColor, theme]);
+    syncPwaMetadataToDocument(branding, { themeColor: pwaThemeColor });
+  }, [branding, pwaThemeColor]);
 
   return branding;
 }
