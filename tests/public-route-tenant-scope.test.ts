@@ -369,7 +369,7 @@ test('Frontend api.ts prevents stale tenantId leakage on / and /auth across Supe
 });
 
 test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantId=0 (SuperAdmin), and tenantId>=1 (Store)', async () => {
-  // 1. AuthModal on unscoped /auth (tenantId = null) even if stale pos_unauth_scoped_tenant_id exists in storage -> NO scope banner & NO personalized title
+  // 1. AuthModal on unscoped /auth (tenantId = null) even if stale pos_unauth_scoped_tenant_id exists in storage -> NO scope banner, NO personalized title, YES Store Directory header link, YES Free Trial link
   await withBrowserEnv({ pathname: '/auth', search: '' }, ({ localStorage, sessionStorage }) => {
     localStorage.setItem('pos_unauth_scoped_tenant_id', '1');
     sessionStorage.setItem('pos_unauth_scoped_tenant_id', '1');
@@ -380,6 +380,7 @@ test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantI
         null,
         React.createElement(AuthModal, {
           onSuccess: () => {},
+          onBack: () => {},
           companySettings: { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' },
         })
       )
@@ -388,9 +389,13 @@ test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantI
     assert.equal(html.includes('id="auth-store-name"'), false);
     assert.equal(html.includes('Tenant #1'), false);
     assert.equal(html.includes('/admin/pwa-192x192.png'), false);
+    assert.equal(html.includes('id="public-header-action-btn"'), true);
+    assert.equal(html.includes('Store Directory'), true);
+    assert.equal(html.includes('id="auth-register-free-trial-link"'), true);
+    assert.equal(html.includes('id="auth-sign-in-different-store-link"'), false);
   });
 
-  // 2. AuthModal with ?tenantId=0 treats 0 as SuperAdmin scope: shows S icon, personalized SuperAdmin title, and Tenant #0 banner (never Tenant #1)
+  // 2. AuthModal with ?tenantId=0 treats 0 as SuperAdmin scope: collapsed banner by default, hides Store Directory header button & Free Trial link, shows Sign in with different store
   await withBrowserEnv({ pathname: '/auth', search: '?tenantId=0' }, () => {
     const html = renderToStaticMarkup(
       React.createElement(
@@ -398,20 +403,52 @@ test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantI
         null,
         React.createElement(AuthModal, {
           onSuccess: () => {},
+          onBack: () => {},
           companySettings: { tenant_id: 0, name: 'SuperAdmin Control Panel', logo: '/admin/pwa-192x192.png' },
         })
       )
     );
     assert.equal(html.includes('id="auth-tenant-scope-banner"'), true);
+    assert.equal(html.includes('id="auth-tenant-scope-banner-toggle"'), true);
+    assert.equal(html.includes('aria-expanded="false"'), true);
+    assert.equal(html.includes('id="auth-tenant-scope-banner-details"'), false);
     assert.equal(html.includes('Tenant #0'), true);
     assert.equal(html.includes('Tenant #1'), false);
     assert.equal(html.includes('id="auth-store-name"'), true);
     assert.equal(html.includes('SuperAdmin Control Panel'), true);
     assert.equal(html.includes('SarbaazSoft AdminPOS'), true);
     assert.equal(html.includes('/admin/pwa-192x192.png'), true);
+    assert.equal(html.includes('id="public-header-action-btn"'), false);
+    assert.equal(html.includes('id="auth-register-free-trial-link"'), false);
+    assert.equal(html.includes('id="auth-sign-in-different-store-link"'), true);
+    assert.equal(html.includes('Sign in with different store'), true);
   });
 
-  // 3. SaasLandingPage with unauthTenantId='' shows NO banner, while unauthTenantId='0' shows SuperAdmin Control Panel (Tenant #0) banner
+  // 2b. AuthModal with ?tenantId=1 (store scope): collapsed banner by default, hides Store Directory header button & Free Trial link, shows Sign in with different store
+  await withBrowserEnv({ pathname: '/auth', search: '?tenantId=1' }, () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(AuthModal, {
+          onSuccess: () => {},
+          onBack: () => {},
+          companySettings: { tenant_id: 1, name: 'Test Store 1', logo: '/pwa-192x192.png' },
+        })
+      )
+    );
+    assert.equal(html.includes('id="auth-tenant-scope-banner"'), true);
+    assert.equal(html.includes('id="auth-tenant-scope-banner-toggle"'), true);
+    assert.equal(html.includes('aria-expanded="false"'), true);
+    assert.equal(html.includes('id="auth-tenant-scope-banner-details"'), false);
+    assert.equal(html.includes('Tenant #1'), true);
+    assert.equal(html.includes('id="public-header-action-btn"'), false);
+    assert.equal(html.includes('id="auth-register-free-trial-link"'), false);
+    assert.equal(html.includes('id="auth-sign-in-different-store-link"'), true);
+    assert.equal(html.includes('Sign in with different store'), true);
+  });
+
+  // 3. SaasLandingPage with unauthTenantId='' shows NO banner, while unauthTenantId='0' or '1' shows collapsed banner by default
   await withBrowserEnv({ pathname: '/', search: '' }, () => {
     const unscopedHtml = renderToStaticMarkup(
       React.createElement(
@@ -442,9 +479,33 @@ test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantI
       )
     );
     assert.equal(adminScopedHtml.includes('id="unauth-tenant-scope-banner"'), true);
+    assert.equal(adminScopedHtml.includes('id="unauth-tenant-scope-banner-toggle"'), true);
+    assert.equal(adminScopedHtml.includes('aria-expanded="false"'), true);
+    assert.equal(adminScopedHtml.includes('id="unauth-tenant-scope-banner-details"'), false);
     assert.equal(adminScopedHtml.includes('SuperAdmin Control Panel'), true);
     assert.equal(adminScopedHtml.includes('Tenant #0'), true);
     assert.equal(adminScopedHtml.includes('Tenant #1'), false);
+  });
+
+  await withBrowserEnv({ pathname: '/', search: '?tenantId=1' }, () => {
+    const storeScopedHtml = renderToStaticMarkup(
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(SaasLandingPage, {
+          availableTenants: [{ id: 1, name: 'Test Store 1' } as any],
+          unauthTenantId: '1',
+          onGlobalLogin: () => {},
+          onOpenSuperAdmin: () => {},
+        })
+      )
+    );
+    assert.equal(storeScopedHtml.includes('id="unauth-tenant-scope-banner"'), true);
+    assert.equal(storeScopedHtml.includes('id="unauth-tenant-scope-banner-toggle"'), true);
+    assert.equal(storeScopedHtml.includes('aria-expanded="false"'), true);
+    assert.equal(storeScopedHtml.includes('id="unauth-tenant-scope-banner-details"'), false);
+    assert.equal(storeScopedHtml.includes('Test Store 1'), true);
+    assert.equal(storeScopedHtml.includes('Tenant #1'), true);
   });
 
   // 4. Static invariants on public route logic in App.tsx, AuthModal.tsx, PublicHeader.tsx

@@ -16,6 +16,7 @@ import { FreeTrialOnboardingModal } from '../saas/FreeTrialOnboardingModal.tsx';
 import { usePasswordReset } from '../../hooks/usePasswordReset.ts';
 import { PasswordResetFlow } from './PasswordResetFlow.tsx';
 import { AnimatedTabPanel, useTabDirection } from '../common/AnimatedTabPanel.tsx';
+import { ActiveTenantScopeBanner } from '../common/ActiveTenantScopeBanner.tsx';
 
 interface AuthModalProps {
   onSuccess: (user: any) => void;
@@ -86,6 +87,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const isSuperAdminScope = resolvedScopeTenantId === 0;
   const activeTenantId =
     resolvedScopeTenantId !== null && resolvedScopeTenantId > 0 ? resolvedScopeTenantId : null;
+  const hasActiveTenantScope = isSuperAdminScope || Boolean(activeTenantId);
   const rememberScope = isSuperAdminScope ? 'platform' : 'store';
 
   // Form states with email retrieval from localStorage
@@ -295,6 +297,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     overrides: layoutMetaOverride,
   });
 
+  const handleResetTenantScope = () => {
+    try {
+      sessionStorage.removeItem('pos_unauth_scoped_tenant_id');
+      localStorage.removeItem('pos_unauth_scoped_tenant_id');
+    } catch {}
+    onClearTenantScope?.();
+  };
+
   return (
     <BodyLayoutWrapper
       layoutMeta={authLayoutMeta}
@@ -311,57 +321,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           storeName={isSuperAdminScope ? 'SuperAdmin Control Panel' : storeName}
           subtitle={isSuperAdminScope ? 'SuperAdmin Control Plane' : undefined}
           logoSrc={isSuperAdminScope ? '/admin/pwa-192x192.png' : (companySettings?.logo || companySettings?.logo_url || '/pwa-192x192.png')}
-          actionText={onBack ? 'Store Directory' : undefined}
-          actionIcon={<Store className="w-3.5 h-3.5" />}
-          onActionClick={onBack}
+          actionText={!hasActiveTenantScope && onBack ? 'Store Directory' : undefined}
+          actionIcon={!hasActiveTenantScope && onBack ? <Store className="w-3.5 h-3.5" /> : undefined}
+          onActionClick={!hasActiveTenantScope ? onBack : undefined}
         />
       }
       topBanner={
-        isSuperAdminScope || activeTenantId ? (
-          <div
+        hasActiveTenantScope ? (
+          <ActiveTenantScopeBanner
             id="auth-tenant-scope-banner"
-            className="relative z-20 bg-purple-100 dark:bg-purple-950/90 border-b border-purple-300 dark:border-purple-800/60 py-1.5 sm:py-2 px-3 sm:px-4 text-xs select-none"
-          >
-            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse shrink-0" />
-                {isSuperAdminScope ? (
-                  <span>
-                    Active System Scope: <strong>SuperAdmin Control Panel</strong> (Tenant #0)
-                  </span>
-                ) : (
-                  <span>
-                    Active Store Scope: <strong>{effectiveStoreName}</strong> (Tenant #{activeTenantId})
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {onBack && (
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
-                  >
-                    {isSuperAdminScope ? 'Store Directory' : 'Change Store'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      sessionStorage.removeItem('pos_unauth_scoped_tenant_id');
-                      localStorage.removeItem('pos_unauth_scoped_tenant_id');
-                    } catch {}
-                    onClearTenantScope?.();
-                  }}
-                  className="px-2.5 py-1 rounded-md bg-purple-50/90 hover:bg-purple-100 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 text-purple-700 dark:text-purple-200 font-semibold text-[11px] transition cursor-pointer border border-purple-400/70 shadow-sm hover:shadow-md"
-                  title={isSuperAdminScope ? 'Reset scope to null and sign in without system lock' : 'Clear tenant scope and sign in without a store lock'}
-                >
-                  {isSuperAdminScope ? 'Clear Scope' : 'Clear Store Scope'}
-                </button>
-              </div>
-            </div>
-          </div>
+            variant="auth"
+            isSuperAdminScope={isSuperAdminScope}
+            tenantId={isSuperAdminScope ? 0 : (activeTenantId ?? 0)}
+            scopeLabel={effectiveStoreName}
+            primaryActionLabel={onBack ? (isSuperAdminScope ? 'Store Directory' : 'Change Store') : undefined}
+            onPrimaryAction={onBack}
+            clearActionLabel={isSuperAdminScope ? 'Clear Scope' : 'Clear Store Scope'}
+            clearActionTitle={
+              isSuperAdminScope
+                ? 'Reset scope to null and sign in without system lock'
+                : 'Clear tenant scope and sign in without a store lock'
+            }
+            onClearScope={handleResetTenantScope}
+          />
         ) : null
       }
       footer={<PublicFooter storeName={storeName} />}
@@ -686,18 +668,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </button>
 
                   <div className="pt-3 mt-1 border-t border-slate-200/80 dark:border-purple-800/50 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-xs">
-                    <span className="text-slate-500 dark:text-purple-200/75 font-medium">
-                      Don&apos;t have a store account yet?
-                    </span>
-                    <button
-                      id="auth-register-free-trial-link"
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => setShowFreeTrialModal(true)}
-                      className="inline-flex items-center gap-1 font-bold text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200 underline decoration-purple-400/60 underline-offset-2 hover:decoration-purple-600 dark:hover:decoration-purple-300 transition cursor-pointer disabled:opacity-50"
-                    >
-                      <span>Start 30-Day Free Trial</span>
-                    </button>
+                    {!hasActiveTenantScope ? (
+                      <>
+                        <span className="text-slate-500 dark:text-purple-200/75 font-medium">
+                          Don&apos;t have a store account yet?
+                        </span>
+                        <button
+                          id="auth-register-free-trial-link"
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => setShowFreeTrialModal(true)}
+                          className="inline-flex items-center gap-1 font-bold text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200 underline decoration-purple-400/60 underline-offset-2 hover:decoration-purple-600 dark:hover:decoration-purple-300 transition cursor-pointer disabled:opacity-50"
+                        >
+                          <span>Start 30-Day Free Trial</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        id="auth-sign-in-different-store-link"
+                        type="button"
+                        disabled={isLoading}
+                        onClick={handleResetTenantScope}
+                        className="inline-flex items-center gap-1 font-bold text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200 underline decoration-purple-400/60 underline-offset-2 hover:decoration-purple-600 dark:hover:decoration-purple-300 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <span>Sign in with different store</span>
+                      </button>
+                    )}
                   </div>
                 </form>
               )}

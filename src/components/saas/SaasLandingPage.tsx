@@ -13,6 +13,7 @@ import { resolveRouteLayoutMetadata, type RouteLayoutMetadata } from '../../conf
 import { LuxuryBadge } from '../common/Badge';
 import type { LuxuryBadgeTone } from '../../utils/badgeStyles';
 import { LicenseAgreementModal } from '../common/LicenseAgreementModal';
+import { ActiveTenantScopeBanner } from '../common/ActiveTenantScopeBanner';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Autoplay, Pagination } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
@@ -880,6 +881,7 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
   const isSuperAdminUnauthScope = Number.isSafeInteger(numericUnauthTid) && numericUnauthTid === 0;
   const validUnauthTenantId =
     Number.isSafeInteger(numericUnauthTid) && numericUnauthTid > 0 ? numericUnauthTid : null;
+  const hasActiveTenantScope = isSuperAdminUnauthScope || Boolean(validUnauthTenantId);
 
   const matchedScopedStore = React.useMemo(() => {
     if (!validUnauthTenantId) return null;
@@ -909,42 +911,27 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
         />
       }
       topBanner={
-        isSuperAdminUnauthScope || validUnauthTenantId ? (
-          <div id="unauth-tenant-scope-banner" className="bg-purple-950/90 lt:bg-purple-100 border-b border-purple-800/60 lt:border-purple-300 py-2 px-4 text-xs select-none">
-            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-purple-200 lt:text-purple-900 font-medium">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                {isSuperAdminUnauthScope ? (
-                  <span>
-                    Active System Scope: <strong>SuperAdmin Control Panel</strong> (Tenant #0)
-                  </span>
-                ) : (
-                  <span>
-                    Active Store Scope: <strong>{matchedScopedStore?.name || `Store #${validUnauthTenantId}`}</strong> (Tenant #{validUnauthTenantId})
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onGlobalLogin}
-                  className="px-2.5 py-1 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
-                >
-                  {isSuperAdminUnauthScope ? 'Sign In to Control Panel' : `Sign In to ${matchedScopedStore?.name || 'Store'}`}
-                </button>
-                {onClearTenantScope && (
-                  <button
-                    type="button"
-                    onClick={onClearTenantScope}
-                    className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 lt:bg-white lt:hover:bg-slate-200 text-purple-200 lt:text-purple-900 font-semibold text-[11px] transition cursor-pointer border border-purple-400/30"
-                    title={isSuperAdminUnauthScope ? 'Reset scope to null and view all stores' : 'Clear tenant scope and view all stores'}
-                  >
-                    {isSuperAdminUnauthScope ? 'Clear Scope' : 'Clear Store Scope'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+        hasActiveTenantScope ? (
+          <ActiveTenantScopeBanner
+            id="unauth-tenant-scope-banner"
+            variant="landing"
+            isSuperAdminScope={isSuperAdminUnauthScope}
+            tenantId={isSuperAdminUnauthScope ? 0 : (validUnauthTenantId ?? 0)}
+            scopeLabel={matchedScopedStore?.name || `Store #${validUnauthTenantId}`}
+            primaryActionLabel={
+              isSuperAdminUnauthScope
+                ? 'Sign In to Control Panel'
+                : `Sign In to ${matchedScopedStore?.name || 'Store'}`
+            }
+            onPrimaryAction={onGlobalLogin}
+            clearActionLabel={isSuperAdminUnauthScope ? 'Clear Scope' : 'Clear Store Scope'}
+            clearActionTitle={
+              isSuperAdminUnauthScope
+                ? 'Reset scope to null and view all stores'
+                : 'Clear tenant scope and view all stores'
+            }
+            onClearScope={onClearTenantScope}
+          />
         ) : null
       }
       footer={
