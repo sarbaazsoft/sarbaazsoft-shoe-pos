@@ -14,10 +14,53 @@ export interface UsePWAInstallOptions {
 export interface PwaPlatformInfo {
   isIOS: boolean;
   isIOSSafari: boolean;
+  isSafari: boolean;
   isAndroid: boolean;
   isEdge: boolean;
   isChrome: boolean;
   isWindows: boolean;
+}
+
+export type DetectedInstallTarget = 'android' | 'apple' | 'desktop';
+
+export interface InstallPlatformDescriptor {
+  target: DetectedInstallTarget;
+  buttonLabel: string;
+  badgeLabel: string;
+  tooltip: string;
+}
+
+export function resolveDetectedInstallPlatform(platform: {
+  isAndroid: boolean;
+  isIOS: boolean;
+  isIOSSafari?: boolean;
+  isSafari?: boolean;
+  isWindows?: boolean;
+}): InstallPlatformDescriptor {
+  if (platform.isAndroid) {
+    return {
+      target: 'android',
+      buttonLabel: 'Install App (APK)',
+      badgeLabel: 'Android APK',
+      tooltip: 'Download & install SarbaazSoft Shoe POS Android APK',
+    };
+  }
+  if (platform.isIOS || platform.isSafari) {
+    return {
+      target: 'apple',
+      buttonLabel: platform.isIOS ? 'Install App (iOS)' : 'Install App (Safari)',
+      badgeLabel: 'Safari PWA',
+      tooltip: 'Install SarbaazSoft Shoe POS via Apple Safari PWA',
+    };
+  }
+  return {
+    target: 'desktop',
+    buttonLabel: 'Install App',
+    badgeLabel: platform.isWindows ? 'Win • PWA' : 'Desktop PWA',
+    tooltip: platform.isWindows
+      ? 'Install SarbaazSoft Shoe POS Desktop PWA or Windows .EXE'
+      : 'Install SarbaazSoft Shoe POS Desktop PWA',
+  };
 }
 
 export const PWA_INSTALL_DISMISSED_KEY = 'pos_pwa_install_dismissed';
@@ -83,10 +126,17 @@ export function detectPwaPlatform(
   const isWindows = /windows/.test(ua);
   const isIOSSafari =
     isIOS && /safari/.test(ua) && !/crios|fxios|edgios|opios|yabrowser|gsa/.test(ua);
+  const isSafari =
+    !isAndroid &&
+    /safari/.test(ua) &&
+    !/chrome|crios|chromium|edg(e|a|ios)?\/|fxios|firefox|opr\/|opera|opios|samsungbrowser|yabrowser|gsa/.test(
+      ua
+    );
 
   return {
     isIOS,
     isIOSSafari,
+    isSafari,
     isAndroid,
     isEdge,
     isChrome,
@@ -317,6 +367,7 @@ export function usePWAInstall(options: UsePWAInstallOptions = {}) {
   const initialPlatform = detectPwaPlatform();
   const [isIOS, setIsIOS] = useState(initialPlatform.isIOS);
   const [isIOSSafari, setIsIOSSafari] = useState(initialPlatform.isIOSSafari);
+  const [isSafari, setIsSafari] = useState(initialPlatform.isSafari);
   const [isAndroid, setIsAndroid] = useState(initialPlatform.isAndroid);
   const [isEdge, setIsEdge] = useState(initialPlatform.isEdge);
   const [isChrome, setIsChrome] = useState(initialPlatform.isChrome);
@@ -329,6 +380,7 @@ export function usePWAInstall(options: UsePWAInstallOptions = {}) {
     const platform = detectPwaPlatform();
     setIsIOS(platform.isIOS);
     setIsIOSSafari(platform.isIOSSafari);
+    setIsSafari(platform.isSafari);
     setIsAndroid(platform.isAndroid);
     setIsEdge(platform.isEdge);
     setIsChrome(platform.isChrome);
@@ -503,6 +555,7 @@ export function usePWAInstall(options: UsePWAInstallOptions = {}) {
     isDismissed,
     isIOS,
     isIOSSafari,
+    isSafari,
     isAndroid,
     isEdge,
     isChrome,

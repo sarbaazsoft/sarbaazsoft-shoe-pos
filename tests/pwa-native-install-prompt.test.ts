@@ -1,7 +1,23 @@
+import { registerHooks } from 'node:module';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+registerHooks({
+  load(url, context, nextLoad) {
+    if (/\.(png|jpe?g|webp|gif|svg|css)$/i.test(url)) {
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: `export default ${JSON.stringify(url)};`,
+      };
+    }
+    return nextLoad(url, context);
+  },
+});
 
 import {
   PWA_INSTALLED_KEY,
@@ -14,9 +30,12 @@ import {
   markPwaInstallDismissed,
   markPwaInstalled,
   resetPwaInstallStateForTests,
+  resolveDetectedInstallPlatform,
   triggerNativeInstallPrompt,
   type BeforeInstallPromptEvent,
 } from '../src/hooks/usePWAInstall.ts';
+
+const { InstallAppModal } = await import('../src/components/common/InstallAppModal.tsx');
 
 function createMemoryStorage() {
   const store = new Map<string, string>();
@@ -37,6 +56,8 @@ function createEventTargetWindow(options?: {
   windowControlsOverlay?: boolean;
   navigatorStandalone?: boolean;
   userAgent?: string;
+  platform?: string;
+  maxTouchPoints?: number;
 }) {
   const listeners = new Map<string, Set<{ fn: Function; capture: boolean }>>();
   const storage = createMemoryStorage();
@@ -52,8 +73,8 @@ function createEventTargetWindow(options?: {
         options?.userAgent ||
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0',
       standalone: options?.navigatorStandalone ?? false,
-      platform: 'Win32',
-      maxTouchPoints: 0,
+      platform: options?.platform ?? 'Win32',
+      maxTouchPoints: options?.maxTouchPoints ?? 0,
     },
     matchMedia: (query: string) => ({
       matches:
@@ -450,4 +471,218 @@ test('App.tsx, index.html, and InstallAppModal reuse existing PWA flow with no d
     'utf8'
   );
   assert.ok(modalSrc.includes('Add to Home Screen'));
+});
+
+test('resolveDetectedInstallPlatform maps runtime browser/device cleanly across Android, iOS, Safari, Windows, and Desktop', () => {
+  const androidInfo = detectPwaPlatform({
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+    platform: 'Linux armv8l',
+    maxTouchPoints: 5,
+  });
+  assert.equal(androidInfo.isSafari, false);
+  assert.deepEqual(resolveDetectedInstallPlatform(androidInfo).target, 'android');
+  assert.equal(resolveDetectedInstallPlatform(androidInfo).badgeLabel, 'Android APK');
+
+  const iosInfo = detectPwaPlatform({
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    platform: 'iPhone',
+    maxTouchPoints: 5,
+  });
+  assert.equal(iosInfo.isSafari, true);
+  assert.equal(resolveDetectedInstallPlatform(iosInfo).target, 'apple');
+  assert.equal(resolveDetectedInstallPlatform(iosInfo).buttonLabel, 'Install App (iOS)');
+
+  const macSafariInfo = detectPwaPlatform({
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+    platform: 'MacIntel',
+    maxTouchPoints: 0,
+  });
+  assert.equal(macSafariInfo.isIOS, false);
+  assert.equal(macSafariInfo.isSafari, true);
+  assert.equal(resolveDetectedInstallPlatform(macSafariInfo).target, 'apple');
+  assert.equal(resolveDetectedInstallPlatform(macSafariInfo).buttonLabel, 'Install App (Safari)');
+  assert.equal(resolveDetectedInstallPlatform(macSafariInfo).badgeLabel, 'Safari PWA');
+
+  const macChromeInfo = detectPwaPlatform({
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    platform: 'MacIntel',
+    maxTouchPoints: 0,
+  });
+  assert.equal(macChromeInfo.isSafari, false);
+  assert.equal(resolveDetectedInstallPlatform(macChromeInfo).target, 'desktop');
+
+  const winEdgeInfo = detectPwaPlatform({
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0',
+    platform: 'Win32',
+    maxTouchPoints: 0,
+  });
+  assert.equal(winEdgeInfo.isSafari, false);
+  assert.equal(resolveDetectedInstallPlatform(winEdgeInfo).target, 'desktop');
+  assert.equal(resolveDetectedInstallPlatform(winEdgeInfo).badgeLabel, 'Win • PWA');
+});
+
+test('InstallAppModal with restrictToDetectedPlatform renders only the runtime-detected platform option', () => {
+  // 1. Android: shows APK download + WebAPK, hides platform tabs, iOS, and Windows EXE
+  {
+    const { win } = createEventTargetWindow({
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+      platform: 'Linux armv8l',
+      maxTouchPoints: 5,
+    });
+    const restore = setupGlobalEnv(win);
+    try {
+      const html = renderToStaticMarkup(
+        React.createElement(InstallAppModal, {
+          isOpen: true,
+          onClose: () => {},
+          isAdmin: false,
+          role: 'PUBLIC',
+          restrictToDetectedPlatform: true,
+        })
+      );
+      assert.ok(html.includes('/api/download/apk?role=PUBLIC'));
+      assert.ok(html.includes('/assets/SarbaazSoft-POS.apk'));
+      assert.ok(html.includes('Download SarbaazSoft ShoePOS APK (.apk)'));
+      assert.ok(!html.includes('id="install-tab-android"'));
+      assert.ok(!html.includes('Add to Home Screen'));
+      assert.ok(!html.includes('Windows 64-bit Native Launcher'));
+    } finally {
+      restore();
+    }
+  }
+
+  // 2. iOS Safari: shows iPhone/iPad Safari PWA instructions, hides APK and Windows EXE
+  {
+    const { win } = createEventTargetWindow({
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+      platform: 'iPhone',
+      maxTouchPoints: 5,
+    });
+    const restore = setupGlobalEnv(win);
+    try {
+      const html = renderToStaticMarkup(
+        React.createElement(InstallAppModal, {
+          isOpen: true,
+          onClose: () => {},
+          isAdmin: false,
+          role: 'PUBLIC',
+          restrictToDetectedPlatform: true,
+        })
+      );
+      assert.ok(html.includes('Apple iOS &amp; iPadOS Safari PWA'));
+      assert.ok(html.includes('Add to Home Screen'));
+      assert.ok(!html.includes('id="install-tab-apple"'));
+      assert.ok(!html.includes('/api/download/apk'));
+      assert.ok(!html.includes('Windows 64-bit Native Launcher'));
+    } finally {
+      restore();
+    }
+  }
+
+  // 3. macOS Safari: shows Mac Safari Add to Dock instructions, hides APK and Windows EXE
+  {
+    const { win } = createEventTargetWindow({
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+      platform: 'MacIntel',
+      maxTouchPoints: 0,
+    });
+    const restore = setupGlobalEnv(win);
+    try {
+      const html = renderToStaticMarkup(
+        React.createElement(InstallAppModal, {
+          isOpen: true,
+          onClose: () => {},
+          isAdmin: false,
+          role: 'PUBLIC',
+          restrictToDetectedPlatform: true,
+        })
+      );
+      assert.ok(html.includes('Apple macOS Safari Web App'));
+      assert.ok(html.includes('Add to Dock'));
+      assert.ok(!html.includes('/api/download/apk'));
+      assert.ok(!html.includes('Windows 64-bit Native Launcher'));
+    } finally {
+      restore();
+    }
+  }
+
+  // 4. Desktop Windows: shows Desktop PWA & Windows EXE, hides APK & Apple Safari
+  {
+    const { win } = createEventTargetWindow({
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0',
+      platform: 'Win32',
+      maxTouchPoints: 0,
+    });
+    const restore = setupGlobalEnv(win);
+    try {
+      const html = renderToStaticMarkup(
+        React.createElement(InstallAppModal, {
+          isOpen: true,
+          onClose: () => {},
+          isAdmin: false,
+          role: 'PUBLIC',
+          restrictToDetectedPlatform: true,
+        })
+      );
+      assert.ok(html.includes('Desktop PWA (Chrome / Edge)'));
+      assert.ok(html.includes('Windows 64-bit Native Launcher (.EXE)'));
+      assert.ok(!html.includes('/api/download/apk'));
+      assert.ok(!html.includes('Add to Home Screen'));
+    } finally {
+      restore();
+    }
+  }
+
+  // 5. Desktop Linux/macOS Chrome: shows Desktop PWA only, hides Windows EXE & APK
+  {
+    const { win } = createEventTargetWindow({
+      userAgent:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      platform: 'Linux x86_64',
+      maxTouchPoints: 0,
+    });
+    const restore = setupGlobalEnv(win);
+    try {
+      const html = renderToStaticMarkup(
+        React.createElement(InstallAppModal, {
+          isOpen: true,
+          onClose: () => {},
+          isAdmin: false,
+          role: 'PUBLIC',
+          restrictToDetectedPlatform: true,
+        })
+      );
+      assert.ok(html.includes('Desktop PWA (Chrome / Edge)'));
+      assert.ok(!html.includes('Windows 64-bit Native Launcher'));
+      assert.ok(!html.includes('/api/download/apk'));
+      assert.ok(!html.includes('Add to Home Screen'));
+    } finally {
+      restore();
+    }
+  }
+});
+
+test('SaaS Landing Navbar sidebar reuses Store sidebar Install App UI, hook, and InstallAppModal without duplicating download logic', () => {
+  const navbarSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/saas/Navbar.tsx'),
+    'utf8'
+  );
+  assert.ok(navbarSrc.includes('usePWAInstall'));
+  assert.ok(navbarSrc.includes('resolveDetectedInstallPlatform'));
+  assert.ok(navbarSrc.includes("import('../common/InstallAppModal.tsx')"));
+  assert.ok(navbarSrc.includes('id="landing-mobile-sidebar-install-btn"'));
+  assert.ok(navbarSrc.includes('id="landing-tablet-drawer-install-btn"'));
+  assert.ok(navbarSrc.includes('data-pwa-manual-install="true"'));
+  assert.ok(navbarSrc.includes('restrictToDetectedPlatform={true}'));
+  assert.ok(!navbarSrc.includes('/api/download/apk'));
+  assert.ok(!navbarSrc.includes('SarbaazSoft-POS.apk'));
 });

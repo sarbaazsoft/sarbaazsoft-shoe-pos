@@ -1,8 +1,70 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { offlineQueueService } from '../services/offlineQueueService.ts';
 import type { QueuedReturn, QueuedSale } from '../utils/offlineDb.ts';
 
 export type SyncStatusState = 'synced' | 'syncing' | 'pending' | 'offline';
+
+export interface DerivedOfflineSyncState {
+  isConnected: boolean;
+  pendingCount: number;
+  unsyncedCount: number;
+  failedCount: number;
+  lastSyncError: string | null;
+  syncStatus: SyncStatusState;
+  indicatorColor: 'green' | 'amber' | 'red';
+  hasUnsyncedInvoices: boolean;
+  canCloseReminder: boolean;
+}
+
+export function deriveOfflineSyncState(params: {
+  isOnline: boolean;
+  backendConnected: boolean;
+  isSyncing: boolean;
+  reportedPendingCount: number;
+  queueList: QueuedSale[];
+  returnsQueueList: QueuedReturn[];
+}): DerivedOfflineSyncState {
+  const unsyncedSales = params.queueList.filter((s) => s.status !== 'SYNCED');
+  const unsyncedReturns = params.returnsQueueList.filter((r) => r.status !== 'SYNCED');
+  const failedSales = params.queueList.filter((s) => s.status === 'FAILED');
+  const failedReturns = params.returnsQueueList.filter((r) => r.status === 'FAILED');
+
+  const unsyncedCount = unsyncedSales.length + unsyncedReturns.length;
+  const failedCount = failedSales.length + failedReturns.length;
+  const lastSyncError =
+    failedSales.find((s) => s.errorMessage)?.errorMessage ||
+    failedReturns.find((r) => r.errorMessage)?.errorMessage ||
+    null;
+
+  const pendingCount = Math.max(params.reportedPendingCount, unsyncedCount);
+  const isConnected = params.isOnline && params.backendConnected;
+
+  // Never report 'synced' / green while offline or while any pending, syncing, or failed invoices remain
+  const syncStatus: SyncStatusState = !isConnected
+    ? 'offline'
+    : params.isSyncing
+    ? 'syncing'
+    : pendingCount > 0 || failedCount > 0
+    ? 'pending'
+    : 'synced';
+
+  const indicatorColor: 'green' | 'amber' | 'red' =
+    syncStatus === 'offline' ? 'red' : syncStatus === 'synced' ? 'green' : 'amber';
+
+  const hasUnsyncedInvoices = pendingCount > 0 || params.isSyncing || failedCount > 0;
+
+  return {
+    isConnected,
+    pendingCount,
+    unsyncedCount,
+    failedCount,
+    lastSyncError,
+    syncStatus,
+    indicatorColor,
+    hasUnsyncedInvoices,
+    canCloseReminder: !hasUnsyncedInvoices,
+  };
+}
 
 export function useOfflineSync() {
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -20,26 +82,33 @@ export function useOfflineSync() {
   const [returnsQueueList, setReturnsQueueList] = useState<QueuedReturn[]>([]);
 
   useEffect(() => {
-    // Initial load of sales & returns queues
-    Promise.all([
-      offlineQueueService.getQueue(),
-      offlineQueueService.getReturnsQueue(),
-    ]).then(([salesQ, returnsQ]) => {
-      setQueueList(salesQ);
-      setReturnsQueueList(returnsQ);
-      setPendingCount(
-        salesQ.filter((s) => s.status === 'PENDING' || s.status === 'FAILED').length +
-          returnsQ.filter((r) => r.status === 'PENDING' || r.status === 'FAILED').length
-      );
-    });
+    let isMounted = true;
+
+    const refreshQueues = () => {
+      Promise.all([
+        offlineQueueService.getQueue(),
+        offlineQueueService.getReturnsQueue(),
+      ]).then(([salesQ, returnsQ]) => {
+        if (!isMounted) return;
+        setQueueList(salesQ);
+        setReturnsQueueList(returnsQ);
+        setPendingCount(
+          salesQ.filter((s) => s.status !== 'SYNCED').length +
+            returnsQ.filter((r) => r.status !== 'SYNCED').length
+        );
+      }).catch(() => {});
+    };
+
+    refreshQueues();
 
     const unsubscribe = offlineQueueService.subscribe((count, syncing, isConnected, lastSync) => {
+      if (!isMounted) return;
       setPendingCount(count);
       setIsSyncing(syncing);
       setBackendConnected(isConnected);
       setLastSyncedAt(lastSync);
-      offlineQueueService.getQueue().then(setQueueList);
-      offlineQueueService.getReturnsQueue().then(setReturnsQueueList);
+      setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+      refreshQueues();
     });
 
     const handleOnline = () => {
@@ -61,21 +130,34 @@ export function useOfflineSync() {
     }
 
     return () => {
+      isMounted = false;
       unsubscribe();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // Compute fine-grained status
-  const syncStatus: SyncStatusState =
-    !isOnline || !backendConnected
-      ? 'offline'
-      : isSyncing
-      ? 'syncing'
-      : pendingCount > 0
-      ? 'pending'
-      : 'synced';
+  const derived = useMemo(
+    () =>
+      deriveOfflineSyncState({
+        isOnline,
+        backendConnected,
+        isSyncing,
+        reportedPendingCount: pendingCount,
+        queueList,
+        returnsQueueList,
+      }),
+    [isOnline, backendConnected, isSyncing, pendingCount, queueList, returnsQueueList]
+  );
+
+  const {
+    isConnected,
+    pendingCount: effectivePendingCount,
+    unsyncedCount,
+    failedCount,
+    lastSyncError,
+    syncStatus,
+  } = derived;
 
   const syncNow = useCallback(async () => {
     return await offlineQueueService.syncPendingSales();
@@ -112,9 +194,13 @@ export function useOfflineSync() {
   return {
     isOnline,
     backendConnected,
+    isConnected,
     lastSyncedAt,
     syncStatus,
-    pendingCount,
+    pendingCount: effectivePendingCount,
+    unsyncedCount,
+    failedCount,
+    lastSyncError,
     isSyncing,
     queueList,
     returnsQueueList,

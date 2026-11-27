@@ -34,8 +34,9 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
   currencySymbol = 'Rs.',
 }) => {
   const {
-    isOnline,
+    isConnected,
     pendingCount,
+    failedCount,
     isSyncing,
     queueList,
     returnsQueueList,
@@ -94,7 +95,9 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
           {/* Header Accent Bar (matches Notification popup modal) */}
           <div
             className={`h-1.5 w-full ${
-              isOnline ? 'bg-emerald-500' : 'bg-primary-500'
+              isConnected && pendingCount === 0 && !isSyncing && failedCount === 0
+                ? 'bg-emerald-500'
+                : 'bg-primary-500'
             }`}
           />
 
@@ -105,12 +108,12 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                 {/* Icon Container matching NotificationStatusModal */}
                 <div
                   className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm shrink-0 border ${
-                    isOnline
+                    isConnected
                       ? 'bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700/60 text-emerald-600 dark:text-emerald-400'
                       : 'bg-primary-100 dark:bg-primary-950/60 border-primary-300 dark:border-primary-700/60 text-primary-600 dark:text-primary-400'
                   }`}
                 >
-                  {isOnline ? (
+                  {isConnected ? (
                     <Wifi className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
                   ) : (
                     <WifiOff className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
@@ -124,12 +127,12 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
                     </h3>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        isOnline
+                        isConnected
                           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
                           : 'bg-primary-500/10 text-primary-700 dark:text-primary-300 border border-primary-500/20'
                       }`}
                     >
-                      {isOnline ? 'Network Connected' : 'Offline Mode'}
+                      {isConnected ? 'Network Connected' : 'Offline Mode'}
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block truncate">
@@ -151,7 +154,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
             {/* Offline Guidance Card (matching showBrowserGuide style from NotificationStatusModal) */}
             <div
               className={`p-3.5 rounded-xl text-xs space-y-1.5 shrink-0 border ${
-                isOnline
+                isConnected
                   ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200'
                   : 'bg-primary-50/70 dark:bg-primary-950/30 border-primary-200/80 dark:border-primary-800/60 text-primary-900 dark:text-primary-200'
               }`}
@@ -159,13 +162,13 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
               <div className="flex items-center gap-1.5 font-bold text-xs">
                 <Database className="w-4 h-4 shrink-0" />
                 <span>
-                  {isOnline
+                  {isConnected
                     ? 'Node Online: Real-time Cloud Synchronization Ready'
                     : 'Node Offline: High-Speed Counter Trading Active'}
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                {isOnline
+                {isConnected
                   ? 'Your POS terminal is connected to the cloud server. Pending transactions held in local IndexedDB will synchronize automatically.'
                   : 'Internet connection is temporarily unavailable. All sales, discounts, and receipts are saved securely to your device and will auto-sync once connection returns.'}
               </p>
@@ -192,11 +195,11 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
               </div>
 
               <div className="col-span-2 sm:col-span-1 p-2.5 rounded-xl bg-slate-50 dark:bg-[#0A0E1A] border border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                <Cloud className={`w-4 h-4 shrink-0 ${isOnline ? 'text-emerald-500' : 'text-primary-500 dark:text-primary-400'}`} />
+                <Cloud className={`w-4 h-4 shrink-0 ${isConnected ? 'text-emerald-500' : 'text-primary-500 dark:text-primary-400'}`} />
                 <div className="min-w-0">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">Network</span>
-                  <span className={`text-xs font-bold ${isOnline ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary-600 dark:text-primary-400'}`}>
-                    {isOnline ? 'Connected' : 'Offline'}
+                  <span className={`text-xs font-bold ${isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary-600 dark:text-primary-400'}`}>
+                    {isConnected ? 'Connected' : 'Offline'}
                   </span>
                 </div>
               </div>
@@ -498,9 +501,9 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
               <button
                 type="button"
                 onClick={handleManualSync}
-                disabled={isSyncing || !isOnline || pendingCount === 0}
+                disabled={isSyncing || !isConnected || pendingCount === 0}
                 className={`px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isOnline
+                  isConnected
                     ? 'bg-emerald-600 hover:bg-emerald-500'
                     : 'bg-primary-600 hover:bg-primary-700'
                 }`}

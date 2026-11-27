@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Download, Monitor, Smartphone, Apple, Check, X, ShieldCheck, Zap, Share2, PlusSquare, Sparkles } from 'lucide-react';
-import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { usePWAInstall, resolveDetectedInstallPlatform } from '../../hooks/usePWAInstall';
 import { useScrollActiveTab } from '../../hooks/useScrollActiveTab.ts';
 import { ShoeIcon } from './ShoeIcon.tsx';
 import { APP_VERSION } from '../../version.ts';
@@ -14,16 +14,31 @@ interface InstallAppModalProps {
   storeName?: string;
   isAdmin?: boolean;
   role?: string;
+  /** When true, hides platform tabs and renders only the runtime-detected device/browser install option. */
+  restrictToDetectedPlatform?: boolean;
 }
 
 type PlatformTab = 'android' | 'apple' | 'desktop';
 
 // Only show the native-APK download when a REAL, signed APK is configured (e.g. built with PWABuilder/Bubblewrap).
 // Set VITE_ANDROID_APK_URL=/assets/SarbaazSoft-POS.apk in your env once you drop a real APK at that path.
-export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClose, isAdmin = false, role }) => {
-  const { isInstallable, isInstalled, isIOS, isAndroid, install } = usePWAInstall();
-  const [activeTab, setActiveTab] = useState<PlatformTab>('android');
-  const tabDirection = useTabDirection(activeTab, ['android', 'apple', 'desktop'] as const);
+export const InstallAppModal: React.FC<InstallAppModalProps> = ({
+  isOpen,
+  onClose,
+  isAdmin = false,
+  role,
+  restrictToDetectedPlatform = false,
+}) => {
+  const { isInstallable, isInstalled, isIOS, isSafari, isAndroid, isWindows, install } = usePWAInstall();
+  const detectedPlatform = resolveDetectedInstallPlatform({
+    isAndroid,
+    isIOS,
+    isSafari,
+    isWindows,
+  });
+  const [activeTab, setActiveTab] = useState<PlatformTab>(detectedPlatform.target);
+  const effectiveTab: PlatformTab = restrictToDetectedPlatform ? detectedPlatform.target : activeTab;
+  const tabDirection = useTabDirection(effectiveTab, ['android', 'apple', 'desktop'] as const);
   const branding = resolvePwaBranding({
     role: role || (isAdmin ? 'SUPERADMIN' : 'ADMIN'),
     isSuperAdmin: isAdmin,
@@ -50,18 +65,12 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
   const [downloadApkSuccess, setDownloadApkSuccess] = useState(false);
   const [showManualHelp, setShowManualHelp] = useState(false);
 
-  // Set default tab based on user's detected operating system
+  // Set default tab based on user's detected operating system & browser
   useEffect(() => {
     if (isOpen) {
-      if (isAndroid) {
-        setActiveTab('android');
-      } else if (isIOS) {
-        setActiveTab('apple');
-      } else {
-        setActiveTab('desktop');
-      }
+      setActiveTab(detectedPlatform.target);
     }
-  }, [isOpen, isAndroid, isIOS]);
+  }, [isOpen, detectedPlatform.target]);
 
   if (!isOpen) return null;
 
@@ -114,12 +123,25 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Shortcut name: {pwaShortName} • Universal Android, Apple iOS, and Windows PC support
+              {restrictToDetectedPlatform
+                ? `Shortcut name: ${pwaShortName} • Detected: ${
+                    detectedPlatform.target === 'android'
+                      ? 'Android Device'
+                      : detectedPlatform.target === 'apple'
+                      ? isIOS
+                        ? 'Apple iOS / iPadOS Safari'
+                        : 'Apple Safari'
+                      : isWindows
+                      ? 'Windows PC'
+                      : 'Desktop Browser'
+                  }`
+                : `Shortcut name: ${pwaShortName} • Universal Android, Apple iOS, and Windows PC support`}
             </p>
           </div>
         </div>
 
         {/* Platform Selector Tabs - Responsive Scrollable Underline Navigation */}
+        {!restrictToDetectedPlatform && (
         <div 
           ref={installTabContainerRef}
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -203,10 +225,11 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
           {/* Scroll End Buffer Spacer: Ensures the last tab is 100% visible and never clipped */}
           <div className="tab-end-spacer shrink-0 w-8 sm:w-10 h-1 pointer-events-none self-stretch" aria-hidden="true" role="presentation" />
         </div>
+        )}
 
-        <AnimatedTabPanel activeKey={activeTab} direction={tabDirection}>
+        <AnimatedTabPanel activeKey={effectiveTab} direction={tabDirection}>
         {/* TAB 1: ANDROID SUPPORT */}
-        {activeTab === 'android' && (
+        {effectiveTab === 'android' && (
           <div className="space-y-4">
             <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/40 space-y-1">
               <div className="flex items-center justify-between">
@@ -371,14 +394,14 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
           </div>
         )}
 
-        {/* TAB 2: APPLE iOS / iPadOS SUPPORT */}
-        {activeTab === 'apple' && (
+        {/* TAB 2: APPLE iOS / SAFARI SUPPORT */}
+        {effectiveTab === 'apple' && (
           <div className="space-y-4">
             <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200/70 dark:border-indigo-800/40 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
                   <Apple className="w-3.5 h-3.5" />
-                  Apple iOS &amp; iPadOS Safari PWA
+                  {!isIOS && isSafari ? 'Apple macOS Safari Web App' : 'Apple iOS & iPadOS Safari PWA'}
                 </span>
                 <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
                   Safari WebKit
@@ -393,56 +416,102 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#070B14] border border-slate-200/80 dark:border-slate-800 space-y-3">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Easy 3-Step Installation on iPhone &amp; iPad:
+                {!isIOS && isSafari
+                  ? 'Easy 3-Step Installation on Mac Safari:'
+                  : 'Easy 3-Step Installation on iPhone & iPad:'}
               </div>
 
-              <div className="space-y-2.5 text-xs text-slate-600 dark:text-slate-400">
-                <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
-                  <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
-                    1
+              {!isIOS && isSafari ? (
+                <div className="space-y-2.5 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      1
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">Open in Apple Safari</span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Ensure this page is active in macOS Safari (17+ recommended).
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">Open in Apple Safari</span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Make sure you are viewing this page inside Safari (not inside in-app webviews).
-                    </p>
-                  </div>
-                </div>
 
-                <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
-                  <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
-                    2
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      2
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        Choose File &rarr; Add to Dock <Share2 className="w-3.5 h-3.5 text-blue-500 inline" />
+                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Or click the <strong>Share</strong> icon in the Safari toolbar and select <strong>Add to Dock</strong>.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      Tap the Share Button <Share2 className="w-3.5 h-3.5 text-blue-500 inline" />
-                    </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Located in the bottom toolbar on iPhone, or top-right on iPad.
-                    </p>
-                  </div>
-                </div>
 
-                <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
-                  <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
-                    3
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      Select "Add to Home Screen" <PlusSquare className="w-3.5 h-3.5 text-indigo-500 inline" />
-                    </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Scroll down and tap <strong>Add to Home Screen</strong>, then tap <strong>Add</strong> — <strong>{pwaAppName}</strong> will appear on your device's Home Screen!
-                    </p>
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      3
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        Click "Add" <PlusSquare className="w-3.5 h-3.5 text-indigo-500 inline" />
+                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <strong>{pwaAppName}</strong> installs directly into your macOS Dock and Applications folder.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2.5 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      1
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">Open in Apple Safari</span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Make sure you are viewing this page inside Safari (not inside in-app webviews).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      2
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        Tap the Share Button <Share2 className="w-3.5 h-3.5 text-blue-500 inline" />
+                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Located in the bottom toolbar on iPhone, or top-right on iPad.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-[#131B2E] border border-slate-200/70 dark:border-slate-800">
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      3
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        Select "Add to Home Screen" <PlusSquare className="w-3.5 h-3.5 text-indigo-500 inline" />
+                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Scroll down and tap <strong>Add to Home Screen</strong>, then tap <strong>Add</strong> — <strong>{pwaAppName}</strong> will appear on your device's Home Screen!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* TAB 3: WINDOWS & DESKTOP SUPPORT */}
-        {activeTab === 'desktop' && (
+        {effectiveTab === 'desktop' && (
           <div className="space-y-4">
             {/* Browser PWA Installation */}
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070B14] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
@@ -496,6 +565,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             </div>
 
             {/* Windows .EXE Installer */}
+            {(!restrictToDetectedPlatform || isWindows) && (
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070B14] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -604,6 +674,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
                 </p>
               </div>
             </div>
+            )}
           </div>
         )}
         </AnimatedTabPanel>

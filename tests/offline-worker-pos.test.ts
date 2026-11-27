@@ -22,6 +22,7 @@ import {
   updateOfflineSaleStatus,
   verifyInvoiceOffline,
 } from '../src/utils/offlineDb.ts';
+import { deriveOfflineSyncState } from '../src/utils/useOfflineSync.ts';
 
 function createMockStorage(): Storage {
   const store = new Map<string, string>();
@@ -572,3 +573,179 @@ test('verifyInvoiceOffline resolves cached server sales minus pending offline re
     }
   }
 });
+
+test('Header sync indicator & OfflineToastNotification enforce green/amber/red states, sync details, and X close locking on unsynced invoices', () => {
+  const headerSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/common/Header.tsx'), 'utf8');
+  const toastSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/common/OfflineToastNotification.tsx'), 'utf8');
+  const hookSrc = fs.readFileSync(path.join(process.cwd(), 'src/utils/useOfflineSync.ts'), 'utf8');
+  const queueSvcSrc = fs.readFileSync(path.join(process.cwd(), 'src/services/offlineQueueService.ts'), 'utf8');
+
+  // Header reuses shared useOfflineSync hook and exposes green/amber/red compact indicator
+  assert.ok(headerSrc.includes("from '../../utils/useOfflineSync.ts'"));
+  assert.ok(headerSrc.includes('id="header-sync-status-indicator"'));
+  assert.ok(headerSrc.includes("bg-emerald-500"));
+  assert.ok(headerSrc.includes("bg-amber-500"));
+  assert.ok(headerSrc.includes("bg-red-500"));
+  assert.ok(headerSrc.includes("syncIndicatorState === 'offline'"));
+  assert.ok(headerSrc.includes("isSyncing || pendingCount > 0 || failedCount > 0 || syncStatus !== 'synced'"));
+
+  // useOfflineSync computes non-green status whenever pending, syncing, or failed invoices exist
+  assert.ok(hookSrc.includes('pendingCount > 0 || failedCount > 0'));
+  assert.ok(hookSrc.includes('!isConnected'));
+
+  // OfflineToastNotification reuses useOfflineSync without duplicate online/offline state listeners
+  assert.equal(toastSrc.includes('isOnlineState'), false);
+  assert.ok(toastSrc.includes('id="offline-toast-connectivity-badge"'));
+  assert.ok(toastSrc.includes('id="offline-toast-pending-count"'));
+  assert.ok(toastSrc.includes('id="offline-toast-sync-status"'));
+  assert.ok(toastSrc.includes('const hasUnsyncedInvoices = pendingCount > 0 || isSyncing || failedCount > 0;'));
+  assert.ok(toastSrc.includes('const canCloseModal = !hasUnsyncedInvoices;'));
+  assert.equal((toastSrc.match(/\{canCloseModal && \(/g) || []).length, 2);
+
+  // Preserves minimized indicator, View Node Queue CTA, and primary tokens without amber/orange classes
+  assert.ok(toastSrc.includes('id="offline-mode-toast-minimized"'));
+  assert.ok(toastSrc.includes('id="offline-toast-minimize-btn"'));
+  assert.ok(toastSrc.includes('id="offline-toast-expand-btn"'));
+  assert.ok(toastSrc.includes('id="offline-toast-view-queue-btn"'));
+  assert.equal(/\b(?:amber|orange)-\d{2,3}\b/.test(toastSrc), false);
+
+  // offlineQueueService preserves disconnected state when a sync batch is interrupted by network drop
+  assert.ok(queueSvcSrc.includes('if (!abortedByNetwork) {'));
+});
+
+test('deriveOfflineSyncState enforces green/amber/red transitions, sync failure details, and X close locking', async () => {
+  const makeSale = (id: string, status: QueuedSale['status'], errorMessage?: string): QueuedSale => ({
+    clientTxId: id,
+    tenantId: 1,
+    createdAt: '2026-11-26T10:00:00.000Z',
+    items: [{ productId: 1, article: 'SH-1', name: 'Shoe', quantity: 1, unitPrice: 1000, discount: 0 }],
+    customerId: null,
+    customerName: 'Walk-in',
+    paymentMethod: 'CASH',
+    cashReceived: 1000,
+    changeGiven: 0,
+    totalAmount: 1000,
+    notes: '',
+    status,
+    ...(errorMessage ? { errorMessage } : {}),
+  });
+
+  // 1. Online & all synced -> green + close restored
+  const syncedState = deriveOfflineSyncState({
+    isOnline: true,
+    backendConnected: true,
+    isSyncing: false,
+    reportedPendingCount: 0,
+    queueList: [makeSale('TX-1', 'SYNCED')],
+    returnsQueueList: [],
+  });
+  assert.equal(syncedState.indicatorColor, 'green');
+  assert.equal(syncedState.syncStatus, 'synced');
+  assert.equal(syncedState.pendingCount, 0);
+  assert.equal(syncedState.canCloseReminder, true);
+
+  // 2. Offline (no internet or backend unreachable) with pending invoices -> red + X locked
+  const offlinePending = deriveOfflineSyncState({
+    isOnline: false,
+    backendConnected: false,
+    isSyncing: false,
+    reportedPendingCount: 1,
+    queueList: [makeSale('TX-2', 'PENDING')],
+    returnsQueueList: [],
+  });
+  assert.equal(offlinePending.indicatorColor, 'red');
+  assert.equal(offlinePending.syncStatus, 'offline');
+  assert.equal(offlinePending.isConnected, false);
+  assert.equal(offlinePending.canCloseReminder, false);
+
+  const serverUnreachable = deriveOfflineSyncState({
+    isOnline: true,
+    backendConnected: false,
+    isSyncing: false,
+    reportedPendingCount: 0,
+    queueList: [],
+    returnsQueueList: [],
+  });
+  assert.equal(serverUnreachable.indicatorColor, 'red');
+  assert.equal(serverUnreachable.isConnected, false);
+  assert.equal(serverUnreachable.canCloseReminder, true);
+
+  // 3. Online & syncing -> amber + X locked
+  const syncingState = deriveOfflineSyncState({
+    isOnline: true,
+    backendConnected: true,
+    isSyncing: true,
+    reportedPendingCount: 1,
+    queueList: [makeSale('TX-2', 'SYNCING')],
+    returnsQueueList: [],
+  });
+  assert.equal(syncingState.indicatorColor, 'amber');
+  assert.equal(syncingState.syncStatus, 'syncing');
+  assert.equal(syncingState.canCloseReminder, false);
+
+  // 4. Online with failed invoice -> amber (never green!) + error surfaced + X locked
+  const failedState = deriveOfflineSyncState({
+    isOnline: true,
+    backendConnected: true,
+    isSyncing: false,
+    reportedPendingCount: 0,
+    queueList: [makeSale('TX-2', 'FAILED', 'Insufficient stock for SH-1')],
+    returnsQueueList: [],
+  });
+  assert.equal(failedState.indicatorColor, 'amber');
+  assert.equal(failedState.syncStatus, 'pending');
+  assert.equal(failedState.failedCount, 1);
+  assert.equal(failedState.pendingCount, 1);
+  assert.equal(failedState.lastSyncError, 'Insufficient stock for SH-1');
+  assert.equal(failedState.canCloseReminder, false);
+
+  // 5. Simulate partial sync interrupted mid-batch by connection drop
+  const salesStore: QueuedSale[] = [
+    makeSale('TX-A', 'PENDING'),
+    { ...makeSale('TX-B', 'PENDING'), createdAt: '2026-11-26T10:05:00.000Z' },
+  ];
+  const returnsStore: QueuedReturn[] = [];
+  const adapter: OfflineSyncStorageAdapter = {
+    getSales: async () => salesStore.map((s) => ({ ...s })),
+    updateSaleStatus: async (clientTxId, status, extra) => {
+      const idx = salesStore.findIndex((s) => s.clientTxId === clientTxId);
+      if (idx >= 0) {
+        salesStore[idx] = { ...salesStore[idx], status, ...extra };
+      }
+    },
+    getReturns: async () => returnsStore,
+    updateReturnStatus: async () => {},
+  };
+
+  let callCount = 0;
+  const batchResult = await processOfflineSalesQueue(adapter, {
+    submitCheckout: async () => {
+      callCount++;
+      if (callCount === 1) {
+        return { sale: { id: 901, invoiceNumber: 'INV-901', items: [] } };
+      }
+      throw new TypeError('Failed to fetch');
+    },
+    submitReturn: async () => ({}),
+    verifyInvoice: async () => ({}),
+  });
+
+  assert.equal(batchResult.synced, 1);
+  assert.equal(batchResult.abortedByNetwork, true);
+  assert.equal(salesStore[0].status, 'SYNCED');
+  assert.equal(salesStore[1].status, 'PENDING');
+
+  const interruptedState = deriveOfflineSyncState({
+    isOnline: true,
+    backendConnected: !batchResult.abortedByNetwork,
+    isSyncing: false,
+    reportedPendingCount: 1,
+    queueList: salesStore,
+    returnsQueueList: returnsStore,
+  });
+  assert.equal(interruptedState.indicatorColor, 'red');
+  assert.equal(interruptedState.pendingCount, 1);
+  assert.equal(interruptedState.canCloseReminder, false);
+});
+
+

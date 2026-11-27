@@ -28,6 +28,7 @@ import {
   type NotificationActionDescriptor,
 } from '../../utils/notificationActions.ts';
 import { NotificationHeaderTitle } from '../notifications/NotificationHeaderTitle.tsx';
+import { useOfflineSync } from '../../utils/useOfflineSync.ts';
 
 interface HeaderProps {
   currentTab: string;
@@ -111,6 +112,46 @@ export const Header: React.FC<HeaderProps> = ({
   const userRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Real-time connectivity and offline invoice queue sync indicator
+  const {
+    isConnected,
+    syncStatus,
+    pendingCount,
+    failedCount,
+    isSyncing,
+  } = useOfflineSync();
+
+  const syncIndicatorState: 'synced' | 'amber' | 'offline' =
+    !isConnected || syncStatus === 'offline'
+      ? 'offline'
+      : isSyncing || pendingCount > 0 || failedCount > 0 || syncStatus !== 'synced'
+      ? 'amber'
+      : 'synced';
+
+  const syncIndicatorLabel =
+    syncIndicatorState === 'offline'
+      ? 'Offline'
+      : isSyncing
+      ? 'Syncing'
+      : failedCount > 0
+      ? 'Sync Issue'
+      : pendingCount > 0
+      ? 'Pending'
+      : 'Synced';
+
+  const syncIndicatorTooltip =
+    syncIndicatorState === 'offline'
+      ? pendingCount > 0
+        ? `Offline — ${pendingCount} pending offline invoice(s). Click to view sync status.`
+        : 'Offline — No server connection. Click to view offline mode status.'
+      : isSyncing
+      ? `Online — Syncing ${pendingCount} offline invoice(s)...`
+      : failedCount > 0
+      ? `Online — ${failedCount} invoice(s) failed to sync (${pendingCount} pending). Click to inspect.`
+      : pendingCount > 0
+      ? `Online — ${pendingCount} pending offline invoice(s) queued to sync.`
+      : 'Online & Synced — All offline invoices synchronized.';
 
   const currency = companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.';
 
@@ -1265,8 +1306,68 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* RIGHT: Notifications, Theme Dropdown, and User Profile */}
+      {/* RIGHT: Sync Indicator, Notifications, Theme Dropdown, and User Profile */}
       <div className={`${isMobileSearchExpanded ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 sm:gap-2 shrink-0 ml-auto pl-1`}>
+
+        {/* Compact Real-Time Sync Status Indicator (Green = Synced, Amber = Syncing/Pending, Red = Offline) */}
+        <button
+          id="header-sync-status-indicator"
+          type="button"
+          data-sync-status={syncIndicatorState}
+          data-pending-count={pendingCount}
+          onClick={() => {
+            setShowNotifications(false);
+            setShowUserDropdown(false);
+            setShowThemeDropdown(false);
+            setIsSearching(false);
+            window.dispatchEvent(new CustomEvent('pos:open-offline-reminder'));
+          }}
+          className={`h-10 min-w-[38px] sm:min-w-0 sm:h-8.5 flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg transition-all duration-200 cursor-pointer border text-xs shrink-0 ${
+            syncIndicatorState === 'offline'
+              ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-300 dark:bg-red-500/15 dark:hover:bg-red-500/25 dark:text-red-300 dark:border-red-500/40'
+              : syncIndicatorState === 'amber'
+              ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 dark:text-amber-200 dark:border-amber-500/40'
+              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-500/35'
+          }`}
+          title={syncIndicatorTooltip}
+          aria-label={syncIndicatorTooltip}
+        >
+          <span className="relative flex h-2 w-2 shrink-0">
+            {(syncIndicatorState === 'amber' || syncIndicatorState === 'offline') && (
+              <span
+                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  syncIndicatorState === 'offline' ? 'bg-red-500' : 'bg-amber-500'
+                }`}
+              />
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                syncIndicatorState === 'offline'
+                  ? 'bg-red-500'
+                  : syncIndicatorState === 'amber'
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+              }`}
+            />
+          </span>
+          {isSyncing && syncIndicatorState === 'amber' && (
+            <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+          )}
+          <span className="hidden md:inline-block text-[11px] font-semibold whitespace-nowrap">
+            {syncIndicatorLabel}
+          </span>
+          {pendingCount > 0 && (
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold leading-tight ${
+                syncIndicatorState === 'offline'
+                  ? 'bg-red-600 text-white dark:bg-red-500/30 dark:text-red-200'
+                  : 'bg-amber-600 text-white dark:bg-amber-500/30 dark:text-amber-100'
+              }`}
+            >
+              {pendingCount}
+            </span>
+          )}
+        </button>
 
         {/* Real-time Notifications Menu (Rendered for Admins & SuperAdmins; Cashiers use persistent POS Terminal Banner) */}
         {!isCashierUser && (

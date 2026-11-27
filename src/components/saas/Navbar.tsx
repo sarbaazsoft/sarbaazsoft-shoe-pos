@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LogIn,
@@ -14,6 +14,7 @@ import {
   Mail,
   X,
   Menu,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoeIcon, TinyShoeIcon } from '../common/ShoeIcon.tsx';
@@ -21,7 +22,12 @@ import { ShowroomBackground } from '../common/ShowroomBackground.tsx';
 import { ThemeDropdown } from '../common/ThemeDropdown.tsx';
 import { renderBrandName } from '../common/PublicHeader.tsx';
 import { useTheme } from '../../context/ThemeContext.tsx';
+import { usePWAInstall, resolveDetectedInstallPlatform } from '../../hooks/usePWAInstall.ts';
 import { APP_VERSION } from '../../version.ts';
+
+const InstallAppModal = lazy(() =>
+  import('../common/InstallAppModal.tsx').then((m) => ({ default: m.InstallAppModal }))
+);
 
 export interface NavItem {
   key: string;
@@ -112,7 +118,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const { theme, themeMode, setThemeMode, accentPalette, backdropStyle } = useTheme();
+  const { isAndroid, isIOS, isIOSSafari, isSafari, isWindows, isInstalled } = usePWAInstall();
+  const detectedInstall = resolveDetectedInstallPlatform({
+    isAndroid,
+    isIOS,
+    isIOSSafari,
+    isSafari,
+    isWindows,
+  });
   const compactSubtitle = resolveMobileSubtitle(subtitle, mobileSubtitle);
 
   // Determine effective theme mode (light vs dark) and backdrop mode
@@ -430,6 +445,44 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       )}
                     </div>
+
+                    {/* Dynamic Install App Trigger (mirrors Store Sidebar UI, filtered to runtime platform) */}
+                    <button
+                      id="landing-mobile-sidebar-install-btn"
+                      type="button"
+                      data-pwa-manual-install="true"
+                      onClick={() => {
+                        if (typeof document !== 'undefined') {
+                          document.body.style.overflow = '';
+                        }
+                        setMobileSidebarOpen(false);
+                        setIsInstallModalOpen(true);
+                      }}
+                      className={`w-full min-h-[44px] flex items-center justify-between px-3 py-2 rounded-xl border transition cursor-pointer group shadow-xs ${
+                        isSolidLight
+                          ? 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
+                          : 'bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-400/30 text-indigo-100'
+                      }`}
+                      title={detectedInstall.tooltip}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Download
+                          className={`w-3.5 h-3.5 group-hover:scale-110 transition shrink-0 ${
+                            isSolidLight ? 'text-purple-600' : 'text-indigo-200'
+                          }`}
+                        />
+                        <span className="text-[11px] font-bold truncate">{detectedInstall.buttonLabel}</span>
+                      </div>
+                      <span
+                        className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${
+                          isSolidLight
+                            ? 'bg-white text-purple-700 border-purple-200'
+                            : 'bg-white/15 text-indigo-100 border-indigo-300/30'
+                        }`}
+                      >
+                        {isInstalled ? 'Installed' : detectedInstall.badgeLabel}
+                      </span>
+                    </button>
 
                     {/* Existing Theme & Color Selection Menu (opens cleanly upward inside sidebar) */}
                     <div className="pt-0.5">
@@ -861,6 +914,40 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Store Login &amp; Cashier Sign In</span>
                   </button>
                 )}
+
+                <button
+                  id="landing-tablet-drawer-install-btn"
+                  type="button"
+                  data-pwa-manual-install="true"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setIsInstallModalOpen(true);
+                  }}
+                  className={`w-full h-11 px-3.5 rounded-xl border flex items-center justify-between transition cursor-pointer group shadow-xs font-sans ${
+                    isSolidLight
+                      ? 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
+                      : 'bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-400/30 text-indigo-100'
+                  }`}
+                  title={detectedInstall.tooltip}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Download
+                      className={`w-4 h-4 group-hover:scale-110 transition shrink-0 ${
+                        isSolidLight ? 'text-purple-600' : 'text-indigo-200'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">{detectedInstall.buttonLabel}</span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded border shrink-0 ${
+                      isSolidLight
+                        ? 'bg-white text-purple-700 border-purple-200'
+                        : 'bg-white/15 text-indigo-100 border-indigo-300/30'
+                    }`}
+                  >
+                    {isInstalled ? 'Installed' : detectedInstall.badgeLabel}
+                  </span>
+                </button>
               </div>
 
               {/* Mobile 3-Way Theme Mode Quick Switcher */}
@@ -961,6 +1048,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       </AnimatePresence>
       </div>
       {renderMobileSidebar()}
+      {isInstallModalOpen && (
+        <Suspense fallback={null}>
+          <InstallAppModal
+            isOpen={isInstallModalOpen}
+            onClose={() => setIsInstallModalOpen(false)}
+            isAdmin={false}
+            role="PUBLIC"
+            restrictToDetectedPlatform={true}
+          />
+        </Suspense>
+      )}
     </header>
   );
 };

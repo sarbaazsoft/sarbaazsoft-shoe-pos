@@ -68,6 +68,7 @@ class OfflineQueueService {
   private syncIntervalId: any = null;
   private healthCheckIntervalId: any = null;
   private primePromise: Promise<any[]> | null = null;
+  private healthCheckPromise: Promise<boolean> | null = null;
   private cachedPendingCount: number = 0;
   private lastHealthCheckAt: number = 0;
 
@@ -99,6 +100,7 @@ class OfflineQueueService {
       this.lastHealthCheckAt = 0;
       this.isBackendConnectedState = typeof navigator !== 'undefined' ? navigator.onLine : true;
       this.primePromise = null;
+      this.healthCheckPromise = null;
     });
 
     // Query pending queue count first; only run initial health probe if offline or pending sales exist
@@ -287,51 +289,64 @@ class OfflineQueueService {
       return false;
     }
 
-    this.lastHealthCheckAt = Date.now();
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 4500);
-      const healthHeaders: Record<string, string> = { 'Cache-Control': 'no-cache' };
-      const activeTid = resolveActiveTenantId();
-      if (activeTid) {
-        healthHeaders['X-Tenant-Id'] = String(activeTid);
-      }
-      const token = getAuthToken();
-      if (token) {
-        healthHeaders['X-Auth-Token'] = token;
-      }
-      const res = await fetch('/api/health', {
-        method: 'GET',
-        cache: 'no-store',
-        signal: controller.signal,
-        headers: healthHeaders,
-      });
-      clearTimeout(timer);
-
-      const wasDisconnected = !this.isBackendConnectedState;
-      const isOk = res.ok;
-      this.isBackendConnectedState = isOk;
-      this.isOnlineState = isOk;
-
-      if (isOk) {
-        // If we just reconnected, or if we have unsynced transactions, trigger automatic sync
-        if (wasDisconnected) {
-          console.log('[OfflineSync] Backend reconnected. Initiating automatic background sync...');
-          this.syncPendingSales();
-        } else {
-          const pendingCount = await this.getCombinedPendingCount();
-          this.cachedPendingCount = pendingCount;
-          if (pendingCount > 0 && !this.isSyncingState) {
-            this.syncPendingSales();
-          }
-        }
-      }
-    } catch {
-      this.isBackendConnectedState = false;
+    if (this.healthCheckPromise) {
+      return this.healthCheckPromise;
     }
 
-    this.notify();
-    return this.isBackendConnectedState;
+    this.lastHealthCheckAt = Date.now();
+    this.healthCheckPromise = (async () => {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4500);
+        const healthHeaders: Record<string, string> = { 'Cache-Control': 'no-cache' };
+        const activeTid = resolveActiveTenantId();
+        if (activeTid) {
+          healthHeaders['X-Tenant-Id'] = String(activeTid);
+        }
+        const token = getAuthToken();
+        if (token) {
+          healthHeaders['X-Auth-Token'] = token;
+        }
+        const res = await fetch('/api/health', {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+          headers: healthHeaders,
+        });
+        clearTimeout(timer);
+
+        const wasDisconnected = !this.isBackendConnectedState;
+        const isOk = res.ok;
+        this.isBackendConnectedState = isOk;
+        this.isOnlineState = isOk;
+
+        if (isOk) {
+          // If we just reconnected, or if we have unsynced transactions, trigger automatic sync
+          if (wasDisconnected) {
+            console.log('[OfflineSync] Backend reconnected. Initiating automatic background sync...');
+            this.syncPendingSales();
+          } else {
+            const pendingCount = await this.getCombinedPendingCount();
+            this.cachedPendingCount = pendingCount;
+            if (pendingCount > 0 && !this.isSyncingState) {
+              this.syncPendingSales();
+            }
+          }
+        }
+      } catch {
+        this.isBackendConnectedState = false;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          this.isOnlineState = false;
+        }
+      } finally {
+        this.healthCheckPromise = null;
+      }
+
+      this.notify();
+      return this.isBackendConnectedState;
+    })();
+
+    return this.healthCheckPromise;
   }
 
   /**
@@ -576,7 +591,9 @@ class OfflineQueueService {
     this.isSyncingState = false;
     if (synced > 0) {
       this.lastSyncedAtState = new Date();
-      this.isBackendConnectedState = true;
+      if (!abortedByNetwork) {
+        this.isBackendConnectedState = true;
+      }
       try {
         localStorage.setItem('pos_last_synced_at', this.lastSyncedAtState.toISOString());
       } catch {}
