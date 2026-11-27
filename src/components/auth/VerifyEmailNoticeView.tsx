@@ -159,7 +159,7 @@ export const VerifyEmailNoticeView: React.FC<VerifyEmailNoticeViewProps> = ({
       dbText="Account Safeguard Active"
       layoutMeta={layoutMeta}
     >
-      <div className="w-full max-w-lg bg-white/95 dark:bg-[#11162B]/95 backdrop-blur-xl border border-slate-200/80 dark:border-purple-800/50 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl transition-all duration-200 mx-auto">
+      <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl bg-white/95 dark:bg-[#11162B]/95 backdrop-blur-xl border border-slate-200/80 dark:border-purple-800/50 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 shadow-2xl transition-all duration-200 mx-auto my-auto">
         {verificationSuccess ? (
           <div className="text-center space-y-4 sm:space-y-5 animate-in fade-in duration-300">
             <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/30">

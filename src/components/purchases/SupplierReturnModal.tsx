@@ -321,8 +321,8 @@ export const SupplierReturnModal: React.FC<SupplierReturnModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92dvh] my-auto">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-lg sm:max-w-2xl lg:max-w-4xl overflow-hidden flex flex-col max-h-[92dvh] my-auto">
         {/* Header */}
         <div className="px-4 sm:px-5 py-3.5 sm:py-5 border-b border-slate-200 dark:border-purple-800/80 flex items-center justify-between gap-2 bg-slate-50/50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white shrink-0">
           <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">

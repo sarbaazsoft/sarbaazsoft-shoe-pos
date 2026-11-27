@@ -23,7 +23,7 @@ export const UnknownStore404View: React.FC<UnknownStore404ViewProps> = ({
     <BodyLayoutWrapper
       layoutMeta={notFoundLayoutMeta}
       className="bg-slate-950 text-slate-100"
-      mainClassName="p-4.5 sm:p-7 relative"
+      mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"
       backdrop={
         <>
           <ShowroomBackground />
@@ -31,7 +31,7 @@ export const UnknownStore404View: React.FC<UnknownStore404ViewProps> = ({
         </>
       }
     >
-      <div className="max-w-xl w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-8 md:p-10 shadow-2xl relative z-10">
+      <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto my-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-8 md:p-10 shadow-2xl relative z-10">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-5 sm:mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] sm:text-xs font-mono uppercase tracking-wider">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />

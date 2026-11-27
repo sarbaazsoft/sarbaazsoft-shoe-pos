@@ -794,10 +794,10 @@ export const CustomerPicker: React.FC<CustomerPickerProps> = ({
       {/* FIND CUSTOMER LOOKUP MODAL */}
       {isModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5"
+          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
           onKeyDown={handleModalKeyDown}
         >
-          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88dvh]">
+          <div className="relative w-full max-w-lg sm:max-w-2xl lg:max-w-4xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88dvh]">
             <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 dark:bg-purple-500/20 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 shrink-0">

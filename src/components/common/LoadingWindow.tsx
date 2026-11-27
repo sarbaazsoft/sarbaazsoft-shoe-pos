@@ -82,9 +82,9 @@ export const LoadingWindow: React.FC<LoadingWindowProps> = ({
       }
       footer={<PublicFooter storeName={effectiveTitle} />}
       className="min-h-dvh bg-slate-200 dark:bg-[#0A0E1A] text-slate-900 dark:text-slate-100 font-sans selection:bg-purple-600 selection:text-white transition-colors duration-200"
-      mainClassName="relative z-10 px-3 py-7 sm:px-4"
+      mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"
     >
-      <div className="w-full max-w-sm mx-auto bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-2xl rounded-2xl p-5 sm:p-7 shadow-xl border border-white/50 dark:border-purple-800/70 text-center relative overflow-hidden transition-all duration-300">
+      <div className="w-full max-w-xs sm:max-w-sm md:max-w-md mx-auto my-auto bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-2xl rounded-2xl p-6 sm:p-8 shadow-xl border border-white/50 dark:border-purple-800/70 text-center relative overflow-hidden transition-all duration-300">
         {/* Subtle Top Accent Bar */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600" />
 

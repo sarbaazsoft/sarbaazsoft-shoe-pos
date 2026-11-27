@@ -46,6 +46,24 @@ function isPublicOrPlatformPath(pathname: string): boolean {
   );
 }
 
+export function normalizePublicTenantIdParam(raw: unknown): string {
+  const trimmed = String(raw ?? '').trim();
+  if (!/^\d+$/.test(trimmed)) return '';
+  const num = Number(trimmed);
+  if (!Number.isSafeInteger(num) || num < 0) return '';
+  return String(num);
+}
+
+export function stripTenantScopeFromSearch(search: string): string {
+  const sp = new URLSearchParams(search || '');
+  sp.delete('tenantId');
+  sp.delete('storeId');
+  sp.delete('tenant_id');
+  sp.delete('store_id');
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export function getActiveTenantId(): number | null {
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
@@ -74,7 +92,8 @@ export function getActiveTenantId(): number | null {
     if (typeof window === 'undefined') return 0;
     const sp = new URLSearchParams(window.location.search);
     const qVal = sp.get('tenantId') || sp.get('storeId') || sp.get('tenant_id') || sp.get('store_id');
-    const num = Number(qVal);
+    const normalized = normalizePublicTenantIdParam(qVal);
+    const num = normalized ? Number(normalized) : 0;
     return Number.isSafeInteger(num) && num > 0 ? num : 0;
   })();
   if (queryId > 0) return queryId;
@@ -592,17 +611,26 @@ export const api = {
   saas: {
     resolve: (targetTenantId?: number | string | null, reqOptions?: { signal?: AbortSignal }) => {
       let q = '';
+      const hasExplicitParam = targetTenantId !== undefined;
+      const normalizedTarget = hasExplicitParam ? normalizePublicTenantIdParam(targetTenantId) : '';
       const hasExplicitSystemScope =
-        targetTenantId === null || targetTenantId === 0 || targetTenantId === '0';
-      const numericTid =
-        targetTenantId !== undefined && targetTenantId !== null && String(targetTenantId).trim() !== ''
-          ? Number(targetTenantId)
-          : 0;
+        targetTenantId === null ||
+        normalizedTarget === '0' ||
+        (hasExplicitParam && normalizedTarget === '');
+      const numericTid = normalizedTarget ? Number(normalizedTarget) : 0;
       const hasPositiveExplicitTid = Number.isSafeInteger(numericTid) && numericTid > 0;
       if (hasPositiveExplicitTid) {
         q = `?tenantId=${encodeURIComponent(numericTid)}&storeId=${encodeURIComponent(numericTid)}`;
       } else if (!hasExplicitSystemScope && typeof window !== 'undefined' && window.location.search) {
-        q = window.location.search;
+        const sp = new URLSearchParams(window.location.search);
+        const urlTid = normalizePublicTenantIdParam(
+          sp.get('tenantId') || sp.get('storeId') || sp.get('tenant_id') || sp.get('store_id')
+        );
+        if (urlTid && Number(urlTid) > 0) {
+          q = `?tenantId=${encodeURIComponent(urlTid)}&storeId=${encodeURIComponent(urlTid)}`;
+        } else {
+          q = stripTenantScopeFromSearch(window.location.search);
+        }
       }
       return apiFetch(`/saas/resolve${q}`, {
         signal: reqOptions?.signal,

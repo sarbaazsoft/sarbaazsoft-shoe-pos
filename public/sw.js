@@ -1017,15 +1017,18 @@ function initFirebaseInWorker() {
       if (!res.ok) return;
       const config = await res.json();
       if (config && config.apiKey && config.projectId) {
-        if (!firebase.apps.length) {
-          firebase.initializeApp({
-            apiKey: config.apiKey,
-            projectId: config.projectId,
-            messagingSenderId: config.messagingSenderId,
-            appId: config.appId,
-            measurementId: config.measurementId,
-          });
+        if (firebase.apps && firebase.apps.length) {
+          for (const app of firebase.apps.slice()) {
+            await app.delete().catch(() => {});
+          }
         }
+        firebase.initializeApp({
+          apiKey: config.apiKey,
+          projectId: config.projectId,
+          messagingSenderId: config.messagingSenderId,
+          appId: config.appId,
+          measurementId: config.measurementId,
+        });
         const messaging = firebase.messaging();
         messaging.onBackgroundMessage((payload) => {
           const title = payload.notification?.title || payload.data?.title || 'SarbaazSoft Shoe POS Alert';
@@ -1678,6 +1681,13 @@ self.addEventListener('message', (event) => {
   }
 
   if (data.type === 'INIT_FIREBASE_MESSAGING') {
+    initFirebaseInWorker().catch(() => {});
+    return;
+  }
+
+  if (data.type === 'REINIT_FIREBASE_CONFIG') {
+    messagingInitialized = false;
+    initFirebasePromise = null;
     initFirebaseInWorker().catch(() => {});
     return;
   }

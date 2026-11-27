@@ -359,7 +359,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4.5 sm:py-6 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -371,7 +371,7 @@ export const BarcodeGeneratorTool: React.FC<BarcodeGeneratorToolProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-6xl app-modal-container overflow-hidden flex flex-col max-h-[95dvh] no-print"
+        className="relative w-full max-w-xl sm:max-w-3xl lg:max-w-5xl xl:max-w-6xl my-auto app-modal-container overflow-hidden flex flex-col max-h-[95dvh] no-print"
         onClick={(e) => e.stopPropagation()}
       >
         {/* MODAL TOP HEADER */}

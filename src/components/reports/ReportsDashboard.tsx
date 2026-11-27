@@ -1435,13 +1435,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       {/* Invoice Print Modal / Skeleton Loader for Deep-Linked & Past Receipts */}
       {isLoadingReceiptModal && !selectedSaleForPrint && (
         <div
-          className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-5 bg-slate-900/60 backdrop-blur-sm"
+          className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-900/60 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Loading invoice receipt"
         >
-          <div className="modal-panel-enter w-full max-w-md rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-purple-900/40 flex items-center justify-between">
+          <div className="modal-panel-enter w-full max-w-xs sm:max-w-sm md:max-w-md my-auto rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-slate-200 dark:border-purple-800/60 shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 sm:px-8 border-b border-slate-100 dark:border-purple-900/40 flex items-center justify-between">
               <div className="space-y-1.5">
                 <div className="h-4 w-40 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
                 <div className="h-3 w-28 rounded bg-slate-200/80 dark:bg-slate-800/70 animate-pulse" />
@@ -1455,7 +1455,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-6 sm:p-8 space-y-4">
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0E1628] border border-slate-200/80 dark:border-purple-900/40 space-y-3">
                 <div className="flex justify-between">
                   <div className="h-4 w-28 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
@@ -1485,11 +1485,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
       {!isLoadingReceiptModal && receiptModalError && !selectedSaleForPrint && (
         <div
-          className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-5 bg-slate-900/60 backdrop-blur-sm"
+          className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-900/60 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div className="modal-panel-enter w-full max-w-sm rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-rose-200 dark:border-rose-900/50 shadow-2xl p-5 space-y-4">
+          <div className="modal-panel-enter w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto rounded-2xl bg-white dark:bg-[var(--brand-dark-surface,#120726)] border border-rose-200 dark:border-rose-900/50 shadow-2xl p-5 sm:p-6 md:p-8 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
                 <AlertTriangle className="w-5 h-5 shrink-0" />

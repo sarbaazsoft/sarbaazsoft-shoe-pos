@@ -935,7 +935,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -946,7 +946,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
+        className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl xl:max-w-3xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
         onClick={(e) => e.stopPropagation()}
       >
         {/* HEADER & 3-STEP WIZARD STEPPER */}
@@ -1666,16 +1666,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 {/* ===================================================== */}
                 {isWholesaleStore ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
                       {/* 1. Cost Price per Pair */}
-                      <div className="p-4 bg-slate-50 dark:bg-[#070B14] border border-gray-200 dark:border-slate-800 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="wholesale-cost-price-input" className="block font-bold text-gray-900 dark:text-slate-200 text-xs">
+                      <div className="p-4 bg-slate-50 dark:bg-[#070B14] border border-gray-200 dark:border-slate-800 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="wholesale-cost-price-input" className="block font-bold text-gray-900 dark:text-slate-200 text-xs truncate">
                             Cost Price (Per Pair) <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-gray-500 dark:text-slate-400">costPrice</span>
+                          <span className="text-[10px] font-mono text-gray-500 dark:text-slate-400 shrink-0 whitespace-nowrap">costPrice</span>
                         </div>
-                        <p className="text-[11px] text-gray-500 dark:text-slate-400">
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 sm:min-h-[2rem]">
                           Unit acquisition / factory cost per single pair.
                         </p>
                         <div
@@ -1712,16 +1712,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
 
                       {/* 2. Wholesale Selling Rate (Per Pair) */}
-                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="wholesale-pair-rate-input" className="block font-bold text-indigo-950 dark:text-indigo-200 text-xs">
+                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="wholesale-pair-rate-input" className="block font-bold text-indigo-950 dark:text-indigo-200 text-xs truncate">
                             Wholesale Rate (Per Pair) <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300 font-bold">
+                          <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300 font-bold shrink-0 whitespace-nowrap">
                             maxPrice
                           </span>
                         </div>
-                        <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80">
+                        <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80 sm:min-h-[2rem]">
                           B2B wholesale selling rate per single pair.
                         </p>
                         <div
@@ -1801,16 +1801,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </div>
                 ) : pricingMode === 'FIXED' ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
                       {/* Cost Price */}
-                      <div className="p-4 bg-slate-50 dark:bg-[#070B14] border border-gray-200 dark:border-slate-800 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="product-cost-price-input" className="block font-bold text-gray-900 dark:text-slate-200 text-xs">
+                      <div className="p-4 bg-slate-50 dark:bg-[#070B14] border border-gray-200 dark:border-slate-800 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="product-cost-price-input" className="block font-bold text-gray-900 dark:text-slate-200 text-xs truncate">
                             Cost Price <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-gray-500 dark:text-slate-400">costPrice</span>
+                          <span className="text-[10px] font-mono text-gray-500 dark:text-slate-400 shrink-0 whitespace-nowrap">costPrice</span>
                         </div>
-                        <p className="text-[11px] text-gray-500 dark:text-slate-400">
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 sm:min-h-[2rem]">
                           Unit acquisition cost paid to supplier or factory.
                         </p>
                         <div
@@ -1847,16 +1847,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
 
                       {/* Single Fixed Price Field, stored as maxPrice */}
-                      <div className="p-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="product-final-sale-price-input" className="block font-bold text-purple-950 dark:text-purple-200 text-xs">
+                      <div className="p-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="product-final-sale-price-input" className="block font-bold text-purple-950 dark:text-purple-200 text-xs truncate">
                             Tag Price <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-purple-700 dark:text-purple-300 font-bold">
+                          <span className="text-[10px] font-mono text-purple-700 dark:text-purple-300 font-bold shrink-0 whitespace-nowrap">
                             maxPrice = minPrice
                           </span>
                         </div>
-                        <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
+                        <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80 sm:min-h-[2rem]">
                           Tag price (must be &ge; Cost Price).
                         </p>
                         <div
@@ -1909,16 +1909,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   /* Renders 3 Mandatory Fields: Cost, Min, Max Price      */
                   /* ===================================================== */
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
                       {/* 1. Cost Price */}
-                      <div className="p-4 bg-slate-50 dark:bg-[#070B14] border border-gray-200 dark:border-slate-800 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="product-cost-price-input" className="block font-bold text-gray-900 dark:text-slate-200 text-xs">
+                      <div className="p-4 bg-slate-50 dark:bg-[#070B14] border border-gray-200 dark:border-slate-800 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="product-cost-price-input" className="block font-bold text-gray-900 dark:text-slate-200 text-xs truncate">
                             Cost Price <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-gray-500 dark:text-slate-400">costPrice</span>
+                          <span className="text-[10px] font-mono text-gray-500 dark:text-slate-400 shrink-0 whitespace-nowrap">costPrice</span>
                         </div>
-                        <p className="text-[11px] text-gray-500 dark:text-slate-400">
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 sm:min-h-[2rem]">
                           Unit acquisition cost per pair.
                         </p>
                         <div
@@ -1955,14 +1955,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
 
                       {/* 2. Min Selling Price */}
-                      <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="product-min-sale-price-input" className="block font-bold text-amber-950 dark:text-amber-200 text-xs">
+                      <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="product-min-sale-price-input" className="block font-bold text-amber-950 dark:text-amber-200 text-xs truncate">
                             Min Selling Price <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-300 font-bold">minPrice</span>
+                          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-300 font-bold shrink-0 whitespace-nowrap">minPrice</span>
                         </div>
-                        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+                        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 sm:min-h-[2rem]">
                           POS floor limit (must be &ge; Cost Price).
                         </p>
                         <div
@@ -1998,14 +1998,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
 
                       {/* 3. Max Selling Price */}
-                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label htmlFor="product-max-sale-price-input" className="block font-bold text-indigo-950 dark:text-indigo-200 text-xs">
+                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl space-y-2 min-w-0">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <label htmlFor="product-max-sale-price-input" className="block font-bold text-indigo-950 dark:text-indigo-200 text-xs truncate">
                             Max Selling Price <span className="text-red-500">*</span>
                           </label>
-                          <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300 font-bold">maxPrice</span>
+                          <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300 font-bold shrink-0 whitespace-nowrap">maxPrice</span>
                         </div>
-                        <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80">
+                        <p className="text-[11px] text-indigo-800/80 dark:text-indigo-300/80 sm:min-h-[2rem]">
                           Tag price (must be greater than Min Price).
                         </p>
                         <div

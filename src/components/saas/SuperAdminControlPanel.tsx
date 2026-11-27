@@ -1453,7 +1453,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
             isSuperAdmin={true}
           />
         }
-        mainClassName="relative z-10 w-full py-9 sm:py-13"
+        mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"
         footer={
           <PublicFooter
             storeName="POS SaaS C-Panel"
@@ -1461,7 +1461,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
           />
         }
       >
-        <div className="w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-md mx-3 sm:mx-4">
+        <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto my-auto">
             <motion.div
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 16, scale: 0.98 }}
@@ -1471,7 +1471,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
               }}
               className="w-full"
             >
-              <div className="app-card bg-white/95 dark:bg-gradient-to-b dark:from-slate-900/95 dark:via-indigo-950/90 dark:to-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 shadow-2xl shadow-purple-950/10 dark:shadow-[0_10px_35px_rgba(15,23,42,0.8),0_0_25px_rgba(var(--primary-rgb,147,51,234),)] rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-slate-800 dark:text-slate-100 transition-colors">
+              <div className="app-card bg-white/95 dark:bg-gradient-to-b dark:from-slate-900/95 dark:via-indigo-950/90 dark:to-slate-900/95 backdrop-blur-xl border border-purple-200/80 dark:border-purple-800/80 shadow-2xl shadow-purple-950/10 dark:shadow-[0_10px_35px_rgba(15,23,42,0.8),0_0_25px_rgba(var(--primary-rgb,147,51,234),)] rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 text-slate-800 dark:text-slate-100 transition-colors">
                 {/* SuperAdmin Icon Header */}
                 <div className="text-center mb-6">
                   <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-md shadow-purple-600/30 border border-purple-400/40 p-2 overflow-hidden">
@@ -5564,11 +5564,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Add New Store Modal (Aligned with ProductFormModal Header, Cards & Footer) */}
       {createModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => setCreateModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* MODAL HEADER ALIGNED WITH PRODUCT FORM MODAL */}
@@ -5919,12 +5919,14 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Password */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs">
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                            <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs truncate">
                               Password <span className="text-red-500 dark:text-pink-400">*</span>
                             </label>
-                            <PasswordRequirementsTooltip minChars={6} password={newOwnerPassword} />
+                            <div className="shrink-0">
+                              <PasswordRequirementsTooltip minChars={6} password={newOwnerPassword} />
+                            </div>
                           </div>
                           <div className="relative">
                             <Lock className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -5960,10 +5962,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
                         </div>
 
                         {/* Confirm Password */}
-                        <div>
-                          <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs mb-1.5">
-                            Confirm Password <span className="text-red-500 dark:text-pink-400">*</span>
-                          </label>
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                            <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs truncate">
+                              Confirm Password <span className="text-red-500 dark:text-pink-400">*</span>
+                            </label>
+                          </div>
                           <div className="relative">
                             <Lock className="w-4 h-4 text-purple-600 dark:text-purple-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                             <input
@@ -6129,8 +6133,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* Edit Store Subscription Modal */}
       {storeToEditSub && (
-        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto">
-          <div className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto">
+        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg max-h-[92vh] overflow-y-auto p-5 sm:p-6 md:p-8 shadow-2xl text-slate-900 dark:text-white my-auto">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
@@ -6293,8 +6297,8 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
       {/* Confirm Delete Store Modal */}
       {storeToDelete && (
-        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto">
-          <div className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto">
+        <div className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg max-h-[92vh] overflow-y-auto p-5 sm:p-6 md:p-8 shadow-2xl text-slate-900 dark:text-white my-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
                 <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
@@ -6375,11 +6379,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* SuperAdmin Platform SQL Import Modal */}
       {importSqlModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => !importingPlatformSql && setImportSqlModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-lg sm:max-w-2xl lg:max-w-3xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -6569,13 +6573,13 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Compose Custom Notification Modal */}
       {notificationModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
           onClick={() => {
             if (!sendingNotif) setNotificationModalOpen(false);
           }}
         >
           <div
-            className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
+            className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -6884,11 +6888,11 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       {/* Confirm Revoke Notification Modal */}
       {notifToRevoke && (
         <div
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
           onClick={() => !revokingNotif && setNotifToRevoke(null)}
         >
           <div
-            className="relative w-full max-w-md bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] overflow-y-auto border border-rose-200 dark:border-rose-500/40 animate-in fade-in zoom-in-95 duration-150 text-slate-900 dark:text-white my-auto"
+            className="relative w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] overflow-y-auto border border-rose-200 dark:border-rose-500/40 animate-in fade-in zoom-in-95 duration-150 text-slate-900 dark:text-white"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

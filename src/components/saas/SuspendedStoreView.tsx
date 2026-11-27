@@ -57,10 +57,10 @@ export const SuspendedStoreView: React.FC<SuspendedStoreViewProps> = ({
     <BodyLayoutWrapper
       layoutMeta={statusLayoutMeta}
       className="bg-slate-950 text-slate-100"
-      mainClassName="relative z-10 px-3 py-5 sm:px-5 sm:py-7"
+      mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"
       backdrop={<ShowroomBackground />}
     >
-      <div className="max-w-lg w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-5 sm:p-8 shadow-2xl">
+      <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto my-auto bg-slate-900 border border-rose-500/30 rounded-2xl p-5 sm:p-8 md:p-10 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-5 sm:mb-6">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] sm:text-xs font-mono uppercase">
             <Lock className="w-3.5 h-3.5 shrink-0" />

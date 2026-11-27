@@ -17,12 +17,13 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import {
+  acquireAndSyncFcmToken,
   requestFcmDeviceToken,
+  resetFirebaseClientCache,
 } from '../../services/firebaseConfig.ts';
 import {
   getDetailedPushPermissionStatus,
   watchNotificationPermissionChanges,
-  resyncPushSubscriptionIfEnabled,
   triggerTestNotificationShadeFallback,
   type PushPermissionSnapshot,
 } from '../../services/pushNotificationClient.ts';
@@ -227,6 +228,17 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         setLocalFcmSettings(payload);
       }
 
+      await resetFirebaseClientCache(true);
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const resync = await acquireAndSyncFcmToken(getActiveUserRole(), { forceRefresh: true }).catch(() => null);
+        if (resync && !resync.token && resync.warning) {
+          setTestResult({
+            success: false,
+            message: `Credentials saved, but browser FCM token registration reported: ${resync.warning}`,
+          });
+        }
+      }
+
       setSaveMessage({
         type: 'success',
         text: 'Firebase Cloud Messaging credentials saved successfully!',
@@ -329,17 +341,20 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
       }
 
       if (currentSnap.effectiveStatus === 'granted' && currentSnap.canReceiveSystemNotifications) {
-        const synced = await resyncPushSubscriptionIfEnabled(activeRole);
+        await resetFirebaseClientCache(true);
+        const syncRes = await acquireAndSyncFcmToken(activeRole, { forceRefresh: true });
         const latestSnap = await getDetailedPushPermissionStatus();
         applyPermissionSnapshot(latestSnap);
         const stats = await api.notifications.getFcmStats().catch(() => null);
         if (stats) setDeviceStats(stats);
+        const hasRealToken = Boolean(syncRes.success && syncRes.token);
         setTestResult({
-          success: synced || latestSnap.canReceiveSystemNotifications,
-          message:
-            synced || latestSnap.canReceiveSystemNotifications
-              ? '✓ Existing notification permission & FCM subscription verified for this device!'
-              : 'Could not verify push token with the server. Check your FCM credentials above.',
+          success: hasRealToken,
+          message: hasRealToken
+            ? '✓ Existing notification permission & FCM subscription verified for this device!'
+            : syncRes.error ||
+              syncRes.warning ||
+              'Could not verify FCM device token with Firebase. Check your Web API Key, App ID, Sender ID, and VAPID key above.',
         });
         return;
       }
@@ -378,6 +393,26 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
   const isClientConfigured = Boolean(
     fcmSettings.FCM_PROJECT_ID && fcmSettings.FCM_API_KEY && fcmSettings.FCM_APP_ID
   );
+
+  const configConsistencyWarning = useMemo(() => {
+    const projectId = fcmSettings.FCM_PROJECT_ID.trim();
+    const senderId = fcmSettings.FCM_MESSAGING_SENDER_ID.trim();
+    const appId = fcmSettings.FCM_APP_ID.trim();
+    const appIdMatch = appId.match(/^1:(\d+):/);
+    const senderFromAppId = appIdMatch ? appIdMatch[1] : '';
+
+    if (senderId && senderFromAppId && senderId !== senderFromAppId) {
+      return `Sender ID (${senderId}) does not match the project number inside Web App ID (${appId}, expected ${senderFromAppId}). Both must come from the same Firebase Web App to prevent "SenderId mismatch".`;
+    }
+    if (
+      projectId &&
+      projectId !== 'sarbaazsoft-shoe-pos' &&
+      (senderId === '900875095665' || appId === '1:900875095665:web:2050a569fe0b7eded995d0')
+    ) {
+      return `Firebase Project ID is "${projectId}", while Sender ID / Web App ID still point to the old default project (900875095665). Replace Web API Key, Sender ID, Web App ID, and VAPID Key from "${projectId}" to avoid "SenderId mismatch".`;
+    }
+    return null;
+  }, [fcmSettings.FCM_PROJECT_ID, fcmSettings.FCM_MESSAGING_SENDER_ID, fcmSettings.FCM_APP_ID]);
 
   if (loading) {
     return (
@@ -454,12 +489,13 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           </h4>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Firebase Project ID</span>
-              <span className="text-rose-500 ml-1 font-bold">*</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_PROJECT_ID)</code>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Firebase Project ID <span className="text-rose-500 font-bold">*</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_PROJECT_ID)</code>
             </label>
             <input
               type="text"
@@ -470,11 +506,12 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Service Account Client Email</span>
-              <span className="text-rose-500 ml-1 font-bold">*</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_CLIENT_EMAIL)</code>
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Service Account Client Email <span className="text-rose-500 font-bold">*</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_CLIENT_EMAIL)</code>
             </label>
             <input
               type="email"
@@ -521,12 +558,13 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           </h4>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Web API Key</span>
-              <span className="text-rose-500 ml-1 font-bold">*</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_API_KEY)</code>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Web API Key <span className="text-rose-500 font-bold">*</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_API_KEY)</code>
             </label>
             <input
               type="text"
@@ -537,11 +575,12 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Messaging Sender ID</span>
-              <span className="text-rose-500 ml-1 font-bold">*</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_MESSAGING_SENDER_ID)</code>
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Sender ID <span className="text-rose-500 font-bold">*</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_MESSAGING_SENDER_ID)</code>
             </label>
             <input
               type="text"
@@ -552,11 +591,12 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Web App ID</span>
-              <span className="text-rose-500 ml-1 font-bold">*</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_APP_ID)</code>
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Web App ID <span className="text-rose-500 font-bold">*</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_APP_ID)</code>
             </label>
             <input
               type="text"
@@ -568,12 +608,13 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Web Push Certificate / VAPID Key</span>
-              <span className="text-[10px] text-slate-400 font-normal ml-1">(Optional)</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_VAPID_KEY)</code>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Web Push / VAPID Key <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_VAPID_KEY)</code>
             </label>
             <input
               type="text"
@@ -584,11 +625,12 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-              <span>Analytics Measurement ID</span>
-              <span className="text-[10px] text-slate-400 font-normal ml-1">(Optional)</span>
-              <code className="text-[10px] text-purple-600 dark:text-purple-400 font-mono ml-1.5">(FCM_MEASUREMENT_ID)</code>
+          <div className="min-w-0">
+            <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 min-h-[20px] min-w-0">
+              <span className="truncate">
+                Analytics Measurement ID <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+              </span>
+              <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-mono">(FCM_MEASUREMENT_ID)</code>
             </label>
             <input
               type="text"
@@ -600,6 +642,14 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
           </div>
         </div>
       </div>
+
+      {/* CONFIGURATION MISMATCH WARNING */}
+      {configConsistencyWarning && (
+        <div className="p-3.5 rounded-xl text-xs font-semibold flex items-start gap-2.5 border bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200">
+          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <span>{configConsistencyWarning}</span>
+        </div>
+      )}
 
       {/* FEEDBACK BANNERS */}
       {saveMessage && (

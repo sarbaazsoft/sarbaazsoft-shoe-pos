@@ -2441,7 +2441,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="dashboard-upgrade-title"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-4 sm:px-4 sm:py-5 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget && !isSubmittingUpgrade) {
               setIsUpgradeModalOpen(false);
@@ -2449,7 +2449,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           }}
         >
           <div
-            className="relative w-full max-w-xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-200"
+            className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header matching ProductFormModal dark gradient */}

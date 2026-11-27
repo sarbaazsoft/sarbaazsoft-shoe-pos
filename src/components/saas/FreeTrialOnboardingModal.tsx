@@ -319,7 +319,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         role="dialog"
         aria-modal="true"
         aria-labelledby="free-trial-title"
-        className={`form-modal-theme fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overflow-x-hidden transition-colors duration-200 ${
+        className={`form-modal-theme fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto overflow-x-hidden transition-colors duration-200 ${
           isDark ? 'dark bg-black/80' : 'light bg-slate-900/60'
         } backdrop-blur-xs`}
         data-theme={isDark ? 'dark' : 'light'}
@@ -335,7 +335,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className={`relative z-10 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-xl min-w-0 mx-3 my-7 sm:mx-4 sm:my-9 max-h-[calc(100dvh-3.5rem)] sm:max-h-[calc(100dvh-4.5rem)] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-colors duration-200 ${
+          className={`relative z-10 w-full max-w-lg sm:max-w-xl lg:max-w-2xl min-w-0 my-auto max-h-[92dvh] sm:max-h-[90dvh] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-colors duration-200 ${
             isDark
               ? 'bg-[#131B2E] text-white border border-purple-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.8)]'
               : 'bg-white text-slate-900 border border-slate-200 shadow-2xl'
@@ -344,7 +344,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
         >
           {/* MODAL HEADER - Soft Pastel Gradient & Subtle Indigo Divider */}
           <div
-            className={`px-4 py-3.5 sm:px-7 sm:py-5 shrink-0 transition-colors duration-200 border-b ${
+            className={`px-5 py-4 sm:px-8 sm:py-6 md:px-10 md:py-6 shrink-0 transition-colors duration-200 border-b ${
               isDark
                 ? 'bg-gradient-to-b from-purple-950/40 via-indigo-950/30 to-[#131B2E] border-purple-800/60 text-white'
                 : 'bg-gradient-to-b from-indigo-50/50 via-purple-50/30 to-white border-indigo-100/60 text-slate-800'
@@ -404,7 +404,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
           {/* MODAL BODY FORM */}
           <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 min-h-0 min-w-0 w-full">
-            <div className="p-4 sm:p-7 space-y-3 sm:space-y-4 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden">
+            <div className="p-5 sm:p-8 md:p-10 space-y-4 sm:space-y-5 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden">
               {/* Alert Error Box */}
               {errorMessage && (
                 <div
@@ -422,32 +422,28 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
               {/* Card Container for Inputs */}
               <div
-                className={`w-full min-w-0 p-3.5 sm:p-5 rounded-2xl border shadow-xs space-y-3 sm:space-y-4 transition-colors duration-200 ${
+                className={`w-full min-w-0 p-4 sm:p-6 rounded-2xl border shadow-xs space-y-4 transition-colors duration-200 ${
                   isDark
                     ? 'bg-[#0E1528] border-purple-900/50 shadow-inner'
                     : 'bg-slate-50/70 border-slate-200'
                 }`}
               >
+                {/* 1 & 2. Full Name and Phone / WhatsApp Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
                 {/* 1. Full Name */}
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[20px] min-w-0">
                     <label
                       htmlFor="trial-fullname"
-                      className={`block font-bold text-xs ${
+                      className={`block font-bold text-xs truncate ${
                         isDark ? 'text-slate-200' : 'text-gray-800'
                       }`}
                     >
                       Store Owner Full Name <span className="text-purple-500">*</span>
                     </label>
-                    {touched.name && (
-                      <span className="text-[11px] font-mono">
-                        {isNameValid ? (
-                          <span className="text-emerald-500 font-semibold flex items-center gap-1">
-                            <Check className="w-3 h-3 stroke-[3]" /> Valid
-                          </span>
-                        ) : (
-                          <span className="text-rose-500">Min 2 letters</span>
-                        )}
+                    {touched.name && isNameValid && (
+                      <span className="text-[11px] font-mono shrink-0 whitespace-nowrap text-emerald-500 font-semibold flex items-center gap-1">
+                        <Check className="w-3 h-3 stroke-[3]" /> Valid
                       </span>
                     )}
                   </div>
@@ -503,19 +499,110 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
                   )}
                 </div>
 
-                {/* 2. Email Address */}
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+                {/* 2. Phone / WhatsApp Number */}
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[20px] min-w-0">
+                    <label
+                      htmlFor="trial-phone"
+                      className={`block font-bold text-xs truncate ${
+                        isDark ? 'text-slate-200' : 'text-gray-800'
+                      }`}
+                    >
+                      Phone / WhatsApp Number <span className="text-purple-500">*</span>
+                    </label>
+                    {phone && isPhoneValid && (
+                      <span className="text-[11px] font-mono shrink-0 whitespace-nowrap text-emerald-500 font-semibold flex items-center gap-1 animate-in fade-in duration-200">
+                        <Check className="w-3 h-3 stroke-[3]" /> Valid
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <div className={`absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none transition-colors duration-200 ${
+                      isPhoneValid ? 'text-emerald-500' : 'text-slate-400'
+                    }`}>
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="trial-phone"
+                      type="tel"
+                      autoComplete="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => {
+                        const formatted = formatPhoneNumber(e.target.value, phone);
+                        setPhone(formatted);
+                        if (!touched.phone) {
+                          setTouched((prev) => ({ ...prev, phone: true }));
+                        }
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
+                      placeholder="e.g. 0321-1234567"
+                      disabled={isLoading}
+                      className={`w-full pl-10 pr-9 py-2.5 font-mono rounded-xl text-xs sm:text-sm outline-none transition-all duration-200 focus:ring-2 ${
+                        isDark
+                          ? 'bg-[#151E33] text-white placeholder-slate-500'
+                          : 'bg-white text-slate-900 placeholder-slate-400'
+                      } ${
+                        isPhoneValid
+                          ? 'phone-border-valid bg-emerald-50/20 dark:bg-emerald-950/20'
+                          : touched.phone && !isPhoneValid
+                          ? 'phone-border-invalid bg-rose-50/20 dark:bg-rose-950/20'
+                          : isDark
+                          ? 'border-purple-900/80 focus:border-purple-400 focus:ring-purple-500/25'
+                          : 'border-slate-300 focus:border-purple-600 focus:ring-purple-500/20'
+                      }`}
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none transition-all duration-200">
+                      {isPhoneValid && (
+                        <span className="phone-success-icon" title="Phone number valid">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in fade-in zoom-in duration-200" />
+                        </span>
+                      )}
+                      {touched.phone && !isPhoneValid && (
+                        <AlertCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </div>
+                  </div>
+                  {!phone && !touched.phone && (
+                    <p className={`mt-1 text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      10 to 15 digits
+                    </p>
+                  )}
+                  {touched.phone && !isPhoneValid && (
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-rose-500 font-medium">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {phoneDigits.length < 10
+                          ? `Need 10 to 15 digits (e.g. 0321-1234567). Current: ${phoneDigits.length}/10.`
+                          : phoneDigits.length > 15
+                          ? 'Phone number cannot exceed 15 digits.'
+                          : 'Invalid format: remove leading 0 immediately after the hyphen.'}
+                      </span>
+                    </div>
+                  )}
+                  {isPhoneValid && (
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-500 font-medium animate-in fade-in duration-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Phone format verified ({phoneDigits.length} digits).</span>
+                    </div>
+                  )}
+                </div>
+                </div>
+
+                {/* 3. Email Address */}
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[20px] min-w-0">
                     <label
                       htmlFor="trial-email"
-                      className={`block font-bold text-xs ${
+                      className={`block font-bold text-xs truncate ${
                         isDark ? 'text-slate-200' : 'text-gray-800'
                       }`}
                     >
                       Email Address (Login Username) <span className="text-purple-500">*</span>
                     </label>
                     <span
-                      className={`text-[11px] font-mono ${
+                      className={`text-[11px] font-mono shrink-0 whitespace-nowrap ${
                         isDark ? 'text-slate-400' : 'text-slate-500'
                       }`}
                     >
@@ -587,111 +674,6 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
                   )}
                 </div>
 
-                {/* 3. Phone / WhatsApp Number */}
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
-                    <label
-                      htmlFor="trial-phone"
-                      className={`block font-bold text-xs ${
-                        isDark ? 'text-slate-200' : 'text-gray-800'
-                      }`}
-                    >
-                      Phone / WhatsApp Number <span className="text-purple-500">*</span>
-                    </label>
-                    {phone ? (
-                      <span className="text-[11px] font-mono">
-                        {isPhoneValid ? (
-                          <span className="text-emerald-500 font-semibold flex items-center gap-1 animate-in fade-in duration-200">
-                            <Check className="w-3 h-3 stroke-[3]" /> Valid ({phoneDigits.length} digits)
-                          </span>
-                        ) : (
-                          <span className="text-rose-500 font-medium">
-                            {phoneDigits.length < 10
-                              ? `Need min 10 digits (${phoneDigits.length}/10)`
-                              : phoneDigits.length > 15
-                              ? 'Exceeds 15 digits'
-                              : 'Invalid format'}
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span
-                        className={`text-[11px] font-mono ${
-                          isDark ? 'text-slate-400' : 'text-slate-500'
-                        }`}
-                      >
-                        10 to 15 digits
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <div className={`absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none transition-colors duration-200 ${
-                      isPhoneValid ? 'text-emerald-500' : 'text-slate-400'
-                    }`}>
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <input
-                      id="trial-phone"
-                      type="tel"
-                      autoComplete="tel"
-                      required
-                      value={phone}
-                      onChange={(e) => {
-                        const formatted = formatPhoneNumber(e.target.value, phone);
-                        setPhone(formatted);
-                        if (!touched.phone) {
-                          setTouched((prev) => ({ ...prev, phone: true }));
-                        }
-                        if (errorMessage) setErrorMessage(null);
-                      }}
-                      onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
-                      placeholder="e.g. 0321-1234567 or +92-300-1234567"
-                      disabled={isLoading}
-                      className={`w-full pl-10 pr-9 py-2.5 font-mono rounded-xl text-xs sm:text-sm outline-none transition-all duration-200 focus:ring-2 ${
-                        isDark
-                          ? 'bg-[#151E33] text-white placeholder-slate-500'
-                          : 'bg-white text-slate-900 placeholder-slate-400'
-                      } ${
-                        isPhoneValid
-                          ? 'phone-border-valid bg-emerald-50/20 dark:bg-emerald-950/20'
-                          : touched.phone && !isPhoneValid
-                          ? 'phone-border-invalid bg-rose-50/20 dark:bg-rose-950/20'
-                          : isDark
-                          ? 'border-purple-900/80 focus:border-purple-400 focus:ring-purple-500/25'
-                          : 'border-slate-300 focus:border-purple-600 focus:ring-purple-500/20'
-                      }`}
-                    />
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none transition-all duration-200">
-                      {isPhoneValid && (
-                        <span className="phone-success-icon" title="Phone number valid">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in fade-in zoom-in duration-200" />
-                        </span>
-                      )}
-                      {touched.phone && !isPhoneValid && (
-                        <AlertCircle className="w-4 h-4 text-rose-500" />
-                      )}
-                    </div>
-                  </div>
-                  {touched.phone && !isPhoneValid && (
-                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-rose-500 font-medium">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>
-                        {phoneDigits.length < 10
-                          ? `Please enter at least 10 digits (e.g. 0321-1234567 or +92-300-1234567). Current: ${phoneDigits.length} digits.`
-                          : phoneDigits.length > 15
-                          ? 'Phone number cannot exceed 15 digits.'
-                          : 'Invalid format: remove leading 0 immediately after the hyphen.'}
-                      </span>
-                    </div>
-                  )}
-                  {isPhoneValid && (
-                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-500 font-medium animate-in fade-in duration-200">
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Phone format verified ({phoneDigits.length} digits). Hyphens added automatically.</span>
-                    </div>
-                  )}
-                </div>
-
                 {/* 4. Password & Confirm Password Grid */}
                 {(() => {
                   const strength = evaluatePasswordStrength(password, { minChars: 6 });
@@ -699,19 +681,21 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
                   return (
                     <div className="space-y-3 pt-1 min-w-0">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 min-w-0">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
                         {/* Password */}
                         <div className="min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
                             <label
                               htmlFor="trial-password"
-                              className={`block font-bold text-xs ${
+                              className={`block font-bold text-xs truncate ${
                                 isDark ? 'text-slate-200' : 'text-gray-800'
                               }`}
                             >
                               Owner Password <span className="text-purple-500">*</span>
                             </label>
-                            <PasswordRequirementsTooltip minChars={6} password={password} />
+                            <div className="shrink-0">
+                              <PasswordRequirementsTooltip minChars={6} password={password} />
+                            </div>
                           </div>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -774,10 +758,10 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
                         {/* Confirm Password */}
                         <div className="min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
                             <label
                               htmlFor="trial-confirm-password"
-                              className={`block font-bold text-xs ${
+                              className={`block font-bold text-xs truncate ${
                                 isDark ? 'text-slate-200' : 'text-gray-800'
                               }`}
                             >
@@ -785,7 +769,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
                             </label>
                             {confirmPassword && password && (
                               <span
-                                className={`text-[10px] font-semibold ${
+                                className={`text-[10px] font-semibold shrink-0 whitespace-nowrap ${
                                   isMatch ? 'text-emerald-500' : 'text-rose-500'
                                 }`}
                               >
@@ -956,7 +940,7 @@ export const FreeTrialOnboardingModal: React.FC<FreeTrialOnboardingModalProps> =
 
             {/* MODAL FOOTER ACTION BAR - Soft Pastel Gradient & Subtle Indigo Divider */}
             <div
-              className={`px-4 py-3.5 sm:px-7 sm:py-4.5 border-t flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0 transition-colors duration-200 ${
+              className={`px-5 py-4 sm:px-8 sm:py-5 md:px-10 border-t flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0 transition-colors duration-200 ${
                 isDark
                   ? 'bg-gradient-to-b from-purple-950/40 via-indigo-950/30 to-[#131B2E] border-purple-800/60'
                   : 'bg-gradient-to-b from-indigo-50/50 via-purple-50/30 to-white border-indigo-100/60'

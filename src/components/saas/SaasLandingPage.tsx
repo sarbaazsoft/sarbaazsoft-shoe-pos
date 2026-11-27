@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ShoppingCart, Package, Truck, Printer, Users, BarChart3, ShieldCheck, Settings, ArrowRight, Check, Calendar, Store, DollarSign, Sparkles, Search, Zap, WifiOff, Layers, LayoutDashboard, Tag, LogIn, ChevronLeft, ChevronRight, Bell, Smartphone, Mail, Phone } from 'lucide-react';
 import shoeStoreBg from '../../assets/images/shoe_store_blurred_bg_1790706924465.jpg';
-import { api } from '../../services/api';
+import { api, normalizePublicTenantIdParam, stripTenantScopeFromSearch } from '../../services/api';
 import { useSaasDirectoryQuery } from '../../hooks/useLiveData';
 import type { TenantInfo } from '../../types';
 import { FreeTrialOnboardingModal } from './FreeTrialOnboardingModal';
@@ -575,8 +575,23 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
 
   useEffect(() => {
     const tenants = saasDirectoryQuery.data?.availableTenants;
-    if (Array.isArray(tenants) && tenants.length > 0) {
+    if (Array.isArray(tenants)) {
       setStoreDirectory(tenants as TenantInfo[]);
+      try {
+        const liveIds = new Set(tenants.map((t: any) => Number(t?.id)).filter((id: number) => id > 0));
+        const cachedRaw = localStorage.getItem('pos_registered_stores_cache');
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (Array.isArray(parsed)) {
+            const pruned = parsed.filter((s: any) => liveIds.has(Number(s?.id)));
+            if (pruned.length > 0) {
+              localStorage.setItem('pos_registered_stores_cache', JSON.stringify(pruned));
+            } else {
+              localStorage.removeItem('pos_registered_stores_cache');
+            }
+          }
+        }
+      } catch {}
     }
   }, [saasDirectoryQuery.data]);
 
@@ -603,31 +618,36 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
       }
     }
 
-    // 2. Also check any newly registered stores saved in localStorage
-    try {
-      const cached = localStorage.getItem('pos_registered_stores_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) {
-          for (const t of parsed) {
-            const tid = Number(t?.id);
-            const key = (t.name || '').toLowerCase().trim();
-            if (Number.isSafeInteger(tid) && tid > 0 && key && !seen.has(key)) {
-              registeredList.push({
-                ...t,
-                isRegistered: true,
-              });
-              seen.add(key);
+    // 2. Fallback to newly registered cache only when live directory has not resolved yet
+    const hasLiveDirectory =
+      Array.isArray(saasDirectoryQuery.data?.availableTenants) ||
+      (Array.isArray(availableTenants) && availableTenants.length > 0);
+    if (!hasLiveDirectory) {
+      try {
+        const cached = localStorage.getItem('pos_registered_stores_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            for (const t of parsed) {
+              const tid = Number(t?.id);
+              const key = (t.name || '').toLowerCase().trim();
+              if (Number.isSafeInteger(tid) && tid > 0 && key && !seen.has(key)) {
+                registeredList.push({
+                  ...t,
+                  isRegistered: true,
+                });
+                seen.add(key);
+              }
             }
           }
         }
+      } catch {
+        // Ignore localStorage errors
       }
-    } catch {
-      // Ignore localStorage errors
     }
 
     return registeredList;
-  }, [storeDirectory, availableTenants]);
+  }, [storeDirectory, availableTenants, saasDirectoryQuery.data]);
 
   // Ensure sufficient slides for smooth infinite loop in Swiper while exclusively displaying actual registered stores
   const storesForSlider = React.useMemo<StoreSliderItem[]>(() => {
@@ -685,17 +705,22 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     setActiveNav(navKey);
     const cleanId = id.replace(/^#/, '');
     const searchParams = new URLSearchParams(window.location.search);
-    const rawCurrentTid = String(searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId || '').trim();
-    const numCurrentTid = rawCurrentTid !== '' ? Number(rawCurrentTid) : NaN;
-    const currentTid = Number.isSafeInteger(numCurrentTid) && numCurrentTid >= 0 ? String(numCurrentTid) : '';
+    const rawCurrentTid =
+      searchParams.get('tenantId') || searchParams.get('storeId') || unauthTenantId || '';
+    const normalizedCurrentTid = normalizePublicTenantIdParam(rawCurrentTid);
+    const knownTenants = [...(storeDirectory || []), ...(availableTenants || [])];
+    const isVerifiedTid =
+      normalizedCurrentTid === '0' ||
+      (normalizedCurrentTid !== '' &&
+        knownTenants.some((t) => Number(t.id) === Number(normalizedCurrentTid)));
+    const currentTid = isVerifiedTid ? normalizedCurrentTid : '';
     const isTopTarget = cleanId === 'top' || cleanId === 'home';
     const hash = isTopTarget ? '' : `#${cleanId}`;
     if (currentTid !== '') {
       window.history.replaceState({}, '', `/?tenantId=${encodeURIComponent(currentTid)}${hash}`);
-    } else if (hash) {
-      window.history.replaceState({}, '', `/${hash}`);
     } else {
-      window.history.replaceState({}, '', '/');
+      const cleanSearch = stripTenantScopeFromSearch(window.location.search);
+      window.history.replaceState({}, '', `/${cleanSearch}${hash}`);
     }
 
     const executeScroll = () => {
@@ -875,19 +900,19 @@ export const SaasLandingPage: React.FC<SaasLandingPageProps> = ({
     onStoreCreated?.(tenantId, loginUrl, user, token);
   };
 
-  const hasExplicitUnauthScope =
-    unauthTenantId !== null && unauthTenantId !== undefined && String(unauthTenantId).trim() !== '';
-  const numericUnauthTid = hasExplicitUnauthScope ? Number(unauthTenantId) : NaN;
+  const normalizedUnauthTid = normalizePublicTenantIdParam(unauthTenantId);
+  const numericUnauthTid = normalizedUnauthTid ? Number(normalizedUnauthTid) : NaN;
   const isSuperAdminUnauthScope = Number.isSafeInteger(numericUnauthTid) && numericUnauthTid === 0;
   const validUnauthTenantId =
     Number.isSafeInteger(numericUnauthTid) && numericUnauthTid > 0 ? numericUnauthTid : null;
-  const hasActiveTenantScope = isSuperAdminUnauthScope || Boolean(validUnauthTenantId);
 
   const matchedScopedStore = React.useMemo(() => {
     if (!validUnauthTenantId) return null;
     const all = [...(storeDirectory || []), ...(availableTenants || [])];
     return all.find((t) => Number(t.id) === validUnauthTenantId) || null;
   }, [validUnauthTenantId, storeDirectory, availableTenants]);
+
+  const hasActiveTenantScope = isSuperAdminUnauthScope || Boolean(matchedScopedStore);
 
   const landingLayoutMeta = resolveRouteLayoutMetadata('LANDING', {
     overrides: layoutMetaOverride,

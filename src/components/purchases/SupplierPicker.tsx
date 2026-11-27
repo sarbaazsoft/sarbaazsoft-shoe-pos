@@ -612,10 +612,12 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
       </div>
     ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
-            Supplier / Vendor Name <span className="text-rose-500">*</span>
-          </label>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+              Supplier / Vendor Name <span className="text-rose-500">*</span>
+            </label>
+          </div>
           <input
             type="text"
             value={newSupplierName}
@@ -626,13 +628,13 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
           />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200">
-              Phone / Mobile Number (Optional)
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+              Phone / Mobile (Optional)
             </label>
             {newSupplierPhone && isValidPhoneNumber(newSupplierPhone) && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
+              <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
                 <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
                 <span>Valid</span>
               </span>
@@ -993,10 +995,10 @@ export const SupplierPicker: React.FC<SupplierPickerProps> = ({
       {/* DEDICATED "FIND SUPPLIER" LOOKUP MODAL */}
       {isModalOpen && (
         <div
-          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5"
+          className="form-modal-theme fixed inset-0 z-70 flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
           onKeyDown={handleModalKeyDown}
         >
-          <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88dvh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-lg sm:max-w-2xl lg:max-w-4xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88dvh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">

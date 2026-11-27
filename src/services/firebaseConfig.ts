@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, deleteApp, type FirebaseApp } from 'firebase/app';
 import { getMessaging, getToken, deleteToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
 import { api, getActiveTenantId } from './api.ts';
 import { playAudioFeedback } from '../utils/audio.ts';
@@ -14,6 +14,7 @@ import { doVapidKeysMatch, normalizeVapidPublicKey } from '../utils/vapid.ts';
 
 let cachedFirebaseApp: FirebaseApp | null = null;
 let cachedMessaging: Messaging | null = null;
+let cachedFirebaseConfigSig = '';
 let inFlightConfigPromise: Promise<any> | null = null;
 let onMessageUnsubscribe: (() => void) | null = null;
 let inFlightPermissionRequest: Promise<{
@@ -231,6 +232,26 @@ async function ensureCleanPushSubscriptionForVapid(
   } catch {}
 }
 
+export async function resetFirebaseClientCache(clearLocalToken = false): Promise<void> {
+  cachedFirebaseConfigSig = '';
+  cachedMessaging = null;
+  if (onMessageUnsubscribe) {
+    try {
+      onMessageUnsubscribe();
+    } catch {}
+    onMessageUnsubscribe = null;
+  }
+  if (cachedFirebaseApp) {
+    try {
+      await deleteApp(cachedFirebaseApp);
+    } catch {}
+    cachedFirebaseApp = null;
+  }
+  if (clearLocalToken && typeof localStorage !== 'undefined') {
+    clearPersistedFcmSyncSignature();
+  }
+}
+
 export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; messaging: Messaging | null }> {
   if (typeof window === 'undefined') {
     return { app: null, messaging: null };
@@ -243,19 +264,44 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
     return { app: null, messaging: null };
   }
 
-  if (cachedFirebaseApp && cachedMessaging) {
-    return { app: cachedFirebaseApp, messaging: cachedMessaging };
-  }
-
   const config = await fetchFcmConfig();
   if (!config || !config.apiKey || !config.projectId) {
     return { app: null, messaging: null };
   }
 
+  const nextConfigSig = `${config.projectId}:${config.apiKey}:${config.messagingSenderId || ''}:${config.appId || ''}`;
+  if (cachedFirebaseApp && cachedMessaging && cachedFirebaseConfigSig === nextConfigSig) {
+    return { app: cachedFirebaseApp, messaging: cachedMessaging };
+  }
+
   try {
     let app: FirebaseApp;
     if (getApps().length > 0) {
-      app = getApp();
+      const existing = getApp();
+      const opts = existing.options || {};
+      const sameOptions =
+        opts.projectId === config.projectId &&
+        opts.apiKey === config.apiKey &&
+        (opts.messagingSenderId || '') === (config.messagingSenderId || '') &&
+        (opts.appId || '') === (config.appId || '');
+      if (sameOptions) {
+        app = existing;
+      } else {
+        if (onMessageUnsubscribe) {
+          try {
+            onMessageUnsubscribe();
+          } catch {}
+          onMessageUnsubscribe = null;
+        }
+        await deleteApp(existing).catch(() => {});
+        app = initializeApp({
+          apiKey: config.apiKey,
+          projectId: config.projectId,
+          messagingSenderId: config.messagingSenderId,
+          appId: config.appId,
+          measurementId: config.measurementId,
+        });
+      }
     } else {
       app = initializeApp({
         apiKey: config.apiKey,
@@ -269,6 +315,7 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
     const messaging = getMessaging(app);
     cachedFirebaseApp = app;
     cachedMessaging = messaging;
+    cachedFirebaseConfigSig = nextConfigSig;
 
     // Attach foreground message listener once
     if (!onMessageUnsubscribe) {
@@ -428,6 +475,7 @@ export const PUSH_ENABLED_KEY = 'pos_push_notifications_enabled';
 export const PUSH_USER_OPTED_OUT_KEY = 'pos_push_user_opted_out';
 export const PUSH_DEVICE_ID_KEY = 'pos_push_device_id';
 export const FCM_TOKEN_KEY = 'pos_fcm_token';
+export const FCM_CLIENT_CONFIG_SIG_KEY = 'pos_fcm_client_config_sig';
 
 export function getOrCreatePushDeviceId(): string {
   if (typeof window === 'undefined') return '';
@@ -526,7 +574,10 @@ function isPermissionBlockedError(err: any): boolean {
  * Assumes Notification.permission is 'granted' or already established.
  * Reuses any existing valid PushManager subscription and FCM token without requesting UI permission.
  */
-export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
+export async function acquireAndSyncFcmToken(
+  overrideRole?: string,
+  options?: { forceRefresh?: boolean }
+): Promise<{
   success: boolean;
   token?: string;
   error?: string;
@@ -534,6 +585,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
   mode?: 'fcm' | 'realtime';
   androidSystemDisabled?: boolean;
 }> {
+  const forceRefresh = Boolean(options?.forceRefresh);
   if (typeof window === 'undefined') {
     return { success: false, error: 'Notifications are only available in a browser environment.' };
   }
@@ -542,7 +594,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
     return { success: false, error: 'Notification permission is not granted on this device.' };
   }
 
-  if (inFlightTokenSync) {
+  if (inFlightTokenSync && !forceRefresh) {
     return inFlightTokenSync;
   }
 
@@ -607,9 +659,10 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         };
       }
 
-      // 3. Validate VAPID key and preserve existing valid PushManager subscription + token wherever possible
+      // 3. Validate VAPID key and rotate stale PushSubscription/token whenever Firebase config changes
       let token: string | undefined;
       let vapidWarning: string | undefined;
+      let tokenErrorDetail: string | undefined;
 
       const config = await fetchFcmConfig();
       const rawVapid = typeof config?.vapidKey === 'string' ? config.vapidKey.trim() : '';
@@ -622,7 +675,34 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         console.warn('[firebaseConfig]', vapidWarning);
       }
 
-      const storedToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
+      const activeClientConfigSig = `${config?.projectId || ''}:${config?.messagingSenderId || ''}:${config?.appId || ''}:${vapidKey || ''}`;
+      const previousClientConfigSig = localStorage.getItem(FCM_CLIENT_CONFIG_SIG_KEY) || '';
+      const hasConfigChanged = Boolean(previousClientConfigSig && previousClientConfigSig !== activeClientConfigSig);
+      const shouldRotateToken = hasConfigChanged || forceRefresh;
+      const previousStoredToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
+
+      if (shouldRotateToken) {
+        clearPersistedFcmSyncSignature();
+        if (activeSwReg?.active) {
+          try {
+            activeSwReg.active.postMessage({ type: 'REINIT_FIREBASE_CONFIG' });
+          } catch {}
+        }
+        if (typeof deleteToken === 'function') {
+          await deleteToken(messaging).catch(() => false);
+        }
+        if (activeSwReg?.pushManager && typeof activeSwReg.pushManager.getSubscription === 'function') {
+          const oldSub = await activeSwReg.pushManager.getSubscription().catch(() => null);
+          if (oldSub) {
+            await oldSub.unsubscribe().catch(() => {});
+          }
+        }
+        try {
+          localStorage.removeItem(FCM_TOKEN_KEY);
+        } catch {}
+      }
+
+      const storedToken = shouldRotateToken ? undefined : previousStoredToken;
 
       if (messaging && activeSwReg?.active) {
         await ensureCleanPushSubscriptionForVapid(activeSwReg, vapidKey);
@@ -668,6 +748,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
           }
 
           const msg = String(fcmErr?.message || fcmErr || '');
+          tokenErrorDetail = msg || undefined;
           const isKeyMismatchOrCorruptSub =
             msg.includes('applicationServerKey') ||
             msg.includes('InvalidAccessError') ||
@@ -685,15 +766,18 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
                 serviceWorkerRegistration: activeSwReg,
                 vapidKey,
               });
-            } catch (retryErr) {
+              tokenErrorDetail = undefined;
+            } catch (retryErr: any) {
+              tokenErrorDetail = String(retryErr?.message || retryErr || msg) || undefined;
               console.warn(
                 '[firebaseConfig] Background push token retry failed:',
                 retryErr
               );
             }
-          } else if (storedToken && existingSub && existingSubMatchesVapid) {
+          } else if (storedToken && existingSub && existingSubMatchesVapid && !hasConfigChanged) {
             // Transient network/AbortError while existing PushSubscription and FCM token are valid: reuse stored token
             token = storedToken;
+            tokenErrorDetail = undefined;
           } else {
             console.warn(
               '[firebaseConfig] Background push token notice (activating real-time alert stream fallback):',
@@ -702,9 +786,10 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
           }
         }
       } else if (!activeSwReg?.active) {
-        if (storedToken) {
+        if (storedToken && !hasConfigChanged) {
           token = storedToken;
         } else {
+          tokenErrorDetail = 'Root Service Worker (/sw.js) is not active yet.';
           console.warn(
             '[firebaseConfig] Root Service Worker (/sw.js) did not reach active state; skipping competing SW registration.'
           );
@@ -727,9 +812,9 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         } catch {}
 
         const syncSignature = `${tenantId}:${userId}:${userRole}:${token}`;
-        const previousToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
+        const previousToken = previousStoredToken || localStorage.getItem(FCM_TOKEN_KEY) || undefined;
 
-        if (!hasFreshFcmSyncSignature(syncSignature) || (previousToken && previousToken !== token)) {
+        if (shouldRotateToken || !hasFreshFcmSyncSignature(syncSignature) || (previousToken && previousToken !== token)) {
           const deviceId = getOrCreatePushDeviceId();
           const baseDeviceName = `${navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop/Laptop'} (${navigator.platform || 'Web'})`;
           const deviceName = deviceId ? `${baseDeviceName} [id:${deviceId}]` : baseDeviceName;
@@ -745,7 +830,10 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
           });
 
           localStorage.setItem(FCM_TOKEN_KEY, token);
+          localStorage.setItem(FCM_CLIENT_CONFIG_SIG_KEY, activeClientConfigSig);
           persistFcmSyncSignature(syncSignature);
+        } else if (activeClientConfigSig) {
+          localStorage.setItem(FCM_CLIENT_CONFIG_SIG_KEY, activeClientConfigSig);
         }
       }
 
@@ -788,6 +876,7 @@ export async function acquireAndSyncFcmToken(overrideRole?: string): Promise<{
         mode: token ? 'fcm' : 'realtime',
         warning: !token
           ? vapidWarning ||
+            tokenErrorDetail ||
             'Real-time desktop alerts are active! (Live counter & sales alerts will pop up while POS is open).'
           : undefined,
       };

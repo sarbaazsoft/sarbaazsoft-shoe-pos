@@ -297,12 +297,12 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
           dbText="Secure Store Setup"
         />
       }
-      mainClassName="relative z-10 w-full py-6 sm:py-9 px-4 sm:px-7"
+      mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"
       footer={<PublicFooter />}
     >
       <div className="max-w-4xl mx-auto w-full">
           {loading ? (
-            <div className="bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md rounded-3xl p-6 sm:p-10 shadow-2xl border border-white/30 dark:border-purple-800/60 flex flex-col items-center max-w-sm w-full mx-auto text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/30 dark:border-purple-800/60 flex flex-col items-center w-full max-w-xs sm:max-w-sm md:max-w-md mx-auto my-auto text-center animate-in fade-in zoom-in-95 duration-200">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white mb-4 shadow-lg shadow-purple-600/30 ring-2 ring-indigo-400/30">
                 <div className="w-7 h-7 border-3 border-white border-t-transparent rounded-full animate-spin" />
               </div>
@@ -657,14 +657,14 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
                               Contact Phone Number
                             </label>
                             {isValidPhoneNumber(phone, 10, 15) && (
-                              <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Valid ({phone.replace(/\D/g, '').length} digits)
+                              <span className="text-[11px] font-mono shrink-0 whitespace-nowrap text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Valid
                               </span>
                             )}
                           </div>
@@ -693,17 +693,19 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                           </div>
                           {isValidPhoneNumber(phone, 10, 15) && (
                             <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-1 animate-in fade-in duration-200">
-                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Phone number verified. Hyphens applied automatically.
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Phone number verified ({phone.replace(/\D/g, '').length} digits). Hyphens applied automatically.
                             </p>
                           )}
                         </div>
 
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
                               Administrator Password <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">(Optional)</span>
                             </label>
-                            <PasswordRequirementsTooltip minChars={6} password={adminPassword} />
+                            <div className="shrink-0">
+                              <PasswordRequirementsTooltip minChars={6} password={adminPassword} />
+                            </div>
                           </div>
                           <div className="relative">
                             <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -865,14 +867,14 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                                Cashier Phone Number (Optional)
+                          <div className="min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
+                                Cashier Phone Number <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">(Optional)</span>
                               </label>
                               {cashierPhone && isValidPhoneNumber(cashierPhone, 10, 15) && (
-                                <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Valid ({cashierPhone.replace(/\D/g, '').length} digits)
+                                <span className="text-[11px] font-mono shrink-0 whitespace-nowrap text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Valid
                                 </span>
                               )}
                             </div>
@@ -901,17 +903,19 @@ export const TenantOnboardingWizard: React.FC<TenantOnboardingWizardProps> = ({
                             </div>
                             {cashierPhone && isValidPhoneNumber(cashierPhone, 10, 15) && (
                               <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-1 animate-in fade-in duration-200">
-                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Cashier phone verified.
+                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Cashier phone verified ({cashierPhone.replace(/\D/g, '').length} digits).
                               </p>
                             )}
                           </div>
 
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <div className="min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
                                 Cashier Password *
                               </label>
-                              <PasswordRequirementsTooltip minChars={6} password={cashierPassword} />
+                              <div className="shrink-0">
+                                <PasswordRequirementsTooltip minChars={6} password={cashierPassword} />
+                              </div>
                             </div>
                             <div className="relative">
                               <input

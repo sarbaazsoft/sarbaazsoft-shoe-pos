@@ -347,9 +347,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         ) : null
       }
       footer={<PublicFooter storeName={storeName} />}
-      mainClassName="relative z-10 w-full"
+      mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"
     >
-        <div className="w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-md mx-3 my-7 sm:mx-4 sm:my-9">
+        <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto my-auto">
           {tenantNotice && (
             <div
               role="alert"
@@ -378,7 +378,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   ? 'linear-gradient(to bottom, rgba(15,23,42,0.92), rgba(30,27,75,0.86), rgba(15,23,42,0.92))'
                   : 'none',
               }}
-              className={`w-full backdrop-blur-xl border rounded-2xl sm:rounded-3xl p-4 sm:p-7 transition-all duration-200 ${
+              className={`w-full backdrop-blur-xl border rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 transition-all duration-200 ${
                 isDark
                   ? 'border-purple-800/80 shadow-[0_10px_35px_rgba(15,23,42,0.8),0_0_25px_rgba(var(--primary-rgb,147,51,234),)] text-slate-100'
                   : 'bg-white border-purple-200/90 shadow-2xl shadow-purple-950/10 text-slate-800'

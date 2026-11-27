@@ -1125,11 +1125,11 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* VIEW DETAILS & TRACKING TIMELINE MODAL */}
       {viewingTrial && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={() => setViewingTrial(null)}
         >
           <div
-            className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto space-y-4"
+            className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl w-full max-w-lg sm:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto p-5 sm:p-6 md:p-8 shadow-2xl text-slate-900 dark:text-white my-auto space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -1264,11 +1264,11 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* EDIT FREE TRIAL MODAL */}
       {editingTrial && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={() => !savingEdit && setEditingTrial(null)}
         >
           <div
-            className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl text-slate-900 dark:text-white my-auto"
+            className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl w-full max-w-md sm:max-w-lg lg:max-w-xl max-h-[92vh] overflow-y-auto p-5 sm:p-6 md:p-8 shadow-2xl text-slate-900 dark:text-white my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
@@ -1436,11 +1436,11 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* EXTEND TRIAL MODAL */}
       {extendingTrialModal && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={() => busyId === null && setExtendingTrialModal(null)}
         >
           <div
-            className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl max-w-md w-full p-5 shadow-2xl text-slate-900 dark:text-white space-y-4"
+            className="app-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-purple-800/70 rounded-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg p-5 sm:p-6 md:p-8 my-auto shadow-2xl text-slate-900 dark:text-white space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1520,11 +1520,11 @@ export const SuperAdminFreeTrialsView: React.FC<SuperAdminFreeTrialsViewProps> =
       {/* PERMANENT CASCADE DELETE MODAL */}
       {deletingTrial && (
         <div
-          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5"
+          className="form-modal-theme fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={() => !isDeleting && setDeletingTrial(null)}
         >
           <div
-            className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl max-w-md w-full p-5 shadow-2xl text-slate-900 dark:text-white space-y-4"
+            className="app-card bg-white dark:bg-[#111827] border border-rose-200 dark:border-rose-500/40 rounded-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg p-5 sm:p-6 md:p-8 my-auto shadow-2xl text-slate-900 dark:text-white space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">

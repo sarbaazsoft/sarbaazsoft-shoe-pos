@@ -108,7 +108,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -119,7 +119,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md app-modal-container overflow-hidden flex flex-col max-h-[92dvh]"
+        className="w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto app-modal-container overflow-hidden flex flex-col max-h-[92dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-900 dark:text-white shrink-0">

@@ -208,7 +208,7 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
       onClick={onClose}
     >
       <motion.div
@@ -217,7 +217,7 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
+        className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
         onClick={(e) => e.stopPropagation()}
       >
         {/* HEADER & 2-STEP WIZARD STEPPER ALIGNED WITH PRODUCT FORM MODAL */}
@@ -495,10 +495,12 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
                   </div>
 
                   {/* Email */}
-                  <div>
-                    <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs mb-1.5">
-                      Login Email Address <span className="text-red-500 dark:text-pink-400">*</span>
-                    </label>
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[20px] min-w-0">
+                      <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs truncate">
+                        Login Email Address <span className="text-red-500 dark:text-pink-400">*</span>
+                      </label>
+                    </div>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                         <Mail className="w-3.5 h-3.5" />
@@ -515,14 +517,14 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
                   </div>
 
                   {/* Phone */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs">
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[20px] min-w-0">
+                      <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs truncate">
                         Contact Phone (Optional)
                       </label>
                       {formData.phone && isValidPhoneNumber(formData.phone, 10, 15) && (
-                        <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Valid ({formData.phone.replace(/\D/g, '').length} digits)
+                        <span className="text-[11px] font-mono shrink-0 whitespace-nowrap text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Valid
                         </span>
                       )}
                     </div>
@@ -553,7 +555,7 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
                     </div>
                     {formData.phone && isValidPhoneNumber(formData.phone, 10, 15) && (
                       <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-1 animate-in fade-in duration-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Phone number verified. Hyphens applied automatically.
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Phone number verified ({formData.phone.replace(/\D/g, '').length} digits). Hyphens applied automatically.
                       </p>
                     )}
                   </div>
@@ -747,12 +749,14 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Password */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs">
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                            <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs truncate">
                               Account Password <span className="text-red-500 dark:text-pink-400">*</span>
                             </label>
-                            <PasswordRequirementsTooltip minChars={6} password={formData.password} />
+                            <div className="shrink-0">
+                              <PasswordRequirementsTooltip minChars={6} password={formData.password} />
+                            </div>
                           </div>
                           <div className="relative">
                             <input
@@ -785,10 +789,12 @@ export const CreateStaffModal: React.FC<CreateStaffModalProps> = ({
                         </div>
 
                         {/* Confirm Password */}
-                        <div>
-                          <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs mb-1.5">
-                            Confirm Password <span className="text-red-500 dark:text-pink-400">*</span>
-                          </label>
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                            <label className="block font-bold text-gray-800 dark:text-slate-200 text-xs truncate">
+                              Confirm Password <span className="text-red-500 dark:text-pink-400">*</span>
+                            </label>
+                          </div>
                           <div className="relative">
                             <input
                               type={showConfirmPassword ? 'text' : 'password'}

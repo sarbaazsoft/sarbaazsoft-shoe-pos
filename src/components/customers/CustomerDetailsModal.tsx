@@ -124,8 +124,8 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   };
 
   return (
-    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto animate-in fade-in duration-150">
-      <div className="relative w-full max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] border border-slate-200 dark:border-purple-800/80 my-auto">
+    <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto animate-in fade-in duration-150">
+      <div className="relative w-full max-w-lg sm:max-w-2xl lg:max-w-4xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] border border-slate-200 dark:border-purple-800/80 my-auto">
         {/* Header with Gradient Accent */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-800 dark:text-white">
           <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0">

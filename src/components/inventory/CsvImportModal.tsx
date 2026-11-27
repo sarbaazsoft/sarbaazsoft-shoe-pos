@@ -226,7 +226,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs px-3 py-3.5 sm:px-4.5 sm:py-6 overflow-y-auto"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -237,7 +237,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
         transition={{ duration: 0.2 }}
-        className="relative w-full max-w-6xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 flex flex-col max-h-[92dvh] overflow-hidden"
+        className="relative w-full max-w-xl sm:max-w-3xl lg:max-w-5xl xl:max-w-6xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 flex flex-col max-h-[92dvh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

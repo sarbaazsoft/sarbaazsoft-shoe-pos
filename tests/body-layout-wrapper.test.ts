@@ -118,7 +118,7 @@ describe('Route Layout Metadata Configuration', () => {
 });
 
 describe('BodyLayoutWrapper Component Structure & Props', () => {
-  it('renders Flexbox Header -> Body (Sidebar + Main flex-1) -> Footer with min-h-[100dvh]', () => {
+  it('renders Header on top, Sidebar on left, and Main + Footer grouped in a right-side flex column with space-between', () => {
     const html = renderToStaticMarkup(
       React.createElement(
         BodyLayoutWrapper,
@@ -139,8 +139,13 @@ describe('BodyLayoutWrapper Component Structure & Props', () => {
     assert.ok(html.includes('data-layout-section="header"'), 'Header section must render');
     assert.ok(html.includes('data-layout-section="body"'), 'Middle body section must render');
     assert.ok(html.includes('data-layout-section="sidebar"'), 'Sidebar section must render');
+    assert.ok(html.includes('data-layout-section="content-column"'), 'Right-side content column section must render');
     assert.ok(html.includes('data-layout-section="main"'), 'Main content section must render');
     assert.ok(html.includes('data-layout-section="footer"'), 'Footer section must render');
+    assert.ok(
+      html.includes('flex-1 min-w-0 min-h-0 flex flex-col justify-between'),
+      'Right-side column must be a flex column with justify-between (space-between)'
+    );
     assert.ok(html.includes('flex-1 min-w-0 flex flex-col'), 'Main element must use flex-1');
     assert.ok(html.includes('--layout-sidebar-width:280px'), 'Configurable sidebarWidth CSS variable should be set');
     assert.ok(html.includes('width:280px'), 'Configurable sidebarWidth should size sidebar container');
@@ -156,9 +161,25 @@ describe('BodyLayoutWrapper Component Structure & Props', () => {
     const headerIdx = html.indexOf('data-layout-section="header"');
     const bodyIdx = html.indexOf('data-layout-section="body"');
     const sidebarIdx = html.indexOf('data-layout-section="sidebar"');
+    const contentColumnIdx = html.indexOf('data-layout-section="content-column"');
     const mainIdx = html.indexOf('data-layout-section="main"');
     const footerIdx = html.indexOf('data-layout-section="footer"');
-    assert.ok(headerIdx < bodyIdx && bodyIdx < sidebarIdx && sidebarIdx < mainIdx && mainIdx < footerIdx);
+    assert.ok(
+      headerIdx < bodyIdx &&
+        bodyIdx < sidebarIdx &&
+        sidebarIdx < contentColumnIdx &&
+        contentColumnIdx < mainIdx &&
+        mainIdx < footerIdx,
+      'Order must be Header -> Body(Sidebar, Right Column(Main -> Footer))'
+    );
+
+    const contentColumnHtml = html.slice(contentColumnIdx);
+    assert.ok(
+      contentColumnHtml.includes('data-layout-section="main"') &&
+        contentColumnHtml.includes('data-layout-section="footer"') &&
+        !contentColumnHtml.includes('data-layout-section="sidebar"'),
+      'Main and Footer must be grouped inside content-column while Sidebar remains outside on the left'
+    );
   });
 
   it('supports CSS length sidebarWidth and sidebarSelfSized mode', () => {
@@ -290,11 +311,12 @@ describe('Global Route Integration with BodyLayoutWrapper', () => {
     );
   });
 
-  it('applies +0.25rem increased responsive outer margin around the Auth route login card without horizontal overflow', () => {
+  it('applies responsive breakpoint sizing and backdrop padding around the Auth route login card without horizontal overflow', () => {
     const authSrc = readSrc('src/components/auth/AuthModal.tsx');
     assert.ok(
-      authSrc.includes('className="w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-md mx-3 my-7 sm:mx-4 sm:my-9"'),
-      'AuthModal login card wrapper should apply mx-3 my-7 sm:mx-4 sm:my-9 margin and synced calc widths'
+      authSrc.includes('mainClassName="relative z-10 w-full p-4 sm:p-6 md:p-8 overflow-y-auto"') &&
+        authSrc.includes('className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto my-auto"'),
+      'AuthModal login card wrapper should apply responsive breakpoints and backdrop padding'
     );
   });
 

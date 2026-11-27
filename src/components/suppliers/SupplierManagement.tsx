@@ -761,8 +761,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* ADD / EDIT SUPPLIER MODAL */}
       {isModalOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto">
-          <div className="relative w-full max-w-lg max-h-[92dvh] bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="relative w-full max-w-md sm:max-w-lg lg:max-w-xl my-auto max-h-[92dvh] bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900">
               <div className="flex items-center space-x-2.5">
                 <span className="p-2 bg-blue-500/10 dark:bg-purple-500/20 text-blue-600 dark:text-purple-300 rounded-lg">
@@ -803,11 +803,11 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-slate-700 dark:text-purple-200">Contact Phone</label>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                    <label className="block font-bold text-slate-700 dark:text-purple-200 truncate">Contact Phone</label>
                     {phone && isValidPhoneNumber(phone) && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
+                      <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
                         <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
                         <span>Valid</span>
                       </span>
@@ -834,8 +834,10 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-purple-200 mb-1">Email Address</label>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px] min-w-0">
+                    <label className="block font-bold text-slate-700 dark:text-purple-200 truncate">Email Address</label>
+                  </div>
                   <input
                     type="email"
                     placeholder="e.g. wholesale@nike.pk"
@@ -903,8 +905,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* VIEW SUPPLIER PURCHASES HISTORY MODAL */}
       {viewSupplierModalOpen && selectedSupplier && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh] border border-slate-200 dark:border-purple-800/80">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="relative w-full max-w-lg sm:max-w-2xl lg:max-w-3xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh] border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50/70 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 gap-2">
               <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 dark:bg-purple-500/20 border border-blue-200 dark:border-purple-400/30 flex items-center justify-center text-blue-600 dark:text-purple-300 font-bold text-xs sm:text-sm shadow-2xs shrink-0">
@@ -1175,8 +1177,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* DELETE CONFIRMATION DIALOG */}
       {deletingSupplierId && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 border border-slate-200 dark:border-purple-800/80">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto p-5 sm:p-6 md:p-8 space-y-4 border border-slate-200 dark:border-purple-800/80">
             <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
               <AlertCircle className="w-5 h-5" />
               <span>Confirm Supplier Deletion</span>

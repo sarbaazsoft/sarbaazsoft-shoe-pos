@@ -123,10 +123,10 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-2xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
+        className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh] border border-slate-200 dark:border-purple-800/80"
       >
         {/* MODAL HEADER ALIGNED WITH PRODUCT FORM MODAL */}
-        <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-4 sm:px-6 py-3.5 sm:py-4 shrink-0">
+        <div className="bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 border-b border-slate-200 dark:border-purple-800/80 text-slate-800 dark:text-white px-5 py-4 sm:px-8 sm:py-5 md:px-10 shrink-0">
           <div className="flex items-start sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-purple-500/20 dark:text-purple-300 border border-blue-500/20 dark:border-purple-400/30 flex items-center justify-center font-bold shadow-2xs shrink-0">
@@ -176,7 +176,7 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
         {/* WIZARD FORM CONTENT ALIGNED WITH PRODUCT FORM MODAL */}
         <form
           onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs bg-slate-50/50 dark:bg-[#070B14]"
+          className="flex-1 overflow-y-auto p-5 sm:p-8 md:p-10 space-y-4 sm:space-y-5 text-xs bg-slate-50/50 dark:bg-[#070B14]"
         >
           {status && !status.dbReady && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100 flex items-start gap-2.5">
@@ -246,9 +246,9 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Superadmin name */}
-                  <label className="block">
-                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                      <span>
+                  <label className="block min-w-0">
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[24px]">
+                      <span className="truncate">
                         Superadmin name <span className="text-rose-500 font-bold">*</span>
                       </span>
                     </span>
@@ -270,9 +270,9 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
                   </label>
 
                   {/* Superadmin email */}
-                  <label className="block">
-                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                      <span>
+                  <label className="block min-w-0">
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[24px]">
+                      <span className="truncate">
                         Superadmin email <span className="text-rose-500 font-bold">*</span>
                       </span>
                     </span>
@@ -295,15 +295,15 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
                   </label>
 
                   {/* Superadmin Phone / WhatsApp */}
-                  <label className="block sm:col-span-2 lg:col-span-1">
-                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                      <span>
+                  <label className="block sm:col-span-2 lg:col-span-1 min-w-0">
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[24px]">
+                      <span className="truncate">
                         Phone / WhatsApp <span className="text-rose-500 font-bold">*</span>
                       </span>
                       {phone && isValidPhoneNumber(phone) && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
+                        <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 animate-in fade-in duration-200">
                           <CheckCircle2 className="w-3 h-3 shrink-0" />
-                          <span>Valid phone</span>
+                          <span>Valid</span>
                         </span>
                       )}
                     </span>
@@ -356,12 +356,14 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Password */}
-                        <label className="block">
-                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                            <span>
+                        <label className="block min-w-0">
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[22px]">
+                            <span className="truncate">
                               Password <span className="text-rose-500 font-bold">*</span>
                             </span>
-                            <PasswordRequirementsTooltip minChars={8} password={password} />
+                            <span className="shrink-0">
+                              <PasswordRequirementsTooltip minChars={8} password={password} />
+                            </span>
                           </span>
                           <div className="relative">
                             <Lock className="w-4 h-4 text-slate-400 dark:text-purple-400 absolute left-3.5 top-3.5 pointer-events-none" />
@@ -398,9 +400,9 @@ export const InstallationWizard: React.FC<InstallationWizardProps> = ({ onComple
                         </label>
 
                         {/* Confirm password */}
-                        <label className="block">
-                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                            <span>
+                        <label className="block min-w-0">
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[22px]">
+                            <span className="truncate">
                               Confirm password <span className="text-rose-500 font-bold">*</span>
                             </span>
                           </span>

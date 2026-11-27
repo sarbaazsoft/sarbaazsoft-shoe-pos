@@ -44,7 +44,7 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="unsaved-changes-title"
-      className="fixed inset-0 z-[100] flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isSaving) {
           onStay();
@@ -52,7 +52,7 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = ({
       }}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-purple-800/80 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+        className="w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-purple-800/80 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

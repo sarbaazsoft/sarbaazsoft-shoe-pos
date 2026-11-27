@@ -495,10 +495,10 @@ export const CenteredLoadingSpinner: React.FC<CenteredLoadingSpinnerProps> = ({
         role="status"
         aria-live="polite"
         aria-label={label}
-        className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-5 bg-slate-950/75 backdrop-blur-xs"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-950/75 backdrop-blur-xs"
       >
         <div
-          className={`w-full max-w-md min-h-[240px] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl flex flex-col items-center justify-center gap-3 p-6 sm:p-8 transition-colors ${className}`}
+          className={`w-full max-w-xs sm:max-w-sm md:max-w-md my-auto min-h-[240px] bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl flex flex-col items-center justify-center gap-3 p-6 sm:p-8 transition-colors ${className}`}
         >
           <Loader2
             className="w-7 h-7 animate-spin text-purple-600 dark:text-purple-400"
@@ -536,7 +536,7 @@ export const CenteredLoadingSpinner: React.FC<CenteredLoadingSpinnerProps> = ({
       role="status"
       aria-live="polite"
       aria-label={label}
-      className={`bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm flex flex-col items-center justify-center gap-3 p-8 transition-colors ${
+      className={`w-full max-w-xs sm:max-w-sm md:max-w-md mx-auto bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/60 shadow-sm flex flex-col items-center justify-center gap-3 p-6 sm:p-8 transition-colors ${
         minHeightClass || 'min-h-[260px]'
       } ${className}`}
     >

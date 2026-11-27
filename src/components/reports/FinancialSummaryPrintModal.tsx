@@ -48,7 +48,7 @@ export const FinancialSummaryPrintModal: React.FC<FinancialSummaryPrintModalProp
 
   return (
     <div className="app-modal-overlay">
-      <div className="app-modal-container max-w-2xl w-full flex flex-col max-h-[92dvh]">
+      <div className="app-modal-container w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto flex flex-col max-h-[92dvh]">
         {/* Header */}
         <div className="bg-slate-900 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-white p-3.5 sm:p-5 border-b border-slate-700/60 dark:border-purple-800/80 flex items-center justify-between gap-2 no-print">
           <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">

@@ -65,14 +65,14 @@ export const NotificationStatusModal: React.FC<NotificationStatusModalProps> = (
 
   return (
     <AnimatePresence>
-      <div className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-900/60 backdrop-blur-sm">
+      <div className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-900/60 backdrop-blur-sm">
         <motion.div
           data-motion-modal="true"
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative w-full max-w-md max-h-[92dvh] flex flex-col bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto max-h-[92dvh] flex flex-col bg-white dark:bg-[#0E1628] rounded-2xl border border-slate-200 dark:border-purple-900/60 shadow-2xl overflow-hidden"
           role="dialog"
           aria-modal="true"
         >

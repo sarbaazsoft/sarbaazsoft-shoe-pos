@@ -222,12 +222,12 @@ export function clearStoredUnauthTenantId() {
 function PortalRouteFallback({ label = 'Loading...' }: { label?: string }) {
   return (
     <div
-      className="relative min-h-screen w-full flex items-center justify-center bg-slate-200 dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-200 p-7"
+      className="relative min-h-dvh w-full flex items-center justify-center bg-slate-200 dark:bg-[#0A0E1A] text-slate-700 dark:text-slate-200 p-4 sm:p-6 md:p-8 overflow-y-auto"
       role="status"
       aria-live="polite"
     >
       <ShowroomBackground intensity="portal" />
-      <div className="relative z-10 inline-flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md border border-slate-200/80 dark:border-indigo-500/20 shadow-sm">
+      <div className="w-full max-w-xs sm:max-w-sm md:max-w-md my-auto relative z-10 flex items-center justify-center gap-3 p-6 sm:p-8 rounded-2xl bg-white/95 dark:bg-[#131B2E]/95 backdrop-blur-md border border-slate-200/80 dark:border-indigo-500/20 shadow-sm">
         <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
         <span className="text-xs sm:text-sm font-semibold">{label}</span>
       </div>

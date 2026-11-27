@@ -275,11 +275,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   return (
     <div
       id="user-profile-modal-backdrop"
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto animate-in fade-in duration-150"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto animate-in fade-in duration-150"
     >
       <div
         id="user-profile-modal-card"
-        className="bg-white dark:bg-[#131B2E] w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col my-auto max-h-[92dvh]"
+        className="bg-white dark:bg-[#131B2E] w-full max-w-md sm:max-w-lg lg:max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 overflow-hidden flex flex-col my-auto max-h-[92dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

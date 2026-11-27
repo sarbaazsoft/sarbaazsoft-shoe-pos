@@ -718,13 +718,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({ companyS
       {/* DELETE CONFIRMATION DIALOG */}
       <AnimatePresence>
         {deletingCustomerId && (
-          <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
+          <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto">
             <motion.div
               data-motion-modal="true"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="app-card bg-white dark:bg-[#0E1628] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 border border-slate-200 dark:border-purple-800/80"
+              className="app-card bg-white dark:bg-[#0E1628] rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto p-5 sm:p-6 md:p-8 space-y-4 border border-slate-200 dark:border-purple-800/80"
             >
               <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
                 <AlertCircle className="w-5 h-5" />

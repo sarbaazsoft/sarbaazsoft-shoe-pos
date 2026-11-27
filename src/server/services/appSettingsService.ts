@@ -648,6 +648,31 @@ export async function updateAppSettings(
     }
   }
 
+  // Detect Firebase project / Sender ID / App ID / VAPID rotation before persisting so stale tokens from an older project are purged
+  const fcmRotationKeys = ['FCM_PROJECT_ID', 'FCM_MESSAGING_SENDER_ID', 'FCM_APP_ID', 'FCM_VAPID_KEY'] as const;
+  const hasFcmRotationInput = fcmRotationKeys.some((k) => cleanUpdates[k] !== undefined);
+  let shouldPurgeStaleFcmTokens = false;
+
+  if (hasFcmRotationInput) {
+    try {
+      const existingFcmRes = await pgClient.query<{ key: string; value: string }>(
+        `SELECT key, value FROM public.app_settings WHERE key = ANY($1::text[])`,
+        [Array.from(fcmRotationKeys)]
+      );
+      const prevMap = new Map(existingFcmRes.rows.map((r) => [r.key, String(r.value || '').trim()]));
+      for (const k of fcmRotationKeys) {
+        const nextVal = cleanUpdates[k];
+        if (nextVal !== undefined) {
+          const prevVal = prevMap.get(k) || '';
+          if (prevVal && nextVal && prevVal !== nextVal) {
+            shouldPurgeStaleFcmTokens = true;
+            break;
+          }
+        }
+      }
+    } catch {}
+  }
+
   for (const [key, value] of Object.entries(cleanUpdates)) {
     const def = APP_SETTINGS_DEFAULTS.find((d) => d.key === key);
     const category = def?.category || 'system';
@@ -671,6 +696,10 @@ export async function updateAppSettings(
         console.warn('Listener notice during setting update:', lErr);
       }
     }
+  }
+
+  if (shouldPurgeStaleFcmTokens) {
+    await pgClient.query(`DELETE FROM public.fcm_tokens`).catch(() => {});
   }
 
   return cleanUpdates;

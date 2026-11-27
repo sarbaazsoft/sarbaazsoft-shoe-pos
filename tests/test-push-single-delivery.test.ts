@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 
 import { pgClient } from '../src/db/index.ts';
 import { dispatchPosEmailAlert } from '../src/server/services/emailAlertService.ts';
+import { updateAppSettings } from '../src/server/services/appSettingsService.ts';
 import {
+  normalizeFcmPrivateKey,
   registerSseClient,
   testFcmPush,
 } from '../src/server/pushNotificationService.ts';
@@ -206,3 +208,136 @@ test('dispatchPosEmailAlert queries users with valid user_status_enum (APPROVED)
     (pgClient as any).query = origQuery;
   }
 });
+
+test('normalizeFcmPrivateKey parses PEM escapes, quoted snippets, and full Service Account JSON', () => {
+  const quoted = '"-----BEGIN PRIVATE KEY-----\\nABC123\\n-----END PRIVATE KEY-----\\n",';
+  const parsedQuoted = normalizeFcmPrivateKey(quoted);
+  assert.equal(parsedQuoted.privateKey, '-----BEGIN PRIVATE KEY-----\nABC123\n-----END PRIVATE KEY-----');
+
+  const fullJson = JSON.stringify({
+    type: 'service_account',
+    project_id: 'new-shoe-pos-99',
+    client_email: 'firebase-adminsdk@new-shoe-pos-99.iam.gserviceaccount.com',
+    private_key: '-----BEGIN PRIVATE KEY-----\nXYZ789\n-----END PRIVATE KEY-----\n',
+  });
+  const parsedJson = normalizeFcmPrivateKey(fullJson);
+  assert.equal(parsedJson.projectIdFromJson, 'new-shoe-pos-99');
+  assert.equal(parsedJson.clientEmailFromJson, 'firebase-adminsdk@new-shoe-pos-99.iam.gserviceaccount.com');
+  assert.equal(parsedJson.privateKey, '-----BEGIN PRIVATE KEY-----\nXYZ789\n-----END PRIVATE KEY-----');
+});
+
+test('FCM backend and client invalidate caches on key rotation and propagate real multicast failure reasons', () => {
+  const pushServiceSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'server', 'pushNotificationService.ts'),
+    'utf8'
+  );
+  assert.ok(
+    pushServiceSrc.includes("createHash('sha256')") && !pushServiceSrc.includes('privateKey.slice(0, 32)'),
+    'Must hash full private key with sha256 instead of prefix slicing'
+  );
+  assert.ok(
+    pushServiceSrc.includes("errCode === 'messaging/mismatched-credential'"),
+    'Must prune stale tokens belonging to an older Firebase project'
+  );
+  assert.ok(
+    pushServiceSrc.includes('...(formattedError ? { error: formattedError } : {})'),
+    'sendFcmPushToTokens must return detailed error message instead of leaving error undefined'
+  );
+
+  const firebaseConfigSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'services', 'firebaseConfig.ts'),
+    'utf8'
+  );
+  assert.ok(firebaseConfigSrc.includes('export async function resetFirebaseClientCache'));
+  assert.ok(firebaseConfigSrc.includes('FCM_CLIENT_CONFIG_SIG_KEY'));
+  assert.ok(firebaseConfigSrc.includes('cachedFirebaseConfigSig === nextConfigSig'));
+  assert.ok(
+    firebaseConfigSrc.includes('options?: { forceRefresh?: boolean }') &&
+      firebaseConfigSrc.includes('oldSub.unsubscribe()') &&
+      firebaseConfigSrc.includes("postMessage({ type: 'REINIT_FIREBASE_CONFIG' })"),
+    'acquireAndSyncFcmToken must support forced token/PushSubscription rotation and notify the Service Worker'
+  );
+  assert.ok(
+    !firebaseConfigSrc
+      .slice(
+        firebaseConfigSrc.indexOf('export async function resetFirebaseClientCache'),
+        firebaseConfigSrc.indexOf('export async function initFirebaseClient')
+      )
+      .includes('FCM_CLIENT_CONFIG_SIG_KEY'),
+    'resetFirebaseClientCache must preserve FCM_CLIENT_CONFIG_SIG_KEY so config rotation detection works'
+  );
+
+  const swSrc = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  assert.ok(
+    swSrc.includes("data.type === 'REINIT_FIREBASE_CONFIG'") &&
+      swSrc.includes('await app.delete()'),
+    'Service Worker must clear prior Firebase app instance and reinitialize on REINIT_FIREBASE_CONFIG'
+  );
+
+  const providersUiSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'settings', 'NotificationAlertProvidersSettings.tsx'),
+    'utf8'
+  );
+  assert.ok(providersUiSrc.includes('resetFirebaseClientCache(true)'));
+  assert.ok(providersUiSrc.includes('{ forceRefresh: true }'));
+  assert.ok(providersUiSrc.includes('configConsistencyWarning'));
+
+  const settingsViewSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'settings', 'SettingsView.tsx'),
+    'utf8'
+  );
+  assert.ok(
+    settingsViewSrc.includes('resetFirebaseClientCache(true)') &&
+      settingsViewSrc.includes("acquireAndSyncFcmToken('SUPERADMIN', { forceRefresh: true })"),
+    'SettingsView Save button must also rotate client FCM subscription when FCM settings are saved'
+  );
+});
+
+test('updateAppSettings purges stale fcm_tokens when Firebase project/sender/VAPID settings rotate', async () => {
+  const capturedSql: string[] = [];
+  const origQuery = pgClient.query.bind(pgClient);
+  (pgClient as any).query = async (sql: string) => {
+    const normalized = String(sql);
+    capturedSql.push(normalized);
+    if (normalized.includes('FROM public.app_settings WHERE key = ANY')) {
+      return {
+        rows: [
+          { key: 'FCM_PROJECT_ID', value: 'old-shoe-pos-project' },
+          { key: 'FCM_MESSAGING_SENDER_ID', value: '900875095665' },
+        ],
+        rowCount: 2,
+      };
+    }
+    return { rows: [], rowCount: 0 };
+  };
+
+  try {
+    await updateAppSettings(
+      {
+        FCM_PROJECT_ID: 'new-shoe-pos-project',
+        FCM_MESSAGING_SENDER_ID: '123456789012',
+      },
+      'SUPERADMIN',
+      { allowInternal: true }
+    );
+    assert.ok(
+      capturedSql.some((q) => q.includes('DELETE FROM public.fcm_tokens')),
+      'Rotating Firebase project or Sender ID must purge stale public.fcm_tokens rows'
+    );
+
+    capturedSql.length = 0;
+    await updateAppSettings(
+      { INVOICE_PREFIX: 'INV-' },
+      'SUPERADMIN',
+      { allowInternal: true }
+    );
+    assert.equal(
+      capturedSql.some((q) => q.includes('DELETE FROM public.fcm_tokens')),
+      false,
+      'Unrelated settings updates must not delete registered fcm_tokens'
+    );
+  } finally {
+    (pgClient as any).query = origQuery;
+  }
+});
+

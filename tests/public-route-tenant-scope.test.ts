@@ -31,8 +31,10 @@ import tenantSaasRoutes from '../src/server/routes/tenantSaasRoutes.ts';
 import {
   api,
   getActiveTenantId,
+  normalizePublicTenantIdParam,
   setActiveTenantId,
   setAuthSession,
+  stripTenantScopeFromSearch,
   clearAllSessionState,
 } from '../src/services/api.ts';
 
@@ -544,3 +546,190 @@ test('Public SSR views & routing guards handle tenantId=null (unscoped), tenantI
     'PublicHeader must not resurrect pos_unauth_scoped_tenant_id'
   );
 });
+
+test('Public route tenant scope resolution discards missing, malformed, and non-existent tenants cleanly', async () => {
+  // 1. Helper normalization & URL search stripping
+  assert.equal(normalizePublicTenantIdParam(undefined), '');
+  assert.equal(normalizePublicTenantIdParam(null), '');
+  assert.equal(normalizePublicTenantIdParam(''), '');
+  assert.equal(normalizePublicTenantIdParam('   '), '');
+  assert.equal(normalizePublicTenantIdParam('abc'), '');
+  assert.equal(normalizePublicTenantIdParam('-1'), '');
+  assert.equal(normalizePublicTenantIdParam('1.5'), '');
+  assert.equal(normalizePublicTenantIdParam('1e2'), '');
+  assert.equal(normalizePublicTenantIdParam('1px'), '');
+  assert.equal(normalizePublicTenantIdParam('0'), '0');
+  assert.equal(normalizePublicTenantIdParam('00'), '0');
+  assert.equal(normalizePublicTenantIdParam('1'), '1');
+  assert.equal(normalizePublicTenantIdParam('01'), '1');
+  assert.equal(normalizePublicTenantIdParam(' 42 '), '42');
+
+  assert.equal(stripTenantScopeFromSearch('?tenantId=999'), '');
+  assert.equal(stripTenantScopeFromSearch('?storeId=abc&mode=login&email=a@b.com'), '?mode=login&email=a%40b.com');
+  assert.equal(stripTenantScopeFromSearch('?tenant_id=1&store_id=2'), '');
+
+  // 2. api.saas.resolve never forwards malformed tenantId from URL or explicit args
+  const capturedRequests: Array<{ url: string; headers: Record<string, string> }> = [];
+  const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const rawHeaders = (init?.headers || {}) as Record<string, string>;
+    capturedRequests.push({ url: String(input), headers: rawHeaders });
+    return new Response(
+      JSON.stringify({ ok: true, availableTenants: [], resolution: { mode: 'LANDING', tenant: null } }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  await withBrowserEnv({ pathname: '/auth', search: '?tenantId=abc&mode=login', fetchMock }, async ({ setLocation }) => {
+    assert.equal(getActiveTenantId(), null);
+
+    capturedRequests.length = 0;
+    await api.saas.resolve(undefined);
+    await api.saas.resolve('abc');
+    await api.saas.resolve(-5);
+
+    setLocation('/', '?storeId=-1&ref=pwa');
+    assert.equal(getActiveTenantId(), null);
+    await api.saas.resolve(undefined);
+
+    for (const req of capturedRequests) {
+      assert.equal(req.url.includes('tenantId='), false, `Malformed tenantId leaked into ${req.url}`);
+      assert.equal(req.url.includes('storeId='), false, `Malformed storeId leaked into ${req.url}`);
+      assert.equal(req.headers['X-Tenant-Id'], undefined, `Unexpected X-Tenant-Id in ${req.url}`);
+    }
+    assert.equal(capturedRequests[0].url.includes('mode=login'), true);
+    assert.equal(capturedRequests[3].url.includes('ref=pwa'), true);
+  });
+
+  // 3. Backend /api/saas/resolve & /api/auth/login handle missing/non-existent/invalid tenants and unscoped fallback
+  await ensureSaasControlPlane();
+  const app = express();
+  app.use(express.json());
+  app.use('/api/auth', authRoutes);
+  app.use('/api', tenantSaasRoutes);
+
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const addr = server.address() as { port: number };
+    const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+    const notFoundRes = await fetch(`${baseUrl}/api/saas/resolve?tenantId=999999`);
+    assert.equal(notFoundRes.status, 200);
+    const notFoundBody = (await notFoundRes.json()) as {
+      resolution: { mode: string; tenant: unknown };
+      availableTenants: Array<{ id: number; name: string }>;
+    };
+    assert.equal(notFoundBody.resolution.mode, 'TENANT_NOT_FOUND');
+    assert.equal(notFoundBody.resolution.tenant, null);
+
+    const invalidRes = await fetch(`${baseUrl}/api/saas/resolve?tenantId=invalid-abc`);
+    assert.equal(invalidRes.status, 200);
+    const invalidBody = (await invalidRes.json()) as {
+      resolution: { mode: string; tenant: unknown };
+    };
+    assert.equal(invalidBody.resolution.mode, 'LANDING');
+    assert.equal(invalidBody.resolution.tenant, null);
+
+    const targetStoreId = notFoundBody.availableTenants[0]?.id || 1;
+    const tempPassword = 'TempFallbackCheck!2026';
+    const tempHash = await bcrypt.hash(tempPassword, 6);
+    const tempOwnerEmail = `temp-fallback-${Date.now()}@example.com`;
+    const insertedOwner = await pgClient.query<{ id: number }>(
+      `INSERT INTO users (tenant_id, name, email, phone, password_hash, quick_password, role, status, active)
+       VALUES ($1, $2, $3, $4, $5, $6, 'ADMIN', 'APPROVED', true)
+       RETURNING id`,
+      [targetStoreId, 'Fallback Owner', tempOwnerEmail, '', tempHash, '']
+    );
+
+    try {
+      // Stale non-existent tenant scope fails cleanly with TENANT_NOT_FOUND, then unscoped fallback succeeds
+      const scopedInvalidLogin = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: tempOwnerEmail, password: tempPassword, tenantId: 999999 }),
+      });
+      assert.equal(scopedInvalidLogin.status, 404);
+      const scopedInvalidBody = (await scopedInvalidLogin.json()) as { code?: string };
+      assert.equal(scopedInvalidBody.code, 'TENANT_NOT_FOUND');
+
+      const unscopedFallbackLogin = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: tempOwnerEmail, password: tempPassword, tenantId: null }),
+      });
+      assert.equal(unscopedFallbackLogin.status, 200);
+      const unscopedFallbackBody = (await unscopedFallbackLogin.json()) as {
+        user: { tenantId: number; role: string };
+      };
+      assert.equal(unscopedFallbackBody.user.tenantId, targetStoreId);
+    } finally {
+      await pgClient.query('DELETE FROM users WHERE id = $1', [insertedOwner.rows[0].id]);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+
+  // 4. SSR AuthModal falls back cleanly to generic Auth UI for malformed or non-existent/unverified tenants
+  for (const caseConfig of [
+    { search: '?tenantId=abc', companySettings: { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' } },
+    { search: '?tenantId=-1', companySettings: { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' } },
+    { search: '?tenantId=999', companySettings: { name: 'SarbaazSoft Shoe POS', logo: '/pwa-192x192.png' } },
+    { search: '?tenantId=999', companySettings: { tenant_id: 999, name: 'Store #999', logo: '/pwa-192x192.png' } },
+  ]) {
+    await withBrowserEnv({ pathname: '/auth', search: caseConfig.search }, () => {
+      const html = renderToStaticMarkup(
+        React.createElement(
+          ThemeProvider,
+          null,
+          React.createElement(AuthModal, {
+            onSuccess: () => {},
+            onBack: () => {},
+            companySettings: caseConfig.companySettings,
+          })
+        )
+      );
+      assert.equal(html.includes('id="auth-tenant-scope-banner"'), false);
+      assert.equal(html.includes('id="auth-store-name"'), false);
+      assert.equal(html.includes('Store #999'), false);
+      assert.equal(html.includes('Tenant #999'), false);
+      assert.equal(html.includes('id="auth-sign-in-different-store-link"'), false);
+      assert.equal(html.includes('Store Directory'), true);
+      assert.equal(html.includes('id="auth-register-free-trial-link"'), true);
+    });
+  }
+
+  // 5. SSR SaasLandingPage hides tenant banner and stale branding when unauthTenantId is invalid or not found
+  for (const invalidTid of ['999', 'abc', '-2', '1.5']) {
+    await withBrowserEnv({ pathname: '/', search: `?tenantId=${invalidTid}` }, () => {
+      const html = renderToStaticMarkup(
+        React.createElement(
+          ThemeProvider,
+          null,
+          React.createElement(SaasLandingPage, {
+            availableTenants: [{ id: 1, name: 'Test Store 1' } as any],
+            unauthTenantId: invalidTid,
+            onGlobalLogin: () => {},
+            onOpenSuperAdmin: () => {},
+          })
+        )
+      );
+      assert.equal(html.includes('id="unauth-tenant-scope-banner"'), false);
+      assert.equal(html.includes('Store #999'), false);
+      assert.equal(html.includes('Tenant #999'), false);
+    });
+  }
+
+  // 6. Static runtime invariants for discarding invalid scopes without warnings or stale storage
+  const appSrc = fs.readFileSync(path.join(ROOT, 'src/App.tsx'), 'utf8');
+  const authModalSrc = fs.readFileSync(path.join(ROOT, 'src/components/auth/AuthModal.tsx'), 'utf8');
+  const landingSrc = fs.readFileSync(path.join(ROOT, 'src/components/saas/SaasLandingPage.tsx'), 'utf8');
+
+  assert.equal(appSrc.includes('discardInvalidPublicTenantScope'), true);
+  assert.equal(appSrc.includes('setTenantIdNotice(`Invalid or inaccessible store tenantId'), false);
+  assert.equal(appSrc.includes('setTenantIdNotice(`Store tenant #'), false);
+  assert.equal(appSrc.includes("if (effectiveMode !== 'LANDING' && effectiveMode !== 'AUTH') {\n        console.warn('Tenant resolution warning:', err);"), true);
+  assert.equal(authModalSrc.includes('discardInvalidScope'), true);
+  assert.equal(authModalSrc.includes('isStoreScopeVerified'), true);
+  assert.equal(landingSrc.includes('isSuperAdminUnauthScope || Boolean(matchedScopedStore)'), true);
+});
+

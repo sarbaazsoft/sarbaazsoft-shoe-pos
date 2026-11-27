@@ -50,7 +50,7 @@ export const LicenseAgreementModal: React.FC<LicenseAgreementModalProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="license-agreement-modal-title"
-          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/65 backdrop-blur-xs px-2 py-2.5 sm:px-3 sm:py-4 overflow-y-auto"
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
@@ -61,7 +61,7 @@ export const LicenseAgreementModal: React.FC<LicenseAgreementModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full max-w-2xl rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90dvh] ${
+            className={`relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90dvh] ${
               isDark
                 ? 'bg-[#0F1629] border-indigo-500/30 text-slate-100'
                 : 'bg-white border-slate-200 text-slate-900'

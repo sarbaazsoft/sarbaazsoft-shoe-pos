@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { initializeApp, cert, getApps, deleteApp, type App } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import type { Response } from 'express';
@@ -41,6 +42,56 @@ export { normalizeVapidPublicKey, NOTIFICATION_BADGE_ICON };
 
 let firebaseApp: App | null = null;
 let lastCredentialSignature = '';
+let lastAdminInitError: string | null = null;
+
+export function normalizeFcmPrivateKey(rawPrivateKey: string): {
+  privateKey: string;
+  projectIdFromJson?: string;
+  clientEmailFromJson?: string;
+} {
+  let raw = String(rawPrivateKey || '').trim();
+  if (!raw) return { privateKey: '' };
+
+  let projectIdFromJson: string | undefined;
+  let clientEmailFromJson: string | undefined;
+
+  // Support pasting the entire Firebase Service Account JSON file
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.private_key === 'string') {
+        raw = parsed.private_key;
+        if (typeof parsed.project_id === 'string' && parsed.project_id.trim()) {
+          projectIdFromJson = parsed.project_id.trim();
+        }
+        if (typeof parsed.client_email === 'string' && parsed.client_email.trim()) {
+          clientEmailFromJson = parsed.client_email.trim();
+        }
+      }
+    } catch {}
+  }
+
+  // Strip trailing comma or accidental surrounding quotes from JSON snippet pastes
+  raw = raw.replace(/,\s*$/, '').trim();
+  if (
+    (raw.startsWith('"') && raw.endsWith('"')) ||
+    (raw.startsWith("'") && raw.endsWith("'"))
+  ) {
+    raw = raw.slice(1, -1).trim();
+  }
+
+  const normalized = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .trim();
+
+  return {
+    privateKey: normalized,
+    projectIdFromJson,
+    clientEmailFromJson,
+  };
+}
 
 /**
  * Initializes or retrieves the Firebase Admin App instance.
@@ -52,20 +103,22 @@ export async function getFirebaseAdmin(): Promise<App | null> {
     getAppSetting('FCM_CLIENT_EMAIL', ''),
     getAppSetting('FCM_PRIVATE_KEY', ''),
   ]);
-  const projectId = (rawProjectId || '').trim();
-  const clientEmail = (rawClientEmail || '').trim();
-  let privateKey = (rawPrivateKey || '').trim();
-
-  if (privateKey) {
-    // Format PEM newlines properly whether stored as literal \n or escaped \\n
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
+  const parsedKey = normalizeFcmPrivateKey(rawPrivateKey);
+  const projectId = (rawProjectId || '').trim() || parsedKey.projectIdFromJson || '';
+  const clientEmail = (rawClientEmail || '').trim() || parsedKey.clientEmailFromJson || '';
+  const privateKey = parsedKey.privateKey;
 
   if (!projectId || !clientEmail || !privateKey) {
+    lastAdminInitError = null;
     return null;
   }
 
-  const sig = `${projectId}:${clientEmail}:${privateKey.slice(0, 32)}`;
+  // Hash full key content — prefix slicing collides across RSA PKCS#8 keys!
+  const sig = crypto
+    .createHash('sha256')
+    .update(`${projectId}:${clientEmail}:${privateKey}`)
+    .digest('hex');
+
   if (firebaseApp && lastCredentialSignature === sig) {
     return firebaseApp;
   }
@@ -89,10 +142,14 @@ export async function getFirebaseAdmin(): Promise<App | null> {
       projectId,
     });
     lastCredentialSignature = sig;
+    lastAdminInitError = null;
     console.log(`🔥 [FCM] Firebase Admin SDK initialized successfully for project: ${projectId}`);
     return firebaseApp;
   } catch (err: any) {
-    console.warn('⚠️ [FCM] Could not initialize Firebase Admin SDK:', err?.message || err);
+    firebaseApp = null;
+    lastCredentialSignature = '';
+    lastAdminInitError = err?.message || 'Invalid Firebase Admin SDK credentials.';
+    console.warn('⚠️ [FCM] Could not initialize Firebase Admin SDK:', lastAdminInitError);
     return null;
   }
 }
@@ -100,6 +157,7 @@ export async function getFirebaseAdmin(): Promise<App | null> {
 // Re-configure whenever FCM credentials are saved dynamically via the settings API
 registerSettingsUpdateListener((key) => {
   if (['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'].includes(key)) {
+    lastCredentialSignature = '';
     void getFirebaseAdmin().catch(() => {});
   }
 });
@@ -549,7 +607,9 @@ export async function sendFcmPushToTokens(
       success: false,
       sentCount: 0,
       failureCount: tokens.length,
-      error: 'Firebase Admin SDK credentials (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) are not configured in SuperAdmin settings.',
+      error:
+        lastAdminInitError ||
+        'Firebase Admin SDK credentials (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) are not configured in SuperAdmin settings.',
     };
   }
 
@@ -572,6 +632,9 @@ export async function sendFcmPushToTokens(
     let totalSent = 0;
     let totalFailure = 0;
     const tokensToRemove: string[] = [];
+    let firstFailureCode = '';
+    let firstFailureMessage = '';
+    let sawMismatchedCredential = false;
 
     for (let offset = 0; offset < uniqueTokens.length; offset += FCM_MULTICAST_BATCH_SIZE) {
       const batchTokens = uniqueTokens.slice(offset, offset + FCM_MULTICAST_BATCH_SIZE);
@@ -604,13 +667,27 @@ export async function sendFcmPushToTokens(
 
       response.responses.forEach((resp: any, idx: number) => {
         if (!resp.success && resp.error) {
-          const errCode = resp.error.code;
+          const errCode = String(resp.error.code || '').trim();
+          const errMsg = String(resp.error.message || '').trim();
+          if (!firstFailureCode && !firstFailureMessage) {
+            firstFailureCode = errCode;
+            firstFailureMessage = errMsg;
+          }
           if (
+            errCode === 'messaging/mismatched-credential' ||
+            errMsg.toLowerCase().includes('senderid mismatch')
+          ) {
+            sawMismatchedCredential = true;
+            tokensToRemove.push(batchTokens[idx]);
+          } else if (
             errCode === 'messaging/invalid-registration-token' ||
             errCode === 'messaging/registration-token-not-registered'
           ) {
             tokensToRemove.push(batchTokens[idx]);
           }
+          console.warn(
+            `[FCM] Token delivery failed (${errCode || 'unknown'}): ${errMsg || 'no details'}`
+          );
         }
       });
     }
@@ -621,10 +698,24 @@ export async function sendFcmPushToTokens(
         .catch(() => {});
     }
 
+    const success = totalSent > 0 || totalFailure === 0;
+    let formattedError: string | undefined;
+    if (!success) {
+      if (sawMismatchedCredential) {
+        formattedError =
+          'SenderId mismatch: stale device token(s) belonged to an older Firebase project and have been cleared. Click "Enable Push on This Device" (or refresh) and test again.';
+      } else if (firstFailureCode && firstFailureMessage) {
+        formattedError = `[${firstFailureCode}] ${firstFailureMessage}`;
+      } else {
+        formattedError = firstFailureMessage || firstFailureCode || 'FCM rejected delivery to registered token(s).';
+      }
+    }
+
     return {
-      success: totalSent > 0 || totalFailure === 0,
+      success,
       sentCount: totalSent,
       failureCount: totalFailure,
+      ...(formattedError ? { error: formattedError } : {}),
     };
   } catch (err: any) {
     console.error('[FCM] Error dispatching push notification:', err);
@@ -632,7 +723,7 @@ export async function sendFcmPushToTokens(
       success: false,
       sentCount: 0,
       failureCount: uniqueTokens.length,
-      error: err?.message || 'Failed to dispatch FCM push notification',
+      error: err?.message || err?.code || 'Failed to dispatch FCM push notification',
     };
   }
 }

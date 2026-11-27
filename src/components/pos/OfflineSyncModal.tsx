@@ -78,7 +78,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
   return (
     <AnimatePresence>
       <div
-        className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-900/60 backdrop-blur-sm no-print"
+        className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto bg-slate-900/60 backdrop-blur-sm no-print"
         onClick={onClose}
       >
         <motion.div
@@ -88,7 +88,7 @@ export const OfflineSyncModal: React.FC<OfflineSyncModalProps> = ({
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-xl bg-white dark:bg-[#0E1628] rounded-2xl border border-primary-200/80 dark:border-primary-900/60 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh]"
+          className="relative w-full max-w-md sm:max-w-lg lg:max-w-xl my-auto bg-white dark:bg-[#0E1628] rounded-2xl border border-primary-200/80 dark:border-primary-900/60 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90dvh]"
           role="dialog"
           aria-modal="true"
         >

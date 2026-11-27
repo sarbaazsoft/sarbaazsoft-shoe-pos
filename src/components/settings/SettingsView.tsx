@@ -18,6 +18,7 @@ import { PasswordRequirementsTooltip } from '../common/PasswordRequirementsToolt
 import { evaluatePasswordStrength } from '../../utils/passwordStrength.ts';
 const NotificationAlertProvidersSettings = lazyWithRetry(() => import('./NotificationAlertProvidersSettings.tsx'), (m) => m.NotificationAlertProvidersSettings, '/src/components/settings/NotificationAlertProvidersSettings.tsx');
 import type { FcmProviderSettingsState } from './NotificationAlertProvidersSettings.tsx';
+import { acquireAndSyncFcmToken, resetFirebaseClientCache } from '../../services/firebaseConfig.ts';
 const StoreNotificationPreferencesCard = lazyWithRetry(() => import('./StoreNotificationPreferencesCard.tsx'), (m) => m.StoreNotificationPreferencesCard, '/src/components/settings/StoreNotificationPreferencesCard.tsx');
 import { emitDataSync } from '../../utils/dataSyncBus.ts';
 import { useRouteActivity } from '../../context/RouteLifecycleContext.tsx';
@@ -1209,6 +1210,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       setAppSettingsForm((prev) => ({ ...prev, ...resolvedUpdates }));
       setSavedAppSettings((prev) => ({ ...prev, ...resolvedUpdates }));
+
+      if (!onlyNotificationTriggers) {
+        void resetFirebaseClientCache(true).then(() => {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            return acquireAndSyncFcmToken('SUPERADMIN', { forceRefresh: true }).catch(() => null);
+          }
+          return null;
+        });
+      }
 
       setTimeout(() => setAppSettingsSuccess(false), 4500);
       onSettingsUpdated();
@@ -2445,9 +2455,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Subscription Plan */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 block">
-                  Subscription Plan <span className="text-slate-400 dark:text-slate-500 font-normal text-[11px] ml-1">(plan)</span>
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[20px]">
+                  <span className="truncate">
+                    Subscription Plan <span className="text-slate-400 dark:text-slate-500 font-normal text-[11px] ml-1">(plan)</span>
+                  </span>
                 </label>
                 <div className="h-11 px-3.5 rounded-xl border border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-[#060B18]/90 flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-900 dark:text-white">
@@ -2473,10 +2485,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
 
               {/* Subscription Expiry & Days Remaining */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>Valid Until / Expiry</span>
-                  <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[20px]">
+                  <span className="truncate">Valid Until / Expiry</span>
+                  <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0 whitespace-nowrap">
                     {subscriptionInfo.daysRemaining} days left
                   </span>
                 </label>
@@ -2544,9 +2556,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {/* company_name (Text, Required) */}
-              <div className="md:col-span-2">
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>
+              <div className="md:col-span-2 min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[24px]">
+                  <span className="truncate">
                     Company Name <span className="text-rose-500 font-bold">*</span>
                     <span className="text-slate-400 dark:text-slate-500 font-normal text-[11px] ml-1.5">(company_name)</span>
                   </span>
@@ -2577,14 +2589,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* company_phone (Text, Required) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[24px]">
+                  <span className="truncate">
                     Company Phone <span className="text-rose-500 font-bold">*</span>
                   </span>
                   {isValidPhoneNumber(formData.company_phone, 10, 15) && (
-                    <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Valid ({formData.company_phone.replace(/\D/g, '').length} digits)
+                    <span className="text-[11px] font-mono shrink-0 whitespace-nowrap text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in duration-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Valid
                     </span>
                   )}
                 </label>
@@ -2626,18 +2638,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
                 {!formErrors.company_phone && isValidPhoneNumber(formData.company_phone, 10, 15) && (
                   <p className="text-emerald-600 dark:text-emerald-400 text-[11px] mt-1.5 font-medium flex items-center gap-1 animate-in fade-in duration-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Phone number verified. Hyphens applied automatically.
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Phone verified ({formData.company_phone.replace(/\D/g, '').length} digits). Hyphens applied automatically.
                   </p>
                 )}
               </div>
 
               {/* company_email (Email format) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[24px]">
+                  <span className="truncate">
                     Company Email
-                 </span>
-                 <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
                     Optional
                   </span>
                 </label>
@@ -2666,12 +2678,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* strn (Text, Optional - Sales Tax Registration Number) */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    STRN 
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[24px]">
+                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    STRN
                   </label>
-                  <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
                     Optional
                   </span>
                 </div>
@@ -2689,12 +2701,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* tax_id (Text, Optional - NTN / Tax ID) */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    Tax ID / NTN 
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[24px]">
+                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                    Tax ID / NTN
                   </label>
-                  <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
                     Optional
                   </span>
                 </div>
@@ -2712,12 +2724,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* website (URL, Optional) */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[24px]">
+                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
                     Website
                   </label>
-                  <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
                     Optional
                   </span>
                 </div>
@@ -2734,12 +2746,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Logo URL & Receipt Printout Store Logo Toggle / Upload */}
-              <div className="md:col-span-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+              <div className="md:col-span-2 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[24px]">
+                  <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
                     Company Brand Logo URL
                   </label>
-                  <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-full">
                     Optional
                   </span>
                 </div>
@@ -2945,13 +2957,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
               {/* currency_name (Text, Required) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[20px]">
+                  <span className="truncate">
                     Currency Name <span className="text-rose-500 font-bold">*</span>
                   </span>
                   {effectivePosLocked && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-600 dark:text-amber-400">
+                    <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-[10px] font-mono text-amber-600 dark:text-amber-400">
                       <Lock className="w-2.5 h-2.5" /> Locked
                     </span>
                   )}
@@ -2988,13 +3000,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* currency_symbol (Text, Required) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[20px]">
+                  <span className="truncate">
                     Currency Symbol <span className="text-rose-500 font-bold">*</span>
                   </span>
                   {effectivePosLocked && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-600 dark:text-amber-400">
+                    <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-[10px] font-mono text-amber-600 dark:text-amber-400">
                       <Lock className="w-2.5 h-2.5" /> Locked
                     </span>
                   )}
@@ -3031,12 +3043,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Low Stock Threshold (Store-Type-Aware) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between">
-                  <span>Low stock threshold</span>
+              <div className="min-w-0">
+                <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center justify-between gap-2 min-h-[20px]">
+                  <span className="truncate">Low stock threshold</span>
                   {formData.business_type === 'WHOLESALE' && (
-                    <span className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      Cartons (= {formData.low_stock_threshold} Pairs)
+                    <span className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0 whitespace-nowrap">
+                      Cartons (×12)
                     </span>
                   )}
                 </label>
@@ -3659,7 +3671,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <AnimatePresence>
             {userToDelete && (
               <div
-                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center px-3 py-3.5 sm:px-4 sm:py-5 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+                className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
                 onClick={() => !isDeletingUser && setUserToDelete(null)}
               >
                 <motion.div
@@ -3668,7 +3680,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 16 }}
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-md max-h-[92dvh] overflow-y-auto"
+                  className="bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-purple-800/80 w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto max-h-[92dvh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Header */}
@@ -4100,10 +4112,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Resend API Key (<code className="text-purple-600 dark:text-purple-400">resend_api_key</code>)
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Resend API Key</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(resend_api_key)</code>
                       </label>
                       <div className="relative">
                         <input
@@ -4128,9 +4141,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Sender Email Address (<code className="text-purple-600 dark:text-purple-400">RESEND_FROM_EMAIL</code>)
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Sender Email Address</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(RESEND_FROM_EMAIL)</code>
                       </label>
                       <input
                         type="email"
@@ -4153,9 +4167,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Sender Header &amp; Display Name (<code className="text-purple-600 dark:text-purple-400">RESEND_FROM</code>)
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Sender Header &amp; Display Name</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(RESEND_FROM)</code>
                       </label>
                       <input
                         type="text"
@@ -4175,9 +4190,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Email Notification Webhook (<code className="text-purple-600 dark:text-purple-400">EMAIL_WEBHOOK_URL</code>)
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Email Notification Webhook</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(EMAIL_WEBHOOK_URL)</code>
                       </label>
                       <input
                         type="text"
@@ -4188,9 +4204,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Resend Delivery Webhook (<code className="text-purple-600 dark:text-purple-400">RESEND_WEBHOOK_URL</code>)
+                    <div className="sm:col-span-2 min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Resend Delivery Webhook</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(RESEND_WEBHOOK_URL)</code>
                       </label>
                       <input
                         type="text"
@@ -4232,10 +4249,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Sender Name (<code className="text-purple-600 dark:text-purple-400">GMAIL_FROM_NAME</code>)
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Sender Name</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(GMAIL_FROM_NAME)</code>
                       </label>
                       <input
                         type="text"
@@ -4249,9 +4267,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Platform Gmail Address (<code className="text-purple-600 dark:text-purple-400">GMAIL_USER</code>)
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Platform Gmail Address</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(GMAIL_USER)</code>
                       </label>
                       <input
                         type="email"
@@ -4265,9 +4284,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Platform Gmail App Password (<code className="text-purple-600 dark:text-purple-400">GMAIL_APP_PASSWORD</code>)
+                    <div className="min-w-0">
+                      <label className="flex items-center justify-between gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 min-h-[18px] min-w-0">
+                        <span className="truncate">Gmail App Password</span>
+                        <code className="shrink-0 whitespace-nowrap text-[10px] text-purple-600 dark:text-purple-400 font-normal">(GMAIL_APP_PASSWORD)</code>
                       </label>
                       <div className="relative">
                         <input
@@ -5672,13 +5692,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {isRenewModalOpen && (
         <div
           id="renew-subscription-modal"
-          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto"
+          className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsRenewModalOpen(false);
           }}
         >
           <div
-            className="relative w-full max-w-xl bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[94dvh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-200"
+            className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[94dvh] border border-slate-200 dark:border-purple-800/80 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header matching ProductFormModal dark gradient */}
@@ -6088,8 +6108,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Camera Capture Modal for Store Receipt Logo */}
       {isCameraOpen && (
-        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5">
-          <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl max-w-md w-full max-h-[92dvh] overflow-y-auto">
+        <div className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-purple-800/70 shadow-2xl w-full max-w-sm sm:max-w-md lg:max-w-lg my-auto max-h-[92dvh] overflow-y-auto">
             <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 dark:border-purple-900/50">
               <div className="flex items-center space-x-2">
                 <Camera className="w-4 h-4 text-purple-600 dark:text-purple-400" />

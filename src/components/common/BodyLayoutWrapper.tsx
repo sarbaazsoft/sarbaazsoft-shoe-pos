@@ -77,8 +77,11 @@ function getMainOverflowXClass(overflow?: RouteLayoutMetadata['mainOverflowX']):
  *
  * Structure:
  *  - Header at top (optional, controlled via route metadata or props)
- *  - Middle flex row (`flex-1 flex min-w-0`): Sidebar (left, configurable width) + Main Content (right, `flex: 1`)
- *  - Footer at bottom (pins to bottom on short pages, follows content naturally on long pages)
+ *  - Middle flex row (`flex-1 flex min-w-0`):
+ *    - Left: Sidebar (optional, configurable width)
+ *    - Right (`flex-1 min-w-0 min-h-0 flex flex-col justify-between`):
+ *      - Main Content Area on top (`flex-1 min-w-0 flex flex-col`)
+ *      - Footer at bottom (pins to bottom on short pages, follows content naturally on long pages)
  *  - Outer wrapper uses `min-h-[100dvh]` (`min-height: 100dvh`)
  */
 export const BodyLayoutWrapper: React.FC<BodyLayoutWrapperProps> = ({
@@ -182,25 +185,30 @@ export const BodyLayoutWrapper: React.FC<BodyLayoutWrapperProps> = ({
           </div>
         )}
 
-        <main
-          ref={mainRef}
-          data-layout-section="main"
-          className={`flex-1 min-w-0 flex flex-col ${overflowXClass} ${
-            resolvedCenterMain ? 'items-center justify-center' : ''
-          } ${mainClassName}`}
-        >
-          {children}
-        </main>
-      </div>
-
-      {hasFooter && (
         <div
-          data-layout-section="footer"
-          className={`shrink-0 w-full relative z-10 ${footerContainerClassName}`}
+          data-layout-section="content-column"
+          className="flex-1 min-w-0 min-h-0 flex flex-col justify-between"
         >
-          {footer}
+          <main
+            ref={mainRef}
+            data-layout-section="main"
+            className={`flex-1 min-w-0 flex flex-col ${overflowXClass} ${
+              resolvedCenterMain ? 'items-center justify-center' : ''
+            } ${mainClassName}`}
+          >
+            {children}
+          </main>
+
+          {hasFooter && (
+            <div
+              data-layout-section="footer"
+              className={`shrink-0 w-full relative z-10 ${footerContainerClassName}`}
+            >
+              {footer}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

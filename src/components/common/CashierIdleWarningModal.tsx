@@ -57,9 +57,9 @@ export const CashierIdleWarningModal: React.FC<CashierIdleWarningModalProps> = (
       aria-modal="true"
       aria-labelledby="cashier-idle-warning-title"
       aria-describedby="cashier-idle-warning-desc"
-      className="form-modal-theme fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto animate-in fade-in duration-150"
+      className="form-modal-theme fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto animate-in fade-in duration-150"
     >
-      <div className="relative w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-2xl bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-purple-800/70 shadow-2xl p-4 sm:p-6 space-y-4 sm:space-y-5 my-auto">
+      <div className="relative w-full max-w-sm sm:max-w-md lg:max-w-lg max-h-[92dvh] overflow-y-auto rounded-2xl bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-purple-800/70 shadow-2xl p-5 sm:p-6 md:p-8 space-y-4 sm:space-y-5 my-auto">
         <div className="flex items-start gap-3.5">
           <div
             className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border shadow-xs ${

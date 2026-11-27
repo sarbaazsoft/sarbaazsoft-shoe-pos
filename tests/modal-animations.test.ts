@@ -56,7 +56,7 @@ test('Standalone non-form-modal-theme modals apply modal-backdrop-enter and moda
 
   const dataBackupRestore = readWorkspaceFile('src/components/settings/DataBackupRestore.tsx');
   assert.ok(dataBackupRestore.includes('modal-backdrop-enter fixed inset-0'));
-  assert.ok(dataBackupRestore.includes('modal-panel-enter w-full max-w-lg'));
+  assert.ok(dataBackupRestore.includes('modal-panel-enter w-full max-w-md sm:max-w-lg lg:max-w-xl'));
 
   const reportsDashboard = readWorkspaceFile('src/components/reports/ReportsDashboard.tsx');
   assert.equal((reportsDashboard.match(/modal-backdrop-enter fixed inset-0/g) || []).length, 2);
@@ -77,10 +77,47 @@ test('FreeTrialOnboardingModal and PasswordRequirementsTooltip prevent horizonta
 
   const modal = readWorkspaceFile('src/components/saas/FreeTrialOnboardingModal.tsx');
   assert.ok(modal.includes('overflow-y-auto overflow-x-hidden'), 'Overlay and body must prevent horizontal scroll');
-  assert.ok(modal.includes('w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-xl min-w-0 mx-3 my-7 sm:mx-4 sm:my-9 max-h-[calc(100dvh-3.5rem)] sm:max-h-[calc(100dvh-4.5rem)]'), 'Modal panel should match +0.25rem responsive outer margin without horizontal overflow');
+  assert.ok(modal.includes('w-full max-w-lg sm:max-w-xl lg:max-w-2xl min-w-0 my-auto max-h-[92dvh] sm:max-h-[90dvh]'), 'Modal panel should use responsive breakpoints without horizontal overflow');
   assert.ok(modal.includes('className="flex flex-col flex-1 min-h-0 min-w-0 w-full"'));
-  assert.ok(modal.includes('p-4 sm:p-7 space-y-3 sm:space-y-4 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden'));
-  assert.ok(modal.includes('w-full min-w-0 p-3.5 sm:p-5 rounded-2xl'));
-  assert.ok(modal.includes('grid grid-cols-1 sm:grid-cols-2 gap-3.5 min-w-0'));
+  assert.ok(modal.includes('p-5 sm:p-8 md:p-10 space-y-4 sm:space-y-5 flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden'));
+  assert.ok(modal.includes('w-full min-w-0 p-4 sm:p-6 rounded-2xl'));
+  assert.ok(modal.includes('grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'));
+});
+
+test('Multi-column form grids align sibling labels on one non-wrapping row so inputs never misalign vertically', () => {
+  const freeTrial = readWorkspaceFile('src/components/saas/FreeTrialOnboardingModal.tsx');
+  assert.ok(
+    freeTrial.includes('flex items-center justify-between gap-2 mb-1.5 min-h-[20px] min-w-0'),
+    'FreeTrialOnboardingModal Name and Phone label rows should share exact single-line height'
+  );
+  assert.ok(
+    !freeTrial.includes('flex flex-wrap items-center justify-between gap-1 mb-1.5'),
+    'FreeTrialOnboardingModal must not flex-wrap top label hints above the Phone input'
+  );
+
+  const guardedFiles = [
+    { path: 'src/components/saas/InstallationWizard.tsx', expectedMinH: 'min-h-[24px]' },
+    { path: 'src/components/settings/CreateStaffModal.tsx', expectedMinH: 'min-h-[20px]' },
+    { path: 'src/components/saas/SuperAdminControlPanel.tsx', expectedMinH: 'min-h-[22px]' },
+    { path: 'src/components/saas/TenantOnboardingWizard.tsx', expectedMinH: 'min-h-[22px]' },
+    { path: 'src/components/settings/SettingsView.tsx', expectedMinH: 'min-h-[24px]' },
+    { path: 'src/components/settings/NotificationAlertProvidersSettings.tsx', expectedMinH: 'min-h-[20px]' },
+    { path: 'src/components/suppliers/SupplierManagement.tsx', expectedMinH: 'min-h-[22px]' },
+    { path: 'src/components/purchases/SupplierPicker.tsx', expectedMinH: 'min-h-[22px]' },
+  ];
+
+  for (const entry of guardedFiles) {
+    const src = readWorkspaceFile(entry.path);
+    assert.ok(
+      src.includes(entry.expectedMinH) && src.includes('truncate') && src.includes('whitespace-nowrap'),
+      `${entry.path} should enforce single-line min-height label alignment and non-wrapping status pills`
+    );
+  }
+
+  const productModal = readWorkspaceFile('src/components/inventory/ProductFormModal.tsx');
+  assert.ok(
+    productModal.includes('sm:min-h-[2rem]'),
+    'ProductFormModal pricing cards should keep helper text uniform height so adjacent inputs stay level'
+  );
 });
 

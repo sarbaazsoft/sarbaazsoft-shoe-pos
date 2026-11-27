@@ -88,11 +88,11 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
   return (
     <div
-      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs px-3 py-3.5 sm:px-4 sm:py-5 overflow-y-auto animate-in fade-in duration-150"
+      className="form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg max-h-[92dvh] overflow-y-auto rounded-2xl bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-6 space-y-4 sm:space-y-5 my-auto"
+        className="relative w-full max-w-md sm:max-w-lg lg:max-w-xl max-h-[92dvh] overflow-y-auto rounded-2xl bg-white dark:bg-[#0E1628] border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 md:p-8 space-y-4 sm:space-y-5 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
