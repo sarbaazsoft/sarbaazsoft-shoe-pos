@@ -147,9 +147,9 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
 
   // Tag styling dimensions for preview
   const previewDimensions = {
-    '50x30': { widthClass: 'w-full max-w-[280px]', heightClass: 'min-h-[165px]', label: '50 × 30 mm (Standard)' },
-    '40x25': { widthClass: 'w-full max-w-[240px]', heightClass: 'min-h-[145px]', label: '40 × 25 mm (Compact)' },
-    '60x40': { widthClass: 'w-full max-w-[320px]', heightClass: 'min-h-[195px]', label: '60 × 40 mm (Large)' },
+    '50x30': { widthClass: 'w-full max-w-[268px]', paddingClass: 'p-3 gap-2', label: '50 × 30 mm (Standard)' },
+    '40x25': { widthClass: 'w-full max-w-[228px]', paddingClass: 'p-2.5 gap-1.5', label: '40 × 25 mm (Compact)' },
+    '60x40': { widthClass: 'w-full max-w-[308px]', paddingClass: 'p-3.5 gap-2.5', label: '60 × 40 mm (Large)' },
   }[tagSize];
 
   return (
@@ -170,7 +170,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-lg sm:max-w-xl lg:max-w-2xl my-auto app-modal-container overflow-hidden flex flex-col max-h-[92dvh] no-print"
+        className="relative w-full max-w-lg sm:max-w-xl my-auto app-modal-container overflow-hidden flex flex-col max-h-[92dvh] no-print"
         onClick={(e) => e.stopPropagation()}
       >
         
@@ -202,8 +202,8 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
         </div>
 
         {/* Product Details Bar */}
-        <div className="px-5 sm:px-6 py-2.5 bg-blue-50/50 dark:bg-slate-900/60 border-b border-blue-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2">
+        <div className="px-4 sm:px-5 py-2 bg-blue-50/50 dark:bg-slate-900/60 border-b border-blue-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-slate-900 dark:text-white text-sm">{articleName}</span>
             {brandName && (
               <span className="bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium text-[11px]">
@@ -231,20 +231,20 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
         </div>
 
         {/* Action Controls & Stock Match Bar */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex flex-col gap-3">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex flex-col gap-2.5 shrink-0">
           
           {/* Top Row: Copies and Instant Stock Level Button */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
             
             {/* Copies Counter & Quick Presets */}
-            <div className="flex items-center flex-wrap gap-2 text-sm">
+            <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 text-sm">
               <label className="font-bold text-slate-700 dark:text-slate-300 text-xs">Print Copies:</label>
               
-              <div className="inline-flex items-center border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 overflow-hidden shadow-2xs">
+              <div className="inline-flex items-center h-8 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 overflow-hidden shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setCopies(Math.max(1, copies - 1))}
-                  className="px-2.5 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 transition cursor-pointer"
+                  className="h-8 px-2.5 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 transition cursor-pointer flex items-center justify-center"
                   title="Decrease copies"
                 >
                   <Minus className="w-3 h-3" />
@@ -255,12 +255,12 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
                   max="500"
                   value={copies}
                   onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                  className="w-14 text-center font-bold text-xs text-slate-900 dark:text-white bg-transparent border-x border-slate-200 dark:border-slate-700 focus:outline-hidden py-1"
+                  className="compact-stepper-input w-12 text-center font-bold text-xs text-slate-900 dark:text-white bg-transparent focus:outline-hidden"
                 />
                 <button
                   type="button"
                   onClick={() => setCopies(copies + 1)}
-                  className="px-2.5 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 transition cursor-pointer"
+                  className="h-8 px-2.5 border-l border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 transition cursor-pointer flex items-center justify-center"
                   title="Increase copies"
                 >
                   <Plus className="w-3 h-3" />
@@ -299,11 +299,11 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
             </div>
 
             {/* Customization Toggle Button & Roll Size */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={tagSize}
                 onChange={(e) => setTagSize(e.target.value as TagSize)}
-                className="text-xs font-semibold bg-white dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white dark:shadow-[0_0_14px_rgba(var(--primary-rgb,147,51,234),)] shadow-2xs focus:ring-1 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
+                className="compact-modal-select w-auto h-8 text-xs font-semibold bg-white dark:bg-purple-500/20 border border-slate-300 dark:border-purple-400/40 rounded-xl px-2.5 py-1 text-slate-700 dark:text-purple-200 hover:bg-slate-50 dark:hover:bg-purple-500/30 dark:hover:text-white shadow-2xs focus:ring-1 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
                 title="Select thermal label size"
               >
                 <option value="50x30" className="dark:bg-[var(--brand-dark-surface,#120726)] dark:text-purple-100">50 × 30 mm (Standard Shoe Tag)</option>
@@ -314,7 +314,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowOptionsPanel(!showOptionsPanel)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                className={`inline-flex items-center gap-1.5 h-8 px-3 py-1 rounded-xl text-xs font-semibold transition cursor-pointer border whitespace-nowrap ${
                   showOptionsPanel
                     ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-cyan-400'
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -328,16 +328,16 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
 
           {/* Expandable Field Selection Panel (What to Include on Tag) */}
           {showOptionsPanel && (
-            <div className="p-3.5 bg-white rounded-xl border border-indigo-100 shadow-2xs animate-fadeIn">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            <div className="p-3 bg-white dark:bg-[#0E1628] rounded-xl border border-indigo-100 dark:border-slate-700/80 shadow-2xs animate-fadeIn">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                   Select What to Print on Tag:
                 </span>
-                <span className="text-[10px] text-slate-400">Settings auto-saved for next time</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">Settings auto-saved for next time</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
                   { key: 'showStore', label: 'Store Name' },
                   { key: 'showBrand', label: 'Brand' },
@@ -354,14 +354,14 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
                       onClick={() => handleToggleOption(item.key as keyof StickerCustomOptions)}
                       className={`flex items-center gap-2 p-2 rounded-lg text-xs font-medium text-left transition cursor-pointer border ${
                         isChecked
-                          ? 'bg-indigo-50/80 border-indigo-200 text-indigo-900 font-semibold'
-                          : 'bg-slate-50 border-slate-200 text-slate-400 line-through'
+                          ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-500/40 text-indigo-900 dark:text-indigo-200 font-semibold'
+                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 line-through'
                       }`}
                     >
                       {isChecked ? (
-                        <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                       ) : (
-                        <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                        <Square className="w-4 h-4 text-slate-300 dark:text-slate-600 shrink-0" />
                       )}
                       <span className="truncate">{item.label}</span>
                     </button>
@@ -372,9 +372,9 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
           )}
 
           {/* Bottom Row: Output Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
-            <span className="text-xs text-slate-500">
-              Total to print: <strong className="text-slate-900">{copies}</strong> thermal sticker{copies > 1 ? 's' : ''} ({tagSize} mm)
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Total to print: <strong className="text-slate-900 dark:text-white">{copies}</strong> thermal sticker{copies > 1 ? 's' : ''} ({tagSize} mm)
             </span>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -442,36 +442,40 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({
         )}
 
         {/* Live Tag Preview (Thermal Roll Visualizer) */}
-        <div className="flex-1 p-6 overflow-y-auto bg-slate-100 dark:bg-[#080D1A] flex flex-col items-center justify-start gap-4">
+        <div className="flex-1 min-h-0 p-4 sm:p-5 overflow-y-auto bg-slate-100 dark:bg-[#080D1A] flex flex-col items-center justify-start gap-2.5">
           <div className="text-center">
             <span className="text-[11px] font-mono font-bold text-slate-500 dark:text-purple-300 uppercase tracking-widest">
               Live Physical Label Preview ({previewDimensions.label})
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-4 justify-center items-start">
+          <div className="flex flex-wrap gap-4 justify-center items-start w-full">
             {/* Show 1st tag live representation */}
             <div
-              className={`physical-label-preview ${previewDimensions.widthClass} ${previewDimensions.heightClass} bg-white dark:bg-[#111C30] border border-gray-200 dark:border-slate-800/90 rounded-md shadow-md p-4 flex flex-col justify-between text-center select-none relative transition-all duration-200 font-mono text-xs leading-tight`}
+              className={`physical-label-preview ${previewDimensions.widthClass} ${previewDimensions.paddingClass} bg-white dark:bg-[#111C30] border border-gray-200 dark:border-slate-800/90 rounded-md shadow-md flex flex-col text-center select-none relative transition-all duration-200 font-mono text-xs leading-tight`}
             >
               {/* Header: Store Name, Brand, Category */}
-              <div className="text-center pb-2 border-b border-dashed border-gray-400 dark:border-slate-600/80">
-                {(options.showStore || !options.showBrand) && (
-                  <h4 className="label-store-name font-bold text-xs uppercase tracking-wider text-black dark:text-white truncate">
-                    {storeName}
-                  </h4>
-                )}
-                {((options.showBrand && brandName) || (options.showCategory && categoryName)) && (
-                  <p className="text-[10px] text-gray-600 dark:text-slate-400 mt-0.5 truncate tracking-wide font-mono">
-                    {[
-                      options.showBrand && brandName ? brandName : null,
-                      options.showCategory && categoryName ? categoryName : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' • ')}
-                  </p>
-                )}
-              </div>
+              {((options.showStore || !options.showBrand) ||
+                (options.showBrand && brandName) ||
+                (options.showCategory && categoryName)) && (
+                <div className="text-center pb-1.5 border-b border-dashed border-gray-400 dark:border-slate-600/80">
+                  {(options.showStore || !options.showBrand) && (
+                    <h4 className="label-store-name font-bold text-xs uppercase tracking-wider text-black dark:text-white truncate">
+                      {storeName}
+                    </h4>
+                  )}
+                  {((options.showBrand && brandName) || (options.showCategory && categoryName)) && (
+                    <p className="text-[10px] text-gray-600 dark:text-slate-400 mt-0.5 truncate tracking-wide font-mono">
+                      {[
+                        options.showBrand && brandName ? brandName : null,
+                        options.showCategory && categoryName ? categoryName : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Article Name */}
               {options.showArticle && (

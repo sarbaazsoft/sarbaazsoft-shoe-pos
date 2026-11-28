@@ -133,32 +133,38 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-lg sm:max-w-xl lg:max-w-3xl my-auto app-modal-container overflow-hidden flex flex-col max-h-[92dvh] no-print"
+        className={`relative w-full ${
+          copies > 1
+            ? 'max-w-lg sm:max-w-xl lg:max-w-2xl'
+            : orientation === 'landscape'
+            ? 'max-w-lg sm:max-w-xl'
+            : 'max-w-md sm:max-w-lg'
+        } my-auto app-modal-container overflow-hidden flex flex-col max-h-[92dvh] no-print`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - Purple/Violet theme for Side-End Box Label in Dark Mode, crisp slate styling in Light Mode */}
-        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white border-b border-slate-200 dark:border-purple-800/80 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 rounded-xl shadow-2xs">
-              <Box className="w-5 h-5" />
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white border-b border-slate-200 dark:border-purple-800/80 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-400/30 rounded-xl shadow-2xs shrink-0">
+              <Box className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h3 className="font-bold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white truncate">
                   Shoe Box Side-End Label
                 </h3>
-                <span className="bg-purple-100 dark:bg-purple-500/30 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-400/40 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full">
+                <span className="bg-purple-100 dark:bg-purple-500/30 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-400/40 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full shrink-0">
                   Shelf Storage (3&quot; x 4&quot;)
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-purple-200/80 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-purple-200/80 mt-0.5 truncate">
                 High-visibility label for warehouse and wholesale shoe rack box ends
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+            className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-700 dark:text-purple-300 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer shrink-0"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -166,7 +172,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
         </div>
 
         {/* Product Details Banner */}
-        <div className="px-6 py-2.5 bg-purple-50/60 dark:bg-purple-950/40 border-b border-purple-100 dark:border-purple-900/40 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="px-4 sm:px-5 py-2 bg-purple-50/60 dark:bg-purple-950/40 border-b border-purple-100 dark:border-purple-900/40 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-purple-950 dark:text-purple-200 text-sm">{articleName}</span>
             <span className="text-purple-600 dark:text-purple-400 font-medium">Brand: {brandName}</span>
@@ -182,8 +188,8 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
         </div>
 
         {/* Configuration Bar */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 space-y-3.5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             {/* Orientation */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -194,24 +200,24 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setOrientation('portrait')}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition cursor-pointer whitespace-nowrap ${
                     orientation === 'portrait'
                       ? 'bg-purple-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  Portrait (3&quot; x 4&quot; / 76×102mm)
+                  Portrait (3×4&quot;)
                 </button>
                 <button
                   type="button"
                   onClick={() => setOrientation('landscape')}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition cursor-pointer whitespace-nowrap ${
                     orientation === 'landscape'
                       ? 'bg-purple-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  Landscape (4&quot; x 3&quot; / 102×76mm)
+                  Landscape (4×3&quot;)
                 </button>
               </div>
             </div>
@@ -219,13 +225,13 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
             {/* Copies */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Copies to Print:</label>
-              <div className="flex items-center space-x-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {[1, 2, 4, 8].map((num) => (
                   <button
                     key={num}
                     type="button"
                     onClick={() => setCopies(num)}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    className={`h-8 px-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                       copies === num
                         ? 'bg-purple-600 text-white shadow-xs'
                         : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -240,19 +246,19 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                   max="100"
                   value={copies}
                   onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                  className="w-16 px-2 py-1 text-center font-bold text-xs border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
+                  className="compact-modal-input w-16 h-8 px-2 py-1 text-center font-bold text-xs border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-purple-600 focus:ring-1 focus:ring-purple-500/20"
                 />
               </div>
             </div>
 
             {/* Manual Write-in Options */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
+            <div className="space-y-1 sm:col-span-2">
+              <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                   <PenTool className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>Manual Write-In Box:</span>
                 </label>
-                <label className="text-[11px] text-purple-900 dark:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer select-none">
+                <label className="text-[11px] text-purple-900 dark:text-purple-300 font-semibold flex items-center gap-1.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={leaveBlankForMarker}
@@ -269,7 +275,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                   value={colorInput}
                   disabled={leaveBlankForMarker}
                   onChange={(e) => setColorInput(e.target.value)}
-                  className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400 font-semibold focus:border-purple-600"
+                  className="compact-modal-input h-8 px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400 font-semibold focus:border-purple-600"
                 />
                 <input
                   type="text"
@@ -277,25 +283,25 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                   value={sizeInput}
                   disabled={leaveBlankForMarker}
                   onChange={(e) => setSizeInput(e.target.value)}
-                  className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400 font-semibold focus:border-purple-600"
+                  className="compact-modal-input h-8 px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400 font-semibold focus:border-purple-600"
                 />
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
-            <div className="text-[11px] text-slate-500 font-medium">
-              Target Printer: <strong>3&quot; x 4&quot; / 76mm x 102mm</strong> (Xprinter, Zebra, TSC, Dymo, Gprinter)
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              Target Printer: <strong>3&quot; x 4&quot; / 76×102mm</strong>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {/* PDF Download */}
               <button
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={isExportingPdf}
-                className="bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-600 hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                className="bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-500/40 hover:bg-purple-600 hover:text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
                 title="Download 3x4 inch vector PDF"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -307,7 +313,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                 type="button"
                 onClick={handleDownloadImage}
                 disabled={isExportingImage}
-                className="bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-600 hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                className="bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-200 border border-purple-300 dark:border-purple-500/40 hover:bg-purple-600 hover:text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
                 title="Download 300 DPI PNG image"
               >
                 <ImageIcon className="w-3.5 h-3.5" />
@@ -320,7 +326,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                   type="button"
                   onClick={handlePrintDirectSilent}
                   disabled={isPrintingDirect}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   title={`Direct silent print to ${printerSettings.stickerDeviceName}`}
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-300" />
@@ -332,10 +338,10 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrintStandard}
-                className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
+                className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
                 title="Trigger browser print dialog for 3x4 inch label"
               >
-                <Printer className="w-4 h-4" />
+                <Printer className="w-3.5 h-3.5" />
                 <span>Print Directly</span>
               </button>
             </div>
@@ -359,19 +365,19 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
         )}
 
         {/* Interactive Live Label Preview */}
-        <div className="flex-1 p-6 overflow-y-auto bg-slate-100 dark:bg-[#080D1A] flex flex-col items-center justify-start">
-          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-purple-300 uppercase tracking-widest mb-3">
+        <div className="flex-1 min-h-0 p-3.5 sm:p-5 overflow-y-auto bg-slate-100 dark:bg-[#080D1A] flex flex-col items-center justify-start gap-2.5">
+          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-purple-300 uppercase tracking-widest text-center">
             Real-Scale Preview (3&quot; x 4&quot; / 76mm × 102mm Shelf Box Label)
           </div>
 
-          <div className="flex flex-wrap gap-6 justify-center items-start">
+          <div className="flex flex-wrap gap-3.5 justify-center items-start w-full">
             {copiesArray.map((_, idx) => (
               <div
                 key={idx}
-                className={`physical-label-preview bg-white dark:bg-[#111C30] border border-gray-200 dark:border-slate-800/90 rounded-md shadow-md p-4 flex flex-col justify-between text-center select-none relative transition-all duration-200 font-mono text-xs leading-tight ${
+                className={`physical-label-preview bg-white dark:bg-[#111C30] border border-gray-200 dark:border-slate-800/90 rounded-md shadow-md p-3.5 flex flex-col gap-2.5 text-center select-none relative transition-all duration-200 font-mono text-xs leading-tight ${
                   orientation === 'portrait'
-                    ? 'w-full max-w-[280px] h-[375px]'
-                    : 'w-full max-w-[375px] min-h-[280px]'
+                    ? 'w-full max-w-[264px]'
+                    : 'w-full max-w-[356px]'
                 }`}
                 style={{
                   boxSizing: 'border-box',
@@ -392,7 +398,7 @@ export const SideEndBoxLabelModal: React.FC<SideEndBoxLabelModalProps> = ({
                     </div>
 
                     {/* Product Title: Article Name */}
-                    <div className="py-2 text-center">
+                    <div className="py-1 text-center">
                       <h2 className="label-article-name text-sm sm:text-base font-bold text-black dark:text-white uppercase tracking-wider line-clamp-2 block font-mono">
                         {articleName}
                       </h2>

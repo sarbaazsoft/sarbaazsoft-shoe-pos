@@ -926,7 +926,7 @@ pre,
 /* ========================================================================= */
 
 /* 1. Universal Purple Input Borders across Light (#9333ea) and Dark (#a855f7) Modes */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field),
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field):not(.compact-stepper-input),
 select,
 textarea,
 .app-input,
@@ -935,14 +935,14 @@ textarea,
   border-color: var(--primary, #9333ea) !important;
 }
 
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field),
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field):not(.compact-stepper-input),
 html.dark select,
 html.dark textarea,
 html.dark .app-input,
 html.dark .form-input,
 html.dark .form-select,
 html.dark .currency-input-group:not(.currency-input-error),
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field),
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field):not(.compact-stepper-input),
 .dark select,
 .dark textarea,
 .dark .app-input,
@@ -969,8 +969,8 @@ html.dark .currency-input-group.currency-input-error:focus-within,
 }
 
 /* 2. Focus Shadow Effect driven by active theme CSS variables */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus,
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus-visible,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):not(.compact-stepper-input):focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):not(.compact-stepper-input):focus-visible,
 select:focus,
 select:focus-visible,
 textarea:focus,
@@ -987,8 +987,8 @@ textarea:focus-visible,
   --tw-ring-offset-shadow: none !important;
 }
 
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus,
-html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus-visible,
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):not(.compact-stepper-input):focus,
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):not(.compact-stepper-input):focus-visible,
 html.dark select:focus,
 html.dark select:focus-visible,
 html.dark textarea:focus,
@@ -997,8 +997,8 @@ html.dark :not([type="email"]):not(.email-focus-pulse).app-input:focus,
 html.dark :not([type="email"]):not(.email-focus-pulse).form-input:focus,
 html.dark .form-select:focus,
 html.dark .currency-input-group:not(.currency-input-error):focus-within,
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus,
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):focus-visible,
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):not(.compact-stepper-input):focus,
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not([type="email"]):not(.email-focus-pulse):not(.currency-input-field):not(.compact-stepper-input):focus-visible,
 .dark select:focus,
 .dark select:focus-visible,
 .dark textarea:focus,
@@ -1794,7 +1794,7 @@ aside {
   }
 
   /* Automatic Dark Mode Form Controls & Theming */
-  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]),
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field):not(.compact-stepper-input),
   .dark select,
   .dark textarea {
     background-color: #0E1628 !important;
@@ -1802,7 +1802,7 @@ aside {
     border-color: var(--primary-light, #a855f7) !important;
     color: #F8FAFC !important;
   }
-  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):focus,
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="file"]):not(.currency-input-field):not(.compact-stepper-input):focus,
   .dark select:focus,
   .dark textarea:focus {
     border-color: var(--primary-400, #c084fc) !important;
@@ -2998,6 +2998,36 @@ html.dark .saas-panel .app-stat-card.app-stat-card:hover {
     background-color: transparent !important;
     min-height: 0;
   }
+  .form-modal-theme input.compact-modal-input {
+    min-height: 0;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+  .form-modal-theme input.compact-stepper-input,
+  .form-modal-theme input.compact-stepper-input:focus,
+  .dark .form-modal-theme input.compact-stepper-input,
+  .dark .form-modal-theme input.compact-stepper-input:focus {
+    width: 3rem;
+    min-height: 0;
+    height: 2rem;
+    border: 0 !important;
+    border-radius: 0;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    outline: none !important;
+    padding: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+  .form-modal-theme select.compact-modal-select {
+    width: auto;
+    min-height: 0;
+    height: 2rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
   .currency-input-field,
   .currency-input-field:focus,
   .currency-input-field:focus-visible {
@@ -3398,7 +3428,7 @@ html:not(.dark) .hero-underline-bar,
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: none;
   }
 }
 
@@ -3409,7 +3439,7 @@ html:not(.dark) .hero-underline-bar,
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: none;
   }
 }
 

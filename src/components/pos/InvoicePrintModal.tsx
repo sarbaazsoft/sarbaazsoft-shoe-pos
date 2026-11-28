@@ -403,9 +403,15 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
   return (
     <div className="invoice-modal-root form-modal-theme fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 sm:p-6 md:p-8 overflow-y-auto print:static print:bg-white print:p-0 print:overflow-visible print:block">
       {/* Screen Container */}
-      <div className="relative w-full max-w-lg sm:max-w-2xl lg:max-w-4xl my-auto app-modal-container overflow-hidden flex flex-col max-h-[94dvh] no-print shadow-2xl rounded-2xl border border-slate-200 dark:border-purple-800/80">
+      <div
+        className={`relative w-full ${
+          useThermalLayout
+            ? 'max-w-md sm:max-w-lg'
+            : 'max-w-lg sm:max-w-2xl lg:max-w-[820px]'
+        } my-auto app-modal-container overflow-hidden flex flex-col max-h-[94dvh] no-print shadow-2xl rounded-2xl border border-slate-200 dark:border-purple-800/80`}
+      >
         {/* Modal Header */}
-        <div className="flex items-start sm:items-center justify-between gap-2 px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white">
+        <div className="flex items-start sm:items-center justify-between gap-2 px-4 sm:px-5 py-2.5 sm:py-3 border-b border-slate-200 dark:border-purple-800/80 bg-slate-50 dark:bg-gradient-to-r dark:from-purple-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white shrink-0">
           <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
             <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-xl shadow-2xs shrink-0">
               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -432,6 +438,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 sm:p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
@@ -439,7 +446,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
         </div>
 
         {/* Layout Format Selector & Actions Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2 bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 shrink-0">
           {/* Format Switcher: Retail defaults to 50mm Thermal, Wholesale defaults to A4 */}
           <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-200/70 dark:bg-slate-800/90 rounded-xl border border-slate-300/60 dark:border-slate-700 w-full sm:w-auto">
             <button
@@ -478,14 +485,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+          <div className={`flex flex-wrap items-center gap-1.5 sm:gap-2 ${useThermalLayout ? 'w-full justify-end' : 'w-full sm:w-auto justify-end'}`}>
             {/* Direct USB Silent Print if hardware paired */}
             {printerSettings.receiptMode === 'webusb' &&
             printerSettings.receiptDeviceName ? (
               <button
                 onClick={handlePrintDirect}
                 disabled={isPrintingDirect}
-                className="flex items-center space-x-1.5 px-3 py-2 min-h-[40px] sm:min-h-0 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold text-xs rounded-lg shadow-md shadow-purple-600/25 transition cursor-pointer active:scale-95"
+                className="flex items-center space-x-1.5 px-3 py-2 min-h-[38px] sm:min-h-0 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 text-white border border-purple-400/40 dark:border-purple-400/50 font-bold text-xs rounded-lg shadow-md shadow-purple-600/25 transition cursor-pointer active:scale-95"
                 title={isDesktop ? `Direct silent print to ${printerSettings.receiptDeviceName} (F9)` : `Direct silent print to ${printerSettings.receiptDeviceName}`}
               >
                 <Zap className="w-3.5 h-3.5 text-amber-300" />
@@ -499,7 +506,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
             {/* Standard Browser Print */}
             <button
               onClick={handlePrintStandard}
-              className="flex items-center space-x-1.5 px-3.5 py-2 min-h-[40px] sm:min-h-0 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-semibold text-xs rounded-lg shadow-xs transition cursor-pointer"
+              className="flex items-center space-x-1.5 px-3.5 py-2 min-h-[38px] sm:min-h-0 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-semibold text-xs rounded-lg shadow-xs transition cursor-pointer"
               title={isDesktop ? 'Open browser print dialog (F9)' : 'Open browser print dialog'}
             >
               <Printer className="w-3.5 h-3.5" />
@@ -508,19 +515,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                 F9
               </kbd>
             </button>
-
-            <button
-              onClick={onClose}
-              className="px-2.5 py-2 min-h-[40px] sm:min-h-0 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-lg transition cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
 
         {/* CUSTOMER DIGITAL RECEIPTS (SMS & WhatsApp Direct Links) */}
         {shouldShowDigitalReceipt && (
-          <div className="px-4 sm:px-6 py-2.5 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-sky-50/90 dark:from-emerald-950/40 dark:via-[#0E2030] dark:to-sky-950/40 border-b border-emerald-200/80 dark:border-emerald-800/40">
+          <div className="px-4 sm:px-5 py-2 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-sky-50/90 dark:from-emerald-950/40 dark:via-[#0E2030] dark:to-sky-950/40 border-b border-emerald-200/80 dark:border-emerald-800/40 shrink-0">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
               <div className="flex items-center space-x-2.5">
                 <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
@@ -632,12 +632,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
         {/* =================================================================== */}
         {/* INTERACTIVE PREVIEW CONTAINER                                       */}
         {/* =================================================================== */}
-        <div className="flex-1 overflow-auto p-3 sm:p-6 bg-slate-100 dark:bg-[#080D1A] flex justify-start sm:justify-center items-start">
+        <div className="flex-1 min-h-0 overflow-auto p-3 sm:p-4 bg-slate-100 dark:bg-[#080D1A] flex justify-start items-start">
           {useThermalLayout ? (
             /* =============================================================== */
             /* 50MM THERMAL RECEIPT PREVIEW (DEFAULT FOR RETAIL TRANSACTIONS)  */
             /* =============================================================== */
-            <div className="invoice-preview-receipt w-[210px] sm:w-[220px] max-w-[220px] h-fit shrink-0 bg-white dark:bg-[#111C30]/80 dark:backdrop-blur-md p-3 shadow-xl border border-gray-300 dark:border-purple-400/25 font-mono text-[10px] text-gray-900 dark:text-slate-100 leading-snug select-all rounded-xs">
+            <div className="invoice-preview-receipt w-full max-w-[250px] sm:max-w-[260px] mx-auto h-fit shrink-0 bg-white dark:bg-[#111C30]/80 dark:backdrop-blur-md p-3 shadow-xl border border-gray-300 dark:border-purple-400/25 font-mono text-[10px] text-gray-900 dark:text-slate-100 leading-snug select-all rounded-xs">
               {/* Header */}
               <div className="text-center pb-2 border-b border-dashed border-gray-500 dark:border-slate-600/80">
                 {showReceiptLogo && receiptLogo && (
@@ -777,9 +777,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
             /* =============================================================== */
             /* A4 INVOICE PREVIEW (DEFAULT FOR WHOLESALE TRANSACTIONS)         */
             /* =============================================================== */
-            <div className="invoice-preview-receipt w-full min-w-[600px] sm:min-w-0 max-w-[720px] h-fit shrink-0 bg-white dark:bg-[#111C30]/80 dark:backdrop-blur-md p-5 sm:p-7 shadow-xl border border-gray-300 dark:border-purple-400/25 text-gray-800 dark:text-slate-200 text-xs rounded-sm">
+            <div className="invoice-preview-receipt w-full min-w-[540px] sm:min-w-0 max-w-[740px] mx-auto h-fit shrink-0 bg-white dark:bg-[#111C30]/80 dark:backdrop-blur-md p-4 sm:p-6 shadow-xl border border-gray-300 dark:border-purple-400/25 text-gray-800 dark:text-slate-200 text-xs rounded-sm">
               {/* Header */}
-              <div className="flex justify-between items-start pb-5 border-b-2 border-gray-800 dark:border-slate-600">
+              <div className="flex justify-between items-start pb-3.5 border-b-2 border-gray-800 dark:border-slate-600">
                 <div className="flex items-start gap-3.5">
                   {showReceiptLogo && receiptLogo && (
                     <img
@@ -815,7 +815,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               </div>
 
               {/* Dealer Billed To & Payment Details */}
-              <div className="grid grid-cols-2 gap-4 py-4 border-b border-gray-200 dark:border-slate-700/70 text-xs">
+              <div className="grid grid-cols-2 gap-4 py-3 border-b border-gray-200 dark:border-slate-700/70 text-xs">
                 <div>
                   <span className="font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider text-[10px] block mb-1">
                     DEALER / BILLED TO:
@@ -1005,7 +1005,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               )}
 
               {/* Financial Summary */}
-              <div className="flex justify-end mt-4 pt-3 border-t border-gray-300 dark:border-slate-700/80">
+              <div className="flex justify-end mt-3 pt-2.5 border-t border-gray-300 dark:border-slate-700/80">
                 <div className="w-80 space-y-1.5 text-xs">
                   <div className="flex justify-between text-gray-600 dark:text-slate-300">
                     <span>Current Items Subtotal:</span>
@@ -1065,19 +1065,19 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               </div>
 
               {/* Dual Signatures & Acceptance Footer */}
-              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-slate-700/70 grid grid-cols-2 gap-4 items-end">
+              <div className="mt-5 pt-4 border-t border-gray-200 dark:border-slate-700/70 flex flex-wrap justify-between gap-4 items-end">
                 <div>
                   {invoiceFooter && <p className="text-[10px] text-gray-500 dark:text-slate-400 max-w-xs">{invoiceFooter}</p>}
                 </div>
-                <div className="flex justify-end gap-8">
+                <div className="flex justify-end gap-5 sm:gap-8 ml-auto">
                   <div className="text-center">
-                    <div className="w-32 border-b border-gray-500 dark:border-slate-600 pb-1 mb-1"></div>
+                    <div className="w-28 sm:w-32 border-b border-gray-500 dark:border-slate-600 pb-1 mb-1"></div>
                     <p className="text-[9px] text-gray-600 dark:text-slate-400 uppercase font-bold tracking-wider">
                       Dealer Stamp &amp; Sign
                     </p>
                   </div>
                   <div className="text-center">
-                    <div className="w-32 border-b border-gray-800 dark:border-slate-400 pb-1 mb-1"></div>
+                    <div className="w-28 sm:w-32 border-b border-gray-800 dark:border-slate-400 pb-1 mb-1"></div>
                     <p className="text-[9px] text-gray-950 dark:text-white uppercase font-bold tracking-wider">
                       Authorized Signature
                     </p>
@@ -1088,7 +1088,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               {/* App Name Credit */}
               <div
                 data-testid="invoice-app-credit-preview-a4"
-                className="mt-5 pt-2.5 border-t border-dashed border-gray-200 dark:border-slate-700/70 text-center text-[10px] font-semibold tracking-wide text-gray-500 dark:text-slate-400"
+                className="mt-3.5 pt-2 border-t border-dashed border-gray-200 dark:border-slate-700/70 text-center text-[10px] font-semibold tracking-wide text-gray-500 dark:text-slate-400"
               >
                 {appNameCredit}
               </div>
