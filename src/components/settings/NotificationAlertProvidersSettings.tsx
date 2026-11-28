@@ -133,7 +133,11 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
 
   const applyPermissionSnapshot = (snap: PushPermissionSnapshot) => {
     setPermissionSnapshot(snap);
-    setThisDeviceSubscribed(snap.effectiveStatus === 'granted' && snap.canReceiveSystemNotifications);
+    setThisDeviceSubscribed(
+      snap.effectiveStatus === 'granted' &&
+        snap.canReceiveSystemNotifications &&
+        snap.hasStoredToken
+    );
   };
 
   // Load app settings / device stats from server
@@ -347,7 +351,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         }
       }
 
-      if (res.success) {
+      if (res.success && (res.fcmSentCount || 0) > 0) {
         void triggerTestNotificationShadeFallback({
           eventId: res.eventId || eventId,
           title: testTitle,
@@ -402,7 +406,7 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
         return;
       }
 
-      if (currentSnap.effectiveStatus === 'granted' && currentSnap.canReceiveSystemNotifications) {
+      if (currentSnap.effectiveStatus === 'granted') {
         await resetFirebaseClientCache(true);
         const syncRes = await acquireAndSyncFcmToken(activeRole, { forceRefresh: true });
         const latestSnap = await getDetailedPushPermissionStatus();
@@ -513,6 +517,11 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
             <Smartphone className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{deviceStats.totalTokens} Device(s)</span>
           </span>
+          {deviceStats.totalTokens > 0 && (
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 block truncate">
+              {`SA: ${deviceStats.tokensByRole?.SUPERADMIN || 0} · Owners: ${(deviceStats.tokensByRole?.ADMIN || 0) + (deviceStats.tokensByRole?.OWNER || 0)} · Staff: ${deviceStats.tokensByRole?.CASHIER || 0}`}
+            </span>
+          )}
         </div>
 
         <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-purple-900/40">

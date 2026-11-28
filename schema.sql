@@ -630,7 +630,7 @@ CREATE INDEX IF NOT EXISTS app_settings_category_idx ON app_settings(category);
 CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id);
 CREATE INDEX IF NOT EXISTS platform_notifications_target_role_idx ON platform_notifications(target_role);
 CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON platform_notifications(created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id) WHERE event_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id);
 
 CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON platform_notification_reads(notification_id);
 CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON platform_notification_reads(tenant_id);
@@ -639,7 +639,7 @@ CREATE INDEX IF NOT EXISTS pos_notification_dismissals_idx ON pos_notification_d
 
 CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON notifications(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications(tenant_id, is_read);
-CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id) WHERE event_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id);
 
 CREATE INDEX IF NOT EXISTS fcm_tokens_tenant_idx ON fcm_tokens(tenant_id);
 CREATE INDEX IF NOT EXISTS fcm_tokens_user_role_idx ON fcm_tokens(user_role);

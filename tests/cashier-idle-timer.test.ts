@@ -11,22 +11,21 @@ import {
 } from '../src/utils/cashierIdleTimer.ts';
 import { clearAllSessionState } from '../src/services/api.ts';
 
-test('isCashierIdleTimerEnabled: activates only for genuine active cashier sessions', () => {
+import fs from 'node:fs';
+import path from 'node:path';
+
+test('isCashierIdleTimerEnabled: auto-logout is disabled for all roles so offline invoicing stays available', () => {
   assert.equal(
     isCashierIdleTimerEnabled(
       { role: 'CASHIER', originalRole: 'CASHIER', isSimulatedCashier: false },
       'TENANT_ACTIVE'
     ),
-    true
+    false
   );
-
-  // Case-insensitive role check
   assert.equal(
     isCashierIdleTimerEnabled({ role: 'cashier' }, 'TENANT_ACTIVE'),
-    true
+    false
   );
-
-  // Non-cashier roles must not be auto-logged out by the cashier timer
   assert.equal(
     isCashierIdleTimerEnabled(
       { role: 'ADMIN', originalRole: 'ADMIN', isSimulatedCashier: false },
@@ -41,8 +40,6 @@ test('isCashierIdleTimerEnabled: activates only for genuine active cashier sessi
     ),
     false
   );
-
-  // Admin previewing cashier terminal is excluded
   assert.equal(
     isCashierIdleTimerEnabled(
       { role: 'CASHIER', originalRole: 'ADMIN', isSimulatedCashier: true },
@@ -50,8 +47,6 @@ test('isCashierIdleTimerEnabled: activates only for genuine active cashier sessi
     ),
     false
   );
-
-  // Unauthenticated or non-active routes do not enable the timer
   assert.equal(isCashierIdleTimerEnabled(null, 'TENANT_ACTIVE'), false);
   assert.equal(
     isCashierIdleTimerEnabled({ role: 'CASHIER', originalRole: 'CASHIER' }, 'AUTH'),
@@ -61,6 +56,11 @@ test('isCashierIdleTimerEnabled: activates only for genuine active cashier sessi
     isCashierIdleTimerEnabled({ role: 'CASHIER', originalRole: 'CASHIER' }, 'LANDING'),
     false
   );
+
+  const appSrc = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.equal(appSrc.includes('useCashierIdleLogout'), false);
+  assert.equal(appSrc.includes('CashierIdleWarningModal'), false);
+  assert.equal(appSrc.includes("reason: 'idle'"), false);
 });
 
 test('evaluateIdleState: transitions cleanly from ACTIVE to WARNING to EXPIRED', () => {

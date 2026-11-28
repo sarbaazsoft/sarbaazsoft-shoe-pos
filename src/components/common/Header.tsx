@@ -417,7 +417,11 @@ export const Header: React.FC<HeaderProps> = ({
 
   const applyPermissionSnapshot = useCallback((snap: PushPermissionSnapshot) => {
     setPermissionSnapshot(snap);
-    setIsPushSubscribed(snap.effectiveStatus === 'granted' && snap.canReceiveSystemNotifications);
+    setIsPushSubscribed(
+      snap.effectiveStatus === 'granted' &&
+        snap.canReceiveSystemNotifications &&
+        snap.hasStoredToken
+    );
     setPushPermission(snap.browserPermission === 'unsupported' ? 'denied' : snap.browserPermission);
   }, []);
 

@@ -80,6 +80,13 @@ const SuperAdminTestNotificationCard: React.FC<SuperAdminTestNotificationCardPro
     );
 
     try {
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted'
+      ) {
+        await resyncPushSubscriptionIfEnabled('SUPERADMIN').catch(() => false);
+      }
+
       const res = await api.notifications.testPush({
         title: cleanTitle,
         message: cleanBody,
@@ -87,14 +94,16 @@ const SuperAdminTestNotificationCard: React.FC<SuperAdminTestNotificationCardPro
       });
 
       if (res.success) {
-        void triggerTestNotificationShadeFallback({
-          eventId: res.eventId || eventId,
-          title: cleanTitle,
-          body: cleanBody,
-          url: '/admin',
-          isAdmin: true,
-          fcmSentCount: res.fcmSentCount,
-        });
+        if ((res.fcmSentCount || 0) > 0) {
+          void triggerTestNotificationShadeFallback({
+            eventId: res.eventId || eventId,
+            title: cleanTitle,
+            body: cleanBody,
+            url: '/admin',
+            isAdmin: true,
+            fcmSentCount: res.fcmSentCount,
+          });
+        }
         setTestNotifFeedback({
           type: 'success',
           text:

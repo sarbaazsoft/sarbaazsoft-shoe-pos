@@ -525,7 +525,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
   if (!response) {
     const rawMsg = String(lastNetworkError?.message || '');
     const isConnectivityFailure = isBrowserOffline || !rawMsg || isTransientNetworkError(lastNetworkError);
-    if (isConnectivityFailure && typeof window !== 'undefined') {
+    if (isConnectivityFailure && token && typeof window !== 'undefined') {
       try {
         window.dispatchEvent(new CustomEvent('pos:backend-disconnected'));
       } catch {}
@@ -535,6 +535,18 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
         ? 'Server is temporarily reconnecting. Please try again in a moment.'
         : rawMsg
     );
+  }
+
+  if (
+    !isBrowserOffline &&
+    response.status !== 502 &&
+    response.status !== 503 &&
+    response.status !== 504 &&
+    typeof window !== 'undefined'
+  ) {
+    try {
+      window.dispatchEvent(new CustomEvent('pos:backend-connected'));
+    } catch {}
   }
 
   // Handle 204 No Content / 205 Reset Content safely (no body expected)

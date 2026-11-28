@@ -15,22 +15,15 @@ export interface IdleEvaluation {
 }
 
 export function isCashierIdleTimerEnabled(
-  user: {
+  _user: {
     role?: string | null;
     originalRole?: string | null;
     isSimulatedCashier?: boolean;
   } | null | undefined,
-  saasMode: string
+  _saasMode: string
 ): boolean {
-  if (saasMode !== 'TENANT_ACTIVE' || !user) {
-    return false;
-  }
-  const effectiveRole = String(user.role || '').trim().toUpperCase();
-  const originalRole = String(user.originalRole || effectiveRole).trim().toUpperCase();
-  if (user.isSimulatedCashier) {
-    return false;
-  }
-  return effectiveRole === 'CASHIER' && originalRole === 'CASHIER';
+  // Auto-logout is disabled for all roles so active POS sessions remain signed in if internet disconnects.
+  return false;
 }
 
 export function evaluateIdleState(params: {

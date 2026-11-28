@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { pgClient } from '../../db/index.ts';
-import { ensureSaasControlPlane, ensureDatabaseSchema, ensurePlatformNotificationsSchema, ensureTenantStoreUsers, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions, clearSubscriptionAlertsOnRenewal } from '../../db/schemaInit.ts';
+import { ensureSaasControlPlane, ensureDatabaseSchema, ensurePlatformNotificationsSchema, ensureNonPartialEventIdUniqueIndex, ensureTenantStoreUsers, normalizeSubscriptionPlan, normalizeSubscriptionType, calculateSubscriptionEndDate, calculateDaysLeft, syncExpiredTenantSubscriptions, clearSubscriptionAlertsOnRenewal } from '../../db/schemaInit.ts';
 import { requireAuth, requireAdmin, requireSuperAdmin, generateToken, type AuthenticatedRequest, type AuthUser } from '../auth.ts';
 import {
   notifyPlatformAnnouncement,
@@ -3960,27 +3960,43 @@ router.post('/superadmin/notifications', requireAuth, requireSuperAdmin, async (
     const rawEventId = String(req.body?.eventId || req.body?.idempotencyKey || '').trim();
     const eventId = rawEventId || `announcement-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const insertRes = await pgClient.query<{
-      id: number;
-      tenant_id: number | null;
-      target_role: string;
-      title: string;
-      message: string;
-      type: string;
-      action_url: string;
-      action_label: string;
-      created_by: number | null;
-      expires_at: string | null;
-      event_id: string | null;
-      created_at: string;
-    }>(
-      `INSERT INTO platform_notifications (
-        tenant_id, target_role, title, message, type, action_url, action_label, created_by, expires_at, event_id, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-      ON CONFLICT (event_id) DO NOTHING
-      RETURNING *`,
-      [targetTenantId, targetRole, title, message, type, actionUrl, actionLabel, currentUserId, expiresAt, eventId]
-    );
+    const executeCustomNotifInsert = () =>
+      pgClient.query<{
+        id: number;
+        tenant_id: number | null;
+        target_role: string;
+        title: string;
+        message: string;
+        type: string;
+        action_url: string;
+        action_label: string;
+        created_by: number | null;
+        expires_at: string | null;
+        event_id: string | null;
+        created_at: string;
+      }>(
+        `INSERT INTO platform_notifications (
+          tenant_id, target_role, title, message, type, action_url, action_label, created_by, expires_at, event_id, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        ON CONFLICT (event_id) DO NOTHING
+        RETURNING *`,
+        [targetTenantId, targetRole, title, message, type, actionUrl, actionLabel, currentUserId, expiresAt, eventId]
+      );
+
+    let insertRes;
+    try {
+      insertRes = await executeCustomNotifInsert();
+    } catch (insertErr: any) {
+      if (insertErr?.code === '42P10' || /ON CONFLICT/i.test(String(insertErr?.message || ''))) {
+        await ensureNonPartialEventIdUniqueIndex(
+          'platform_notifications',
+          'platform_notifications_event_id_unique_idx'
+        );
+        insertRes = await executeCustomNotifInsert();
+      } else {
+        throw insertErr;
+      }
+    }
 
     let row = insertRes.rows[0];
     let isNewlyCreated = true;

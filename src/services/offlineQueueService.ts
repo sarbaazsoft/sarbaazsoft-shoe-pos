@@ -91,6 +91,7 @@ class OfflineQueueService {
       window.addEventListener('offline', this.handleOffline);
       window.addEventListener('focus', this.handleWindowFocus);
       window.addEventListener('pos:backend-disconnected', this.handleBackendDisconnected);
+      window.addEventListener('pos:backend-connected', this.handleBackendConnected);
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
       this.setupServiceWorkerBridge();
     }
@@ -98,14 +99,16 @@ class OfflineQueueService {
     subscribeSessionClear(() => {
       this.cachedPendingCount = 0;
       this.lastHealthCheckAt = 0;
-      this.isBackendConnectedState = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      this.isOnlineState = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      this.isBackendConnectedState = this.isOnlineState;
       this.primePromise = null;
       this.healthCheckPromise = null;
+      void this.notify();
     });
 
-    // Query pending queue count first; only run initial health probe if offline or pending sales exist
+    // Query pending queue count first; only run initial health probe if authenticated and offline or pending sales exist
     void this.notify().then((count) => {
-      if (typeof count === 'number' && (count > 0 || !this.isOnlineState)) {
+      if (getAuthToken() && typeof count === 'number' && (count > 0 || !this.isOnlineState)) {
         void this.checkBackendHealth();
       }
     });
@@ -278,6 +281,24 @@ class OfflineQueueService {
     }
   }
 
+  private async probeHealthOnce(timeoutMs: number = 8000): Promise<{ ok: boolean; responded: boolean }> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch('/api/health', {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      return { ok: res.ok, responded: true };
+    } catch {
+      return { ok: false, responded: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /**
    * Ping backend directly to verify remote server responsiveness
    */
@@ -296,31 +317,25 @@ class OfflineQueueService {
     this.lastHealthCheckAt = Date.now();
     this.healthCheckPromise = (async () => {
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 4500);
-        const healthHeaders: Record<string, string> = { 'Cache-Control': 'no-cache' };
-        const activeTid = resolveActiveTenantId();
-        if (activeTid) {
-          healthHeaders['X-Tenant-Id'] = String(activeTid);
+        let probe = await this.probeHealthOnce(8000);
+        // Retry once after a brief pause before concluding the backend is unreachable
+        if (!probe.ok && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            this.isOnlineState = false;
+            this.isBackendConnectedState = false;
+            this.notify();
+            return false;
+          }
+          probe = await this.probeHealthOnce(8000);
         }
-        const token = getAuthToken();
-        if (token) {
-          healthHeaders['X-Auth-Token'] = token;
-        }
-        const res = await fetch('/api/health', {
-          method: 'GET',
-          cache: 'no-store',
-          signal: controller.signal,
-          headers: healthHeaders,
-        });
-        clearTimeout(timer);
 
         const wasDisconnected = !this.isBackendConnectedState;
-        const isOk = res.ok;
-        this.isBackendConnectedState = isOk;
-        this.isOnlineState = isOk;
+        const browserOnline = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+        this.isOnlineState = browserOnline;
+        this.isBackendConnectedState = probe.ok;
 
-        if (isOk) {
+        if (probe.ok) {
           // If we just reconnected, or if we have unsynced transactions, trigger automatic sync
           if (wasDisconnected) {
             console.log('[OfflineSync] Backend reconnected. Initiating automatic background sync...');
@@ -362,9 +377,33 @@ class OfflineQueueService {
     this.notify();
   }
 
+  private handleBackendConnected = () => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return;
+    }
+    const wasDisconnected = !this.isBackendConnectedState || !this.isOnlineState;
+    this.isOnlineState = true;
+    this.isBackendConnectedState = true;
+    if (wasDisconnected) {
+      this.notify();
+      if (this.cachedPendingCount > 0 && !this.isSyncingState && getAuthToken()) {
+        void this.syncPendingSales();
+      }
+    }
+  };
+
   private handleBackendDisconnected = () => {
-    this.isBackendConnectedState = false;
-    this.notify();
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      this.isOnlineState = false;
+      this.isBackendConnectedState = false;
+      this.notify();
+      return;
+    }
+    if (!getAuthToken()) {
+      return;
+    }
+    // Verify via /api/health instead of flipping offline on a single transient request failure
+    void this.checkBackendHealth();
   };
 
   private handleOnline = async () => {

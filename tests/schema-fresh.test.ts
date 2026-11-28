@@ -294,6 +294,18 @@ test('src/db/schemaInit.ts stays in full parity with schema.sql without runtime 
   const initIdxNames = parsedInit.indexes.map((i) => i.name).sort();
   assert.deepEqual(initIdxNames, schemaIdxNames, 'Index parity mismatch between schema.sql and schemaInit.ts');
 
+  // PostgreSQL ON CONFLICT (event_id) requires non-partial unique indexes on event_id
+  assert.equal(
+    /platform_notifications_event_id_unique_idx[^\n]*\bWHERE\b/i.test(SCHEMA_SQL),
+    false,
+    'platform_notifications_event_id_unique_idx must be non-partial for ON CONFLICT (event_id)'
+  );
+  assert.equal(
+    /notifications_event_id_unique_idx[^\n]*\bWHERE\b/i.test(SCHEMA_SQL),
+    false,
+    'notifications_event_id_unique_idx must be non-partial for ON CONFLICT (event_id)'
+  );
+
   // Verify runtime database/server files contain zero ALTER TABLE/TYPE DDL statements
   const filesToInspect = [
     'src/db/schemaInit.ts',

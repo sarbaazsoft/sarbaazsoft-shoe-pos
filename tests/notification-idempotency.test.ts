@@ -605,3 +605,87 @@ test('permission safeguards suppress iOS Safari tab prompts, honor dismissal sno
     (globalThis as any).CustomEvent = origCustomEvent;
   }
 });
+
+test('POST /api/superadmin/notifications sends custom notification idempotently and schemaInit uses non-partial event_id unique indexes', async () => {
+  const { DATABASE_INDEX_DDL } = await import('../src/db/schemaInit.ts');
+  const pnIdx = DATABASE_INDEX_DDL.find((ddl) => ddl.includes('platform_notifications_event_id_unique_idx'));
+  const notifIdx = DATABASE_INDEX_DDL.find((ddl) => ddl.includes('notifications_event_id_unique_idx'));
+  assert.ok(pnIdx && !/\bWHERE\b/i.test(pnIdx), 'platform_notifications_event_id_unique_idx must be non-partial for ON CONFLICT (event_id)');
+  assert.ok(notifIdx && !/\bWHERE\b/i.test(notifIdx), 'notifications_event_id_unique_idx must be non-partial for ON CONFLICT (event_id)');
+
+  const express = (await import('express')).default;
+  const http = await import('node:http');
+  const tenantSaasRoutes = (await import('../src/server/routes/tenantSaasRoutes.ts')).default;
+  const { generateToken } = await import('../src/server/auth.ts');
+
+  const superRes = await pgClient.query<{ id: number; email: string; name: string }>(
+    `INSERT INTO users (tenant_id, name, email, password_hash, role, status, active)
+     VALUES (0, 'SuperAdmin Custom Notif', $1, 'hash', 'SUPERADMIN', 'APPROVED', true)
+     RETURNING id, email, name`,
+    [`sa-custom-notif-${Date.now()}@platform.test`]
+  );
+  const superUser = superRes.rows[0];
+  const superToken = generateToken({
+    id: superUser.id,
+    email: superUser.email,
+    name: superUser.name,
+    role: 'SUPERADMIN',
+    tenantId: 0,
+    status: 'APPROVED',
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/api', tenantSaasRoutes);
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const addr = server.address() as { port: number };
+  const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+  try {
+    const evtId = `custom-notif-regression-${Date.now()}`;
+    const first = await fetch(`${baseUrl}/api/superadmin/notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${superToken}`,
+      },
+      body: JSON.stringify({
+        title: 'Maintenance Notice',
+        message: 'System update scheduled at midnight.',
+        targetRole: 'ALL',
+        type: 'INFO',
+        eventId: evtId,
+      }),
+    });
+    assert.equal(first.status, 201);
+    const firstJson = (await first.json()) as any;
+    assert.equal(firstJson.success, true);
+    assert.equal(firstJson.deduplicated, false);
+    assert.equal(firstJson.notification.eventId, evtId);
+
+    const retry = await fetch(`${baseUrl}/api/superadmin/notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${superToken}`,
+      },
+      body: JSON.stringify({
+        title: 'Maintenance Notice',
+        message: 'System update scheduled at midnight.',
+        targetRole: 'ALL',
+        type: 'INFO',
+        eventId: evtId,
+      }),
+    });
+    assert.equal(retry.status, 200);
+    const retryJson = (await retry.json()) as any;
+    assert.equal(retryJson.success, true);
+    assert.equal(retryJson.deduplicated, true);
+    assert.equal(retryJson.notification.id, firstJson.notification.id);
+  } finally {
+    await pgClient.query('DELETE FROM users WHERE id = $1', [superUser.id]).catch(() => {});
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+

@@ -748,4 +748,36 @@ test('deriveOfflineSyncState enforces green/amber/red transitions, sync failure 
   assert.equal(interruptedState.canCloseReminder, false);
 });
 
+test('OfflineToastNotification is gated to authenticated TENANT_ACTIVE sessions and online /api/health prevents false offline popups', async () => {
+  const appSrc = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const apiSrc = fs.readFileSync(path.join(process.cwd(), 'src/services/api.ts'), 'utf8');
+  const queueSvcSrc = fs.readFileSync(path.join(process.cwd(), 'src/services/offlineQueueService.ts'), 'utf8');
+  const tenantMwSrc = fs.readFileSync(path.join(process.cwd(), 'src/server/middleware/tenantMiddleware.ts'), 'utf8');
+  const toastSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/common/OfflineToastNotification.tsx'), 'utf8');
+  const hookSrc = fs.readFileSync(path.join(process.cwd(), 'src/utils/useOfflineSync.ts'), 'utf8');
+
+  // 1. OfflineToastNotification only renders for authenticated TENANT_ACTIVE sessions (never when logged out on SaasLandingPage)
+  assert.ok(
+    appSrc.includes("{!isInitializing && Boolean(currentUser) && saasMode === 'TENANT_ACTIVE' && !isAdminOnboardingIncomplete && (\n        <OfflineToastNotification"),
+    'OfflineToastNotification must be gated behind authenticated TENANT_ACTIVE session'
+  );
+
+  // 2. /api/health is exempt from tenant suspension/expiry blocking
+  assert.ok(tenantMwSrc.includes("!req.path.startsWith('/api/health')"));
+
+  // 3. apiFetch emits pos:backend-disconnected only with auth token and emits pos:backend-connected on live server responses
+  assert.ok(apiSrc.includes('if (isConnectivityFailure && token && typeof window !== \'undefined\')'));
+  assert.ok(apiSrc.includes("window.dispatchEvent(new CustomEvent('pos:backend-connected'))"));
+
+  // 4. offlineQueueService verifies /api/health on pos:backend-disconnected instead of blindly flipping offline
+  assert.ok(queueSvcSrc.includes("window.addEventListener('pos:backend-connected', this.handleBackendConnected)"));
+  assert.ok(queueSvcSrc.includes('void this.checkBackendHealth();'));
+  assert.equal(queueSvcSrc.includes('this.isOnlineState = isOk;'), false);
+
+  // 5. OfflineToastNotification only resets dismissal on wasOffline -> isConnected transitions
+  assert.ok(toastSrc.includes('else if (wasOffline && isConnected && !isManuallyOpened && !showPostSyncNotice)'));
+
+  // 6. useOfflineSync gates mount-time health/catalog sync on auth token
+  assert.ok(hookSrc.includes('if (typeof navigator !== \'undefined\' && navigator.onLine && getAuthToken())'));
+});
 

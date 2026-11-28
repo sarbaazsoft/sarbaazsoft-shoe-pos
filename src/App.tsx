@@ -51,9 +51,6 @@ import { usePWAInstall } from './hooks/usePWAInstall.ts';
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts';
 import { getStandardDocumentTitle, PLATFORM_DOCUMENT_NAME } from './utils/documentTitle.ts';
 import { APP_VERSION } from './version.ts';
-import { CashierIdleWarningModal } from './components/common/CashierIdleWarningModal.tsx';
-import { useCashierIdleLogout } from './hooks/useCashierIdleLogout.ts';
-import { CASHIER_IDLE_LOGOUT_NOTICE, isCashierIdleTimerEnabled } from './utils/cashierIdleTimer.ts';
 import type { ActiveExchange, TenantInfo, CompanySettings } from './types.ts';
 
 const APP_TAB_ROUTES = new Set([
@@ -791,8 +788,14 @@ export default function App() {
 
       // Verify existing JWT token & load tenant settings when applicable
       const shouldFetchSettings = modeForInit !== 'SUPERADMIN' && Boolean(tenantIdForInit);
+      let isAuthExplicitlyRejected = false;
       const [userRes, settingsRes] = await Promise.all([
-        api.auth.me().catch(() => null),
+        api.auth.me().catch((err: any) => {
+          if (Number(err?.status) === 401) {
+            isAuthExplicitlyRejected = true;
+          }
+          return null;
+        }),
         shouldFetchSettings
           ? api.settings.get().catch(() => null)
           : Promise.resolve(null),
@@ -869,7 +872,7 @@ export default function App() {
             setTenantIdParam('');
           }
         }
-      } else if (navigator.onLine) {
+      } else if (isAuthExplicitlyRejected && navigator.onLine) {
         clearAllSessionState();
         clearStoredUnauthTenantId();
         setCurrentUser(null);
@@ -2093,8 +2096,8 @@ export default function App() {
     [handleNavigateDomain, refreshTenantDirectory, syncUserThemeFromAuth]
   );
 
-  const executeLogout = (isIdleLogout: boolean) => {
-    // Immediate logout when triggered by idle timer or after unsaved-changes confirmation.
+  const executeLogout = () => {
+    // Clear active session only upon explicit manual logout.
     // The remembered login email is stored under its own key (see utils/rememberedAccount.ts)
     // and is intentionally NOT cleared here. Capture the role & tenant id BEFORE clearing state.
     const loggingOutRole = String(currentUser?.originalRole || currentUser?.role || '').toUpperCase();
@@ -2126,7 +2129,7 @@ export default function App() {
     setActiveExchangeForPos(null);
     setSelectedSupplierForPurchase(null);
     setTenantIdNotice('');
-    setAuthSessionNotice(isIdleLogout ? CASHIER_IDLE_LOGOUT_NOTICE : null);
+    setAuthSessionNotice(null);
     setCurrentTab('dashboard');
 
     if (isSuperAdminLogout) {
@@ -2163,34 +2166,11 @@ export default function App() {
     }
   };
 
-  const handleLogout = (options?: { reason?: 'idle' | 'manual' } | unknown) => {
-    const isIdleLogout =
-      typeof options === 'object' &&
-      options !== null &&
-      'reason' in options &&
-      (options as { reason?: string }).reason === 'idle';
-
-    if (isIdleLogout) {
-      executeLogout(true);
-      return;
-    }
-
+  const handleLogout = () => {
     void requestNavigation(() => {
-      executeLogout(false);
+      executeLogout();
     });
   };
-
-  const cashierIdleTimerEnabled = isCashierIdleTimerEnabled(currentUser, saasMode);
-  const {
-    isWarningOpen: isCashierIdleWarningOpen,
-    remainingSeconds: cashierIdleRemainingSeconds,
-    totalWarningSeconds: cashierIdleTotalWarningSeconds,
-    staySignedIn: handleCashierStaySignedIn,
-    logoutNow: handleCashierLogoutNow,
-  } = useCashierIdleLogout({
-    enabled: cashierIdleTimerEnabled,
-    onAutoLogout: () => handleLogout({ reason: 'idle' }),
-  });
 
   const handleSwitchRole = (newRole: 'ADMIN' | 'CASHIER') => {
     void requestNavigation(() => {
@@ -3003,23 +2983,15 @@ export default function App() {
         </Suspense>
       )}
 
-      <OfflineToastNotification
-        currencySymbol={companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.'}
-      />
+      {!isInitializing && Boolean(currentUser) && saasMode === 'TENANT_ACTIVE' && !isAdminOnboardingIncomplete && (
+        <OfflineToastNotification
+          currencySymbol={companySettings?.currency_symbol || companySettings?.currencySymbol || 'Rs.'}
+        />
+      )}
 
       {currentUser && (
         <PushNotificationSoftPrompt currentUser={currentUser} />
       )}
-
-      <CashierIdleWarningModal
-        isOpen={cashierIdleTimerEnabled && isCashierIdleWarningOpen}
-        remainingSeconds={cashierIdleRemainingSeconds}
-        totalWarningSeconds={cashierIdleTotalWarningSeconds}
-        cashierName={currentUser?.name || currentUser?.email}
-        storeName={effectiveStoreName}
-        onStaySignedIn={handleCashierStaySignedIn}
-        onLogoutNow={handleCashierLogoutNow}
-      />
 
       {isIosInstallGuideOpen && !isPwaInstalled && (
         <Suspense fallback={null}>

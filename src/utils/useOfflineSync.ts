@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getAuthToken } from '../services/api.ts';
 import { offlineQueueService } from '../services/offlineQueueService.ts';
 import type { QueuedReturn, QueuedSale } from '../utils/offlineDb.ts';
 
@@ -123,10 +124,12 @@ export function useOfflineSync() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Also prime catalog cache if online
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
+    // Also prime catalog cache if online and authenticated
+    if (typeof navigator !== 'undefined' && navigator.onLine && getAuthToken()) {
       offlineQueueService.primeCatalogCache();
-      offlineQueueService.checkBackendHealth();
+      if (!offlineQueueService.isBackendConnected) {
+        offlineQueueService.checkBackendHealth();
+      }
     }
 
     return () => {

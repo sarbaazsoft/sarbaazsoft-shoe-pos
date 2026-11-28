@@ -16,15 +16,39 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-// Auto-unlock AudioContext on first user interaction in browser
+function withUnlockedAudioContext(fn: (ctx: AudioContext) => void): void {
+  if (isMutedState) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      void ctx
+        .resume()
+        .then(() => {
+          if (!isMutedState && ctx.state === 'running') {
+            fn(ctx);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+    fn(ctx);
+  } catch {
+    // Ignore audio errors if blocked by browser autoplay policy
+  }
+}
+
+// Auto-unlock AudioContext on user interaction until running in browser
 if (typeof window !== 'undefined') {
   const unlock = () => {
-    getAudioContext();
-    window.removeEventListener('keydown', unlock);
-    window.removeEventListener('pointerdown', unlock);
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'running') {
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('pointerdown', unlock);
+    }
   };
-  window.addEventListener('keydown', unlock, { once: true, passive: true });
-  window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+  window.addEventListener('keydown', unlock, { passive: true });
+  window.addEventListener('pointerdown', unlock, { passive: true });
 }
 
 // LocalStorage key for persisting terminal mute state
@@ -63,10 +87,7 @@ export const playAudioFeedback = {
 
   // Crisp scanner beep on barcode recognition (Zebra / Honeywell laser beep)
   barcodeScan: () => {
-    if (isMutedState) return;
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
+    withUnlockedAudioContext((ctx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -77,19 +98,13 @@ export const playAudioFeedback = {
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.08);
-    } catch {
-      // Ignore audio errors if blocked
-    }
+    });
   },
 
   // Pleasant two-tone chime when barcode is accepted and added to the invoice/order
   invoiceItemAdded: () => {
-    if (isMutedState) return;
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
+    withUnlockedAudioContext((ctx) => {
       const now = ctx.currentTime;
-      // Tone 1: 1400 Hz
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = 'sine';
@@ -101,7 +116,6 @@ export const playAudioFeedback = {
       osc1.start(now);
       osc1.stop(now + 0.06);
 
-      // Tone 2: 1880 Hz
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
       osc2.type = 'sine';
@@ -112,16 +126,11 @@ export const playAudioFeedback = {
       gain2.connect(ctx.destination);
       osc2.start(now + 0.05);
       osc2.stop(now + 0.14);
-    } catch {
-      // Ignore
-    }
+    });
   },
 
   saleSuccess: () => {
-    if (isMutedState) return;
-    try {
-      const ctx = getAudioContext();
-      if (!ctx) return;
+    withUnlockedAudioContext((ctx) => {
       const now = ctx.currentTime;
       [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -135,9 +144,7 @@ export const playAudioFeedback = {
         osc.start(now + i * 0.07);
         osc.stop(now + i * 0.07 + 0.2);
       });
-    } catch {
-      // Ignore
-    }
+    });
   },
 
   success: () => {

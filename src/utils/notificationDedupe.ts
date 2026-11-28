@@ -140,7 +140,6 @@ export function recordSwNotificationShown(msg: {
 
   for (const key of keys) {
     markNotificationChannelClaimed(key, 'os_notification', ttl);
-    markNotificationChannelClaimed(key, 'audio', ttl);
   }
 }
 

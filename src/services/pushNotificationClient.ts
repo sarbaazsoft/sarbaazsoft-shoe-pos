@@ -9,6 +9,7 @@ import {
   initFirebaseClient,
   isExplicitUserPushOptOut,
   requestFcmPermissionAndToken,
+  resolveActivePushServiceWorker,
   syncFcmTokenSilently,
   unregisterFcmDeviceToken,
 } from './firebaseConfig.ts';
@@ -682,8 +683,10 @@ let lastNativePromptInitAt = 0;
 /**
  * Background Firebase client warm-up on session load:
  * 1. Initializes the Firebase app + foreground `onMessage` listener in the background.
- * 2. NEVER calls `Notification.requestPermission()` or `getToken()` automatically on page load or login.
- *    Token acquisition only runs after an explicit user click (e.g. Enable Notifications / Check Status).
+ * 2. NEVER calls `Notification.requestPermission()` automatically on page load or login.
+ * 3. When notification permission is ALREADY `'granted'` (and user did not opt out), silently
+ *    ensures the root SW is active and syncs/rotates the device FCM token once per
+ *    (tenantId, userId, role, config) session so other devices and role switches stay reachable.
  */
 export function initNativeNotificationPrompt(overrideRole?: string): () => void {
   if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -691,15 +694,34 @@ export function initNativeNotificationPrompt(overrideRole?: string): () => void 
   }
 
   const normalizedRole = String(overrideRole || 'ADMIN').toUpperCase();
+  let sessionUserId = 0;
+  let sessionTenantId = 0;
+  try {
+    const rawUser = typeof localStorage !== 'undefined' ? localStorage.getItem('pos_current_user') : null;
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      sessionUserId = Number(parsed?.id || 0);
+      sessionTenantId = Number(parsed?.tenantId || parsed?.tenant_id || 0);
+    }
+  } catch {}
+
+  const initKey = `${normalizedRole}:${sessionTenantId}:${sessionUserId}`;
   const now = Date.now();
-  if (lastNativePromptInitKey === normalizedRole && now - lastNativePromptInitAt < 5000) {
+  if (lastNativePromptInitKey === initKey && now - lastNativePromptInitAt < 5000) {
     return () => {};
   }
-  lastNativePromptInitKey = normalizedRole;
+  lastNativePromptInitKey = initKey;
   lastNativePromptInitAt = now;
 
-  // Pre-initialize Firebase client & foreground onMessage listener only (no getToken / no requestPermission)
+  // Pre-initialize Firebase client & foreground listeners (never calls requestPermission)
   initFirebaseClient().catch(() => {});
+
+  // Silently sync/rotate FCM token ONLY if permission is already granted & user has not opted out
+  if (Notification.permission === 'granted' && !isExplicitUserPushOptOut() && isWebPushSupported()) {
+    void resolveActivePushServiceWorker()
+      .then(() => resyncPushSubscriptionIfEnabled(normalizedRole))
+      .catch(() => {});
+  }
 
   return () => {};
 }

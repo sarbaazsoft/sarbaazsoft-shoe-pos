@@ -795,6 +795,23 @@ self.addEventListener('push', (event) => {
     notificationBody: rawBody,
   });
 
+  // Notify any open foreground windows immediately so Header bell, toast, and audio chime trigger
+  // even when SW handles the push event directly.
+  broadcastPushDedupeEvent({
+    type: 'SW_PUSH_RECEIVED',
+    payload: {
+      notification: {
+        title,
+        body: rawBody,
+        icon: notification.icon || data.icon || payloadData.icon || defaultIcon,
+        badge,
+        tag,
+      },
+      data: mergedPushData,
+      messageId: data.messageId || payloadData.eventId || tag,
+    },
+  });
+
   const options = {
     body: rawBody,
     icon: notification.icon || data.icon || payloadData.icon || defaultIcon,

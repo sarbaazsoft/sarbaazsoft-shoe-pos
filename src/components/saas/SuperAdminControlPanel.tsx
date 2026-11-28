@@ -687,6 +687,12 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
 
     try {
       setTestPushStatus('sending');
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted'
+      ) {
+        await resyncPushSubscriptionIfEnabled('SUPERADMIN').catch(() => false);
+      }
       const res = await api.notifications.testPush({
         title: 'SuperAdmin Test Alert',
         message: 'SuperAdmin push notification test delivered successfully to registered devices.',
@@ -694,7 +700,7 @@ export const SuperAdminControlPanel: React.FC<SuperAdminControlPanelProps> = ({
       });
       setTestPushStatus(res.success ? 'success' : 'error');
 
-      if (res.success) {
+      if (res.success && (res.fcmSentCount || 0) > 0) {
         void triggerTestNotificationShadeFallback({
           eventId: res.eventId || eventId,
           title: 'SuperAdmin Test Alert',

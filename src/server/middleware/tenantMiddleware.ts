@@ -314,6 +314,7 @@ export async function tenantRoutingMiddleware(
     // Real-time middleware enforcement: block API calls to expired or suspended tenants (except verified SUPERADMIN, auth & saas resolution)
     if (
       req.path.startsWith('/api/') &&
+      !req.path.startsWith('/api/health') &&
       !req.path.startsWith('/api/superadmin') &&
       !req.path.startsWith('/api/saas') &&
       !req.path.startsWith('/api/tenants/') &&

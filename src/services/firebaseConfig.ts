@@ -100,6 +100,10 @@ function attachPushSubscriptionChangeListener(): void {
 
   const handleMessage = (data: any) => {
     if (!data || typeof data !== 'object') return;
+    if (data.type === 'SW_PUSH_RECEIVED' && data.payload) {
+      handleForegroundFcmPayload(data.payload, { skipOsNotification: true });
+      return;
+    }
     if (data.type === 'SW_PUSH_SUBSCRIPTION_CHANGED') {
       clearPersistedFcmSyncSignature();
       void syncFcmTokenSilently();
@@ -156,12 +160,12 @@ export async function resolveActivePushServiceWorker(): Promise<ServiceWorkerReg
     }
 
     let reg = await navigator.serviceWorker.getRegistration('/');
-    if (!reg) {
+    if (!reg && typeof navigator.serviceWorker.register === 'function') {
       reg = await navigator.serviceWorker.register('/sw.js', {
         scope: '/',
         updateViaCache: 'none',
       });
-    } else if (typeof reg.update === 'function') {
+    } else if (reg && typeof reg.update === 'function') {
       void reg.update().catch(() => {});
     }
 
@@ -272,11 +276,8 @@ async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<voi
           const tx = db.transaction(storeNames, 'readwrite');
           for (const storeName of storeNames) {
             const store = tx.objectStore(storeName);
-            if (appId) {
-              store.delete(appId);
-            } else {
-              store.clear();
-            }
+            // Always clear all cached appId/FID entries so switching Firebase Web Apps never leaves stale registrations behind
+            store.clear();
           }
           tx.oncomplete = () => {
             try {
@@ -324,6 +325,167 @@ export async function resetFirebaseClientCache(clearLocalToken = false): Promise
   }
   if (clearLocalToken && typeof localStorage !== 'undefined') {
     clearPersistedFcmSyncSignature();
+  }
+}
+
+function handleForegroundFcmPayload(
+  payload: any,
+  options?: { skipOsNotification?: boolean }
+): void {
+  if (!payload || typeof payload !== 'object') return;
+
+  const dedupeKey = getNotificationDedupeKey(payload);
+  // Ensure each eventId/tag triggers foreground UI dispatch at most once across onMessage & SW_PUSH_RECEIVED
+  if (!claimNotificationChannel(dedupeKey, 'toast')) {
+    return;
+  }
+
+  const title = payload.notification?.title || payload.data?.title || 'POS Notification';
+  const rawBody = payload.notification?.body || payload.data?.body || 'New operational activity';
+  const actionType = String(payload.data?.type || '').toUpperCase();
+  const isPosTx = ['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE'].includes(actionType);
+  const dataCustomer = String(payload.data?.customerName || '').trim() || 'Walk-in Customer';
+  const dataCashier = String(payload.data?.cashierName || '').trim() || 'Counter Staff';
+  const dataPairs = Number(payload.data?.totalPairs);
+  let body = rawBody;
+  if (isPosTx) {
+    const extraLines: string[] = [];
+    const hasPairs = /\b\d+(?:\.\d+)?\s*(?:pairs?|cartons?|boxes?|dozens?)\b/i.test(rawBody);
+    const hasCustomer =
+      rawBody.toLowerCase().includes(dataCustomer.toLowerCase()) ||
+      /\b(?:sold to|customer|returned by|exchanged by)\s*:?\s*\S+/i.test(rawBody);
+    const hasCashier =
+      rawBody.toLowerCase().includes(dataCashier.toLowerCase()) ||
+      /\b(?:processed by|cashier)\s*:/i.test(rawBody);
+    if (!hasPairs && payload.data?.totalPairs !== undefined && payload.data?.totalPairs !== '' && Number.isFinite(dataPairs)) {
+      extraLines.push(`Total Pairs: ${dataPairs} ${dataPairs === 1 ? 'pair' : 'pairs'}`);
+    }
+    if (!hasCustomer) {
+      extraLines.push(`Customer: ${dataCustomer}`);
+    }
+    if (!hasCashier) {
+      extraLines.push(`Processed by: ${dataCashier}`);
+    }
+    if (extraLines.length > 0) {
+      body = rawBody ? `${rawBody}\n${extraLines.join('\n')}` : extraLines.join('\n');
+    }
+  }
+  const deepLinkUrl = payload.data?.url || '/pos';
+  const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || payload.data?.isAdmin === 'true';
+  const icon = payload.notification?.icon || payload.data?.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
+  const rawBadge = payload.data?.badge || (payload.notification as Record<string, any> | undefined)?.badge;
+  const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
+  const tag =
+    payload.data?.tag ||
+    payload.data?.eventId ||
+    payload.data?.event_id ||
+    (payload.notification as Record<string, any> | undefined)?.tag ||
+    payload.messageId ||
+    dedupeKey;
+
+  const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
+  let activeUserRole = '';
+  try {
+    const rawUser = localStorage.getItem('pos_current_user');
+    if (rawUser) {
+      activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
+    }
+  } catch {}
+
+  const mergedFcmData = {
+    ...(payload.data || {}),
+    url: deepLinkUrl,
+    isAdmin: isAdminTarget ? 'true' : 'false',
+    eventId: payload.data?.eventId || tag,
+    tag,
+    timestamp: parsedTimestamp,
+    userRole: payload.data?.userRole || activeUserRole,
+  };
+
+  // Emit shared foreground FCM event so Header bell, toast, PosNotificationBanner, and SuperAdmin update without polling
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('pos:fcm-notification', {
+        detail: {
+          id: payload.data?.announcementId || payload.data?.notificationId || tag,
+          eventId: mergedFcmData.eventId,
+          tag,
+          type: payload.data?.type || 'INFO',
+          itemType: payload.data?.itemType || '',
+          title,
+          message: body,
+          invoiceNumber: payload.data?.invoiceNumber || undefined,
+          purchaseNumber: payload.data?.purchaseNumber || undefined,
+          returnNumber: payload.data?.returnNumber || undefined,
+          saleId: payload.data?.saleId || undefined,
+          announcementId: payload.data?.announcementId || undefined,
+          totalAmount: payload.data?.totalAmount ? Number(payload.data.totalAmount) : undefined,
+          totalPairs: Number.isFinite(dataPairs) && payload.data?.totalPairs !== '' ? dataPairs : undefined,
+          customerName: payload.data?.customerName || undefined,
+          cashierName: payload.data?.cashierName || undefined,
+          targetRole: payload.data?.targetRole || undefined,
+          deepLinkUrl,
+          actionUrl: deepLinkUrl,
+          actionLabel: payload.data?.actionLabel || undefined,
+          timestamp: new Date(parsedTimestamp).toISOString(),
+          isAdmin: isAdminTarget,
+        },
+      })
+    );
+  }
+
+  // Play alert audio chime once per foreground FCM event (when target role matches active user)
+  const payloadTargetRole = payload.data?.targetRole ? String(payload.data.targetRole).toUpperCase() : '';
+  const payloadTypeUpper = String(payload.data?.type || 'INFO').toUpperCase();
+  const isRoleEligibleForAudio =
+    !activeUserRole ||
+    ((activeUserRole !== 'SUPERADMIN' || !['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE', 'PURCHASE', 'STOCK'].includes(payloadTypeUpper)) &&
+      (!payloadTargetRole || payloadTargetRole === 'ALL' || payloadTargetRole === activeUserRole || (activeUserRole === 'OWNER' && payloadTargetRole === 'ADMIN')));
+
+  if (isRoleEligibleForAudio && claimNotificationChannel(dedupeKey, 'audio')) {
+    playAudioFeedback.success();
+  }
+
+  if (options?.skipOsNotification) {
+    return;
+  }
+
+  // Show browser/Android shade notification once per eventId/tag if permitted and not already shown by SW
+  let androidDeliveryBlocked = false;
+  try {
+    androidDeliveryBlocked =
+      localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
+      localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
+  } catch {}
+
+  if (
+    typeof Notification !== 'undefined' &&
+    Notification.permission === 'granted' &&
+    !androidDeliveryBlocked &&
+    !isNotificationChannelClaimed(dedupeKey, 'os_notification') &&
+    claimNotificationChannel(dedupeKey, 'os_notification')
+  ) {
+    void showSingleShadeNotification(
+      title,
+      {
+        body,
+        icon,
+        badge,
+        tag,
+        timestamp: parsedTimestamp,
+        requireInteraction: false,
+        renotify: false,
+        actions: buildPushNotificationActions(
+          { ...mergedFcmData, title, message: body },
+          activeUserRole
+        ),
+        data: mergedFcmData,
+      },
+      () => {
+        window.focus();
+        navigateToNotificationUrl(deepLinkUrl, mergedFcmData);
+      }
+    );
   }
 }
 
@@ -395,143 +557,7 @@ export async function initFirebaseClient(): Promise<{ app: FirebaseApp | null; m
     // Attach foreground message listener once
     if (!onMessageUnsubscribe) {
       onMessageUnsubscribe = onMessage(messaging, (payload) => {
-        const title = payload.notification?.title || payload.data?.title || 'POS Notification';
-        const rawBody = payload.notification?.body || payload.data?.body || 'New operational activity';
-        const actionType = String(payload.data?.type || '').toUpperCase();
-        const isPosTx = ['SALE', 'RETURN', 'EXCHANGE', 'SALE_RETURN', 'SALE_EXCHANGE'].includes(actionType);
-        const dataCustomer = String(payload.data?.customerName || '').trim() || 'Walk-in Customer';
-        const dataCashier = String(payload.data?.cashierName || '').trim() || 'Counter Staff';
-        const dataPairs = Number(payload.data?.totalPairs);
-        let body = rawBody;
-        if (isPosTx) {
-          const extraLines: string[] = [];
-          const hasPairs = /\b\d+(?:\.\d+)?\s*(?:pairs?|cartons?|boxes?|dozens?)\b/i.test(rawBody);
-          const hasCustomer =
-            rawBody.toLowerCase().includes(dataCustomer.toLowerCase()) ||
-            /\b(?:sold to|customer|returned by|exchanged by)\s*:?\s*\S+/i.test(rawBody);
-          const hasCashier =
-            rawBody.toLowerCase().includes(dataCashier.toLowerCase()) ||
-            /\b(?:processed by|cashier)\s*:/i.test(rawBody);
-          if (!hasPairs && payload.data?.totalPairs !== undefined && payload.data?.totalPairs !== '' && Number.isFinite(dataPairs)) {
-            extraLines.push(`Total Pairs: ${dataPairs} ${dataPairs === 1 ? 'pair' : 'pairs'}`);
-          }
-          if (!hasCustomer) {
-            extraLines.push(`Customer: ${dataCustomer}`);
-          }
-          if (!hasCashier) {
-            extraLines.push(`Processed by: ${dataCashier}`);
-          }
-          if (extraLines.length > 0) {
-            body = rawBody ? `${rawBody}\n${extraLines.join('\n')}` : extraLines.join('\n');
-          }
-        }
-        const deepLinkUrl = payload.data?.url || '/pos';
-        const isAdminTarget = String(deepLinkUrl).startsWith('/admin') || payload.data?.isAdmin === 'true';
-        const icon = payload.notification?.icon || payload.data?.icon || (isAdminTarget ? '/admin/pwa-192x192.png' : '/pwa-192x192.png');
-        const rawBadge = payload.data?.badge || (payload.notification as Record<string, any> | undefined)?.badge;
-        const badge = rawBadge && !String(rawBadge).includes('pwa-192x192') ? rawBadge : '/icons/badge-favicon.png';
-        const dedupeKey = getNotificationDedupeKey(payload);
-        const tag =
-          payload.data?.tag ||
-          payload.data?.eventId ||
-          payload.data?.event_id ||
-          (payload.notification as Record<string, any> | undefined)?.tag ||
-          payload.messageId ||
-          dedupeKey;
-
-        const parsedTimestamp = Number(payload.data?.timestamp) || Date.now();
-        let activeUserRole = '';
-        try {
-          const rawUser = localStorage.getItem('pos_current_user');
-          if (rawUser) {
-            activeUserRole = String(JSON.parse(rawUser)?.role || '').toUpperCase();
-          }
-        } catch {}
-
-        const mergedFcmData = {
-          ...(payload.data || {}),
-          url: deepLinkUrl,
-          isAdmin: isAdminTarget ? 'true' : 'false',
-          eventId: payload.data?.eventId || tag,
-          tag,
-          timestamp: parsedTimestamp,
-          userRole: payload.data?.userRole || activeUserRole,
-        };
-
-        // Emit shared foreground FCM event so Header bell, PosNotificationBanner, and SuperAdmin update without polling
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('pos:fcm-notification', {
-              detail: {
-                id: payload.data?.announcementId || payload.data?.notificationId || tag,
-                eventId: mergedFcmData.eventId,
-                tag,
-                type: payload.data?.type || 'INFO',
-                itemType: payload.data?.itemType || '',
-                title,
-                message: body,
-                invoiceNumber: payload.data?.invoiceNumber || undefined,
-                purchaseNumber: payload.data?.purchaseNumber || undefined,
-                returnNumber: payload.data?.returnNumber || undefined,
-                saleId: payload.data?.saleId || undefined,
-                announcementId: payload.data?.announcementId || undefined,
-                totalAmount: payload.data?.totalAmount ? Number(payload.data.totalAmount) : undefined,
-                totalPairs: Number.isFinite(dataPairs) && payload.data?.totalPairs !== '' ? dataPairs : undefined,
-                customerName: payload.data?.customerName || undefined,
-                cashierName: payload.data?.cashierName || undefined,
-                targetRole: payload.data?.targetRole || undefined,
-                deepLinkUrl,
-                actionUrl: deepLinkUrl,
-                actionLabel: payload.data?.actionLabel || undefined,
-                timestamp: new Date(parsedTimestamp).toISOString(),
-                isAdmin: isAdminTarget,
-              },
-            })
-          );
-        }
-
-        // Play alert audio chime once per foreground FCM event
-        if (claimNotificationChannel(dedupeKey, 'audio')) {
-          playAudioFeedback.success();
-        }
-
-        // Show browser/Android shade notification once per eventId/tag if permitted and not already shown by SW
-        let androidDeliveryBlocked = false;
-        try {
-          androidDeliveryBlocked =
-            localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
-            localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
-        } catch {}
-
-        if (
-          typeof Notification !== 'undefined' &&
-          Notification.permission === 'granted' &&
-          !androidDeliveryBlocked &&
-          !isNotificationChannelClaimed(dedupeKey, 'os_notification') &&
-          claimNotificationChannel(dedupeKey, 'os_notification')
-        ) {
-          void showSingleShadeNotification(
-            title,
-            {
-              body,
-              icon,
-              badge,
-              tag,
-              timestamp: parsedTimestamp,
-              requireInteraction: false,
-              renotify: false,
-              actions: buildPushNotificationActions(
-                { ...mergedFcmData, title, message: body },
-                activeUserRole
-              ),
-              data: mergedFcmData,
-            },
-            () => {
-              window.focus();
-              navigateToNotificationUrl(deepLinkUrl, mergedFcmData);
-            }
-          );
-        }
+        handleForegroundFcmPayload(payload);
       });
     }
 
@@ -750,18 +776,33 @@ export async function acquireAndSyncFcmToken(
         console.warn('[firebaseConfig]', vapidWarning);
       }
 
-      const activeClientConfigSig = `${config?.projectId || ''}:${config?.messagingSenderId || ''}:${config?.appId || ''}:${vapidKey || ''}`;
+      const activeClientConfigSig = `${config?.projectId || ''}:${config?.apiKey || ''}:${config?.messagingSenderId || ''}:${config?.appId || ''}:${vapidKey || ''}`;
       const previousClientConfigSig = localStorage.getItem(FCM_CLIENT_CONFIG_SIG_KEY) || '';
-      const hasConfigChanged = Boolean(previousClientConfigSig && previousClientConfigSig !== activeClientConfigSig);
-      const shouldRotateToken = hasConfigChanged || forceRefresh;
       const previousStoredToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
+      const hasConfigChanged = Boolean(
+        (previousClientConfigSig && previousClientConfigSig !== activeClientConfigSig) ||
+          (!previousClientConfigSig && previousStoredToken)
+      );
+      const shouldRotateToken = hasConfigChanged || forceRefresh;
 
       if (shouldRotateToken) {
         clearPersistedFcmSyncSignature();
         if (activeSwReg?.active) {
           try {
             activeSwReg.active.postMessage({ type: 'PREPARE_PUSH_SUBSCRIPTION_ROTATION' });
-            activeSwReg.active.postMessage({ type: 'REINIT_FIREBASE_CONFIG' });
+            if (typeof MessageChannel !== 'undefined') {
+              await new Promise<void>((resolve) => {
+                const mc = new MessageChannel();
+                const timer = setTimeout(resolve, 600);
+                mc.port1.onmessage = () => {
+                  clearTimeout(timer);
+                  resolve();
+                };
+                activeSwReg.active?.postMessage({ type: 'REINIT_FIREBASE_CONFIG' }, [mc.port2]);
+              });
+            } else {
+              activeSwReg.active.postMessage({ type: 'REINIT_FIREBASE_CONFIG' });
+            }
           } catch {}
         }
         // Bind the active root SW registration BEFORE deleteToken() so @firebase/messaging
@@ -775,7 +816,7 @@ export async function acquireAndSyncFcmToken(
           await deleteToken(messaging).catch(() => false);
         }
         // Purge cached token details in IndexedDB even if cross-project DELETE /registrations failed
-        await clearFirebaseMessagingIndexedDbCache(config?.appId);
+        await clearFirebaseMessagingIndexedDbCache();
         if (activeSwReg?.pushManager && typeof activeSwReg.pushManager.getSubscription === 'function') {
           const oldSub = await activeSwReg.pushManager.getSubscription().catch(() => null);
           if (oldSub) {
@@ -932,6 +973,28 @@ export async function acquireAndSyncFcmToken(
         localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true' &&
         localStorage.getItem(ANDROID_SYSTEM_DISABLED_REASON_KEY) === 'delivery-rejected';
 
+      if (!token) {
+        localStorage.setItem(PUSH_ENABLED_KEY, 'false');
+        window.dispatchEvent(
+          new CustomEvent('pos:push-status-changed', {
+            detail: {
+              token: undefined,
+              permission: 'granted',
+              isSubscribed: false,
+              androidSystemDisabled: stillDeliveryBlocked,
+            },
+          })
+        );
+        return {
+          success: false,
+          androidSystemDisabled: stillDeliveryBlocked,
+          error:
+            vapidWarning ||
+            tokenErrorDetail ||
+            'Could not register an FCM push token for this browser. Verify Web API Key, Sender ID, Web App ID, and VAPID key in Notification Settings.',
+        };
+      }
+
       // Mark notifications as enabled in localStorage and clear denial / prompt / explicit opt-out flags
       localStorage.setItem(PUSH_ENABLED_KEY, 'true');
       localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
@@ -946,7 +1009,7 @@ export async function acquireAndSyncFcmToken(
             permission: 'granted',
             isSubscribed: !stillDeliveryBlocked,
             androidSystemDisabled: stillDeliveryBlocked,
-            mode: token ? 'fcm' : 'realtime',
+            mode: 'fcm',
           },
         })
       );
@@ -964,42 +1027,26 @@ export async function acquireAndSyncFcmToken(
       return {
         success: true,
         token,
-        mode: token ? 'fcm' : 'realtime',
-        warning: !token
-          ? vapidWarning ||
-            tokenErrorDetail ||
-            'Real-time desktop alerts are active! (Live counter & sales alerts will pop up while POS is open).'
-          : undefined,
+        mode: 'fcm',
       };
     } catch (err: any) {
       console.error('[firebaseConfig] Exception in acquireAndSyncFcmToken:', err);
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        const stillBlocked = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
-        if (stillBlocked) {
-          return {
-            success: false,
-            androidSystemDisabled: true,
-            error:
-              'Browser permission is granted, but Android system notifications appear disabled in device settings.',
-          };
-        }
-        localStorage.setItem(PUSH_ENABLED_KEY, 'true');
-        localStorage.removeItem(PUSH_PERMISSION_DENIED_KEY);
-        localStorage.removeItem(PUSH_USER_OPTED_OUT_KEY);
-        window.dispatchEvent(
-          new CustomEvent('pos:push-status-changed', {
-            detail: { permission: 'granted', isSubscribed: true, mode: 'realtime' },
-          })
-        );
-        return {
-          success: true,
-          mode: 'realtime',
-          warning: 'Real-time notifications are enabled! You will receive live desktop and counter alerts while POS is open.',
-        };
-      }
+      const stillBlocked = localStorage.getItem(ANDROID_SYSTEM_DISABLED_KEY) === 'true';
+      window.dispatchEvent(
+        new CustomEvent('pos:push-status-changed', {
+          detail: {
+            permission: typeof Notification !== 'undefined' ? Notification.permission : 'default',
+            isSubscribed: false,
+            androidSystemDisabled: stillBlocked,
+          },
+        })
+      );
       return {
         success: false,
-        error: err?.message || 'Failed to complete notification registration.',
+        androidSystemDisabled: stillBlocked,
+        error: stillBlocked
+          ? 'Browser permission is granted, but Android system notifications appear disabled in device settings.'
+          : err?.message || 'Failed to complete notification registration.',
       };
     } finally {
       inFlightTokenSync = null;

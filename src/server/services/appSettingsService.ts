@@ -648,8 +648,16 @@ export async function updateAppSettings(
     }
   }
 
-  // Detect Firebase project / Sender ID / App ID / API Key / VAPID rotation before persisting so stale tokens from an older project or VAPID key are purged
-  const fcmRotationKeys = ['FCM_PROJECT_ID', 'FCM_MESSAGING_SENDER_ID', 'FCM_APP_ID', 'FCM_VAPID_KEY', 'FCM_API_KEY'] as const;
+  // Detect Firebase project / Sender ID / App ID / API Key / VAPID / Service Account rotation before persisting so stale tokens from an older project/app or VAPID key are purged
+  const fcmRotationKeys = [
+    'FCM_PROJECT_ID',
+    'FCM_MESSAGING_SENDER_ID',
+    'FCM_APP_ID',
+    'FCM_VAPID_KEY',
+    'FCM_API_KEY',
+    'FCM_CLIENT_EMAIL',
+    'FCM_PRIVATE_KEY',
+  ] as const;
   const hasFcmRotationInput = fcmRotationKeys.some((k) => cleanUpdates[k] !== undefined);
   let shouldPurgeStaleFcmTokens = false;
 

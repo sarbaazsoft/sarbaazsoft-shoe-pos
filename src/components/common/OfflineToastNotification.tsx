@@ -58,7 +58,7 @@ export const OfflineToastNotification: React.FC<OfflineToastNotificationProps> =
       setShowPostSyncNotice(true);
     } else if (!hasUnsyncedInvoices && isOffline) {
       hadUnsyncedInvoicesRef.current = false;
-    } else if (isConnected && !isManuallyOpened && !showPostSyncNotice) {
+    } else if (wasOffline && isConnected && !isManuallyOpened && !showPostSyncNotice) {
       // Returned online with zero unsynced invoices from an empty outage
       setIsDismissed(false);
       setIsMinimized(false);

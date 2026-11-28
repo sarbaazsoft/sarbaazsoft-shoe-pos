@@ -172,10 +172,12 @@ test('public/sw.js registers push/notificationclick before Firebase compat and s
   assert.equal(shownNotifications[0].options.renotify, false);
   assert.equal(shownNotifications[0].options.silent, false);
 
-  // Check BroadcastChannel dedupe notification emitted by SW
-  assert.equal(broadcastMessages.length, 1);
-  assert.equal(broadcastMessages[0].type, 'SW_NOTIFICATION_SHOWN');
-  assert.equal(broadcastMessages[0].tag, 'pos-sale-INV-99');
+  // Check BroadcastChannel foreground relay + OS dedupe events emitted by SW
+  const shownMsgs = broadcastMessages.filter((m) => m?.type === 'SW_NOTIFICATION_SHOWN');
+  const relayMsgs = broadcastMessages.filter((m) => m?.type === 'SW_PUSH_RECEIVED');
+  assert.equal(relayMsgs.length, 1);
+  assert.equal(shownMsgs.length, 1);
+  assert.equal(shownMsgs[0].tag, 'pos-sale-INV-99');
 
   // Duplicate push within 15s suppresses sound/vibration via silent: true and never enables renotify
   stopped = false;
@@ -254,7 +256,7 @@ test('SW_NOTIFICATION_SHOWN + showSingleNotificationWithRegistration prevent SSE
   } as any);
 
   assert.equal(isNotificationChannelClaimed('id:pos-sale-555', 'os_notification'), true);
-  assert.equal(isNotificationChannelClaimed('id:pos-sale-555', 'audio'), true);
+  assert.equal(isNotificationChannelClaimed('id:pos-sale-555', 'audio'), false);
   assert.equal(claimNotificationChannel('id:pos-sale-555', 'os_notification'), false);
 
   // Also test registration-level active tag dedupe

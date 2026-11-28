@@ -262,12 +262,11 @@ test('Global navigation protection covers Modal UI, main.tsx provider, SettingsV
   assert.ok(settingsSrc.includes('const handleSelectTab = useCallback'));
   assert.ok(settingsSrc.includes('requestNavigation(() => setActiveTab('));
 
-  // App.tsx guards sidebar/header tabs, domain switching, deep links, popstate, role switch, and manual logout ONLY (never idle auto-logout)
+  // App.tsx guards sidebar/header tabs, domain switching, deep links, popstate, role switch, and manual logout
   assert.ok(appSrc.includes('hasDirtyMatchingScopes'));
   assert.ok(appSrc.includes("window.addEventListener('popstate'"));
   assert.ok(appSrc.includes('handleSwitchRole'));
-  assert.ok(appSrc.includes('executeLogout(true)'));
-  assert.ok(appSrc.includes('requestNavigation(() => {\n      executeLogout(false)'));
+  assert.ok(appSrc.includes('requestNavigation(() => {\n      executeLogout();'));
   assert.ok(appSrc.includes('requestNavigation(() => executeNavigateDomain(target))'));
 
   // Header Cashier switch delegates solely to guarded onSwitchRole when passed

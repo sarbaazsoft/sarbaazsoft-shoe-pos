@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
-import { pgClient } from './index.ts';
+import { pgClient, rawPool } from './index.ts';
 import { ensureAppSettingsSchema } from '../server/services/appSettingsService.ts';
 import { resetSchemaColumnSyncState, syncMissingSchemaColumns } from './schemaSync.ts';
 import {
@@ -709,13 +709,13 @@ export const DATABASE_INDEX_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS platform_notifications_tenant_idx ON platform_notifications(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_target_role_idx ON platform_notifications(target_role)`,
   `CREATE INDEX IF NOT EXISTS platform_notifications_created_at_idx ON platform_notifications(created_at)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id) WHERE event_id IS NOT NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS platform_notifications_event_id_unique_idx ON platform_notifications(event_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notification_reads_notif_idx ON platform_notification_reads(notification_id)`,
   `CREATE INDEX IF NOT EXISTS platform_notification_reads_tenant_idx ON platform_notification_reads(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS pos_notification_dismissals_idx ON pos_notification_dismissals(tenant_id, user_id, item_type)`,
   `CREATE INDEX IF NOT EXISTS notifications_tenant_created_idx ON notifications(tenant_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications(tenant_id, is_read)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id) WHERE event_id IS NOT NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS notifications_event_id_unique_idx ON notifications(event_id)`,
   `CREATE INDEX IF NOT EXISTS fcm_tokens_tenant_idx ON fcm_tokens(tenant_id)`,
   `CREATE INDEX IF NOT EXISTS fcm_tokens_user_role_idx ON fcm_tokens(user_role)`,
   `CREATE INDEX IF NOT EXISTS fcm_tokens_user_id_idx ON fcm_tokens(user_id)`,
@@ -786,6 +786,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
       for (const idxDdl of DATABASE_INDEX_DDL) {
         await pgClient.exec(idxDdl).catch(() => {});
       }
+      await ensureNonPartialEventIdUniqueIndex('platform_notifications', 'platform_notifications_event_id_unique_idx');
+      await ensureNonPartialEventIdUniqueIndex('notifications', 'notifications_event_id_unique_idx');
     } finally {
       databaseSchemaPromise = null;
     }
@@ -811,6 +813,56 @@ export function ensureCustomerLedgerSchema(): Promise<void> {
   return customerLedgerSchemaPromise;
 }
 
+/**
+ * PostgreSQL's `ON CONFLICT (event_id)` requires a non-partial unique index/constraint.
+ * Older deployments created partial indexes (`WHERE event_id IS NOT NULL`), which causes
+ * `there is no unique or exclusion constraint matching the ON CONFLICT specification`.
+ * This helper upgrades any partial or missing index to a non-partial unique index cleanly.
+ */
+export async function ensureNonPartialEventIdUniqueIndex(
+  tableName: 'platform_notifications' | 'notifications',
+  indexName: string
+): Promise<void> {
+  if (!rawPool) return;
+  await syncMissingSchemaColumns({
+    tableDdls: DATABASE_TABLE_DDL,
+    indexDdls: DATABASE_INDEX_DDL,
+    ensureEnums: ensureDatabaseEnumsSchema,
+  }).catch(() => {});
+
+  const idxCheck = await pgClient
+    .query<{ indisunique: boolean; is_partial: boolean }>(
+      `SELECT i.indisunique, (i.indpred IS NOT NULL) AS is_partial
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_index i ON i.indexrelid = c.oid
+       WHERE n.nspname = 'public' AND c.relname = $1
+       LIMIT 1`,
+      [indexName]
+    )
+    .catch(() => ({ rows: [] as Array<{ indisunique: boolean; is_partial: boolean }> }));
+
+  const existing = idxCheck.rows[0];
+  if (existing && existing.indisunique && !existing.is_partial) {
+    return;
+  }
+
+  await pgClient
+    .exec(`UPDATE public."${tableName}" SET event_id = NULL WHERE event_id IS NOT NULL AND BTRIM(event_id) = '';`)
+    .catch(() => {});
+  await pgClient
+    .exec(
+      `DELETE FROM public."${tableName}" a
+       USING public."${tableName}" b
+       WHERE a.id > b.id
+         AND a.event_id IS NOT NULL
+         AND a.event_id = b.event_id;`
+    )
+    .catch(() => {});
+  await pgClient.exec(`DROP INDEX IF EXISTS public."${indexName}";`);
+  await pgClient.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "${indexName}" ON public."${tableName}"(event_id);`);
+}
+
 /** Ensures platform_notifications, platform_notification_reads, and pos_notification_dismissals tables exist cleanly. */
 export function ensurePlatformNotificationsSchema(): Promise<void> {
   if (!platformNotificationsSchemaPromise) {
@@ -827,6 +879,7 @@ export function ensurePlatformNotificationsSchema(): Promise<void> {
       )) {
         await pgClient.exec(idxDdl).catch(() => {});
       }
+      await ensureNonPartialEventIdUniqueIndex('platform_notifications', 'platform_notifications_event_id_unique_idx');
     })().catch((error) => {
       platformNotificationsSchemaPromise = null;
       throw error;
@@ -844,6 +897,7 @@ export function ensureNotificationsSchema(): Promise<void> {
       for (const idxDdl of DATABASE_INDEX_DDL.filter((ddl) => ddl.includes('notifications_'))) {
         await pgClient.exec(idxDdl).catch(() => {});
       }
+      await ensureNonPartialEventIdUniqueIndex('notifications', 'notifications_event_id_unique_idx');
     })().catch((error) => {
       notificationsSchemaPromise = null;
       throw error;
@@ -1201,6 +1255,8 @@ export async function ensureSaasControlPlane(): Promise<void> {
           indexDdls: DATABASE_INDEX_DDL,
           ensureEnums: ensureDatabaseEnumsSchema,
         });
+        await ensureNonPartialEventIdUniqueIndex('platform_notifications', 'platform_notifications_event_id_unique_idx');
+        await ensureNonPartialEventIdUniqueIndex('notifications', 'notifications_event_id_unique_idx');
         await pgClient.exec(`DROP TABLE IF EXISTS password_reset_tokens CASCADE`).catch(() => {});
         await ensurePasswordResetSchema();
         await ensureAppSettingsSchema();

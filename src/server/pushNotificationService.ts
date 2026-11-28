@@ -418,16 +418,17 @@ export async function getFcmStats(): Promise<{
     const projectId = (await getAppSetting('FCM_PROJECT_ID', '')).trim();
 
     const countRes = await pgClient.query<{ count: string; user_role: string }>(`
-      SELECT user_role, COUNT(*) as count 
+      SELECT UPPER(COALESCE(user_role, 'ADMIN')) as user_role, COUNT(*) as count 
       FROM public.fcm_tokens 
-      GROUP BY user_role
+      GROUP BY UPPER(COALESCE(user_role, 'ADMIN'))
     `);
 
     const tokensByRole: Record<string, number> = {};
     let totalTokens = 0;
     for (const row of countRes.rows) {
       const c = parseInt(row.count, 10) || 0;
-      tokensByRole[row.user_role] = c;
+      const roleKey = String(row.user_role || 'ADMIN').toUpperCase();
+      tokensByRole[roleKey] = (tokensByRole[roleKey] || 0) + c;
       totalTokens += c;
     }
 
@@ -1530,12 +1531,14 @@ export async function testFcmPush(
     const uniqueTokens = Array.from(new Set(tokens.map((t) => String(t || '').trim()).filter(Boolean)));
     if (uniqueTokens.length === 0) {
       return {
-        success: true,
-        message: '✓ Test alert delivered to your open session! Tap "Enable Push" to register this device for background alerts when the app is closed.',
+        success: false,
+        message: isSuperAdminTest
+          ? 'No active SuperAdmin devices registered for FCM. Ensure notifications are allowed on each SuperAdmin device and tap "Verify Device Registration" or reload.'
+          : 'No active store devices registered for FCM. Enable push notifications on your store devices first.',
         sentCount: 0,
         fcmSentCount: 0,
         failureCount: 0,
-        channel: 'sse',
+        channel: 'fcm',
         eventId,
       };
     }
@@ -1559,11 +1562,18 @@ export async function testFcmPush(
       },
     });
 
+    const targetLabel = isSuperAdminTest ? 'SuperAdmin device(s)' : 'device(s)';
+    const successMsg =
+      result.failureCount > 0
+        ? `✓ Test notification dispatched to ${result.sentCount} ${targetLabel} (${result.failureCount} stale/unregistered token(s) were automatically removed).`
+        : `✓ Test notification successfully dispatched to ${result.sentCount} ${targetLabel}!`;
+
     return {
-      success: result.success,
-      message: result.success
-        ? `✓ Test notification successfully dispatched to ${result.sentCount} device(s)!`
-        : `Test alert sent to active session, but FCM delivery reported: ${result.error || 'Unknown error'}`,
+      success: result.success && result.sentCount > 0,
+      message:
+        result.success && result.sentCount > 0
+          ? successMsg
+          : `FCM delivery reported: ${result.error || 'No registered devices received the push notification.'}`,
       sentCount: result.sentCount,
       fcmSentCount: result.sentCount,
       failureCount: result.failureCount,
