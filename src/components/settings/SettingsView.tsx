@@ -1191,6 +1191,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             GMAIL_APP_PASSWORD: appSettingsForm.GMAIL_APP_PASSWORD ?? '',
             RESEND_FROM: fromValue,
             RESEND_FROM_EMAIL: emailValue,
+            FCM_PROJECT_ID: String(appSettingsForm.FCM_PROJECT_ID ?? '').trim(),
+            FCM_CLIENT_EMAIL: String(appSettingsForm.FCM_CLIENT_EMAIL ?? '').trim(),
+            FCM_PRIVATE_KEY: String(appSettingsForm.FCM_PRIVATE_KEY ?? '').trim(),
+            FCM_API_KEY: String(appSettingsForm.FCM_API_KEY ?? '').trim(),
+            FCM_MESSAGING_SENDER_ID: String(appSettingsForm.FCM_MESSAGING_SENDER_ID ?? '').trim(),
+            FCM_APP_ID: String(appSettingsForm.FCM_APP_ID ?? '').trim(),
+            FCM_MEASUREMENT_ID: String(appSettingsForm.FCM_MEASUREMENT_ID ?? '').trim(),
+            FCM_VAPID_KEY: String(appSettingsForm.FCM_VAPID_KEY ?? '').trim(),
           };
 
       const res = await api.settings.saveAppSettings(payload);
@@ -1221,12 +1229,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSavedAppSettings((prev) => ({ ...prev, ...resolvedUpdates }));
 
       if (!onlyNotificationTriggers) {
-        void resetFirebaseClientCache(true).then(() => {
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            return acquireAndSyncFcmToken('SUPERADMIN', { forceRefresh: true }).catch(() => null);
-          }
-          return null;
-        });
+        await resetFirebaseClientCache(true);
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          await acquireAndSyncFcmToken('SUPERADMIN', { forceRefresh: true }).catch(() => null);
+        }
       }
 
       setTimeout(() => setAppSettingsSuccess(false), 4500);

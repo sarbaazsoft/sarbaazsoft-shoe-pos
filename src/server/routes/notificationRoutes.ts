@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
@@ -1323,13 +1324,40 @@ router.post('/platform/:id/dismiss', async (req: Request, res: Response) => {
 // GET /api/notifications/fcm-config - Return public client Firebase config
 router.get('/fcm-config', async (_req: Request, res: Response) => {
   try {
-    const projectId = (await getAppSetting('FCM_PROJECT_ID', '')).trim();
-    const apiKey = (await getAppSetting('FCM_API_KEY', '')).trim();
-    const messagingSenderId = (await getAppSetting('FCM_MESSAGING_SENDER_ID', '')).trim();
-    const appId = (await getAppSetting('FCM_APP_ID', '')).trim();
-    const measurementId = (await getAppSetting('FCM_MEASUREMENT_ID', '')).trim();
-    const rawVapidKey = (await getAppSetting('FCM_VAPID_KEY', '')).trim();
-    const vapidKey = normalizeVapidPublicKey(rawVapidKey);
+    const [
+      rawProjectId,
+      rawApiKey,
+      rawSenderId,
+      rawAppId,
+      rawMeasurementId,
+      rawVapidKey,
+      rawClientEmail,
+      rawPrivateKey,
+    ] = await Promise.all([
+      getAppSetting('FCM_PROJECT_ID', ''),
+      getAppSetting('FCM_API_KEY', ''),
+      getAppSetting('FCM_MESSAGING_SENDER_ID', ''),
+      getAppSetting('FCM_APP_ID', ''),
+      getAppSetting('FCM_MEASUREMENT_ID', ''),
+      getAppSetting('FCM_VAPID_KEY', ''),
+      getAppSetting('FCM_CLIENT_EMAIL', ''),
+      getAppSetting('FCM_PRIVATE_KEY', ''),
+    ]);
+
+    const projectId = rawProjectId.trim();
+    const apiKey = rawApiKey.trim();
+    const messagingSenderId = rawSenderId.trim();
+    const appId = rawAppId.trim();
+    const measurementId = rawMeasurementId.trim();
+    const vapidKey = normalizeVapidPublicKey(rawVapidKey.trim());
+    const clientEmail = rawClientEmail.trim();
+    const privateKey = rawPrivateKey.trim();
+
+    const configVersion = crypto
+      .createHash('sha256')
+      .update(`${projectId}:${apiKey}:${messagingSenderId}:${appId}:${vapidKey}:${clientEmail}:${privateKey}`)
+      .digest('hex')
+      .slice(0, 16);
 
     const isConfigured = Boolean(projectId && apiKey);
     res.setHeader('Cache-Control', 'no-store');
@@ -1341,6 +1369,7 @@ router.get('/fcm-config', async (_req: Request, res: Response) => {
       appId,
       measurementId,
       vapidKey,
+      configVersion,
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to retrieve FCM configuration' });

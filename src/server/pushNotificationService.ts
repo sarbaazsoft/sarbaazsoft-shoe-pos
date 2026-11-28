@@ -686,21 +686,29 @@ export async function sendFcmPushToTokens(
             firstFailureCode = errCode;
             firstFailureMessage = errMsg;
           }
-          if (
+          const isMismatchedCredential =
             errCode === 'messaging/mismatched-credential' ||
-            errMsg.toLowerCase().includes('senderid mismatch')
-          ) {
+            errMsg.toLowerCase().includes('senderid mismatch');
+          const isUnregisteredOrInvalidToken =
+            errCode === 'messaging/invalid-registration-token' ||
+            errCode === 'messaging/registration-token-not-registered';
+
+          if (isMismatchedCredential) {
             sawMismatchedCredential = true;
             tokensToRemove.push(batchTokens[idx]);
-          } else if (
-            errCode === 'messaging/invalid-registration-token' ||
-            errCode === 'messaging/registration-token-not-registered'
-          ) {
+          } else if (isUnregisteredOrInvalidToken) {
             tokensToRemove.push(batchTokens[idx]);
           }
-          console.warn(
-            `[FCM] Token delivery failed (${errCode || 'unknown'}): ${errMsg || 'no details'}`
-          );
+
+          if (isMismatchedCredential || isUnregisteredOrInvalidToken) {
+            console.info(
+              `[FCM] Pruned stale device token (${errCode || 'unknown'}): ${errMsg || 'no details'}`
+            );
+          } else {
+            console.warn(
+              `[FCM] Token delivery failed (${errCode || 'unknown'}): ${errMsg || 'no details'}`
+            );
+          }
         }
       });
     }

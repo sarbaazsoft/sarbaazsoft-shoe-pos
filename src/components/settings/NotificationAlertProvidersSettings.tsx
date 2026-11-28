@@ -462,6 +462,8 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
 
   const configConsistencyWarning = useMemo(() => {
     const projectId = fcmSettings.FCM_PROJECT_ID.trim();
+    const clientEmail = fcmSettings.FCM_CLIENT_EMAIL.trim();
+    const privateKey = fcmSettings.FCM_PRIVATE_KEY.trim();
     const senderId = fcmSettings.FCM_MESSAGING_SENDER_ID.trim();
     const appId = fcmSettings.FCM_APP_ID.trim();
     const appIdMatch = appId.match(/^1:(\d+):/);
@@ -469,6 +471,19 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
 
     if (senderId && senderFromAppId && senderId !== senderFromAppId) {
       return `Sender ID (${senderId}) does not match the project number inside Web App ID (${appId}, expected ${senderFromAppId}). Both must come from the same Firebase Web App to prevent "SenderId mismatch".`;
+    }
+    const saDomainMatch = clientEmail.match(/@([a-z0-9-]+)\.iam\.gserviceaccount\.com$/i);
+    if (projectId && saDomainMatch && saDomainMatch[1] && saDomainMatch[1] !== projectId) {
+      return `Service Account Email belongs to project "${saDomainMatch[1]}", while Firebase Project ID is "${projectId}". Both must belong to the same Firebase project to prevent "SenderId mismatch".`;
+    }
+    if (projectId && privateKey.startsWith('{')) {
+      try {
+        const parsedSa = JSON.parse(privateKey);
+        const jsonProj = typeof parsedSa?.project_id === 'string' ? parsedSa.project_id.trim() : '';
+        if (jsonProj && jsonProj !== projectId) {
+          return `Service Account JSON Private Key belongs to project "${jsonProj}", while Firebase Project ID is "${projectId}". Use credentials from the same Firebase project.`;
+        }
+      } catch {}
     }
     if (
       projectId &&
@@ -478,7 +493,13 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
       return `Firebase Project ID is "${projectId}", while Sender ID / Web App ID still point to the old default project (900875095665). Replace Web API Key, Sender ID, Web App ID, and VAPID Key from "${projectId}" to avoid "SenderId mismatch".`;
     }
     return null;
-  }, [fcmSettings.FCM_PROJECT_ID, fcmSettings.FCM_MESSAGING_SENDER_ID, fcmSettings.FCM_APP_ID]);
+  }, [
+    fcmSettings.FCM_PROJECT_ID,
+    fcmSettings.FCM_CLIENT_EMAIL,
+    fcmSettings.FCM_PRIVATE_KEY,
+    fcmSettings.FCM_MESSAGING_SENDER_ID,
+    fcmSettings.FCM_APP_ID,
+  ]);
 
   if (loading) {
     return (

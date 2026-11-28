@@ -176,14 +176,18 @@ export async function resolveActivePushServiceWorker(): Promise<ServiceWorkerReg
     }
 
     let readyTimeout: ReturnType<typeof setTimeout> | null = null;
-    const readyReg = await Promise.race([
-      navigator.serviceWorker.ready.finally(() => {
-        if (readyTimeout) clearTimeout(readyTimeout);
-      }),
-      new Promise<ServiceWorkerRegistration | null>((resolve) => {
-        readyTimeout = setTimeout(() => resolve(null), 5000);
-      }),
-    ]);
+    const readyPromise = navigator.serviceWorker.ready;
+    const readyReg =
+      readyPromise && typeof readyPromise.then === 'function'
+        ? await Promise.race([
+            Promise.resolve(readyPromise).finally(() => {
+              if (readyTimeout) clearTimeout(readyTimeout);
+            }),
+            new Promise<ServiceWorkerRegistration | null>((resolve) => {
+              readyTimeout = setTimeout(() => resolve(null), 5000);
+            }),
+          ])
+        : null;
     if (readyReg?.active && readyReg.scope === reg?.scope) {
       reg = readyReg;
     }
@@ -236,7 +240,7 @@ async function ensureCleanPushSubscriptionForVapid(
   } catch {}
 }
 
-async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<void> {
+async function clearIndexedDbStores(dbName: string, candidateStores: string[]): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   await new Promise<void>((resolve) => {
     let settled = false;
@@ -248,7 +252,7 @@ async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<voi
     };
     const timer = setTimeout(finish, 400);
     try {
-      const req = indexedDB.open('firebase-messaging-database');
+      const req = indexedDB.open(dbName);
       req.onerror = () => {
         clearTimeout(timer);
         finish();
@@ -264,9 +268,7 @@ async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<voi
       req.onsuccess = () => {
         const db = req.result;
         try {
-          const storeNames = ['firebase-messaging-store', 'firebase-messaging-fid-registration-store'].filter((name) =>
-            db.objectStoreNames.contains(name)
-          );
+          const storeNames = candidateStores.filter((name) => db.objectStoreNames.contains(name));
           if (storeNames.length === 0) {
             db.close();
             clearTimeout(timer);
@@ -276,7 +278,7 @@ async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<voi
           const tx = db.transaction(storeNames, 'readwrite');
           for (const storeName of storeNames) {
             const store = tx.objectStore(storeName);
-            // Always clear all cached appId/FID entries so switching Firebase Web Apps never leaves stale registrations behind
+            // Always clear all cached appId/FID entries so switching Firebase Web Apps/Projects never leaves stale registrations behind
             store.clear();
           }
           tx.oncomplete = () => {
@@ -306,6 +308,17 @@ async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<voi
       finish();
     }
   });
+}
+
+async function clearFirebaseMessagingIndexedDbCache(_appId?: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  await Promise.all([
+    clearIndexedDbStores('firebase-messaging-database', [
+      'firebase-messaging-store',
+      'firebase-messaging-fid-registration-store',
+    ]),
+    clearIndexedDbStores('firebase-installations-database', ['firebase-installations-store']),
+  ]);
 }
 
 export async function resetFirebaseClientCache(clearLocalToken = false): Promise<void> {
@@ -776,7 +789,7 @@ export async function acquireAndSyncFcmToken(
         console.warn('[firebaseConfig]', vapidWarning);
       }
 
-      const activeClientConfigSig = `${config?.projectId || ''}:${config?.apiKey || ''}:${config?.messagingSenderId || ''}:${config?.appId || ''}:${vapidKey || ''}`;
+      const activeClientConfigSig = `${config?.projectId || ''}:${config?.apiKey || ''}:${config?.messagingSenderId || ''}:${config?.appId || ''}:${vapidKey || ''}:${config?.configVersion || ''}`;
       const previousClientConfigSig = localStorage.getItem(FCM_CLIENT_CONFIG_SIG_KEY) || '';
       const previousStoredToken = localStorage.getItem(FCM_TOKEN_KEY) || undefined;
       const hasConfigChanged = Boolean(
@@ -879,11 +892,15 @@ export async function acquireAndSyncFcmToken(
           const isKeyMismatchOrCorruptSub =
             msg.includes('applicationServerKey') ||
             msg.includes('InvalidAccessError') ||
+            msg.includes('token-unsubscribe-failed') ||
+            msg.includes('registration-token-not-registered') ||
+            msg.includes('mismatched-credential') ||
             (msg.includes('InvalidStateError') && !existingSubMatchesVapid);
 
           if (isKeyMismatchOrCorruptSub) {
-            // Only unsubscribe & re-subscribe when the existing PushSubscription key actually mismatches or is corrupt
+            // Unsubscribe & purge cached Firebase IndexedDB registrations cleanly, then retry getToken() once
             try {
+              await clearFirebaseMessagingIndexedDbCache();
               const staleSub = await activeSwReg.pushManager.getSubscription();
               if (staleSub) {
                 await staleSub.unsubscribe();
@@ -941,7 +958,7 @@ export async function acquireAndSyncFcmToken(
           tenantId = 0;
         }
 
-        const syncSignature = `${tenantId}:${userId}:${userRole}:${token}`;
+        const syncSignature = `${tenantId}:${userId}:${userRole}:${token}:${config?.configVersion || ''}`;
         const previousToken = previousStoredToken || localStorage.getItem(FCM_TOKEN_KEY) || undefined;
 
         if (shouldRotateToken || !hasFreshFcmSyncSignature(syncSignature) || (previousToken && previousToken !== token)) {

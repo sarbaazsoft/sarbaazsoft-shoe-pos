@@ -672,11 +672,7 @@ export async function updateAppSettings(
         const nextVal = cleanUpdates[k];
         if (nextVal !== undefined) {
           const prevVal = prevMap.get(k) || '';
-          if (k === 'FCM_VAPID_KEY' && prevVal !== nextVal && (prevVal !== '' || nextVal !== '')) {
-            shouldPurgeStaleFcmTokens = true;
-            break;
-          }
-          if (prevVal && nextVal && prevVal !== nextVal) {
+          if (prevVal !== nextVal && (prevVal !== '' || nextVal !== '')) {
             shouldPurgeStaleFcmTokens = true;
             break;
           }
