@@ -1675,6 +1675,7 @@ export const api = {
         failureCount?: number;
         channel?: 'fcm' | 'sse';
         eventId?: string;
+        error?: string;
       }>('/notifications/test-push', { method: 'POST', body: data || {} }),
     dismissAnnouncement: (id: number) =>
       apiFetch<{ success: boolean; message: string }>(`/notifications/platform/${id}/dismiss`, {

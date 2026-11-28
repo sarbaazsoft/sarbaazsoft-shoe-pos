@@ -161,7 +161,7 @@ export async function resolveActivePushServiceWorker(): Promise<ServiceWorkerReg
         scope: '/',
         updateViaCache: 'none',
       });
-    } else {
+    } else if (typeof reg.update === 'function') {
       void reg.update().catch(() => {});
     }
 
@@ -230,6 +230,81 @@ async function ensureCleanPushSubscriptionForVapid(
       }
     }
   } catch {}
+}
+
+async function clearFirebaseMessagingIndexedDbCache(appId?: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    const timer = setTimeout(finish, 400);
+    try {
+      const req = indexedDB.open('firebase-messaging-database');
+      req.onerror = () => {
+        clearTimeout(timer);
+        finish();
+      };
+      req.onupgradeneeded = () => {
+        // Database did not exist yet; abort creation so Firebase initializes schema cleanly
+        try {
+          req.transaction?.abort();
+        } catch {}
+        clearTimeout(timer);
+        finish();
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const storeNames = ['firebase-messaging-store', 'firebase-messaging-fid-registration-store'].filter((name) =>
+            db.objectStoreNames.contains(name)
+          );
+          if (storeNames.length === 0) {
+            db.close();
+            clearTimeout(timer);
+            finish();
+            return;
+          }
+          const tx = db.transaction(storeNames, 'readwrite');
+          for (const storeName of storeNames) {
+            const store = tx.objectStore(storeName);
+            if (appId) {
+              store.delete(appId);
+            } else {
+              store.clear();
+            }
+          }
+          tx.oncomplete = () => {
+            try {
+              db.close();
+            } catch {}
+            clearTimeout(timer);
+            finish();
+          };
+          tx.onerror = () => {
+            try {
+              db.close();
+            } catch {}
+            clearTimeout(timer);
+            finish();
+          };
+        } catch {
+          try {
+            db.close();
+          } catch {}
+          clearTimeout(timer);
+          finish();
+        }
+      };
+    } catch {
+      clearTimeout(timer);
+      finish();
+    }
+  });
 }
 
 export async function resetFirebaseClientCache(clearLocalToken = false): Promise<void> {
@@ -685,12 +760,22 @@ export async function acquireAndSyncFcmToken(
         clearPersistedFcmSyncSignature();
         if (activeSwReg?.active) {
           try {
+            activeSwReg.active.postMessage({ type: 'PREPARE_PUSH_SUBSCRIPTION_ROTATION' });
             activeSwReg.active.postMessage({ type: 'REINIT_FIREBASE_CONFIG' });
           } catch {}
         }
-        if (typeof deleteToken === 'function') {
+        // Bind the active root SW registration BEFORE deleteToken() so @firebase/messaging
+        // never re-registers the competing /firebase-messaging-sw.js worker scope.
+        if (activeSwReg) {
+          try {
+            (messaging as any).swRegistration = activeSwReg;
+          } catch {}
+        }
+        if (typeof deleteToken === 'function' && activeSwReg) {
           await deleteToken(messaging).catch(() => false);
         }
+        // Purge cached token details in IndexedDB even if cross-project DELETE /registrations failed
+        await clearFirebaseMessagingIndexedDbCache(config?.appId);
         if (activeSwReg?.pushManager && typeof activeSwReg.pushManager.getSubscription === 'function') {
           const oldSub = await activeSwReg.pushManager.getSubscription().catch(() => null);
           if (oldSub) {
@@ -700,6 +785,7 @@ export async function acquireAndSyncFcmToken(
         try {
           localStorage.removeItem(FCM_TOKEN_KEY);
         } catch {}
+        await new Promise((r) => setTimeout(r, 100));
       }
 
       const storedToken = shouldRotateToken ? undefined : previousStoredToken;
@@ -810,6 +896,9 @@ export async function acquireAndSyncFcmToken(
             if (u.id) userId = Number(u.id);
           }
         } catch {}
+        if (userRole === 'SUPERADMIN') {
+          tenantId = 0;
+        }
 
         const syncSignature = `${tenantId}:${userId}:${userRole}:${token}`;
         const previousToken = previousStoredToken || localStorage.getItem(FCM_TOKEN_KEY) || undefined;
@@ -835,6 +924,8 @@ export async function acquireAndSyncFcmToken(
         } else if (activeClientConfigSig) {
           localStorage.setItem(FCM_CLIENT_CONFIG_SIG_KEY, activeClientConfigSig);
         }
+      } else if (shouldRotateToken && previousStoredToken) {
+        await api.notifications.removeFcmToken(previousStoredToken).catch(() => {});
       }
 
       const stillDeliveryBlocked =

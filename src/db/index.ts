@@ -1160,7 +1160,18 @@ async function executeMockQuery<T = any>(text: string, params: any[] = []): Prom
       return { rows: rows as unknown as T[], rowCount: rows.length };
     }
     if (upper.startsWith('DELETE FROM')) {
-      if (upper.includes('WHERE TENANT_ID = $1')) {
+      if (upper.includes('DEVICE_NAME LIKE')) {
+        const likePattern = String(params[upper.includes("UPPER(USER_ROLE) = 'SUPERADMIN'") ? 0 : 3] || '').replace(/%/g, '');
+        const keepToken = String(params[upper.includes("UPPER(USER_ROLE) = 'SUPERADMIN'") ? 1 : 4] || '');
+        mockStore.fcm_tokens = mockStore.fcm_tokens.filter((f: any) => {
+          const matchesDevice = likePattern && String(f.device_name || '').includes(likePattern);
+          if (!matchesDevice || f.token === keepToken) return true;
+          if (upper.includes("UPPER(USER_ROLE) = 'SUPERADMIN'")) {
+            return String(f.user_role || '').toUpperCase() !== 'SUPERADMIN';
+          }
+          return Number(f.tenant_id) !== Number(params[0] || 0);
+        });
+      } else if (upper.includes('WHERE TENANT_ID = $1')) {
         const tid = Number(params[0] || 0);
         mockStore.fcm_tokens = mockStore.fcm_tokens.filter((f: any) => Number(f.tenant_id) !== tid);
       } else if (Array.isArray(params[0])) {

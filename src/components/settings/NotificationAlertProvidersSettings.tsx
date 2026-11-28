@@ -17,7 +17,9 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import {
+  FCM_TOKEN_KEY,
   acquireAndSyncFcmToken,
+  isExplicitUserPushOptOut,
   requestFcmDeviceToken,
   resetFirebaseClientCache,
 } from '../../services/firebaseConfig.ts';
@@ -229,13 +231,24 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
       }
 
       await resetFirebaseClientCache(true);
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        const resync = await acquireAndSyncFcmToken(getActiveUserRole(), { forceRefresh: true }).catch(() => null);
-        if (resync && !resync.token && resync.warning) {
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted' &&
+        !isExplicitUserPushOptOut()
+      ) {
+        const resync = await acquireAndSyncFcmToken(getActiveUserRole(), { forceRefresh: true }).catch((err: any) => ({
+          success: false,
+          token: undefined,
+          error: err?.message || 'Failed to refresh browser FCM registration.',
+          warning: undefined,
+        }));
+        if (resync && !resync.token && (resync.error || resync.warning)) {
           setTestResult({
             success: false,
-            message: `Credentials saved, but browser FCM token registration reported: ${resync.warning}`,
+            message: `Credentials saved, but browser FCM token registration reported: ${resync.error || resync.warning}`,
           });
+        } else if (resync?.token) {
+          setTestResult(null);
         }
       }
 
@@ -276,14 +289,63 @@ export const NotificationAlertProvidersSettings: React.FC<NotificationAlertProvi
     setTestResult(null);
 
     try {
-      const eventId = `test-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const testTitle = 'Firebase Push Test';
-      const testMessage = 'FCM push delivery confirmed. Real-time alerts are operational.';
-      const res = await api.notifications.testPush({
-        title: testTitle,
-        message: testMessage,
-        eventId,
-      });
+      const activeRole = getActiveUserRole();
+      const canUseBrowserPush =
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted' &&
+        !isExplicitUserPushOptOut();
+
+      // Ensure this browser device has a registered FCM token before testing when permission is granted
+      let hasLocalToken = false;
+      try {
+        hasLocalToken = Boolean(localStorage.getItem(FCM_TOKEN_KEY));
+      } catch {}
+
+      if (canUseBrowserPush && !hasLocalToken) {
+        await acquireAndSyncFcmToken(activeRole, { forceRefresh: false }).catch(() => null);
+      }
+
+      const dispatchTestAlert = async () => {
+        const eventId = `test-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const testTitle = 'Firebase Push Test';
+        const testMessage = 'FCM push delivery confirmed. Real-time alerts are operational.';
+        const res = await api.notifications.testPush({
+          title: testTitle,
+          message: testMessage,
+          eventId,
+        });
+        return { res, eventId, testTitle, testMessage };
+      };
+
+      let { res, eventId, testTitle, testMessage } = await dispatchTestAlert();
+
+      const rawErrText = `${res.error || ''} ${res.message || ''}`.toLowerCase();
+      const isStaleTokenFailure =
+        !res.success &&
+        (rawErrText.includes('registration-token-not-registered') ||
+          rawErrText.includes('invalid-registration-token') ||
+          rawErrText.includes('mismatched-credential') ||
+          rawErrText.includes('senderid mismatch') ||
+          rawErrText.includes('device unregistered'));
+
+      // Self-heal once: server just purged the unregistered token(s), so rotate/re-register this
+      // browser's fresh FCM token and retry testPush once automatically.
+      if (isStaleTokenFailure && canUseBrowserPush) {
+        await resetFirebaseClientCache(true);
+        const healed = await acquireAndSyncFcmToken(activeRole, { forceRefresh: true }).catch(() => null);
+        if (healed?.success && healed.token) {
+          const retried = await dispatchTestAlert();
+          res = retried.res;
+          eventId = retried.eventId;
+          testTitle = retried.testTitle;
+          testMessage = retried.testMessage;
+        } else if (healed && (healed.error || healed.warning)) {
+          res = {
+            ...res,
+            message: `${res.message || 'FCM delivery reported unregistered device.'} Browser re-registration note: ${healed.error || healed.warning}`,
+          };
+        }
+      }
 
       if (res.success) {
         void triggerTestNotificationShadeFallback({

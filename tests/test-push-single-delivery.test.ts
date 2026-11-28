@@ -336,8 +336,68 @@ test('updateAppSettings purges stale fcm_tokens when Firebase project/sender/VAP
       false,
       'Unrelated settings updates must not delete registered fcm_tokens'
     );
+
+    // Adding FCM_VAPID_KEY for the first time (prev='' -> next='B...') must also purge pre-VAPID tokens
+    capturedSql.length = 0;
+    (pgClient as any).query = async (sql: string) => {
+      const normalized = String(sql);
+      capturedSql.push(normalized);
+      if (normalized.includes('FROM public.app_settings WHERE key = ANY')) {
+        return {
+          rows: [{ key: 'FCM_VAPID_KEY', value: '' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    };
+    await updateAppSettings(
+      { FCM_VAPID_KEY: 'BObr4RIWMRReymQIe49GpD9RdwDzWJkaipCIKTHc90CrIcrSwUW63ZRe6AVgTGMQtT8J_oZqa-iqgUdx9A1234' },
+      'SUPERADMIN',
+      { allowInternal: true }
+    );
+    assert.ok(
+      capturedSql.some((q) => q.includes('DELETE FROM public.fcm_tokens')),
+      'Setting FCM_VAPID_KEY for the first time must purge pre-VAPID fcm_tokens'
+    );
   } finally {
     (pgClient as any).query = origQuery;
   }
 });
+
+test('FCM token rotation binds active SW before deleteToken, clears IDB cache, keeps SUPERADMIN tenantId=0, and self-heals unregistered tokens', async () => {
+  const firebaseConfigSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'services', 'firebaseConfig.ts'),
+    'utf8'
+  );
+  const swIdx = firebaseConfigSrc.indexOf('(messaging as any).swRegistration = activeSwReg');
+  const delIdx = firebaseConfigSrc.indexOf('await deleteToken(messaging)');
+  assert.ok(swIdx > -1 && delIdx > -1 && swIdx < delIdx, 'activeSwReg must be bound before deleteToken()');
+  assert.ok(
+    firebaseConfigSrc.includes('clearFirebaseMessagingIndexedDbCache'),
+    'Must purge firebase-messaging-database IndexedDB entries on rotation'
+  );
+  assert.ok(
+    firebaseConfigSrc.includes("if (userRole === 'SUPERADMIN')") &&
+      firebaseConfigSrc.includes('tenantId = 0'),
+    'SUPERADMIN FCM token registration must preserve tenantId = 0'
+  );
+
+  const swSrc = fs.readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf8');
+  assert.ok(
+    swSrc.includes('suppressSwResubscribeUntil') &&
+      swSrc.includes("data.type === 'PREPARE_PUSH_SUBSCRIPTION_ROTATION'"),
+    'Service Worker must suppress pushsubscriptionchange auto-resubscribe during intentional token rotation'
+  );
+
+  const providersUiSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src', 'components', 'settings', 'NotificationAlertProvidersSettings.tsx'),
+    'utf8'
+  );
+  assert.ok(
+    providersUiSrc.includes('registration-token-not-registered') &&
+      providersUiSrc.includes('isStaleTokenFailure'),
+    'Test Push UI must auto-heal and retry once if FCM reports an unregistered stale token'
+  );
+});
+
 

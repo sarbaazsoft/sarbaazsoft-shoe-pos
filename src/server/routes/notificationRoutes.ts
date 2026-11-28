@@ -1368,10 +1368,11 @@ router.post('/fcm-token', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'FCM device token is required' });
     }
 
-    const tenantId = Number(req.body?.tenantId || identity.tenantId) || 1;
-    const userId = Number(req.body?.userId || identity.userId) || 0;
     const rawRole = req.body?.userRole || req.body?.role || identity.role || 'ADMIN';
     const role = String(rawRole).toUpperCase();
+    const rawTenantId = req.body?.tenantId ?? identity.tenantId;
+    const tenantId = role === 'SUPERADMIN' ? 0 : (Number(rawTenantId) || 1);
+    const userId = Number(req.body?.userId || identity.userId) || 0;
     const userAgent = String(req.headers['user-agent'] || req.body?.userAgent || '');
     const deviceName = String(req.body?.deviceName || '');
 

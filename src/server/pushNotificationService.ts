@@ -337,7 +337,7 @@ export async function saveFcmToken(
     if (!cleanToken) return false;
 
     const cleanRole = String(userRole || (tenantId === 0 ? 'SUPERADMIN' : 'ADMIN')).trim().toUpperCase();
-    const cleanTenantId = Number(tenantId) || 1;
+    const cleanTenantId = cleanRole === 'SUPERADMIN' ? 0 : (Number(tenantId) || 1);
     const cleanUserId = Number(userId) || 0;
     const cleanPreviousToken = String(previousToken || '').trim();
 
@@ -349,17 +349,29 @@ export async function saveFcmToken(
 
     const deviceIdMatch = String(deviceName || '').match(/\[id:([a-zA-Z0-9_-]{8,40})\]/);
     if (deviceIdMatch) {
-      await pgClient
-        .query(
-          `DELETE FROM public.fcm_tokens
-           WHERE tenant_id = $1
-             AND user_id = $2
-             AND UPPER(user_role) = $3
-             AND device_name LIKE $4
-             AND token != $5`,
-          [cleanTenantId, cleanUserId, cleanRole, `%[id:${deviceIdMatch[1]}]%`, cleanToken]
-        )
-        .catch(() => {});
+      if (cleanRole === 'SUPERADMIN') {
+        await pgClient
+          .query(
+            `DELETE FROM public.fcm_tokens
+             WHERE UPPER(user_role) = 'SUPERADMIN'
+               AND device_name LIKE $1
+               AND token != $2`,
+            [`%[id:${deviceIdMatch[1]}]%`, cleanToken]
+          )
+          .catch(() => {});
+      } else {
+        await pgClient
+          .query(
+            `DELETE FROM public.fcm_tokens
+             WHERE tenant_id = $1
+               AND user_id = $2
+               AND UPPER(user_role) = $3
+               AND device_name LIKE $4
+               AND token != $5`,
+            [cleanTenantId, cleanUserId, cleanRole, `%[id:${deviceIdMatch[1]}]%`, cleanToken]
+          )
+          .catch(() => {});
+      }
     }
 
     await pgClient.query(

@@ -962,7 +962,12 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
+let suppressSwResubscribeUntil = 0;
+
 self.addEventListener('pushsubscriptionchange', (event) => {
+  if (Date.now() < suppressSwResubscribeUntil) {
+    return;
+  }
   broadcastPushDedupeEvent({
     type: 'SW_PUSH_SUBSCRIPTION_CHANGED',
     timestamp: Date.now(),
@@ -1685,10 +1690,28 @@ self.addEventListener('message', (event) => {
     return;
   }
 
+  if (data.type === 'PREPARE_PUSH_SUBSCRIPTION_ROTATION') {
+    suppressSwResubscribeUntil = Date.now() + 5000;
+    return;
+  }
+
   if (data.type === 'REINIT_FIREBASE_CONFIG') {
+    suppressSwResubscribeUntil = Date.now() + 5000;
     messagingInitialized = false;
     initFirebasePromise = null;
-    initFirebaseInWorker().catch(() => {});
+    const replyPort = event.ports && event.ports[0];
+    const reinitPromise = initFirebaseInWorker()
+      .catch(() => {})
+      .finally(() => {
+        if (replyPort && typeof replyPort.postMessage === 'function') {
+          try {
+            replyPort.postMessage({ ok: true });
+          } catch {}
+        }
+      });
+    if (typeof event.waitUntil === 'function') {
+      event.waitUntil(reinitPromise);
+    }
     return;
   }
 
